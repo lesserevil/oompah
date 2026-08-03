@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T21:24:36.214622Z'
+updated_at: '2026-08-03T21:24:59.642424Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -420,5 +420,15 @@ author: oompah
 created: 2026-08-03 21:19
 ---
 Auditor attempt ended: ACP turn timeout exceeded. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-03 21:24
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-03 21:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
