@@ -14,8 +14,10 @@ import math
 import os
 import re
 import signal
+import secrets
 import ssl
 import subprocess
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -133,6 +135,98 @@ _RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
 # boundary instead so every continuation remains an approved workspace read.
 _READ_FILE_DEFAULT_CHARS = 32_000
 _TOOL_RESULT_MAX_CHARS = 64_000
+_COMMAND_OUTPUT_PAGE_CHARS = 32_000
+_COMMAND_OUTPUT_MAX_RECORDS = 32
+
+
+class CommandOutputStore:
+    """Keep oversized command results behind an opaque, session-local tool.
+
+    Provider transports are allowed to persist large MCP results in their own
+    private state directories.  That is not an authority boundary an auditor
+    can cross, so oversized command output must never be handed to the
+    provider in the first place.  This store keeps the result in Oompah
+    memory and exposes only bounded pages through the approved tool catalog.
+    The random result id is intentionally not a filesystem path.
+    """
+
+    def __init__(self, *, max_records: int = _COMMAND_OUTPUT_MAX_RECORDS) -> None:
+        self._max_records = max(1, int(max_records))
+        self._records: dict[str, str] = {}
+        self._order: list[str] = []
+        self._lock = threading.Lock()
+
+    def save(self, output: str) -> str:
+        result_id = f"cmd-{secrets.token_urlsafe(18)}"
+        with self._lock:
+            self._records[result_id] = output
+            self._order.append(result_id)
+            while len(self._order) > self._max_records:
+                expired = self._order.pop(0)
+                self._records.pop(expired, None)
+        return result_id
+
+    def _get(self, result_id: Any) -> str | None:
+        if not isinstance(result_id, str) or not result_id.strip():
+            return None
+        with self._lock:
+            return self._records.get(result_id)
+
+    @staticmethod
+    def _bounded_limit(raw: Any) -> int | None:
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+            return None
+        return min(raw, _COMMAND_OUTPUT_PAGE_CHARS)
+
+    def read(self, args: dict[str, Any]) -> str:
+        result_id = args.get("result_id")
+        output = self._get(result_id)
+        if output is None:
+            return "Error: command output result is unknown or expired"
+
+        offset = args.get("offset", 0)
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            return "Error: offset must be a non-negative integer"
+        limit = self._bounded_limit(args.get("limit", _COMMAND_OUTPUT_PAGE_CHARS))
+        if limit is None:
+            return "Error: limit must be a positive integer"
+
+        pattern = args.get("pattern")
+        if pattern is not None and str(pattern):
+            try:
+                matcher = re.compile(str(pattern))
+            except re.error as exc:
+                return f"Error: invalid search pattern: {exc}"
+            matches: list[str] = []
+            for match in matcher.finditer(output):
+                start = max(0, match.start() - 120)
+                end = min(len(output), match.end() + 120)
+                matches.append(f"match at {match.start()}:\n{output[start:end]}")
+                if len("\n\n".join(matches)) >= limit or len(matches) >= 100:
+                    break
+            if not matches:
+                return f"No matches found for {pattern!r} in command output"
+            result = "\n\n".join(matches)
+            if len(result) > limit:
+                result = result[:limit]
+                result += "\n[search results truncated; narrow the pattern to continue]"
+            return result
+
+        if offset > len(output):
+            return f"Error: offset {offset} is past end of command output ({len(output)} characters)"
+        end = min(len(output), offset + limit)
+        header = (
+            f"[oompah read_command_output: result_id={result_id!r} "
+            f"characters {offset}:{end} of {len(output)}]\n"
+        )
+        trailer = (
+            "\n[truncated by Oompah before provider transport; continue only "
+            "through the approved tool with "
+            f"read_command_output(result_id={result_id!r}, offset={end}, limit={limit})]"
+            if end < len(output)
+            else "\n[end of command output]"
+        )
+        return f"{header}{output[offset:end]}{trailer}"
 
 
 def _resolve_run_command_timeout(raw: str | None = None) -> int:
@@ -225,6 +319,42 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     }
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_command_output",
+            "description": (
+                "Read or search a bounded page of oversized output from a prior "
+                "run_command call. Use the opaque result_id returned by run_command; "
+                "never use a provider path, grep, tail, or a shell pipeline."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "result_id": {
+                        "type": "string",
+                        "description": "Opaque result id returned by run_command.",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Zero-based character offset for the next page.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": _COMMAND_OUTPUT_PAGE_CHARS,
+                        "description": "Maximum characters to return; defaults to 32000.",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Optional regular expression to search the saved output.",
+                    },
+                },
+                "required": ["result_id"],
             },
         },
     },
@@ -614,6 +744,7 @@ def _exec_run_command(
     timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
     tool_liveness: Any = None,
+    output_store: CommandOutputStore | None = None,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -695,7 +826,30 @@ def _exec_run_command(
         if stderr:
             parts.append(f"stderr:\n{stderr}")
         parts.append(f"exit_code: {process.returncode}")
-        return "\n".join(parts)
+        result = "\n".join(parts)
+        if len(result) <= _TOOL_RESULT_MAX_CHARS:
+            return result
+
+        result_id: str | None = None
+        if output_store is not None:
+            try:
+                result_id = output_store.save(result)
+            except Exception as exc:  # noqa: BLE001 - keep provider boundary fail-closed
+                logger.warning("Unable to retain oversized command output: %s", exc)
+
+        preview = result[:_COMMAND_OUTPUT_PAGE_CHARS]
+        if result_id is None:
+            return (
+                f"{preview}\n[command output truncated by Oompah before provider "
+                "transport; no approved continuation is available]"
+            )
+        return (
+            f"{preview}\n[command output truncated by Oompah before provider "
+            f"transport; result_id={result_id!r}, total_characters={len(result)}. "
+            "Continue only with the approved read_command_output tool. "
+            f"Example: read_command_output(result_id={result_id!r}, offset="
+            f"{_COMMAND_OUTPUT_PAGE_CHARS}, limit={_COMMAND_OUTPUT_PAGE_CHARS})]"
+        )
     except Exception as exc:
         return f"Error running command: {exc}"
     finally:
@@ -704,6 +858,17 @@ def _exec_run_command(
                 tool_liveness.complete(invocation_id)
             except Exception:
                 pass
+
+
+def _exec_read_command_output(
+    output_store: CommandOutputStore | None,
+    args: dict[str, Any],
+) -> str:
+    """Read an opaque oversized command result through the approved channel."""
+
+    if output_store is None:
+        return "Error: command output continuation is unavailable in this session"
+    return output_store.read(args)
 
 
 def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
@@ -768,7 +933,9 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
 
 # Tools that require explicit opt-in. They are NOT registered with the
 # model unless ``ApiAgentSession.enabled_tools`` includes them.
-_OPT_IN_TOOLS: frozenset[str] = frozenset({"attach_image", AUDITOR_RESULT_TOOL_NAME})
+_OPT_IN_TOOLS: frozenset[str] = frozenset(
+    {"attach_image", AUDITOR_RESULT_TOOL_NAME, "read_command_output"}
+)
 
 
 # Phrases that indicate a confirmation-seeking question.  When an
@@ -824,13 +991,16 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "edit_file": ["path", "old_string", "new_string"],
     "search_files": ["pattern"],
     "run_command": ["command"],
+    "read_command_output": ["result_id"],
     "list_files": [],
     "ask_question": ["question"],
     "attach_image": ["issue_identifier", "filename", "content_base64"],
     AUDITOR_RESULT_TOOL_NAME: ["audit_id", "target_state", "evidence_fingerprint", "verdict", "message"],
 }
 
-_READ_ONLY_TOOL_NAMES = frozenset({"read_file", "search_files", "list_files"})
+_READ_ONLY_TOOL_NAMES = frozenset(
+    {"read_file", "search_files", "list_files", "read_command_output"}
+)
 
 
 def _execute_tool(
@@ -848,6 +1018,7 @@ def _execute_tool(
     audit_result_handler: Any = None,
     tool_liveness: Any = None,
     policy_denial_handler: Any = None,
+    command_output_store: CommandOutputStore | None = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -899,6 +1070,8 @@ def _execute_tool(
         )
 
     try:
+        if name == "read_command_output":
+            return _exec_read_command_output(command_output_store, args)
         if name == "run_command":
             shell_denial = check_shell_command(
                 action_policy, str(args.get("command") or "")
@@ -940,6 +1113,8 @@ def _execute_tool(
             }
             if tool_liveness is not None:
                 command_kwargs["tool_liveness"] = tool_liveness
+            if command_output_store is not None:
+                command_kwargs["output_store"] = command_output_store
             return handler(workspace, args, **command_kwargs)
         return handler(workspace, args)
     except ValueError as exc:
@@ -1310,6 +1485,14 @@ class ApiAgentSession:
         self.audit_result_handler = audit_result_handler
         self.tool_liveness = tool_liveness
         self.policy_denial_handler = policy_denial_handler
+        # Auditor command output continuations are session-local and stay in
+        # the approved tool channel. Normal workers do not need a continuation
+        # capability, so they receive a bounded preview only.
+        self.command_output_store = (
+            CommandOutputStore()
+            if action_policy is not None and action_policy.read_only
+            else None
+        )
         self._ssl_ctx = _build_ssl_context()
 
     def _log_event(self, kind: str, **fields: Any) -> None:
@@ -1353,11 +1536,15 @@ class ApiAgentSession:
     @property
     def _tool_definitions(self) -> list[dict[str, Any]]:
         """Tool schemas to send to the API for this session."""
+        def available(name: str) -> bool:
+            return name != "read_command_output" or self.command_output_store is not None
+
         if self.enabled_tools is None:
             return [
                 t
                 for t in TOOL_DEFINITIONS
                 if t["function"]["name"] not in _OPT_IN_TOOLS
+                and available(t["function"]["name"])
                 and (
                     not self.read_only
                     or t["function"]["name"] in _READ_ONLY_TOOL_NAMES
@@ -1367,6 +1554,7 @@ class ApiAgentSession:
             t
             for t in TOOL_DEFINITIONS
             if t["function"]["name"] in self.enabled_tools
+            and available(t["function"]["name"])
             and (
                 not self.read_only
                 or t["function"]["name"] in _READ_ONLY_TOOL_NAMES
@@ -1675,6 +1863,7 @@ class ApiAgentSession:
                             self.audit_result_handler,
                             self.tool_liveness,
                             self.policy_denial_handler,
+                            self.command_output_store,
                         )
 
                     tool_failed = result_str.startswith("Error")

@@ -76,6 +76,7 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
         "Allowed read/test actions",
         "read_file",
         "search_files",
+        "read_command_output",
         "run_command",
         "submit_audit_result",
         "Auditor result tool schema",
@@ -87,6 +88,8 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
         "Do not approve code",
     ):
         assert required in prompt
+
+    assert "absolute/provider-private path" in prompt
 
     assert f"<{DELIMITER}" in prompt
     assert '"trust":"untrusted"' in prompt
