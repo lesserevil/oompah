@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-737
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Keep health and graceful cutover responsive during terminal lifecycle reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T21:07:10.487312Z'
+updated_at: '2026-08-03T21:21:13.959475Z'
 work_branch: OOMPAH-737
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/693
@@ -105,6 +105,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/693
 oompah.review_number: '693'
 oompah.work_branch: OOMPAH-737
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c5a768bff9d5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-737
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b25b3c554ad5dcabef0c9d82cde7fed09ac413add71f1bc8f60c3fb574c388d9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T21:21:04.199551+00:00'
+  - version: 1
+    audit_id: audit-0346802ed738
+    project_id: proj-14849f1b
+    task_id: OOMPAH-737
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b25b3c554ad5dcabef0c9d82cde7fed09ac413add71f1bc8f60c3fb574c388d9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T21:21:04.199551+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -202,5 +241,15 @@ author: oompah
 created: 2026-08-03 21:06
 ---
 Branch quality gate passed for `2fba254fa752e0fcb5bdcfe80b9ccb739b507339` using `make test` in 413.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 21:21
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 21:21
+---
+YOLO: merged PR #693.
 ---
 <!-- COMMENTS:END -->
