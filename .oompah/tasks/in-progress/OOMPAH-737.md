@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:26:51.413001Z'
+updated_at: '2026-08-03T20:33:08.144958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-08-03 20:26
 ---
 Implementation: Added versioned lifecycle reconciliation state with pending/completed/failed rows, persisted counters/cursor/errors, bounded batch processing, per-row locks, and non-blocking progress snapshots. Terminal-audit startup now defers legacy shared-epic repair; the orchestrator schedules coalesced background batches and exposes terminal_lifecycle_reconciliation in maintenance/state. Added OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE configuration. Cutover now treats a candidate health/state identity as authoritative and ignores a post-candidate resume transport failure.
+---
+author: oompah
+created: 2026-08-03 20:33
+---
+Verification so far: 75 focused terminal-enforcement/cutover tests pass; 292 adjacent event-loop/config/build-identity/auth/restart-helper tests pass. Added metadata-write interruption coverage showing restart recovery finalizes the audit ledger without a duplicate Done mutation. A make setup attempt was blocked by the environment's astral-uv DBus transient-scope error, so I’m continuing with the existing project Python environment and will report that gate limitation separately.
 ---
 <!-- COMMENTS:END -->
