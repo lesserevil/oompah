@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:06:24.107638Z'
+updated_at: '2026-08-03T14:06:55.164971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,10 @@ author: oompah
 created: 2026-08-03 14:06
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 14:06
+---
+Understanding: oversized output from an allowed auditor run_command must be bounded before provider persistence, with approved continuation/read access that stays within the audit authority boundary. I will trace the ACP/Claude result bridge, auditor prompt/tool handling, and lifecycle alert/counter paths; then implement focused tests and verify the relevant suites.
 ---
 <!-- COMMENTS:END -->
