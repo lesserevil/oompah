@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T16:22:09.490150Z'
+updated_at: '2026-08-03T20:05:33.153920Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
