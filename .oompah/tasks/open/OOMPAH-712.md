@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-712
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Keep retiring terminal auditors visible until provider exit
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-03T00:23:44.424551Z'
-updated_at: '2026-08-03T00:24:48.757750Z'
+updated_at: '2026-08-03T00:25:01.802384Z'
 work_branch: null
 target_branch: null
 review_url: null
