@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-03T21:41:26.138028Z'
+updated_at: '2026-08-03T21:41:29.991411Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -86,8 +86,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-89e8d4be2e28
-    applied: false
+    applied: true
     created_at: '2026-08-03T21:41:20.620372+00:00'
+    applied_at: '2026-08-03T21:41:28.671325+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
