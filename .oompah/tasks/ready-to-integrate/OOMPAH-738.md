@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:47:52.994569Z'
+updated_at: '2026-08-03T22:48:14.364103Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,11 +93,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-738
-  base_branch: main
-  base_sha: 3cdf7d41f3928c06545d1b58e88614226ede7ab3
-  head_sha: 50c97cb36c80d9fac11706fc10c8b67035fb6378
-  submitted_at: '2026-08-03T22:10:27.456578+00:00'
-  updated_at: '2026-08-03T22:11:35.772300+00:00'
+  head_sha: 5f89417c5547bb74e5c842ff59fc901b57b3831f
+  submitted_at: '2026-08-03T22:48:10.749709+00:00'
+  updated_at: '2026-08-03T22:48:10.749709+00:00'
 ---
 ## Summary
 
@@ -333,5 +331,10 @@ Root causes:
 Fix: minimal 7-line change across 4 test files — add _retry_authority_lock = threading.RLock() to each helper, change one is to ==.
 
 Verification: all 12 previously-failing tests pass; full affected suites (133 tests) pass; original PR suites (105 tests) unaffected.
+---
+author: oompah
+created: 2026-08-03 22:48
+---
+Fixed 12 CI gate failures: test helpers creating Orchestrator via __new__() were missing the _retry_authority_lock attribute introduced by this PR's _running_items_snapshot locking fix. Added _retry_authority_lock to 4 test helper functions in test_orchestrator_duplicate_detection.py, test_release_pick_validation.py, and test_storage_cleanup.py; changed one identity check (is) to equality (==) in test_task_cost_telemetry.py after _managed_processes was refactored to return a copied dict. All 12 previously failing tests now pass; original 105 PR suite tests unaffected.
 ---
 <!-- COMMENTS:END -->
