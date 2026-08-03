@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:26:31.321841Z'
+updated_at: '2026-08-03T18:29:16.371469Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -219,5 +219,10 @@ author: oompah
 created: 2026-08-03 18:26
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-03 18:29
+---
+Understanding (continuation run): Reviewing the recovery checkpoint from the previous agent. Three root fixes have been partially implemented: (1) removed updated_at from the standalone delivery evidence revision fingerprint to prevent benign tracker bookkeeping from revoking live delivery authority; (2) added _standalone_delivery_future to decouple standalone reconciliation from the shared-epic _integration_future so neither blocks the other; (3) moved standalone reconciliation launch to the start of _tick so maintenance lane starvation cannot defer it. Need to verify all tests pass, check startup recovery is wired correctly, verify wakeup on same-head resubmit, and ensure the new tests meet all acceptance criteria before submitting.
 ---
 <!-- COMMENTS:END -->
