@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T18:38:42.365459Z'
+updated_at: '2026-08-03T18:39:58.297886Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -59,13 +59,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1942
+  total_input_tokens: 16
+  total_output_tokens: 2534
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1942
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 592
       cost_usd: 0.0
   runs:
   - profile: default
@@ -74,6 +78,12 @@ oompah.task_costs:
     output_tokens: 1942
     cost_usd: 0.0
     recorded_at: '2026-08-03T16:25:05.466875+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 592
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T18:39:56.100458+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-729__20260803T162427Z
@@ -340,5 +350,15 @@ Safe evidence:
 - canonical_fingerprint: compute_issue_evidence_fingerprint uses integrated_sha when integration.state == 'integrated'
 - api_and_cli: PATCH /issues/{id} audit_retry_evidence_addendum; oompah task set-status --audit-retry-evidence-addendum JSON flag with validation
 - docs: docs/auditor-dispatch-operations.md documents the Missing Evidence Supplied After Integration recovery flow
+---
+author: oompah
+created: 2026-08-03 18:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 100, Tool calls: 86
+- Tokens: 6 in / 592 out [598 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 32m 38s
+- Log: OOMPAH-729__20260803T180725Z.jsonl
 ---
 <!-- COMMENTS:END -->
