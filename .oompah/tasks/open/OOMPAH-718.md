@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:10:21.506526Z'
+updated_at: '2026-08-03T13:10:48.757312Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 2fe699f516cdf2f6b36f5640c87410f715e321759bec79c16b66e7f1ef3d2fb9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 12451668-b58c-407f-9ee1-27a59893b7b2
+  claim_owner: 2dcc53e1-cdcd-4522-a08d-de6ce4222a8c
+  claimed_at: '2026-08-03T13:10:41.525962+00:00'
+  claim_expires_at: '2026-08-03T13:40:41.525962+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: e196603f-1efd-470f-a035-57080debadf7
 ---
 ## Summary
 
@@ -50,3 +68,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 13:10
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 13:10
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
