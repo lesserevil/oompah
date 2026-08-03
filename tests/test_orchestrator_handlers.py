@@ -3250,11 +3250,16 @@ class TestTickDelegation:
         Mock them so ``assert_called_once`` only observes the explicit
         _notify_observers call inside _tick(), the invariant the test targets.
         Same isolation pattern OOMPAH-652 applied to TestRunStep5cEpicMaintenance.
+
+        Force slow-tick diagnostics so the dispatch mock's mapping contract is
+        covered deterministically instead of depending on CI host load.
         """
         orch = _make_orchestrator(tmp_path)
+        tick_times = iter(float(value) for value in range(32))
+        orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
