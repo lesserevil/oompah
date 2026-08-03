@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:17:43.736539Z'
+updated_at: '2026-08-03T23:33:38.712828Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -311,5 +311,63 @@ Testing patterns:
 5. Add test coverage for alert center states
 
 Starting implementation...
+---
+author: oompah
+created: 2026-08-03 23:33
+---
+**Implementation: Alert Center Complete**
+
+I have successfully implemented the compact alert center (OOMPAH-742) that consolidates multiple alert sources into a single collapsible component.
+
+**Changes Made:**
+
+1. **CSS (lines 1343-1424):** Added comprehensive styling for alert-center component:
+   - Collapsed state: Compact summary showing alert count + highest severity
+   - Expanded state: Scrollable list with bounded max-height (300px)
+   - Toggle button with hover/focus states
+   - Proper flex layout to preserve board visibility
+   - Severity indicators (critical/warning/info)
+
+2. **HTML (inserted before cred-error-banner):** New alert-center markup:
+   - Toggle button with aria-expanded for state management
+   - Alert list container with aria-live for a11y
+   - Severity label dynamic rendering
+   - Proper semantic structure
+
+3. **JavaScript Functions:**
+   - `getAlertSeverity()`: Maps alert source to severity level
+   - `getHighestAlertSeverity()`: Finds max severity from alert list
+   - `getSeverityLabel()`: Returns human-readable severity text
+   - `toggleAlertCenter()`: Handles expand/collapse with ARIA state
+   - `renderAlertCenter()`: Main renderer that populates the alert center
+
+4. **handleStateUpdate() Integration:**
+   - Added call to `renderAlertCenter(otherAlerts)` to populate on state changes
+   - Filters out cred_error and auth_health alerts (shown in separate banners during migration)
+   - Maintains backward compatibility with existing banners
+
+**Tests Added:**
+- 11 new tests in test_dashboard_alert_center.py covering:
+  - HTML/CSS structure validation
+  - Collapsed and expanded states
+  - Board visibility preservation
+  - Accessibility attributes (aria-expanded, aria-live, aria-label)
+  - Backward compatibility with old banners
+
+**Verification:**
+- All 11 new tests PASS
+- All 4 existing vertical-scroll tests PASS  
+- All 55 credential/repo-hygiene/terminal-audit tests PASS
+- Layout contracts preserved (board remains scrollable)
+- Backward compatibility maintained (old banners still present for migration)
+
+**Design Highlights:**
+- Board-first layout: alerts consume no space when collapsed
+- Bounded scrollable list: max 300px height with internal scrolling
+- Severity-based sorting: highest severity shown in summary
+- No duplicate rendering: single alert identity shown once
+- Keyboard accessible: toggle button with proper focus management
+- A11y compliant: aria-expanded, aria-live, role attributes
+- Responsive: CSS flexbox-based layout preserved for all viewports
 ---
 <!-- COMMENTS:END -->
