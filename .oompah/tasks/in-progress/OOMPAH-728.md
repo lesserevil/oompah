@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:52:45.661748Z'
+updated_at: '2026-08-03T16:53:23.164703Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bf01667e-b8e8-43ec-b76b-e9106d99b356
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1698
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-08-03 16:52
 ---
 Verification: focused duplicate-preflight/prompt, injection, ACP, and retry suites pass (355 tests); the exact final head passed the full repository gate via the pre-provisioned test runner: 15131 passed, 7 skipped, 1 xfailed, 45 warnings. git diff --check is clean. The normal make test wrapper remains blocked by the host uv transient-scope DBus error before pytest; its documented gate mode also rejected the non-candidate runtime, so the repository's isolated test runner was used for complete coverage.
+---
+author: oompah
+created: 2026-08-03 16:53
+---
+Completion: delivered and pushed commit 2d682cacc. Duplicate screening now prioritizes current-task structure (parent, children, siblings, dependencies/hard-start dependencies) and title/description similarity within deterministic task/byte bounds, preserves bounded descriptions/comments/status, emits actionable insufficiency diagnostics, and keeps the investigator self-sufficient with no CLI/network fallback. Added regression, budget, diagnostics, and prompt capability tests plus screening documentation.
 ---
 <!-- COMMENTS:END -->
