@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Open
+status: In Progress
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T00:03:33.094467Z'
+updated_at: '2026-08-03T00:04:36.495429Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-08-03 00:01
 ---
 Owner resumed direct implementation after the current deployed watchdog incorrectly reset active owner work to Open. OOMPAH-707 contains the durable-claim fix and is awaiting integration.
+---
+author: oompah
+created: 2026-08-03 00:04
+---
+Direct owner implementation complete at exact pushed head 205f413440767c5c2c94c641504f96f6a71c77bb. Oompah now chunks read_file results before provider transport across Claude, Codex, and OpenCode; bounds search output; exposes offset/limit continuation through the approved tool; reconciles the terminal-audit running gauge after the last auditor exits; and verifies healthy third-candidate rotation after two transport failures. Post-rebase focused suite: 295 passed. Required make check-secrets passed.
 ---
 <!-- COMMENTS:END -->
