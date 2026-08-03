@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -16,7 +16,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:41:04.124475Z'
+updated_at: '2026-08-03T23:42:18.781913Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -80,13 +80,13 @@ oompah.integration:
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
   updated_at: '2026-08-03T23:18:57.116048+00:00'
 oompah.task_costs:
-  total_input_tokens: 3
-  total_output_tokens: 513
+  total_input_tokens: 6
+  total_output_tokens: 1156
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 3
-      output_tokens: 513
+      input_tokens: 6
+      output_tokens: 1156
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -95,6 +95,12 @@ oompah.task_costs:
     output_tokens: 513
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:11:08.719654+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 643
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T23:42:09.430561+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-745__20260803T230737Z
@@ -105,6 +111,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-745
     source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
     completed_at: '2026-08-03T23:11:08.738254+00:00'
+  - run_id: OOMPAH-745__20260803T231904Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: merge_conflict
+    source_branch: epic-OOMPAH-740--task-OOMPAH-745
+    source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
+    completed_at: '2026-08-03T23:42:09.434774+00:00'
 ---
 ## Summary
 
@@ -205,5 +219,25 @@ Focus handoff: merge_conflict
 - The sibling tasks (742, 743, 744) are also at origin/epic-OOMPAH-740 HEAD with no commits — all four tasks in the epic appear to be at the implementation starting point; coordination will be needed to avoid test file conflicts
 
 **Recommended next focus:** test
+---
+author: oompah
+created: 2026-08-03 23:42
+---
+Agent completed successfully in 1401s (646 tokens)
+---
+author: oompah
+created: 2026-08-03 23:42
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 74, Tool calls: 48
+- Tokens: 3 in / 643 out [646 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 23m 21s
+- Log: OOMPAH-745__20260803T231904Z.jsonl
+---
+author: oompah
+created: 2026-08-03 23:42
+---
+Focus handoff from `merge_conflict` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
