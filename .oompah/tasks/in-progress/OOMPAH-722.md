@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:00:34.317371Z'
+updated_at: '2026-08-03T15:04:21.909208Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-08-03 15:00
 ---
 **Discovery**: Found the issue in oompah/auditor.py - the \`_AUDITOR_COMMAND_RE\` pattern allows certain git subcommands but \`git rev-list\` is missing. The auditor fails on read-only rev-list commands (--left-right --count, --count with revision ranges) and returns a fatal denial instead of a recoverable error. Affected commands in the pattern: lines that include git subcommands like status, diff, log, show, rev-parse, ls-files, branch, describe, whatchanged, merge-base. Need to: 1) Add git rev-list with safe flags validation, 2) Build structured git capability table, 3) Return recoverable errors for unsupported but non-mutating syntax, 4) Add comprehensive tests.
+---
+author: oompah
+created: 2026-08-03 15:04
+---
+**Implementation**: Fixed git rev-list rejection by creating structured git-subcommand capability table in oompah/auditor.py. Key changes: 1) Added _GIT_SUBCOMMAND_CAPABILITIES dict mapping subcommands to safe flags (prevents one-off regex fixes), 2) Implemented _is_safe_git_rev_list_command() validator that checks flags and operands safely, 3) Added 'rev-list' to _AUDITOR_COMMAND_RE regex pattern, 4) Enhanced check_auditor_command() with special git rev-list validation - safe commands allowed, unsupported variants return recoverable errors (don't consume budget), dangerous syntax denied. 5) Added 14 comprehensive tests covering EXOCOMP-241 production forms, safe variants, unsupported-but-recoverable syntax, and dangerous payloads. All existing auditor and authority-boundary tests still pass (186 auditor tests + 155 boundary tests).
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-719
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep oversized auditor run_command output inside the authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:52:12.399766Z'
+updated_at: '2026-08-03T15:04:27.572133Z'
 work_branch: OOMPAH-719
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/680
@@ -150,6 +150,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/680
 oompah.review_number: '680'
 oompah.work_branch: OOMPAH-719
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a256e600cde0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-719
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb4fa08d0ea52a1d320c1873edca5e9e7e022f38f1457885df0db98338443b1d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:04:18.035758+00:00'
+  - version: 1
+    audit_id: audit-bcdb15e45d93
+    project_id: proj-14849f1b
+    task_id: OOMPAH-719
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb4fa08d0ea52a1d320c1873edca5e9e7e022f38f1457885df0db98338443b1d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:04:18.035758+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -262,5 +301,15 @@ author: oompah
 created: 2026-08-03 14:51
 ---
 Branch quality gate passed for `13aed584ad06674017d1c4ee1a50eef68d9c570e` using `make test` in 404.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 15:04
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 15:04
+---
+YOLO: merged PR #680.
 ---
 <!-- COMMENTS:END -->
