@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,10 +12,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T01:31:45.401346Z'
+updated_at: '2026-08-03T01:31:54.393981Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/671
 review_number: null
 review_head: null
 merged_at: null
@@ -105,6 +105,7 @@ oompah.integration:
   head_sha: 205f413440767c5c2c94c641504f96f6a71c77bb
   submitted_at: '2026-08-03T00:04:50.427138+00:00'
   updated_at: '2026-08-03T00:04:50.427138+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/671
 ---
 ## Summary
 
