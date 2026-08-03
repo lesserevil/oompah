@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:28:05.834944Z'
+updated_at: '2026-08-03T18:32:19.260592Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-08-03 18:28
 ---
 Understanding: nested epic target resolution must distinguish confirmed top-level epics from failed parent lookup; I will trace helper filing, dispatch, persistence, restart, and diagnostics, then fail closed with retryable evidence and regression tests.
+---
+author: oompah
+created: 2026-08-03 18:32
+---
+Additional live evidence: after successful nested-parent synchronization, the runtime epic_rebase_states map was empty but EXOCOMP-130, EXOCOMP-132, and EXOCOMP-135 still retained rebase-requested and epic:rebasing labels. _check_epic_staleness clears the alert and immediately continues for epic-* targets, so it never proves parent reachability and transitions nested REBASING to REBASED or clears the durable labels. Extend the fix and tests to reconcile nested rebase state after the authoritative parent becomes an ancestor, including restart when only labels remain. Labels must clear only after exact local/remote/parent reachability is proven; failed or ambiguous sync must stay actionable.
 ---
 <!-- COMMENTS:END -->
