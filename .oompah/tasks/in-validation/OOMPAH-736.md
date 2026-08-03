@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T20:42:49.075994Z'
+updated_at: '2026-08-03T20:59:03.158755Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -97,18 +97,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-736
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ee662bd58ee6
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+      created_at: '2026-08-03T20:58:56.822389+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T20:58:56.822389+00:00'
+      branch_key: OOMPAH-736
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:42:40.561716+00:00'
+    updated_at: '2026-08-03T20:58:56.822389+00:00'
   - version: 1
     audit_id: audit-d4c464f1ae79
     project_id: proj-14849f1b
@@ -126,7 +140,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:42:40.561716+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ee662bd58ee6
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    created_at: '2026-08-03T20:58:56.822389+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T20:58:56.822389+00:00'
+    branch_key: OOMPAH-736
 ---
 ## Summary
 
