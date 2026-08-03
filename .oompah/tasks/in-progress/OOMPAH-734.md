@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:31:46.470982Z'
+updated_at: '2026-08-03T19:33:02.464153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -303,5 +303,29 @@ Discovery: The issue stems from incorrect commit ordering: the auditor posts a P
    - Auto-recovery on restart; manual rearm command if needed
 
 These docs now prescribe the exact requirements for backend implementation.
+---
+author: oompah
+created: 2026-08-03 19:33
+---
+Focus handoff: docs
+
+Outcome: Updated design and operator documentation to prescribe the commit-before-comment ordering and turn-ceiling boundary handling required to fix OOMPAH-734. The frontend observability (finalization_failure_count) is already complete and ready to display backend-provided health data.
+
+Relevant files and evidence: 
+- plans/terminal-transition-coordinator.md: Added Commit-Before-Comment Ordering section with sequence, recovery path, and turn-ceiling boundary details
+- plans/independent-auditor-dispatch.md: Added Turn-Ceiling and Finalization Semantics section + Fingerprint-Based Duplicate-Dispatch Prevention section
+- docs/auditor-dispatch-operations.md: Added Uncommitted Finalization Failures troubleshooting with recovery procedures
+
+Commit: 73efb9333 (OOMPAH-734: Document commit-before-comment ordering and turn-ceiling requirements)
+
+Remaining work and risks: Backend must implement:
+1. Terminal result atomically persisted as COMPLETED before posting tracker comment (terminal-transition-coordinator.py apply_audit_result method)
+2. Auditor finalization call reserved outside turn budget (orchestrator/auditor lifecycle)
+3. Duplicate dispatch prevention via fingerprint check in scheduler before launch (auditor_dispatch.py)
+4. Exit-before-commit recovery path to reapply persisted verdicts on restart (terminal_transition_coordinator.py startup)
+5. Required test coverage: boundary test (auditor at turn ceiling still commits), crash-ordering tests, scheduler race test, exit-before-commit test, authority-revocation test
+6. Backend health endpoint must provide finalization_failure_count for dashboard
+
+Recommended next focus: backend/feature implementation. Start with the implemented terminal-transition-coordinator design to understand the compare-and-set result validation contract, then implement commit-before-comment ordering in apply_audit_result. Preserve needs:backend routing.
 ---
 <!-- COMMENTS:END -->
