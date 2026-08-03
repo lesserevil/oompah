@@ -266,14 +266,17 @@ class TestMakefileStructure:
     def test_process_global_gate_keeps_preexisting_sentinel_alive(self, tmp_path):
         """A complete lifecycle group cannot stop a pre-existing listener."""
         sentinel_workspace = tmp_path / "sentinel-workspace"
-        sentinel_port = find_free_port()
+        sentinel_port_file = tmp_path / "sentinel-port"
         script = textwrap.dedent(
             f"""
-            import socket, time
+            import pathlib, socket, time
             sock = socket.socket()
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(("127.0.0.1", {sentinel_port}))
+            sock.bind(("127.0.0.1", 0))
             sock.listen(4)
+            pathlib.Path({str(sentinel_port_file)!r}).write_text(
+                str(sock.getsockname()[1]), encoding="utf-8"
+            )
             while True:
                 sock.settimeout(0.2)
                 try:
@@ -290,8 +293,15 @@ class TestMakefileStructure:
         )
         try:
             deadline = time.monotonic() + 5
-            while not port_listening(sentinel_port) and time.monotonic() < deadline:
+            while (
+                not sentinel_port_file.is_file()
+                and sentinel.process.poll() is None
+                and time.monotonic() < deadline
+            ):
                 time.sleep(0.05)
+            assert sentinel.process.poll() is None
+            assert sentinel_port_file.is_file()
+            sentinel_port = int(sentinel_port_file.read_text(encoding="utf-8"))
             assert port_listening(sentinel_port)
 
             # The child gate is deliberately given the sentinel URL/port as
