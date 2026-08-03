@@ -237,7 +237,7 @@ from oompah.auth_health import (
     auth_health_snapshot,
     record_worker_token_minted,
 )
-from oompah.dashboard_alerts import normalize_alerts
+from oompah.dashboard_alerts import normalize_alert, normalize_alerts
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
@@ -11224,31 +11224,43 @@ class Orchestrator:
                 "warning" if action_required else "info"
             )
             self._alerts.append(
-                {
-                    "level": resolved_level,
-                    "source": source,
-                    "message": (
-                        f"Integration task {item.task_id} failed at "
-                        f"{result.failing_step}: {result.message}. "
-                        f"Next retry: {next_retry or 'not scheduled'}. "
-                        f"Repair action: {repair_action}"
-                    ),
-                    "task_id": item.task_id,
-                    "project_id": item.project_id,
-                    "failing_step": result.failing_step,
-                    "error": result.message,
-                    "next_retry_at": next_retry,
-                    "repair_action": repair_action,
-                    "attempts": item.attempts,
-                    "max_attempts": retry_budget,
-                    # Structured recovery classification consumed by
-                    # _reconcile_integration_retry_alerts and the dashboard.
-                    # ``recovery_state`` is deliberately explicit so alert
-                    # actionability is never derived from message text.
-                    "recovery_state": recovery_state,
-                    "action_required": bool(action_required),
-                    "recorded_at": recorded_at,
-                }
+                normalize_alert(
+                    {
+                        "level": resolved_level,
+                        "source": source,
+                        "title": f"Integration failed for {item.task_id}",
+                        "summary": (
+                            "Integration failed during "
+                            f"{result.failing_step or 'an unknown step'}."
+                        ),
+                        "detail": (
+                            f"Integration could not complete for {item.task_id}. "
+                            f"Next retry: {next_retry or 'not scheduled'}."
+                        ),
+                        "remediation": repair_action,
+                        # Diagnostic output is deliberately separate from the
+                        # compact fields. normalize_alert redacts and bounds it
+                        # before the alert enters shared orchestrator state.
+                        "diagnostic": result.message,
+                        "task_id": item.task_id,
+                        "project_id": item.project_id,
+                        "failing_step": result.failing_step,
+                        # Kept as a bounded compatibility field for repair
+                        # reconciliation and older task-local consumers.
+                        "error": result.message,
+                        "next_retry_at": next_retry,
+                        "repair_action": repair_action,
+                        "attempts": item.attempts,
+                        "max_attempts": retry_budget,
+                        # Structured recovery classification consumed by
+                        # _reconcile_integration_retry_alerts and the dashboard.
+                        # ``recovery_state`` is deliberately explicit so alert
+                        # actionability is never derived from message text.
+                        "recovery_state": recovery_state,
+                        "action_required": bool(action_required),
+                        "recorded_at": recorded_at,
+                    }
+                )
             )
 
         # An epic-head race is safe to retry from the rebased private head

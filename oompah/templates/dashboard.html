@@ -1280,6 +1280,11 @@
       display: inline-flex;
       align-items: center;
       gap: 0.25rem;
+      min-width: 0;
+      max-width: min(42vw, 36rem);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     /* Task-state freshness banner — shown when the issues snapshot is stale
        or unavailable (OOMPAH-306). Never silently renders obsolete state. */
@@ -1385,6 +1390,26 @@
     }
     .alerts-banner .alert-action {
       color: var(--text);
+    }
+    .alerts-banner .alert-diagnostics {
+      margin-top: 0.25rem;
+      color: var(--text-muted);
+    }
+    .alerts-banner .alert-diagnostics summary {
+      cursor: pointer;
+      user-select: none;
+    }
+    .alerts-banner .alert-diagnostic {
+      max-height: 14rem;
+      margin: 0.25rem 0 0;
+      padding: 0.45rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      font: 0.68rem/1.35 'SF Mono', 'Fira Code', monospace;
     }
     .terminal-audit-health-banner {
       margin: 0.6rem 1.5rem 0;
@@ -3257,26 +3282,113 @@ function renderRunningAgentChips(running, paused) {
   }
 }
 
+const ALERT_RENDER_TITLE_MAX = 120;
+const ALERT_RENDER_SUMMARY_MAX = 240;
+const ALERT_RENDER_EXPLANATION_MAX = 480;
+const ALERT_RENDER_ACTION_MAX = 480;
+const ALERT_RENDER_SOURCE_MAX = 160;
+const ALERT_RENDER_DIAGNOSTIC_MAX = 4000;
+const ALERT_RENDER_TRUNCATION_MARKER = '… [more]';
+
+function alertSafeText(value, preserveNewlines) {
+  let text = value == null ? '' : String(value);
+  if (text.normalize) text = text.normalize('NFC');
+  text = text.replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200b\u200c\u200d\ufeff]/g, ' ')
+    .replace(/[\u2028\u2029]/g, ' ');
+  if (preserveNewlines) {
+    return text.replace(/[ \t\f\v]+/g, ' ').trim();
+  }
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function alertBoundedText(value, limit, preserveNewlines) {
+  const text = alertSafeText(value, !!preserveNewlines);
+  const codePoints = Array.from(text);
+  const marker = Array.from(ALERT_RENDER_TRUNCATION_MARKER);
+  if (codePoints.length <= limit) return text;
+  if (limit <= marker.length) return marker.slice(0, limit).join('');
+  return codePoints.slice(0, limit - marker.length).join('').trimEnd() +
+    ALERT_RENDER_TRUNCATION_MARKER;
+}
+
 function alertPrimaryText(alert) {
   if (!alert) return 'Oompah alert';
-  return alert.summary || alert.title || alert.message || 'Oompah alert';
+  return alertBoundedText(
+    alert.summary || alert.title || alert.message || 'Oompah alert',
+    ALERT_RENDER_TITLE_MAX,
+    false
+  );
 }
 
 function alertDetailText(alert) {
   if (!alert) return '';
-  return alert.detail || alert.explanation || '';
+  return alertBoundedText(
+    alert.detail || alert.explanation || '',
+    ALERT_RENDER_EXPLANATION_MAX,
+    false
+  );
 }
 
 function alertActionText(alert) {
   if (!alert) return '';
-  return alert.remediation || alert.action || '';
+  return alertBoundedText(
+    alert.remediation || alert.action || '',
+    ALERT_RENDER_ACTION_MAX,
+    false
+  );
+}
+
+function alertDiagnosticText(alert) {
+  if (!alert) return '';
+  const compactCandidates = [
+    [alert.message, ALERT_RENDER_SUMMARY_MAX],
+    [alert.summary, ALERT_RENDER_SUMMARY_MAX],
+    [alert.title, ALERT_RENDER_TITLE_MAX]
+  ];
+  let legacyTranscript = '';
+  for (const candidate of compactCandidates) {
+    const text = candidate[0] == null ? '' : String(candidate[0]);
+    if (/[\r\n]/.test(text) || Array.from(text).length > candidate[1]) {
+      legacyTranscript = text;
+      break;
+    }
+  }
+  return alertBoundedText(
+    alert.diagnostic || alert.transcript || alert.output || alert.error || legacyTranscript,
+    ALERT_RENDER_DIAGNOSTIC_MAX,
+    true
+  );
+}
+
+function normalizeAlertForRender(alert) {
+  const safe = Object.assign({}, alert || {});
+  // Capture a legacy transcript before replacing message with its compact
+  // compatibility projection.
+  const diagnostic = alertDiagnosticText(safe);
+  safe.title = alertPrimaryText(safe);
+  safe.summary = alertBoundedText(
+    safe.summary || safe.message || safe.title,
+    ALERT_RENDER_SUMMARY_MAX,
+    false
+  );
+  safe.message = safe.summary;
+  safe.detail = alertDetailText(safe);
+  safe.action = alertActionText(safe);
+  safe.remediation = safe.action;
+  safe.source = alertBoundedText(safe.source || '', ALERT_RENDER_SOURCE_MAX, false);
+  safe.diagnostic = diagnostic;
+  return safe;
 }
 
 function renderAlertSummary(alert) {
   const title = alertPrimaryText(alert);
   const detail = alertDetailText(alert);
   const action = alertActionText(alert);
-  const tooltip = [title, detail, action].filter(Boolean).join('\n\n');
+  const hasDiagnostic = !!alertDiagnosticText(alert);
+  const tooltipParts = [title, detail, action];
+  if (hasDiagnostic) tooltipParts.push('Diagnostic details available on demand.');
+  const tooltip = tooltipParts.filter(Boolean).join('\n\n');
   return '<span title="' + esc(tooltip) + '">&#9888; ' + esc(title) + '</span>';
 }
 
@@ -3284,12 +3396,21 @@ function renderAlertItem(alert) {
   const title = alertPrimaryText(alert);
   const detail = alertDetailText(alert);
   const action = alertActionText(alert);
-  const source = alert && alert.source ? String(alert.source) : '';
+  const source = alert && alert.source
+    ? alertBoundedText(alert.source, ALERT_RENDER_SOURCE_MAX, false)
+    : '';
+  const diagnostic = alertDiagnosticText(alert);
+  const diagnosticLabel = alert && alert.diagnostic_truncated
+    ? 'Diagnostic details (truncated)'
+    : 'Diagnostic details';
   return '<li class="alert-item">' +
     '<div class="alert-title">' + esc(title) + '</div>' +
     (detail ? '<div class="alert-detail">' + esc(detail) + '</div>' : '') +
     (action ? '<div class="alert-action">Action: ' + esc(action) + '</div>' : '') +
     (source ? '<div class="alert-source">Source: ' + esc(source) + '</div>' : '') +
+    (diagnostic ? '<details class="alert-diagnostics"><summary>' +
+      esc(diagnosticLabel) + '</summary><pre class="alert-diagnostic">' +
+      esc(diagnostic) + '</pre></details>' : '') +
     '</li>';
 }
 
@@ -3565,12 +3686,16 @@ function handleStateUpdate(state) {
   // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
+  // State normally arrives projected by the server. Normalize once more at
+  // the renderer boundary so an older cache or direct caller cannot put an
+  // unbounded transcript into an always-visible surface.
+  const safeAlerts = (Array.isArray(alerts) ? alerts : []).map(normalizeAlertForRender);
   // Separate credential-error alerts (shown in dedicated banner) and
   // auth-health alerts (shown in auth-health banner) from generic alerts.
-  const credAlerts = alerts.filter(function(a) {
+  const credAlerts = safeAlerts.filter(function(a) {
     return a.source && a.source.indexOf('cred_error:') === 0;
   });
-  const otherAlerts = alerts.filter(function(a) {
+  const otherAlerts = safeAlerts.filter(function(a) {
     if (!a.source) return true;
     if (a.source.indexOf('cred_error:') === 0) return false;
     if (a.source.indexOf('auth_health:') === 0) return false;
