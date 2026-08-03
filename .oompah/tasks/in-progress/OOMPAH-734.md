@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:20:26.568997Z'
+updated_at: '2026-08-03T19:24:14.767504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -269,5 +269,17 @@ author: oompah
 created: 2026-08-03 19:20
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-03 19:24
+---
+Understanding: The production regression stems from improper commit ordering in the terminal coordinator and auditor lifecycle boundary conditions. The frontend observability work is complete; the backend design docs (terminal-transition-coordinator.md, independent-auditor-dispatch.md) exist but need clarification about:
+
+1. **Commit-before-comment ordering**: Durable terminal result must persist before any human-readable PASS/FAIL comment
+2. **Turn-ceiling boundary handling**: Auditor must reserve a non-starvable finalization path for the result commit after its final ordinary turn
+3. **Duplicate-dispatch prevention**: Committed PASS must fence same-target/same-fingerprint sibling audits via fingerprint check in scheduler
+4. **Exit-before-commit fail-closed**: Provider exit/timeout cannot leave misleading PASS comment while durable audit remains incomplete
+
+I will update the design docs to make the commit ordering and turn-ceiling requirements explicit for the backend implementation, then hand off to a backend specialist.
 ---
 <!-- COMMENTS:END -->
