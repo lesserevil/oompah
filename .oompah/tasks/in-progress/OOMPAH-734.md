@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:50:26.091887Z'
+updated_at: '2026-08-03T20:51:15.538416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -404,5 +404,10 @@ author: oompah
 created: 2026-08-03 20:50
 ---
 Verification: 359 focused tests passed across terminal coordinator, startup enforcement/recovery, audit scheduler, API result boundary, auditor exit/termination lifecycle, backend health/alerts, observability snapshot, and dashboard health. Direct terminal mutation scan passed (7 identified, 7 allowlisted). The required make test target was invoked but its dependency bootstrap could not start the sandboxed astral-uv Snap due the known DBus transient-scope error (Process 24 is a kernel thread); no tests ran through that wrapper. The available provisioned pytest runtime completed the focused gate successfully; oompah's trusted branch gate remains responsible for the full suite on the exact submitted head.
+---
+author: oompah
+created: 2026-08-03 20:51
+---
+Completion: Delivered and pushed commit 7c8bcabca. The fix guarantees metadata/status-before-comment ordering, reserves a structured finalization turn at the auditor ceiling, prevents prose verdicts from masquerading as durable results, classifies finalization failures distinctly, recovers unapplied intents idempotently, preserves fingerprint/CAS sibling fencing, and retires live auditors on owner authority revocation. Focused gate: 359 passed; terminal mutation scan passed. Branch is clean and exactly matches origin/OOMPAH-734. make test was attempted but its astral-uv Snap bootstrap is blocked by the sandbox DBus transient-scope error; the trusted submission gate will run the full suite.
 ---
 <!-- COMMENTS:END -->
