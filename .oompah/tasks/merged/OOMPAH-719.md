@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-719
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep oversized auditor run_command output inside the authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T15:10:46.933554Z'
+updated_at: '2026-08-03T15:13:32.172067Z'
 work_branch: OOMPAH-719
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/680
@@ -164,6 +164,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9649b01db16e: '2026-08-03T15:09:56.623587+00:00'
+    attempt-53f46cebaba1: '2026-08-03T15:13:26.465812+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-719
@@ -174,6 +175,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T15:09:56.623599+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-719
+    target_state: Merged
+    evidence_fingerprint: fb4fa08d0ea52a1d320c1873edca5e9e7e022f38f1457885df0db98338443b1d
+    audit_ids:
+    - audit-bcdb15e45d93
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T15:13:26.465830+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-719
@@ -187,6 +197,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T15:09:56.623615+00:00'
     applied_at: '2026-08-03T15:10:01.608988+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-719
+    audit_id: audit-bcdb15e45d93
+    attempt_id: attempt-53f46cebaba1
+    target_state: Merged
+    evidence_fingerprint: fb4fa08d0ea52a1d320c1873edca5e9e7e022f38f1457885df0db98338443b1d
+    status: Merged
+    audit_ids:
+    - audit-bcdb15e45d93
+    applied: false
+    created_at: '2026-08-03T15:13:26.465849+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -228,7 +249,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-719
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -237,7 +258,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-53f46cebaba1
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -247,13 +268,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T15:10:40.971463+00:00'
       branch_key: OOMPAH-719
+      verdict: pass
+      completed_at: '2026-08-03T15:13:26.465642+00:00'
+      ended_at: '2026-08-03T15:13:26.465642+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T15:04:18.035758+00:00'
-    updated_at: '2026-08-03T15:10:40.971463+00:00'
+    updated_at: '2026-08-03T15:13:26.465642+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9649b01db16e
@@ -448,5 +472,23 @@ author: oompah
 created: 2026-08-03 15:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 15:13
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 13aed584ad06674017d1c4ee1a50eef68d9c570e
+- merge_commit: 459f77863ae946aa43f3e94674f98931b04c32e2
+- pr_number: 680
+- merged_into_main: true
+- changed_files: oompah/acp_tools.py, oompah/api_agent.py, oompah/auditor.py, oompah/orchestrator.py, oompah/prompt.py, tests/test_acp_tool_output_bounds.py, tests/test_auditor_contract.py
+- new_class: CommandOutputStore
+- new_tool: read_command_output
+- focused_tests_now: test_acp_tool_output_bounds.py 6 passed; test_auditor_contract.py 17 passed
+- full_gate_previously: make test 404.7s pass at 13aed584a
 ---
 <!-- COMMENTS:END -->
