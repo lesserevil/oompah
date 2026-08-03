@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:12:40.059211Z'
+updated_at: '2026-08-03T13:16:43.639949Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-03 13:12
 ---
 Understanding: task-level acyclicity can hide a cycle in authorized code reachability across sibling epics. I will trace dependency validation, nested-epic synchronization, integration queue health, and diagnostics; add deterministic cycle detection/repair or actionable blocking, regression tests, and focused verification.
+---
+author: oompah
+created: 2026-08-03 13:16
+---
+Discovery: task-level cycle detection already exists in oompah/dependency_graph.py and server dependency mutation, while orchestrator queue readiness only checks one epic at a time. Existing OOMPAH-562/633 repair intentionally permits only landed/default or authoritative parent branches, rejecting unrelated sibling synchronization. I will add a deterministic container graph and route unsafe cycles to an explicit Needs Human repair state that preserves private heads and exact integrated SHAs; landed-parent cross-epic dependencies will not produce a cycle.
 ---
 <!-- COMMENTS:END -->
