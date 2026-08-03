@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T17:07:54.219298Z'
+updated_at: '2026-08-03T17:10:03.998116Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,13 +70,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9b687c0c-b9b6-4297-8d8c-2295928cf311
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1769
+  total_input_tokens: 38
+  total_output_tokens: 9993
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1769
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 28
+      output_tokens: 8224
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +89,12 @@ oompah.task_costs:
     output_tokens: 1769
     cost_usd: 0.0
     recorded_at: '2026-08-03T16:04:19.450411+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 28
+    output_tokens: 8224
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T17:09:53.612920+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-727__20260803T160322Z
@@ -95,14 +105,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-727
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:04:19.467265+00:00'
+  - run_id: OOMPAH-727__20260803T165450Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: refactor
+    source_branch: OOMPAH-727
+    source_sha: ab69c0eb8ae7721493ae99334bd5fc3e7564bec1
+    completed_at: '2026-08-03T17:09:53.617554+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-727
+  base_branch: main
+  base_sha: eb4a649ba8d316327f2435e23e98604c8a3384d9
   head_sha: ab69c0eb8ae7721493ae99334bd5fc3e7564bec1
   submitted_at: '2026-08-03T17:07:49.533798+00:00'
-  updated_at: '2026-08-03T17:07:49.533798+00:00'
+  updated_at: '2026-08-03T17:10:02.797188+00:00'
 ---
 ## Summary
 
@@ -228,5 +248,20 @@ author: oompah
 created: 2026-08-03 17:07
 ---
 Added conservative auxiliary-workspace cleanup for direct epic maintenance tasks. New _cleanup_direct_epic_auxiliary_workspace_locked() in oompah/projects.py recognises the EXOCOMP-240/OOMPAH-721 shape (registered issue worktree on exact scheduler-derived epic child branch for a task whose recorded work_branch is the parent epic branch), enforces 8 safety guards (identity, registration, shared-checkout, active-operation, recovery-ref, dirty-state, ref-identity, remote-reachability) before removing only the auxiliary worktree and exact local derived ref. No remote ref deleted, no epic worktree touched, idempotent. 10 new integration tests in TestDirectEpicAuxiliaryCleanup covering all required scenarios; 113/113 tests pass in test_projects.py.
+---
+author: oompah
+created: 2026-08-03 17:09
+---
+Agent completed successfully in 911s (8252 tokens)
+---
+author: oompah
+created: 2026-08-03 17:09
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 51, Tool calls: 30
+- Tokens: 28 in / 8.2K out [8.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 11s
+- Log: OOMPAH-727__20260803T165450Z.jsonl
 ---
 <!-- COMMENTS:END -->
