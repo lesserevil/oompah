@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T16:21:07.120394Z'
+updated_at: '2026-08-03T16:21:18.941957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,7 +136,17 @@ oompah.terminal_audit:
     reason: Resolved in merged OOMPAH-722 commit 3eb3235e1; current worker was duplicate
       verification of code already on origin/main.
     created_at: '2026-08-03T16:21:01.118379+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-723
+    target_state: Archived
+    evidence_fingerprint: 5078f7e9c728bf6fc9f1895d467a1068d49d8d5bac16244519d0638cc895e1ca
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T16:21:13.689062+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -224,5 +234,15 @@ created: 2026-08-03 16:21
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Resolved in merged OOMPAH-722 commit 3eb3235e1; current worker was duplicate verification of code already on origin/main.
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 23
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 49s
+- Log: OOMPAH-723__20260803T161437Z.jsonl
 ---
 <!-- COMMENTS:END -->

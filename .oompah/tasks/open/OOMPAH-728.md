@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:21:09.563557Z'
+updated_at: '2026-08-03T16:21:13.046026Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,47 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: aea388b18a2c0faefa7f6c16fe1e122e4f6edc0ef800d6cd8f961e34bff6159e
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T16:21:03.011564+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1ea0de95-7b6a-4608-98d6-2d3b6812b907
-  claim_owner: 2dcc53e1-cdcd-4522-a08d-de6ce4222a8c
-  claimed_at: '2026-08-03T16:20:18.929574+00:00'
-  claim_expires_at: '2026-08-03T16:50:18.929574+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: This is a new, project-specific regression about the\
+    \ Duplicate Investigator's corpus construction and evidence retention. No existing\
+    \ task in the current project corpus addresses corpus builder relevance selection,\
+    \ structurally significant peer retention, or the EXOCOMP-216/EXOCOMP-221 regression.\
+    \ Related archived tasks (OOMPAH-10 through OOMPAH-175) focus on webhooks, dashboard,\
+    \ intake validation, and epic workflows\u2014entirely different subsystems. OOMPAH-728\
+    \ requires focused implementation work on a previously untracked issue.\nI need\
+    \ to investigate whether OOMPAH-728 is a duplicate of an existing task in the\
+    \ project. Let me analyze this carefully.\n\n## Understanding OOMPAH-728\n\nThis\
+    \ issue describes a production regression in the Duplicate Investigator's corpus\
+    \ construction:\n- Agents screening EXOCOMP-216 and EXOCOMP-221 returned inconclusive\
+    \ results\n- The corpus omitted active sibling tasks needed for comparison\n-\
+    \ Agents exhausted retry budget and tasks were moved to Needs Human\n- The fix\
+    \ requires: retaining structurally relevant peers, preventing unreachable loopback\
+    \ calls, providing actionable diagnostics\n\nThis is specifically about the **duplicate-screening\
+    \ corpus builder** - how it selects and prioritizes which tasks to include when\
+    \ investigating whether a task is a duplicate.\n\n## Reviewing the Project Task\
+    \ Corpus\n\nI've reviewed the provided authoritative task corpus containing all\
+    \ project tasks. The corpus includes:\n\n**Active/Open tasks:**\n- OOMPAH-728\
+    \ (current task - Open)\n\n**Archived/Completed tasks:**\n- OOMPAH-10 through\
+    \ OOMPAH-175: Various infrastructure, dashboard, intake, and epic workflow fixes\n\
+    - None of these address corpus construction for duplicate screening\n- None reference\
+    \ the Duplicate Investigator's evidence gathering\n- None address the regression\
+    \ with EXOCOMP-216/EXOCOMP-221\n\n**Key searches:**\n- \"corpus\" - appears only\
+    \ in OOMPAH-728\n- \"duplicate.*screen\" or \"screening\" - appears only in OOMPAH-728\n\
+    - \"EXOCOMP-216\" or \"EXOCOMP-221\" - appears only in OOMPAH-728\n- \"structurally\
+    \ relevant peers\" - appears only in OOMPAH-728\n\nThe closest related task is\
+    \ OOMPAH-682 (referenced in the acceptance criteria about investigators receiving\
+    \ enough evidence), but it doesn't appear in the corpus and likely addresses a\
+    \ different acceptance criterion.\n\n## Conclusion\n\n---\n\nFocus handoff: duplicate_detector\n\
+    \nDuplicate preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: This\
+    \ is a new, project-specific regression about the Duplicate Investigator's corpus\
+    \ construction and evidence retenti"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
