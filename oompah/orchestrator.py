@@ -44,6 +44,10 @@ from oompah.authority_boundary import (
 from oompah.completion_verifier import VerifierResult, verify_completion
 from oompah.provider_health import openai_base_url_error
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
+from oompah.container_dependency_graph import (
+    ContainerDependencyCycle,
+    find_container_dependency_cycles,
+)
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
     effective_dependencies,
@@ -6814,6 +6818,134 @@ class Orchestrator:
                 missing_reason,
             )
 
+    def _audit_container_dependency_cycles(
+        self,
+        project_id: str,
+        tracker,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> tuple[ContainerDependencyCycle, ...]:
+        """Detect and fence container cycles before they spin at attempts=0.
+
+        A cycle is a graph/state problem, not an integration conflict.  The
+        affected Ready rows are moved to ``Needs Human`` with their private
+        heads left untouched.  That is the only safe automatic action when a
+        prerequisite is confined to an unrelated sibling branch: a sibling
+        merge could silently import unrelated work.  The alert and task
+        comment carry the exact integrated SHA(s), cycle path, and authorized
+        delivery-order repair so an operator can resubmit the same heads after
+        the prerequisite is delivered.
+        """
+
+        ready_ids = [
+            item.task_id
+            for item in queue_items
+            if item.state in {"ready", "integrating"}
+        ]
+        cycles = find_container_dependency_cycles(
+            issues,
+            ready_task_ids=ready_ids,
+        )
+        source_prefix = f"integration_container_cycle:{project_id}:"
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not str(alert.get("source", "")).startswith(source_prefix)
+        ]
+        if not cycles:
+            return ()
+
+        aliases: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    aliases[str(alias).strip()] = issue
+        affected_queue_ids: set[str] = set()
+        for cycle in cycles:
+            fingerprint = hashlib.sha256(
+                f"{cycle.message_path}|{','.join(cycle.affected_tasks)}".encode()
+            ).hexdigest()[:16]
+            source = f"{source_prefix}{fingerprint}"
+            sha_text = ", ".join(
+                f"{task}={sha}" for task, sha in cycle.prerequisite_shas
+            ) or "none recorded"
+            affected_ready = ", ".join(cycle.affected_ready_tasks) or "none"
+            target = (
+                f"common authoritative container {cycle.authoritative_container}"
+                if cycle.authoritative_container
+                else "the project delivery branch"
+            )
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": source,
+                    "message": (
+                        "Container dependency cycle detected: "
+                        f"{cycle.message_path}. Affected Ready rows: "
+                        f"{affected_ready}. Selected repair: deliver the exact "
+                        f"prerequisite SHA(s) ({sha_text}) through {target}; "
+                        "do not synchronize unrelated sibling branches."
+                    ),
+                    "cycle": cycle.to_dict(),
+                }
+            )
+            for item in queue_items:
+                if item.state != "ready":
+                    continue
+                issue = aliases.get(item.task_id)
+                if issue is None or canonicalize_status(issue.state) != READY_TO_INTEGRATE:
+                    continue
+                item_identifier = str(
+                    getattr(issue, "identifier", None)
+                    or getattr(issue, "id", None)
+                    or item.task_id
+                ).strip()
+                if item_identifier not in cycle.affected_ready_tasks:
+                    continue
+                record = getattr(issue, "integration", None)
+                if (
+                    record is not None
+                    and str(getattr(record, "head_sha", "") or "").strip()
+                    and str(getattr(record, "head_sha", "") or "").strip()
+                    != str(item.head_sha or "").strip()
+                ):
+                    continue
+                if not self.integration_queue.cancel(
+                    project_id,
+                    item.task_id,
+                    reason="container dependency cycle requires authorized repair",
+                    expected_head_sha=item.head_sha,
+                    expected_state="ready",
+                ):
+                    # A newer submission or an active lease won the race. Do
+                    # not change tracker state for that newer authority.
+                    continue
+                action = (
+                    "Container dependency cycle requires an authorized delivery "
+                    f"order: {cycle.message_path}. Preserve private head "
+                    f"{item.head_sha} and deliver the exact prerequisite SHA(s) "
+                    f"({sha_text}) through {target}; do not merge unrelated "
+                    "sibling work. After that delivery lands, resubmit this "
+                    "same private head."
+                )
+                try:
+                    self._mark_needs_human(
+                        tracker,
+                        item.task_id,
+                        action,
+                    )
+                except Exception as exc:  # noqa: BLE001 - keep alert visible
+                    logger.warning(
+                        "Could not route container-cycle task %s to Needs Human: %s",
+                        item.task_id,
+                        exc,
+                    )
+                    continue
+                affected_queue_ids.add(item.task_id)
+        if affected_queue_ids:
+            self.request_refresh()
+        return cycles
+
     def _is_integration_item_in_backoff(
         self,
         item: IntegrationQueueItem,
@@ -9105,6 +9237,7 @@ class Orchestrator:
         # Tracker state is authoritative. Retire stale queue rows before
         # grouping or claiming so completed/reviewing tasks cannot be
         # resurrected by an old durable submission.
+        project_issue_snapshots: dict[str, list[Issue]] = {}
         for project in self.project_store.list_all():
             tracker = self._tracker_for_project(project.id)
             try:
@@ -9119,9 +9252,24 @@ class Orchestrator:
                     exc,
                 )
                 continue
+            project_issue_snapshots[str(project.id)] = list(project_issues)
             self._retire_inactive_integration_rows(
                 project.id,
                 project_issues,
+                self.integration_queue.items(project_id=project.id),
+            )
+
+        # A task-level DAG can still contain an impossible delivery order
+        # across private epic branches.  Diagnose and fence only those rows
+        # before grouping; independent epic groups remain claimable below.
+        for project in self.project_store.list_all():
+            issues = project_issue_snapshots.get(str(project.id))
+            if issues is None:
+                continue
+            self._audit_container_dependency_cycles(
+                str(project.id),
+                self._tracker_for_project(project.id),
+                issues,
                 self.integration_queue.items(project_id=project.id),
             )
 

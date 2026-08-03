@@ -438,6 +438,8 @@ class IntegrationQueueStore:
         task_id: str,
         *,
         reason: str | None = None,
+        expected_head_sha: str | None = None,
+        expected_state: str | None = None,
     ) -> bool:
         """Retire a stale nonterminal row and invalidate any active lease.
 
@@ -455,12 +457,18 @@ class IntegrationQueueStore:
                     next_retry_at = NULL
                 WHERE project_id = ? AND task_id = ?
                   AND state IN ('ready', 'integrating', 'blocked')
+                  AND (? IS NULL OR head_sha = ?)
+                  AND (? IS NULL OR state = ?)
                 """,
                 (
                     _now_iso(),
                     str(reason or "").strip() or None,
                     project_id,
                     task_id,
+                    expected_head_sha,
+                    expected_head_sha,
+                    expected_state,
+                    expected_state,
                 ),
             )
             self._conn.commit()

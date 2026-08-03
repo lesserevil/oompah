@@ -171,6 +171,76 @@ class TestAddDependencyEndpoint:
         }
         mock_tracker.add_dependency.assert_not_called()
 
+    def test_container_dependency_cycle_is_rejected_with_reachability_path(
+        self,
+        client,
+    ):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        epic_a = Issue(
+            id="epic-a",
+            identifier="EPIC-A",
+            title="A",
+            state="In Progress",
+            issue_type="epic",
+        )
+        epic_b = Issue(
+            id="epic-b",
+            identifier="EPIC-B",
+            title="B",
+            state="In Progress",
+            issue_type="epic",
+        )
+        confined = Issue(
+            id="done-a",
+            identifier="DONE-A",
+            title="A prerequisite",
+            state="Done",
+            parent_id=epic_a.identifier,
+        )
+        existing = Issue(
+            id="task-b",
+            identifier="TASK-B",
+            title="B task",
+            state="In Progress",
+            parent_id=epic_b.identifier,
+            blocked_by=[BlockerRef(identifier=confined.identifier)],
+        )
+        proposed = Issue(
+            id="task-a",
+            identifier="TASK-A",
+            title="A task",
+            state="Ready to Integrate",
+            parent_id=epic_a.identifier,
+        )
+        issues = [epic_a, epic_b, confined, existing, proposed]
+        mock_tracker.fetch_issue_detail.side_effect = {
+            proposed.identifier: proposed,
+            existing.identifier: existing,
+        }.get
+        mock_tracker.fetch_all_issues.return_value = issues
+
+        with patch.object(
+            server_module,
+            "_get_orchestrator",
+            return_value=mock_orch,
+        ):
+            resp = client.post(
+                "/api/v1/issues/TASK-A/dependencies",
+                json={
+                    "depends_on": "TASK-B",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 409
+        body = resp.json()["error"]
+        assert body["code"] == "container_dependency_cycle"
+        assert body["path"] == ["EPIC-A", "EPIC-B", "EPIC-A"]
+        assert body["selected_repair"] == (
+            "needs_human_authorized_delivery_order"
+        )
+        mock_tracker.add_dependency.assert_not_called()
+
     def test_missing_depends_on_returns_400(self, client):
         """POST without depends_on returns 400 validation error."""
         mock_orch, _ = _make_mock_orchestrator()

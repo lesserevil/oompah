@@ -71,6 +71,10 @@ from oompah.issue_enhancer import (
 from oompah.intake_summary import build_intake_summary
 from oompah.integration import IntegrationRecord, validate_submission_branch
 from oompah.coordination import CoordinationStore
+from oompah.container_dependency_graph import (
+    find_container_dependency_cycles,
+    container_dependency_cycle_for_new_edge,
+)
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
     dependency_cycle_for_new_edge,
@@ -2950,6 +2954,22 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
 
     result = item.to_dict()
     index = issue_index(issues)
+    container_cycles = find_container_dependency_cycles(
+        issues,
+        ready_task_ids=(
+            candidate.identifier
+            for candidate in issues
+            if canonicalize_status(candidate.state) == READY_TO_INTEGRATE
+        ),
+    )
+    container_cycle = next(
+        (
+            cycle
+            for cycle in container_cycles
+            if issue.identifier in cycle.affected_tasks
+        ),
+        None,
+    )
     dependencies = effective_dependencies(issue, index)
     unresolved: list[str] = []
     unreachable: list[str] = []
@@ -3001,7 +3021,24 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
             )
         except (TypeError, ValueError, OverflowError, OSError):
             retry_wait = " Next retry is scheduled after the backoff window."
-    if state == "blocked":
+    if container_cycle is not None:
+        repair = (
+            "Deliver the exact prerequisite SHA(s) through the common "
+            "authoritative container"
+            + (
+                f" {container_cycle.authoritative_container}"
+                if container_cycle.authoritative_container
+                else ""
+            )
+            + "; do not synchronize sibling branches"
+        )
+        reason = (
+            "Container dependency cycle detected ("
+            f"{container_cycle.message_path}). {repair}."
+        )
+        result["container_cycle"] = container_cycle.to_dict()
+        result["selected_repair"] = container_cycle.selected_repair
+    elif state == "blocked":
         reason = item.last_error or "Integration requires task repair"
     elif state == "integrating":
         reason = "Rebasing, testing, and integrating the submitted head"
@@ -3037,6 +3074,10 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
         else None
     )
     result["repair_action"] = (
+        "Deliver the exact prerequisite SHA(s) through the common authoritative "
+        "container; do not synchronize sibling branches."
+        if container_cycle is not None
+        else
         "Remove the generated helper with git rm, commit, push, and submit again."
         if item.last_error
         and (
@@ -3047,6 +3088,9 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
         if state == "blocked"
         else "Wait for the scheduled retry."
     )
+    if container_cycle is None:
+        result.setdefault("container_cycle", None)
+        result.setdefault("selected_repair", None)
     return result
 
 
@@ -11879,8 +11923,9 @@ async def api_add_dependency(identifier: str, request: Request):
             for ref in current_refs
         )
         if not already_present:
+            graph_issues = tracker.fetch_all_issues()
             cycle = dependency_cycle_for_new_edge(
-                tracker.fetch_all_issues(),
+                graph_issues,
                 resolved_identifier,
                 depends_on,
             )
@@ -11894,6 +11939,33 @@ async def api_add_dependency(identifier: str, request: Request):
                                 + " -> ".join(cycle)
                             ),
                             "path": list(cycle),
+                        }
+                    },
+                    status_code=409,
+                )
+            container_cycle = container_dependency_cycle_for_new_edge(
+                graph_issues,
+                resolved_identifier,
+                depends_on,
+                include_hard_start=dependency_type == "hard_start",
+            )
+            if container_cycle is not None:
+                repair = (
+                    "route affected Ready work to Needs Human and deliver the "
+                    "exact prerequisite SHA(s) through the common authoritative "
+                    "container before resubmitting"
+                )
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "container_dependency_cycle",
+                            "message": (
+                                "Dependency would create a container reachability "
+                                f"cycle: {container_cycle.message_path}. {repair}."
+                            ),
+                            "path": list(container_cycle.path),
+                            "cycle": container_cycle.to_dict(),
+                            "selected_repair": container_cycle.selected_repair,
                         }
                     },
                     status_code=409,
