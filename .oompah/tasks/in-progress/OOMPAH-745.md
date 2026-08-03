@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:53:48.711281Z'
+updated_at: '2026-08-03T23:55:45.236600Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-08-03 23:53
 ---
 Implementation: Added tests/test_dashboard_alert_experience.py, a deterministic headless-Chrome harness using an in-page WebSocket double. It covers production-shaped mixed alerts, desktop and phone layouts, bounded overflow, disclosure/focus semantics, task-card reachability, running-to-failed gate updates, sequence-gap full_sync, and clearing recovered audit transport warnings. The browser test exposed generic alerts being rendered three times (center, legacy banner, agent bar), so dashboard.html now uses the compact center as their one visible surface; legacy markup remains empty for compatibility. Updated the vertical-scroll regression contract accordingly.
+---
+author: oompah
+created: 2026-08-03 23:55
+---
+Verification: focused regression command passed 149 tests: dashboard alert browser harness, alert center/safety/credential flows, intake lifecycle, audit/quality/repo-health panels, vertical layout, WebSocket full-sync, and fault injection. Chrome scenarios verified collapsed desktop height <=80px with a visible board, mobile internal list overflow, accessible details/focus order, running-to-failed gate updates, and a delivery-sequence gap converging to recovered state without reload.
 ---
 <!-- COMMENTS:END -->
