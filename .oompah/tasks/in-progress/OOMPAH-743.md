@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:12:32.233100Z'
+updated_at: '2026-08-03T23:13:32.747024Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-03 23:12
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 23:13
+---
+Understanding: keep multiline failure transcripts out of compact dashboard alerts by producing bounded normalized/redacted summaries, retaining sanitized diagnostics for explicit details, and enforcing safe limits at producer and renderer boundaries. I will trace producers/templates, add regression/security tests including the EXOCOMP-147 rebase case, run focused checks, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
