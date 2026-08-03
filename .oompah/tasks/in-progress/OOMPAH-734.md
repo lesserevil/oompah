@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:15:54.203166Z'
+updated_at: '2026-08-03T19:16:03.577187Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-08-03 19:15
 ---
 Discovery: The authoritative path is entirely backend (, , and auditor exit handling in ). The dashboard already renders server-supplied alerts generically and separately summarizes launch/transport and local command-policy failures, but it has no distinct summary fact for an uncommitted verdict/finalization failure. I will add that forward-compatible frontend health fact and focused contract coverage, then hand off the durable-state/lifecycle implementation.
+---
+author: oompah
+created: 2026-08-03 19:16
+---
+Discovery correction: The authoritative path is entirely backend in oompah/terminal_transition_coordinator.py, oompah/auditor_dispatch.py, and auditor exit handling in oompah/orchestrator.py. The dashboard already renders server-supplied alerts generically and separately summarizes launch/transport and local command-policy failures, but it has no distinct summary fact for an uncommitted verdict/finalization failure. I will add that forward-compatible frontend health fact and focused contract coverage, then hand off the durable-state/lifecycle implementation.
 ---
 <!-- COMMENTS:END -->
