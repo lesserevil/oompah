@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:44:23.537710Z'
+updated_at: '2026-08-03T13:57:14.373314Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 32m 9s
 - Log: OOMPAH-718__20260803T131216Z.jsonl
+---
+author: oompah
+created: 2026-08-03 13:57
+---
+Live workaround applied to the Exocomp cycle. Promoted completed EXOCOMP-141 ancestry through common parent EXOCOMP-127 into EXOCOMP-134 at db7ca3ae, rebased/resubmitted EXOCOMP-171 at e826d0d5 (79 focused tests), and it integrated on attempt 1. Then fast-forwarded exact integrated SHA e826d0d5 through EXOCOMP-127 and EXOCOMP-129. EXOCOMP-142 now waits only for EXOCOMP-171 terminal audit, not code reachability.
 ---
 <!-- COMMENTS:END -->

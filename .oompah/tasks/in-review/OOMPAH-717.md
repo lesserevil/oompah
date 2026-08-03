@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:51:36.463939Z'
+updated_at: '2026-08-03T13:57:17.248330Z'
 work_branch: OOMPAH-717
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/677
@@ -333,5 +333,10 @@ author: oompah
 created: 2026-08-03 13:51
 ---
 Branch quality gate passed for `0f835493c2387163aca3e446d1c15fcf97ee1f84` using `make test` in 402.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 13:57
+---
+Live NODEVIRT workaround succeeded: removed the tracked generated helper from NODEVIRT-8/10/11/12/15/16/21, ignored the generated helper directory, pushed and resubmitted exact repaired heads. NODEVIRT-8 integrated on attempt 1 instead of hot-looping; downstream corrected rows remain eligible.
 ---
 <!-- COMMENTS:END -->
