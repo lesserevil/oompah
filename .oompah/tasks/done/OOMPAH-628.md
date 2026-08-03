@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-628
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-08-02T18:29:14.528639Z'
+updated_at: '2026-08-03T20:05:03.196539Z'
 work_branch: epic-OOMPAH-585
 target_branch: null
 review_url: null
