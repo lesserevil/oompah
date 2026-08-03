@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:27.860280Z'
-updated_at: '2026-08-03T20:04:18.125358Z'
+updated_at: '2026-08-03T20:04:22.219041Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-620
 target_branch: null
 review_url: null
@@ -117,6 +117,10 @@ oompah.terminal_audit:
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:27:43.677272+00:00'
     applied: true
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-03T20:04:19.686029+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-620
@@ -125,9 +129,24 @@ oompah.terminal_audit:
     audit_ids:
     - audit-10746047df02
     kind: override
-    applied: true
+    applied: false
     retired_at: '2026-08-02T18:27:49.201694+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-620
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-620 to Merged: parent epic
+      OOMPAH-619 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-10746047df02
+    created_at: '2026-08-03T20:04:19.686029+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -385,5 +404,10 @@ created: 2026-08-02 18:27
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
+---
+author: oompah
+created: 2026-08-03 20:04
+---
+Lifecycle reconciliation restored OOMPAH-620 to audited Done: Cannot transition shared-epic child OOMPAH-620 to Merged: parent epic OOMPAH-619 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
