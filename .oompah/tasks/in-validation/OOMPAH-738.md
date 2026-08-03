@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T23:04:17.371477Z'
+updated_at: '2026-08-03T23:15:59.943818Z'
 work_branch: OOMPAH-738
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/695
@@ -106,6 +106,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/695
 oompah.review_number: '695'
 oompah.work_branch: OOMPAH-738
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f090dcaffdca
+    project_id: proj-14849f1b
+    task_id: OOMPAH-738
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c9037f2963016cf770d38c93a1acdaf552366bfd2b90070641e921a4aef5a6d5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T23:15:50.105767+00:00'
+  - version: 1
+    audit_id: audit-bb0db8f2d45d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-738
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c9037f2963016cf770d38c93a1acdaf552366bfd2b90070641e921a4aef5a6d5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T23:15:50.105767+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -361,5 +400,15 @@ author: oompah
 created: 2026-08-03 23:03
 ---
 Branch quality gate passed for `5f89417c5547bb74e5c842ff59fc901b57b3831f` using `make test` in 411.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 23:15
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 23:15
+---
+YOLO: merged PR #695.
 ---
 <!-- COMMENTS:END -->
