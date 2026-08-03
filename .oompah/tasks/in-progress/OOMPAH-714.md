@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T01:37:57.854211Z'
+updated_at: '2026-08-03T02:05:22.792821Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,13 +72,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 0bd07a03-6854-40ce-92e6-5af5958a2e6a
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1615
+  total_input_tokens: 35898457
+  total_output_tokens: 47396
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1615
+      input_tokens: 35898457
+      output_tokens: 47396
       cost_usd: 0.0
   runs:
   - profile: default
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 1615
     cost_usd: 0.0
     recorded_at: '2026-08-03T01:04:06.684275+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 35898447
+    output_tokens: 45781
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T02:05:19.997563+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-714__20260803T010338Z
@@ -180,5 +186,15 @@ author: oompah
 created: 2026-08-03 01:37
 ---
 Direct owner added finish-order dependencies on OOMPAH-711 and OOMPAH-713 because those accepted branches overlap orchestrator/dashboard surfaces. Implementation may continue in parallel; integration must rebase after both land and preserve their owner-claim and auditor-policy behavior.
+---
+author: oompah
+created: 2026-08-03 02:05
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 174
+- Tokens: 35.9M in / 45.8K out [35.9M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 0m 54s
+- Log: OOMPAH-714__20260803T010434Z.jsonl
 ---
 <!-- COMMENTS:END -->
