@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-733
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:02:39.253380Z'
+updated_at: '2026-08-03T19:25:46.435947Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +196,26 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 35m 19s
 - Log: OOMPAH-733__20260803T182726Z.jsonl
+---
+author: oompah
+created: 2026-08-03 19:25
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-733`
+Target: `main`
+Head: `e08f2db26d7f1dc48ab85effb89b1f4bd80720e0`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+ERROR: oompah/orchestrator.py:12767:13: Orchestrator._supersede_wrong_epic_rebase_helper calls update_issue() for Archived
+  Route the transition through TerminalTransitionCoordinator or document an exact allowlist entry in oompah/terminal_mutation_scanner.py.
+Found 1 unauthorized terminal mutation(s).
+make: *** [Makefile:410: terminal-audit-scan] Error 1
+```
 ---
 <!-- COMMENTS:END -->
