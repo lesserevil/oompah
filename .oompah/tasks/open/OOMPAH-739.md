@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T21:26:13.609609Z'
+updated_at: '2026-08-03T21:27:43.762042Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,14 +23,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e155d40e714fbb05b6b00b3e1e1e709c3faa7399e10d8bc0afcf73643352081c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T21:27:35.863598+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8361fabf-63f2-48dd-97a8-55dd6125c013
-  claim_owner: a032ecbf-d61c-48ca-9cba-cbf452c15431
-  claimed_at: '2026-08-03T21:26:00.346343+00:00'
-  claim_expires_at: '2026-08-03T21:56:00.346343+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Closest matches OOMPAH-165 and OOMPAH-162 are terminal\
+    \ (Archived) and address earlier landing-detection cases, not this deleted-source-ref\
+    \ regression. No active duplicate is confirmed.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence:\
+    \ Closest matches OOMPAH-165 and OOMPAH-162 are terminal (Archived) and address\
+    \ earlier landing-detection cases, not this deleted-source-ref regression. No\
+    \ active duplicate is confirmed."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -38,13 +45,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d13f0692-ed59-4110-9eed-491052834ba6
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2284
+  total_input_tokens: 47716
+  total_output_tokens: 2555
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2284
+      input_tokens: 47716
+      output_tokens: 2555
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +60,12 @@ oompah.task_costs:
     output_tokens: 2284
     cost_usd: 0.0
     recorded_at: '2026-08-03T21:21:49.530609+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 47706
+    output_tokens: 271
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T21:27:35.861628+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-739__20260803T211724Z
@@ -63,6 +76,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-739
     source_sha: 576a85bfccedf903b9be03adb1088f1c69227c68
     completed_at: '2026-08-03T21:21:49.539449+00:00'
+  - run_id: OOMPAH-739__20260803T212640Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-739
+    source_sha: 576a85bfccedf903b9be03adb1088f1c69227c68
+    completed_at: '2026-08-03T21:27:35.924669+00:00'
 ---
 ## Summary
 
@@ -105,5 +126,15 @@ author: oompah
 created: 2026-08-03 21:26
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 21:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 47.7K in / 271 out [48.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 26s
+- Log: OOMPAH-739__20260803T212640Z.jsonl
 ---
 <!-- COMMENTS:END -->
