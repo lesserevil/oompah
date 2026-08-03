@@ -30,6 +30,9 @@ from oompah.scm import ReviewRequest
 from oompah.terminal_audit import ContributorIdentity, EvidenceFingerprint, TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
 
+
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
 def _make_config() -> ServiceConfig:
     return ServiceConfig(
         tracker_kind="oompah_md",
@@ -209,7 +212,43 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
     # explicitly setting maintenance_startup_delay_seconds = 0 each time.
     # Tests that explicitly test the startup-delay behaviour override this.
     orch._started_monotonic = 0.0
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_test_orchestrator_pools():
+    """Do not let helper-owned tick executor threads cross test boundaries.
+
+    Refresh-timeout tests intentionally leave their simulated 60-second reads
+    running, so their separate refresh pool is outside this tick-race fixture.
+    """
+    yield
+    orchestrators = list(_TEST_ORCHESTRATORS)
+    _TEST_ORCHESTRATORS.clear()
+    for orch in orchestrators:
+        orch._tick_pool.shutdown(wait=True, cancel_futures=False)
+        for future in (
+            orch._maintenance_future,
+            orch._epic_maintenance_future,
+            orch._integration_future,
+        ):
+            if future is not None and future.done() and not future.cancelled():
+                # Retrieving an exception prevents asyncio's delayed
+                # "Future exception was never retrieved" warning. Tests that
+                # care about the failure still assert it before teardown.
+                future.exception()
+
+
+async def _await_tick_background(orch: Orchestrator) -> None:
+    """Wait for the exact maintenance futures created by the current tick."""
+    futures = [
+        future
+        for future in (orch._maintenance_future, orch._epic_maintenance_future)
+        if future is not None
+    ]
+    if futures:
+        await asyncio.gather(*futures)
 
 
 # ---------------------------------------------------------------------------
@@ -2982,9 +3021,17 @@ class TestRepoHealErrorReporting:
 
         orch._maybe_heal_repos = _failing_heal
 
-        # _tick() must complete normally (no exception)
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())  # should not raise
+        async def _run_tick():
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()  # The delegated failure must not escape here.
+
+            assert orch._maintenance_future is not None
+            with pytest.raises(RuntimeError, match="catastrophic git failure"):
+                await orch._maintenance_future
+            assert orch._epic_maintenance_future is not None
+            await orch._epic_maintenance_future
+
+        asyncio.run(_run_tick())
 
     def test_heal_error_visible_in_snapshot_after_failure(self, tmp_path):
         """After a heal failure, get_snapshot() exposes the error string."""
@@ -3065,6 +3112,7 @@ class TestTickDelegation:
 
         async def fake_dispatch_needed():
             call_order.append("dispatch_needed")
+            return {}
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
@@ -3079,9 +3127,17 @@ class TestTickDelegation:
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            async def _run_tick():
+                await orch._tick()
+                await _await_tick_background(orch)
+
+            asyncio.run(_run_tick())
 
         assert "reconcile" in call_order
         assert "review_check" in call_order
@@ -3091,8 +3147,14 @@ class TestTickDelegation:
 
     def test_tick_handler_order(self, tmp_path):
         """_tick() calls handlers in the correct order:
-        reconcile → review_check → dispatch_needed → yolo_review → auto_update."""
+        reconcile → review_check → dispatch_needed → yolo_review → auto_update.
+
+        Force the slow-tick diagnostic path that exposed this test double's
+        former ``None`` return only under parallel full-suite contention.
+        """
         orch = _make_orchestrator(tmp_path)
+        tick_times = iter(float(value) for value in range(32))
+        orch._monotonic_clock = lambda: next(tick_times)
         call_order = []
 
         async def fake_reconcile():
@@ -3103,6 +3165,7 @@ class TestTickDelegation:
 
         async def fake_dispatch_needed():
             call_order.append("dispatch_needed")
+            return {}
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
@@ -3117,9 +3180,17 @@ class TestTickDelegation:
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            async def _run_tick():
+                await orch._tick()
+                await _await_tick_background(orch)
+
+            asyncio.run(_run_tick())
 
         expected_order = [
             "reconcile",
@@ -3179,11 +3250,16 @@ class TestTickDelegation:
         Mock them so ``assert_called_once`` only observes the explicit
         _notify_observers call inside _tick(), the invariant the test targets.
         Same isolation pattern OOMPAH-652 applied to TestRunStep5cEpicMaintenance.
+
+        Force slow-tick diagnostics so the dispatch mock's mapping contract is
+        covered deterministically instead of depending on CI host load.
         """
         orch = _make_orchestrator(tmp_path)
+        tick_times = iter(float(value) for value in range(32))
+        orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -3225,18 +3301,31 @@ class TestTickDelegation:
         orch._notify_observers.assert_called_once()
 
     def test_tick_runs_watchdog(self, tmp_path):
-        """_tick() invokes _maybe_run_watchdog after the other handlers."""
+        """_tick() invokes _maybe_run_watchdog after the other handlers.
+
+        Force slow-tick diagnostics so the dispatch mock's mapping contract is
+        covered deterministically instead of depending on CI host load.
+        """
         orch = _make_orchestrator(tmp_path)
+        tick_times = iter(float(value) for value in range(32))
+        orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            async def _run_tick():
+                await orch._tick()
+                await _await_tick_background(orch)
+
+            asyncio.run(_run_tick())
 
         orch._maybe_run_watchdog.assert_called_once_with()
 
@@ -3248,10 +3337,13 @@ class TestTickDelegation:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         main_thread_id = threading.get_ident()
         observed_thread_ids: list[int] = []
@@ -3262,7 +3354,11 @@ class TestTickDelegation:
         orch._maybe_run_watchdog = _watchdog
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            async def _run_tick():
+                await orch._tick()
+                await _await_tick_background(orch)
+
+            asyncio.run(_run_tick())
 
         assert len(observed_thread_ids) == 1
         # Must NOT run on the event loop thread
