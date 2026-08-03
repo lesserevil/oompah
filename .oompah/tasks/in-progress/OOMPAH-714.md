@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T02:12:02.231963Z'
+updated_at: '2026-08-03T02:25:06.430424Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -262,5 +262,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 25s
 - Log: OOMPAH-714__20260803T020539Z.jsonl
+---
+author: oompah
+created: 2026-08-03 02:25
+---
+Direct owner claim acquired before final integration rebase. I will hold this task out of scheduler dispatch, refresh the exact fix onto merged OOMPAH-713 now, then rebase once more after OOMPAH-711 lands and run the combined affected suites before resubmission.
 ---
 <!-- COMMENTS:END -->
