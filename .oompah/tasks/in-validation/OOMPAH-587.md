@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T21:18:51.579030Z'
+updated_at: '2026-08-03T21:19:18.168092Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -387,5 +387,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: stalled, Duration: 1h 1m 43s
 - Log: OOMPAH-587__20260803T201714Z.jsonl
+---
+author: oompah
+created: 2026-08-03 21:19
+---
+Auditor attempt ended: ACP turn timeout exceeded. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
