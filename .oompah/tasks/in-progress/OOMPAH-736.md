@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:28:44.226628Z'
+updated_at: '2026-08-03T19:33:32.204185Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,33 @@ author: oompah
 created: 2026-08-03 19:28
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-03 19:33
+---
+## Understanding
+
+The issue is about aligning the auditor command policy with project-required Makefile validation targets. 
+
+**Problem Identified:**
+- The auditor's command policy (in auditor.py) has a hardcoded regex `_AUDITOR_COMMAND_RE` that only allows specific make targets: test, test-serial, check-secrets
+- Projects can define additional required validation targets like make fmt-check, make lint, make help
+- When auditors try to run these approved targets, they're denied, causing candidate exhaustion and task failure
+- The prompt encourages focused verification but the enforcement denies it
+
+**Root Cause:**
+- No structured contract between project configuration and auditor policy
+- Auditor command allowlist is hardcoded, not generated from project needs
+- Prompt guidance can suggest commands that enforcement will deny
+
+**Implementation Plan:**
+1. Define a ProjectValidationCommandContract in the project/task configuration
+2. Add fields for approved validation targets to project config
+3. Generate auditor command regex from the contract
+4. Update prompt generation to use the same contract
+5. Classify policy-contract mismatches separately from genuine denials
+6. Add tests for the regression case
+
+Let me explore the codebase structure now.
 ---
 <!-- COMMENTS:END -->

@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:frontend
+- focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:33:02.464153Z'
+updated_at: '2026-08-03T19:33:28.678267Z'
 work_branch: null
 target_branch: null
 review_url: null
