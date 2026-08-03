@@ -475,7 +475,9 @@ def check_shell_command(
             is_recoverable_auditor_command_denial,
         )
 
-        auditor_denial = check_auditor_command(command)
+        auditor_denial = check_auditor_command(
+            command, project_id=getattr(policy, "project_id", None)
+        )
         if auditor_denial is not None:
             task_ref = policy.task_identifier
             session_ref = policy.session_id

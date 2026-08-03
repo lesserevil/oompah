@@ -426,6 +426,13 @@ class Project:
     # as a hint; agents are responsible for honoring it. Empty list = no
     # exclusions.
     test_skip_paths: list[str] = field(default_factory=list)
+    # Auditor validation command contract: explicit allowlist of non-mutating
+    # Makefile/shell targets that the completion auditor may run for validation.
+    # Examples: ["test", "fmt-check", "lint", "help"]. The full test_command
+    # is always implicitly included. When empty (the default), falls back to the
+    # default allowlist. Enables aligning auditor prompt guidance with actual
+    # enforcement (OOMPAH-736).
+    auditor_validation_targets: list[str] = field(default_factory=list)
     # Per-project strategy controlling how children of an epic relate to
     # branches and CI.  "shared" is the only supported value: each epic gets
     # ONE shared worktree and ONE shared branch; child tasks commit directly
@@ -632,6 +639,8 @@ class Project:
             d["test_command_full"] = self.test_command_full
         if self.test_skip_paths:
             d["test_skip_paths"] = list(self.test_skip_paths)
+        if self.auditor_validation_targets:
+            d["auditor_validation_targets"] = list(self.auditor_validation_targets)
         # Always emit epic_strategy so dashboards can render the current
         # mode without back-compat guessing.  "shared" is the only supported
         # value; always writing the field ensures legacy flat/stacked entries
@@ -892,6 +901,11 @@ class Project:
             test_command=test_command or None,
             test_command_full=test_command_full or None,
             test_skip_paths=test_skip_paths,
+            auditor_validation_targets=[
+                str(t).strip()
+                for t in (d.get("auditor_validation_targets") or [])
+                if str(t).strip()
+            ],
             epic_strategy=epic_strategy,
             require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
             intake_auto_promote=bool(d.get("intake_auto_promote", True)),
