@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:52:52.184556Z'
+updated_at: '2026-08-03T23:53:11.157705Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,12 +47,12 @@ oompah.agent_run_id: e6bddb7b-01b1-4820-bd01-dd2fa03f41c6
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
-  base_branch: epic-OOMPAH-740
-  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-03T23:27:21.465966+00:00'
+  head_sha: c3f9dbbaa8a88200bccbfcc8d62016b6763b992b
+  submitted_at: '2026-08-03T23:53:07.523920+00:00'
+  updated_at: '2026-08-03T23:53:07.523920+00:00'
 oompah.task_costs:
   total_input_tokens: 46242
   total_output_tokens: 259
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-03 23:52
 ---
 Verification: Focused suites pass — tests/test_dashboard_alert_contract.py (6), tests/test_auth_health.py, tests/test_terminal_audit_health*.py, tests/test_credential_error_alert.py, tests/test_dashboard_credential_warning.py, tests/test_dashboard_repo_hygiene_health.py, tests/test_dashboard_state_read_warning.py, tests/test_dashboard_terminal_audit_health.py, tests/test_state_api_responsiveness.py, tests/test_dashboard_websocket_liveness.py, tests/test_websocket_authenticated_bootstrap.py, tests/test_server_issue_snapshot.py, tests/test_orchestrator_repo_hygiene.py, tests/test_repo_hygiene.py, tests/test_epic_terminal_audit_contract.py, and OOMPAH-735 integration_retry alert check in tests/test_parallel_epic_children.py. 5 tests/test_quality_gate.py failures are pre-existing sandbox failures on the base branch (unrelated to this change).
+---
+author: oompah
+created: 2026-08-03 23:53
+---
+Implemented structured dashboard alert contract at oompah.dashboard_alerts and normalized snapshot boundary in oompah/orchestrator.py and oompah/server.py. Applied contract to generic alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Dashboard uses action_required=false as the actionability decision (no message parsing). Duplicate producers collapse by stable identity to the highest severity. OOMPAH-735 remains the integration_retry recovery classifier owner. Focused alert/health/state-API/WebSocket tests pass; 5 unrelated pre-existing test_quality_gate sandbox failures observed on base.
 ---
 <!-- COMMENTS:END -->
