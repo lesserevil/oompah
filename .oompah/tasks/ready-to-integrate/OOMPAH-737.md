@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-737
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep health and graceful cutover responsive during terminal lifecycle reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:50:05.885494Z'
+updated_at: '2026-08-03T20:50:20.059918Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7324c3a8-ca80-43f8-811d-1bd7f1009b6b
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1961
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-737
     source_sha: 42da24c2617b86610838c8097eaec2ede58ec44c
     completed_at: '2026-08-03T20:15:16.891355+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-737
+  head_sha: 2fba254fa752e0fcb5bdcfe80b9ccb739b507339
+  submitted_at: '2026-08-03T20:50:10.181276+00:00'
+  updated_at: '2026-08-03T20:50:10.181276+00:00'
 ---
 ## Summary
 
@@ -170,5 +178,10 @@ author: oompah
 created: 2026-08-03 20:50
 ---
 Completion: pushed branch OOMPAH-737 at 2fba254fa752e0fcb5bdcfe80b9ccb739b507339. Delivered deferred bounded lifecycle reconciliation, durable restart-safe per-row progress and failure isolation, responsive state observability, and candidate-authoritative cutover resume handling. Working tree is clean and branch matches origin.
+---
+author: oompah
+created: 2026-08-03 20:50
+---
+Deferred terminal lifecycle reconciliation to bounded durable background batches; kept health/state responsive and made candidate-authoritative cutovers tolerate delayed resume transport.
 ---
 <!-- COMMENTS:END -->
