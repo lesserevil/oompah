@@ -224,7 +224,11 @@ from oompah.prompt import (
     compact_prompt_comments,
     render_prompt,
 )
-from oompah.quality_gate import BranchQualityGate, QualityGateResult
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateOwner,
+    QualityGateResult,
+)
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -1061,6 +1065,12 @@ def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
 
 
 class Orchestrator:
+    # Gate outcomes are lifecycle telemetry, not a durable task history. Keep
+    # enough recent rows for operators to diagnose a concurrent interruption,
+    # while preventing one row per dispatched task from living for the whole
+    # service lifetime.
+    _QUALITY_GATE_OUTCOME_LIMIT = 128
+
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
 
     def __init__(
@@ -1219,6 +1229,11 @@ class Orchestrator:
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
+        # The last outcome is deliberately transient.  Interrupted gates are
+        # retryable lifecycle events and must not be converted into a durable
+        # standalone-delivery failure alert.
+        self._quality_gate_outcomes_lock = threading.Lock()
+        self._quality_gate_outcomes: dict[tuple[str, str], QualityGateResult] = {}
         # A terminal transition can arrive while a standalone quality gate is
         # running in the maintenance pool.  Hold this lock for each delivery
         # side effect and let the terminal coordinator revoke under the same
@@ -7309,6 +7324,34 @@ class Orchestrator:
                     task_branch,
                     target_branch,
                 ):
+                    gate_result = self._quality_gate_result_for(
+                        project_id,
+                        task_id,
+                        head_sha=(
+                            authority.head_sha
+                            if authority is not None
+                            else None
+                        ),
+                    )
+                    if gate_result is not None and gate_result.status == "interrupted":
+                        # A lifecycle cancellation is retryable.  Keep the
+                        # task Ready and let the next reconciliation retry
+                        # the same accepted head instead of stranding it with
+                        # a false test-failure warning.
+                        self._clear_quality_gate_result(project_id, task_id)
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            authority=authority,
+                        )
+                        logger.info(
+                            "Retrying interrupted standalone quality gate "
+                            "project=%s task=%s head=%s",
+                            project_id,
+                            task_id,
+                            gate_result.head_sha or "unknown",
+                        )
+                        continue
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
@@ -7751,8 +7794,115 @@ class Orchestrator:
         if superseded_generation is not None:
             # The replacement authority has a distinct generation.  Fence
             # only the old command, including one that is still pre-spawn.
-            self._branch_quality_gate.cancel_generation(superseded_generation)
+            if existing is not None and existing.head_sha:
+                self._cancel_standalone_delivery_gate(existing)
         return authority
+
+    def _cancel_standalone_delivery_gate(
+        self,
+        authority: StandaloneDeliveryAuthority,
+    ) -> int:
+        """Fence one standalone gate with exact delivery ownership evidence."""
+        owner = (
+            QualityGateOwner(
+                project_id=authority.project_id,
+                task_id=authority.task_id,
+                head_sha=str(authority.head_sha or "").strip(),
+                authority_generation=authority.generation,
+            )
+            if str(authority.head_sha or "").strip()
+            else None
+        )
+        return self._cancel_quality_gate(
+            owner,
+            generation=authority.generation,
+            project_id=authority.project_id,
+            task_id=authority.task_id,
+        )
+
+    @staticmethod
+    def _gate_supports_exact_owner(gate: Any) -> bool:
+        """Return whether a gate facade explicitly implements owner cancel.
+
+        Generic mocks and old embedders often manufacture attributes through
+        ``__getattr__``. Inspect the type or instance dictionary as well as
+        the bound method so a missing exact-owner interface cannot silently
+        turn into a broad legacy generation cancellation.
+        """
+        if isinstance(gate, BranchQualityGate):
+            return True
+        try:
+            if "cancel_owner" in vars(gate):
+                return callable(vars(gate)["cancel_owner"])
+        except TypeError:
+            pass
+        try:
+            spec_class = getattr(gate, "_spec_class", None)
+            if isinstance(spec_class, type):
+                return callable(getattr(spec_class, "cancel_owner", None))
+        except (AttributeError, TypeError):
+            pass
+        try:
+            return callable(getattr(type(gate), "cancel_owner", None))
+        except (AttributeError, TypeError):
+            return False
+
+    def _cancel_quality_gate(
+        self,
+        owner: QualityGateOwner | None,
+        *,
+        generation: str,
+        project_id: str,
+        task_id: str,
+    ) -> int:
+        """Cancel one gate without widening scope for legacy facades."""
+        gate = self._branch_quality_gate
+        if self._gate_supports_exact_owner(gate):
+            if owner is None or not owner.complete:
+                logger.warning(
+                    "Rejected quality gate cancellation without exact owner "
+                    "project=%s task=%s generation=%s",
+                    project_id,
+                    task_id,
+                    generation,
+                )
+                return 0
+            cancelled = gate.cancel_owner(owner)
+            logger.info(
+                "Quality gate exact-owner cancellation requested project=%s "
+                "task=%s head=%s authority_generation=%s terminated=%d",
+                owner.project_id,
+                owner.task_id,
+                owner.head_sha,
+                owner.authority_generation,
+                cancelled,
+            )
+            return int(cancelled or 0)
+
+        # Compatibility is restricted to facades that do not expose the new
+        # owner contract. Production BranchQualityGate always takes the exact
+        # path above, so a generation-only fallback cannot cancel an unrelated
+        # structured owner there.
+        legacy_cancel = getattr(gate, "cancel_generation", None)
+        if callable(legacy_cancel) and str(generation).strip():
+            cancelled = legacy_cancel(generation)
+            logger.info(
+                "Quality gate legacy-generation cancellation requested "
+                "project=%s task=%s generation=%s terminated=%s",
+                project_id,
+                task_id,
+                generation,
+                cancelled,
+            )
+            return int(cancelled or 0)
+        logger.warning(
+            "Quality gate facade has no supported cancellation interface "
+            "project=%s task=%s generation=%s",
+            project_id,
+            task_id,
+            generation,
+        )
+        return 0
 
     def _set_standalone_delivery_head(
         self,
@@ -7947,9 +8097,7 @@ class Orchestrator:
                 # Rejection/reopen is a generation change.  Stop only the
                 # gate owned by this claim; a replacement claim may already
                 # be running for the new head.
-                self._branch_quality_gate.cancel_generation(
-                    authority.generation
-                )
+                self._cancel_standalone_delivery_gate(authority)
             source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
             self._alerts = [
                 alert for alert in self._alerts if alert.get("source") != source
@@ -8260,7 +8408,18 @@ class Orchestrator:
                 f"integration:{item.project_id}:{item.task_id}:"
                 f"{item.head_sha}:{item.lease_owner or ''}"
             )
-            self._branch_quality_gate.cancel_generation(gate_generation)
+            gate_owner = QualityGateOwner(
+                project_id=str(item.project_id),
+                task_id=str(item.task_id),
+                head_sha=str(item.head_sha or "").strip(),
+                authority_generation=gate_generation,
+            )
+            self._cancel_quality_gate(
+                gate_owner,
+                generation=gate_generation,
+                project_id=str(item.project_id),
+                task_id=str(item.task_id),
+            )
         return retired
 
     def _execute_integration_item(
@@ -8307,6 +8466,15 @@ class Orchestrator:
             gate_generation=(
                 f"integration:{item.project_id}:{item.task_id}:"
                 f"{item.head_sha}:{item.lease_owner or ''}"
+            ),
+            gate_owner=QualityGateOwner(
+                project_id=str(item.project_id),
+                task_id=str(item.task_id),
+                head_sha=str(item.head_sha or "").strip(),
+                authority_generation=(
+                    f"integration:{item.project_id}:{item.task_id}:"
+                    f"{item.head_sha}:{item.lease_owner or ''}"
+                ),
             ),
             commit_allowed=lambda: self._integration_task_still_ready(item),
         )
@@ -11785,6 +11953,61 @@ class Orchestrator:
                 exc,
             )
 
+    def _remember_quality_gate_result(
+        self,
+        project_id: str,
+        task_id: str,
+        result: QualityGateResult,
+    ) -> None:
+        """Expose the latest gate disposition to delivery reconciliation."""
+        lock = getattr(self, "_quality_gate_outcomes_lock", None)
+        outcomes = getattr(self, "_quality_gate_outcomes", None)
+        if lock is None or outcomes is None:
+            return
+        with lock:
+            key = (str(project_id), str(task_id))
+            # A passing retry is the recovery boundary for prior transient
+            # interruptions. Do not keep a stale outcome around to make a
+            # later reconciliation look degraded.
+            if result.passed:
+                outcomes.pop(key, None)
+                return
+            outcomes.pop(key, None)
+            outcomes[key] = result
+            while len(outcomes) > self._QUALITY_GATE_OUTCOME_LIMIT:
+                outcomes.pop(next(iter(outcomes)))
+
+    def _clear_quality_gate_result(self, project_id: str, task_id: str) -> None:
+        """Forget a transient outcome once delivery has consumed it."""
+        lock = getattr(self, "_quality_gate_outcomes_lock", None)
+        outcomes = getattr(self, "_quality_gate_outcomes", None)
+        if lock is None or outcomes is None:
+            return
+        with lock:
+            outcomes.pop((str(project_id), str(task_id)), None)
+
+    def _quality_gate_result_for(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        head_sha: str | None = None,
+    ) -> QualityGateResult | None:
+        """Return the latest transient gate outcome for one delivery task."""
+        lock = getattr(self, "_quality_gate_outcomes_lock", None)
+        outcomes = getattr(self, "_quality_gate_outcomes", None)
+        if lock is None or outcomes is None:
+            return None
+        with lock:
+            result = outcomes.get((str(project_id), str(task_id)))
+            if result is None:
+                return None
+            expected_head = str(head_sha or "").strip().lower()
+            result_head = str(result.head_sha or "").strip().lower()
+            if expected_head and result_head != expected_head:
+                return None
+            return result
+
     def _review_quality_gate_passes(
         self,
         project: Project,
@@ -11929,6 +12152,21 @@ class Orchestrator:
                 ),
             )
         else:
+            gate_generation = (
+                authority.generation
+                if authority is not None
+                else f"review:{project_id}:{issue.identifier}:{branch}:{expected_head}"
+            )
+            gate_owner = QualityGateOwner(
+                project_id=project_id,
+                task_id=str(issue.identifier),
+                head_sha=str(
+                    authority.head_sha
+                    if authority is not None and authority.head_sha
+                    else expected_head
+                ),
+                authority_generation=gate_generation,
+            )
             result = self._branch_quality_gate.run(
                 repo_path=gate_source,
                 repo_identity=project.repo_url or project.repo_path or str(project.id),
@@ -11937,7 +12175,8 @@ class Orchestrator:
                 command=command,
                 expected_head_sha=expected_head,
                 require_source_head_match=source_requires_head_match,
-                generation=authority.generation if authority is not None else None,
+                generation=gate_generation,
+                owner=gate_owner,
                 # Re-read task state/head throughout snapshot creation and
                 # command execution.  A Ready-to-Open rejection must stop a
                 # standalone gate before its result can create a review.
@@ -11986,6 +12225,10 @@ class Orchestrator:
                         exc,
                     )
                     return False
+        # Record the final disposition after the exact-head revalidation. In
+        # particular, a passed gate that discovers a branch advance must be
+        # visible as stale rather than leaving a misleading passed row.
+        self._remember_quality_gate_result(project_id, str(issue.identifier), result)
         if not result.passed:
             # Obsolete/cancelled evidence must not create a new CI-fix state;
             # the replacement generation owns the next attempt.
@@ -32798,6 +33041,40 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
         return stats
 
+    def _quality_gate_state_snapshot(self) -> dict[str, Any]:
+        """Return gate ownership and lifecycle state for dashboard/API use."""
+        active = BranchQualityGate.active_state()
+        outcomes: list[dict[str, Any]] = []
+        lock = getattr(self, "_quality_gate_outcomes_lock", None)
+        stored = getattr(self, "_quality_gate_outcomes", {})
+        if lock is not None:
+            with lock:
+                for (project_id, task_id), result in stored.items():
+                    outcomes.append(
+                        {
+                            "project_id": project_id,
+                            "task_id": task_id,
+                            "status": result.status,
+                            "head_sha": result.head_sha,
+                            "command": result.command,
+                            "cached": result.cached,
+                        }
+                    )
+        outcomes.sort(key=lambda row: (row["project_id"], row["task_id"]))
+        if active:
+            status = "running"
+        elif any(row["status"] == "interrupted" for row in outcomes):
+            status = "interrupted_for_retry"
+        elif any(
+            row["status"]
+            in {"failed", "timed_out", "error", "infrastructure_error"}
+            for row in outcomes
+        ):
+            status = "failed"
+        else:
+            status = "idle"
+        return {"status": status, "active": active, "recent": outcomes}
+
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
@@ -32944,6 +33221,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         totals = self.state.agent_totals
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
+        quality_gate_state = self._quality_gate_state_snapshot()
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -33048,10 +33326,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # Stable top-level shape for API consumers that do not need the
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
+            "quality_gates": quality_gate_state,
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+                "quality_gates": quality_gate_state,
             },
             "auth_health": auth_health_snapshot(),
             "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),

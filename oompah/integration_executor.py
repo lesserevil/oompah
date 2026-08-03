@@ -15,7 +15,11 @@ from oompah.git_credentials import (
     redact_git_output,
 )
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
-from oompah.quality_gate import BranchQualityGate, QualityGateResult
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateOwner,
+    QualityGateResult,
+)
 
 
 @dataclass(frozen=True)
@@ -160,6 +164,7 @@ def execute_integration(
     retry_forced: bool = False,
     commit_allowed: Callable[[], bool] | None = None,
     gate_generation: str | None = None,
+    gate_owner: QualityGateOwner | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -358,6 +363,7 @@ def execute_integration(
         retry_forced=retry_forced,
         expected_head_sha=rebased_sha,
         generation=gate_generation,
+        owner=gate_owner,
         is_current=commit_allowed,
     )
     if not quality.passed:

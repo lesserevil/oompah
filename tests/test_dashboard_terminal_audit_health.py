@@ -161,3 +161,36 @@ class TestStateUpdateAcceptsTerminalAuditHealthAndClearsBannerRecovered:
         assert "!health" in fn or "typeof health" in fn, (
             "renderTerminalAuditHealth must guard against null health"
         )
+
+
+class TestQualityGateHealthSurface:
+    """The dashboard exposes the active gate owner and clears at idle."""
+
+    def test_accessible_quality_gate_health_banner_exists(self):
+        html = _load_dashboard()
+        match = re.search(r'<[^>]+id="quality-gate-health"[^>]*>', html)
+        assert match is not None
+        tag = match.group(0)
+        assert "hidden" in tag
+        assert 'role="status"' in tag
+        assert 'aria-live="polite"' in tag
+        assert 'aria-label="Branch quality gate health"' in tag
+        assert 'id="quality-gate-health-detail"' in html
+
+    def test_renderer_uses_owner_and_clears_idle_state(self):
+        html = _load_dashboard()
+        fn = _extract_function("renderQualityGateHealth", html)
+        assert fn
+        assert "health.active" in fn
+        assert "owner.task_id" in fn
+        assert "owner.project_id" in fn
+        assert "owner.head_sha" in fn
+        assert "owner.authority_generation" in fn
+        assert "status === 'idle'" in fn
+        assert "banner.hidden = true" in fn
+
+    def test_state_update_reads_quality_gate_health(self):
+        html = _load_dashboard()
+        fn = _extract_function("handleStateUpdate", html)
+        assert "state.quality_gates" in fn
+        assert "renderQualityGateHealth" in fn

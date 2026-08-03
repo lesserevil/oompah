@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import shlex
+import subprocess
 import time
 from unittest import mock
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
-from oompah.models import Issue, Project
+from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate
+from oompah.quality_gate import BranchQualityGate, QualityGateOwner
 from oompah.statuses import DONE, NEEDS_REBASE, OPEN, READY_TO_INTEGRATE
 
 
@@ -92,6 +97,29 @@ def _close(orchestrator: Orchestrator) -> None:
     orchestrator.coordination_store.close()
     orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
     orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def _local_quality_gate_repo(tmp_path):
+    repo = tmp_path / "quality-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=repo,
+        check=True,
+    )
+    (repo / "source.txt").write_text("quality gate\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "quality gate"], cwd=repo, check=True)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return repo, head
 
 
 def test_ready_retry_metadata_rearms_identical_blocked_queue_row(tmp_path):
@@ -201,9 +229,9 @@ def test_retire_inactive_rows_retires_open_tasks_and_cancels_gate_generation(tmp
     from its inactive_states set, so a task moved from Ready to Integrate back
     to Open kept its row alive and the gate continued running or re-launched.
 
-    This test also verifies that cancel_generation is called for each retired
-    row, tombstoning the generation so a pre-spawn gate (in snapshot creation
-    or between Popen and registration) also stops.
+    This test also verifies that exact-owner cancellation tombstones each
+    retired row so a pre-spawn gate (in snapshot creation or between Popen and
+    registration) also stops.
     """
     issue = _issue(state=OPEN, integration_state="ready")
     orchestrator, project, _tracker = _make_harness(tmp_path, issue)
@@ -226,16 +254,22 @@ def test_retire_inactive_rows_retires_open_tasks_and_cancels_gate_generation(tmp
         )
         assert claimed is not None
 
-        # Compute the expected generation string (same formula as
-        # _execute_integration_item).
+        # Compute the exact owner (same formula as _execute_integration_item).
         expected_gen = (
             f"integration:{claimed.project_id}:{claimed.task_id}:"
             f"{claimed.head_sha}:{claimed.lease_owner or ''}"
+        )
+        expected_owner = QualityGateOwner(
+            project_id=claimed.project_id,
+            task_id=claimed.task_id,
+            head_sha=claimed.head_sha,
+            authority_generation=expected_gen,
         )
 
         # Ensure the tombstone set is clean before the call.
         with BranchQualityGate._processes_lock:
             BranchQualityGate._cancelled_generations.discard(expected_gen)
+            BranchQualityGate._cancelled_owner_keys.discard(expected_owner.key)
 
         retired = orchestrator._retire_inactive_integration_rows(
             project.id,
@@ -247,14 +281,138 @@ def test_retire_inactive_rows_retires_open_tasks_and_cancels_gate_generation(tmp
         row = orchestrator.integration_queue.items(project_id=project.id)[0]
         assert row.state == "cancelled"
 
-        # The generation tombstone must have been set so that any running or
+        # The exact-owner tombstone must have been set so that any running or
         # pre-spawn gate for this exact item also stops.
         with BranchQualityGate._processes_lock:
-            assert expected_gen in BranchQualityGate._cancelled_generations
+            assert expected_owner.key in BranchQualityGate._cancelled_owner_keys
     finally:
         # Clean up tombstone to avoid polluting other tests.
         with BranchQualityGate._processes_lock:
-            BranchQualityGate._cancelled_generations.clear()
+            BranchQualityGate._cancelled_generations.discard(expected_gen)
+            BranchQualityGate._cancelled_owner_keys.discard(expected_owner.key)
+        _close(orchestrator)
+
+
+def test_completion_auditor_retirement_preserves_unrelated_branch_gate(tmp_path):
+    """Retiring task A cannot interrupt task B's exact-head gate.
+
+    This follows the production ordering: a completion auditor is retired,
+    queue reconciliation observes its terminal task state, and the stale row
+    is fenced while another task's branch gate is already running. Both rows
+    intentionally share a legacy-looking generation so a generation-only
+    cancellation would reproduce the original incident.
+    """
+    repo, head = _local_quality_gate_repo(tmp_path)
+    marker = tmp_path / "task-b-accepted"
+    gate = BranchQualityGate(
+        str(tmp_path / "quality.json"),
+        safety_head=head,
+        sandbox_launcher=lambda command, _snapshot, _run_root: [
+            "/bin/sh",
+            "-c",
+            command,
+        ],
+    )
+    auditor_issue = _issue(
+        identifier="TASK-A-AUDITOR",
+        state=DONE,
+        integration_state="ready",
+    )
+    auditor_issue.project_id = "proj-1"
+    auditor_issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=auditor_issue.integration.task_branch,
+        head_sha=head,
+    )
+    orchestrator, project, _tracker = _make_harness(tmp_path, auditor_issue)
+    orchestrator._branch_quality_gate = gate
+    entry = RunningEntry(
+        worker_task=mock.MagicMock(),
+        identifier=auditor_issue.identifier,
+        issue=auditor_issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        is_auditor=True,
+        audit_id="audit-a",
+        audit_attempt_id="attempt-a",
+        branch_key="task-a-branch",
+    )
+    entry.worker_task.done.return_value = True
+    orchestrator.state.running[auditor_issue.id] = entry
+    orchestrator.state.claimed.add(auditor_issue.id)
+    orchestrator.state.claimed_issues[auditor_issue.id] = auditor_issue
+    orchestrator._audit_branch_claims[entry.branch_key] = entry.audit_attempt_id
+    generation = (
+        f"integration:{project.id}:{auditor_issue.identifier}:"
+        f"{head}:auditor-generation"
+    )
+    owner_b = QualityGateOwner(project.id, "TASK-B-BRANCH", head, generation)
+
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=auditor_issue.identifier,
+            task_branch=auditor_issue.integration.task_branch,
+            head_sha=head,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="auditor-generation",
+            dependency_map={auditor_issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                gate.run,
+                repo_path=str(repo),
+                repo_identity="https://example.test/org/repo",
+                target_branch="main",
+                work_branch="task-b-branch",
+                command=f"sleep 0.5; touch {shlex.quote(str(marker))}",
+                expected_head_sha=head,
+                generation=generation,
+                owner=owner_b,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                active = BranchQualityGate.active_state()
+                if active:
+                    assert active[0]["task_id"] == owner_b.task_id
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("task B quality gate was not active")
+
+            with (
+                mock.patch.object(orchestrator, "_fire_task_cost_record"),
+                mock.patch.object(orchestrator, "_fire_telemetry_comment"),
+            ):
+                assert asyncio.run(
+                    orchestrator._terminate_running(
+                        auditor_issue.id,
+                        cleanup_workspace=False,
+                    )
+                )
+            assert orchestrator._retire_inactive_integration_rows(
+                project.id,
+                [auditor_issue],
+                [claimed],
+            ) == 1
+            assert BranchQualityGate.active_state()[0]["task_id"] == "TASK-B-BRANCH"
+            result = future.result(timeout=5)
+
+        assert result.passed
+        assert marker.exists()
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard(generation)
+            BranchQualityGate._cancelled_owner_keys.discard(owner_b.key)
+        BranchQualityGate.cleanup_active_processes()
         _close(orchestrator)
 
 
