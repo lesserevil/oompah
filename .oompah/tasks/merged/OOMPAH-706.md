@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-03T00:24:14.227517Z'
+updated_at: '2026-08-03T00:24:17.259374Z'
 work_branch: OOMPAH-706
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/667
@@ -148,7 +148,19 @@ oompah.terminal_audit:
       bug under repair in OOMPAH-710; the transient hidden-retirement visibility regression
       is separately tracked in OOMPAH-712.'
     created_at: '2026-08-03T00:24:10.285471+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-706
+    target_state: Merged
+    evidence_fingerprint: 9eede4aa7940adec0d9d9f608bda4ef4d973f041682049f15fba4b92a7a36e8a
+    audit_ids:
+    - audit-f47f6e36b436
+    - audit-53320474246e
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T00:24:16.159940+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -156,7 +168,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-706
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -207,13 +219,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:19:10.103753+00:00'
-    updated_at: '2026-08-03T00:23:11.094640+00:00'
+    updated_at: '2026-08-03T00:24:16.159896+00:00'
   - version: 1
     audit_id: audit-53320474246e
     project_id: proj-14849f1b
     task_id: OOMPAH-706
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -225,6 +237,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:19:10.103753+00:00'
+    updated_at: '2026-08-03T00:24:16.159921+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3e5def973c87
