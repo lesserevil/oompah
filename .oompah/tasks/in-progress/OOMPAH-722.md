@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T14:58:17.222186Z'
+updated_at: '2026-08-03T14:58:53.258218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-08-03 14:58
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-03 14:58
+---
+**Understanding & Plan**: Investigating OOMPAH-722 git rev-list audit vulnerability. The issue involves treating read-only 'git rev-list' commands (with --left-right --count and --count) as safe for auditor inspection rather than returning fatal denials. Need to: 1) Find the authority policy/shell validation code, 2) Identify where git commands are validated, 3) Build a git-subcommand capability table that whitelists read-only operations, 4) Implement recoverable validation responses for unsupported but non-mutating syntax, 5) Add comprehensive security tests to prevent write operations and shell escapes. Focus: comprehensive input validation, no credential leaks, and fail-closed for dangerous commands.
 ---
 <!-- COMMENTS:END -->
