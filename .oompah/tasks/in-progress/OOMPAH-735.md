@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:19:30.381771Z'
+updated_at: '2026-08-03T19:20:32.396146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,7 +63,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a9231db5-c720-4581-aacf-cb6ae67bc376
+oompah.agent_run_id: 4c3567af-e915-4646-926b-3bed4dcba339
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1347
