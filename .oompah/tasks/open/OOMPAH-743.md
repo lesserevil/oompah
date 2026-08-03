@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-743
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-741
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T22:56:22.560635Z'
+updated_at: '2026-08-03T22:57:32.491870Z'
 work_branch: null
 target_branch: null
 review_url: null

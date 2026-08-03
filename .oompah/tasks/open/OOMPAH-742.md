@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-742
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-741
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T22:56:17.550824Z'
+updated_at: '2026-08-03T22:57:29.887074Z'
 work_branch: null
 target_branch: null
 review_url: null

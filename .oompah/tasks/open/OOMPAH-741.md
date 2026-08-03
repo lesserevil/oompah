@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-735
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T22:56:13.861445Z'
+updated_at: '2026-08-03T22:57:26.700111Z'
 work_branch: null
 target_branch: null
 review_url: null
