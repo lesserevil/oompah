@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:32:19.260592Z'
+updated_at: '2026-08-03T18:46:08.788173Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-08-03 18:32
 ---
 Additional live evidence: after successful nested-parent synchronization, the runtime epic_rebase_states map was empty but EXOCOMP-130, EXOCOMP-132, and EXOCOMP-135 still retained rebase-requested and epic:rebasing labels. _check_epic_staleness clears the alert and immediately continues for epic-* targets, so it never proves parent reachability and transitions nested REBASING to REBASED or clears the durable labels. Extend the fix and tests to reconcile nested rebase state after the authoritative parent becomes an ancestor, including restart when only labels remain. Labels must clear only after exact local/remote/parent reachability is proven; failed or ambiguous sync must stay actionable.
+---
+author: oompah
+created: 2026-08-03 18:46
+---
+Verification: focused epic-strategy, epic-rebase-state, parallel-epic-children, and YOLO suites pass: 328 passed in 107.26s. The new regressions cover transient nested parent lookup, recovery to exactly one parent-target helper, malformed/deleted parent metadata, restart-style deduplication, wrong-target supersession without worktree cleanup, and retryable dashboard alerts.
 ---
 <!-- COMMENTS:END -->
