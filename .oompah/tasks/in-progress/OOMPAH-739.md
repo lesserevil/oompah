@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T21:27:43.762042Z'
+updated_at: '2026-08-03T21:40:38.337922Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d13f0692-ed59-4110-9eed-491052834ba6
+oompah.agent_run_id: 8e7901e3-f508-40f8-9d7a-93b158f5c356
 oompah.task_costs:
   total_input_tokens: 47716
   total_output_tokens: 2555
@@ -136,5 +136,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 26s
 - Log: OOMPAH-739__20260803T212640Z.jsonl
+---
+author: oompah
+created: 2026-08-03 21:40
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
