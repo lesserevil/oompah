@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:35:11.799943Z'
+updated_at: '2026-08-03T19:35:36.455966Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ab30369f-d1e6-4c76-bbd0-763efb5493d1
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 1381845
   total_output_tokens: 9577

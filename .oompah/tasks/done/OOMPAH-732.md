@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T19:35:17.408384Z'
+updated_at: '2026-08-03T19:35:31.147420Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -185,7 +185,8 @@ oompah.terminal_audit:
     evidence_fingerprint: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
     audit_ids:
     - audit-f3ea82b6a3e0
-    kind: result
+    - audit-99053d9cd785
+    kind: override
     applied: true
     retired_at: '2026-08-03T19:33:05.331769+00:00'
   oompah.terminal_audit_result_intents:
@@ -201,6 +202,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T19:33:05.331781+00:00'
     applied_at: '2026-08-03T19:33:11.579559+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-cf7cd56c3c63
@@ -219,7 +221,7 @@ oompah.terminal_audit:
       and exited normally, but the live pre-OOMPAH-734 finalization path left the
       tracker In Validation.
     created_at: '2026-08-03T19:35:12.384405+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -261,7 +263,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-732
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -286,7 +288,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:22:09.888848+00:00'
-    updated_at: '2026-08-03T19:35:00.718363+00:00'
+    updated_at: '2026-08-03T19:35:19.831671+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6011975b42a6
@@ -524,5 +526,19 @@ created: 2026-08-03 19:35
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: The independent auditor durably recorded PASS at 2026-08-03 19:33 UTC and exited normally, but the live pre-OOMPAH-734 finalization path left the tracker In Validation.
+---
+author: oompah
+created: 2026-08-03 19:35
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20s
+---
+author: oompah
+created: 2026-08-03 19:35
+---
+Applied the auditor's accepted PASS so the completed standalone-delivery starvation fix can leave In Validation; OOMPAH-734 tracks the finalization bug.
 ---
 <!-- COMMENTS:END -->
