@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:41:56.753769Z'
+updated_at: '2026-08-03T17:54:15.993674Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +193,10 @@ author: oompah
 created: 2026-08-03 17:41
 ---
 Additional live failure and workaround: after CAS-publishing repaired epic refs, the integration queue rejected EXOCOMP-146 because its clean preserved epic worktree remained at the old local head. I verified the old heads were ancestors of the published refs and used fast-forward-only updates for epic-EXOCOMP-130 (72ade518 -> eaeeaf08), -131 (8f80aebf -> 3377d707), and -132 (4e013110 -> 24f84e94); -133 and -134 were already aligned. The permanent repair must reconcile clean ancestor worktrees to the CAS-published head before retrying restored rows, never reset a dirty/divergent recovery snapshot, and recompute the SCC after each obsolete-edge removal until acyclic.
+---
+author: oompah
+created: 2026-08-03 17:54
+---
+Verification: Final focused suites pass: 205 tests across container-cycle repair, dependency graph, queue, parallel children, server dependencies, and config; py_compile and git diff --check pass; make check-secrets passes. make test remains blocked before pytest by the environment's astral-uv transient-scope DBus error (kernel thread refusal). The earlier fallback full pytest run reached 15,135 passed, 7 skipped, 1 xfailed, with 7 ACP agent-log failures caused by the read-only /home/shedwards/.oompah/agent-logs path.
 ---
 <!-- COMMENTS:END -->
