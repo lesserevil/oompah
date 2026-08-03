@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:22:23.461576Z'
+updated_at: '2026-08-03T16:36:35.794899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,15 @@ author: oompah
 created: 2026-08-03 16:22
 ---
 Implementation: ProjectStore now has an opt-in nested-target landing verifier that exact-checks registered worktrees, refreshes/prunes the authoritative target ref, compares the exact reviewed head, accepts ancestry or an explicitly verified merge parent, and protects branch-only cleanup. Orchestrator cleanup resolves canonical parent-epic targets, rejects wrong/missing metadata, and supplies review-head or current-fingerprint passing terminal-Merged audit evidence. Added real bare-remote regression coverage for merge/fast-forward/deleted-source/failure/unreachable/dirty-active/unregistered/idempotent paths and routing tests.
+---
+author: oompah
+created: 2026-08-03 16:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 104
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 31m 42s
+- Log: OOMPAH-726__20260803T160459Z.jsonl
 ---
 <!-- COMMENTS:END -->
