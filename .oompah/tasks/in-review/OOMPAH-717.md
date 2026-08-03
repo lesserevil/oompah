@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:51:15.828438Z'
+updated_at: '2026-08-03T13:51:29.698577Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/677
 review_number: null
 review_head: null
 merged_at: null
@@ -102,6 +102,7 @@ oompah.integration:
   head_sha: 0f835493c2387163aca3e446d1c15fcf97ee1f84
   submitted_at: '2026-08-03T13:43:09.557422+00:00'
   updated_at: '2026-08-03T13:43:09.557422+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/677
 ---
 ## Summary
 
