@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-08-02T18:31:19.647176Z'
+updated_at: '2026-08-03T20:02:35.434409Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
