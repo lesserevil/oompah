@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T02:23:52.965211Z'
+updated_at: '2026-08-03T02:23:58.067765Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/674
