@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T16:22:22.656121Z'
+updated_at: '2026-08-03T20:05:38.778091Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
