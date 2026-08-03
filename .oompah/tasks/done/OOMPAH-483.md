@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-08-02T18:24:02.820123Z'
+updated_at: '2026-08-03T20:02:29.679885Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
