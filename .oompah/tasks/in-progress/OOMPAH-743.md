@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:26:34.634695Z'
+updated_at: '2026-08-03T23:34:51.660152Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-08-03 23:26
 ---
 Verification: focused alert/dashboard/integration coverage passes (91 tests, then 40 alert/dashboard tests after final renderer hardening); snapshot/WS/API responsiveness suites pass (59 tests); integration executor and parallel-child integration suites pass (48 tests); auth/audit/credential suites pass (110 tests); automatic-rebase/quality-gate checks pass (6 tests). The initial Unicode fixture assertion was corrected to exceed the diagnostic bound.
+---
+author: oompah
+created: 2026-08-03 23:34
+---
+Implementation: added shared alert_safety projections that redact credentials, normalize control characters and whitespace, bound compact fields and diagnostics, and preserve structured failure metadata. Integration failures now publish concise title/summary/detail/action fields with bounded diagnostics. Snapshot enrichment re-sanitizes cached/IPC alerts, and the dashboard uses bounded escaped text with accessible collapsed diagnostic details and no-wrap compact styling. Added EXOCOMP-147 rebase, Unicode, redaction, API-boundary, and renderer regression coverage.
 ---
 <!-- COMMENTS:END -->
