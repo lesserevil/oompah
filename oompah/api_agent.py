@@ -138,6 +138,24 @@ _TOOL_RESULT_MAX_CHARS = 64_000
 _COMMAND_OUTPUT_PAGE_CHARS = 32_000
 _COMMAND_OUTPUT_MAX_RECORDS = 32
 
+_AUDITOR_FINALIZATION_PROMPT = (
+    "This is the reserved audit-finalization turn. Do not continue inspecting "
+    "or answer with prose. Call submit_audit_result exactly once with the "
+    "structured verdict; only that coordinator submission is authoritative."
+)
+
+
+def _audit_result_was_accepted(result: str) -> bool:
+    """Return true only for the coordinator's structured acceptance envelope."""
+
+    if not isinstance(result, str) or result.startswith("Error"):
+        return False
+    try:
+        payload = json.loads(result)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(payload, dict) and payload.get("accepted") is True
+
 
 class CommandOutputStore:
     """Keep oversized command results behind an opaque, session-local tool.
@@ -1485,6 +1503,7 @@ class ApiAgentSession:
         self.audit_result_handler = audit_result_handler
         self.tool_liveness = tool_liveness
         self.policy_denial_handler = policy_denial_handler
+        self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
         # capability, so they receive a bounded preview only.
@@ -1667,6 +1686,19 @@ class ApiAgentSession:
         try:
             for turn in range(1, self.max_turns + 1):
                 turns = turn
+                requires_audit_result = bool(
+                    self.action_policy is not None
+                    and getattr(self.action_policy, "auditor_session", False)
+                    and self.audit_target is not None
+                    and callable(self.audit_result_handler)
+                )
+                self._force_audit_finalization = bool(
+                    requires_audit_result and turn == self.max_turns
+                )
+                if self._force_audit_finalization:
+                    messages.append(
+                        {"role": "user", "content": _AUDITOR_FINALIZATION_PROMPT}
+                    )
                 # Capture the last user/tool messages being sent this turn
                 recent_msgs = []
                 for m in reversed(messages):
@@ -1754,6 +1786,18 @@ class ApiAgentSession:
 
                 tool_calls = assistant_msg.get("tool_calls")
                 if not tool_calls:
+                    if requires_audit_result:
+                        _emit(
+                            turn,
+                            "warning",
+                            "Auditor stopped without committing a structured result",
+                            (
+                                "Continuing to the reserved finalization turn."
+                                if turn < self.max_turns
+                                else "Reserved finalization turn was exhausted."
+                            ),
+                        )
+                        continue
                     _emit(turn, "message", "Agent finished (no more tool calls)")
                     return ApiAgentResult(
                         status="succeeded",
@@ -1881,6 +1925,31 @@ class ApiAgentSession:
                             "content": result_str,
                         }
                     )
+
+                    # Once the coordinator has accepted the structured
+                    # verdict, the durable terminal boundary is complete.
+                    # Do not spend another provider turn that could produce a
+                    # second prose verdict or hit the ordinary ceiling before
+                    # the result is acknowledged.
+                    if (
+                        tool_name == AUDITOR_RESULT_TOOL_NAME
+                        and _audit_result_was_accepted(result_str)
+                    ):
+                        _emit(
+                            turn,
+                            "message",
+                            "Auditor result committed; stopping session",
+                            result_str,
+                        )
+                        return ApiAgentResult(
+                            status="succeeded",
+                            input_tokens=total_input,
+                            output_tokens=total_output,
+                            total_tokens=total_tokens,
+                            turns=turns,
+                            last_message=result_str,
+                            activity=activity,
+                        )
 
                     if tool_name in _PRODUCTIVE_TOOLS and not tool_failed:
                         turn_had_productive = True
@@ -2079,6 +2148,17 @@ class ApiAgentSession:
         to the remaining headroom (clamped to a sensible floor).
         """
         tool_defs = self._tool_definitions
+        tool_choice: str | dict[str, Any] = "auto"
+        if self._force_audit_finalization:
+            tool_defs = [
+                tool
+                for tool in tool_defs
+                if tool.get("function", {}).get("name") == AUDITOR_RESULT_TOOL_NAME
+            ]
+            tool_choice = {
+                "type": "function",
+                "function": {"name": AUDITOR_RESULT_TOOL_NAME},
+            }
         max_tokens = _DEFAULT_MAX_OUTPUT_TOKENS
         if self.model_max_context:
             # Reserve at least the floor for output, plus the safety margin.
@@ -2103,7 +2183,7 @@ class ApiAgentSession:
             "model": self.model,
             "messages": messages,
             "tools": tool_defs,
-            "tool_choice": "auto",
+            "tool_choice": tool_choice,
             "max_tokens": max_tokens,
         }
         # Log the full outgoing payload (without auth headers) so the

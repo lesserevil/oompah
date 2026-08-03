@@ -85,6 +85,7 @@ class FailureClassification(str, Enum):
     MALFORMED_RESULT = "malformed_result"
     INFRASTRUCTURE_ERROR = "infrastructure_error"
     POLICY_INCOMPATIBILITY = "policy_incompatibility"
+    FINALIZATION_FAILURE = "finalization_failure"
 
     @classmethod
     def from_raw(cls, raw: Any) -> "FailureClassification":

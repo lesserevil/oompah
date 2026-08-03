@@ -567,6 +567,7 @@ class TerminalTransitionCoordinator:
         post_comments: bool = True,
         metrics: Any | None = None,
         revoke_delivery_authority: Callable[[str, str], None] | None = None,
+        revoke_auditor_authority: Callable[[str, str], None] | None = None,
         clear_audit_alert: Callable[[str, str, str], None] | None = None,
         validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
         | None = None,
@@ -587,6 +588,11 @@ class TerminalTransitionCoordinator:
         # this coordinator acquires terminal authority so no stale result can
         # later overwrite an owner-approved terminal decision.
         self._revoke_delivery_authority = revoke_delivery_authority
+        # Owner overrides acquire terminal authority over any currently
+        # running independent auditor.  This callback is deliberately kept
+        # separate from delivery revocation: applying an auditor result must
+        # not revoke the very auditor that is submitting it.
+        self._revoke_auditor_authority = revoke_auditor_authority
         # This callback is intentionally optional for tracker-neutral users.
         # The service wires it to its alert registry so retirement clears the
         # in-memory dashboard identity while the durable metadata remains the
@@ -668,6 +674,26 @@ class TerminalTransitionCoordinator:
         except Exception:  # terminal correctness must not depend on diagnostics
             logger.warning(
                 "failed to revoke delivery authority for %s/%s",
+                project_id,
+                task_id,
+                exc_info=True,
+            )
+
+    def _revoke_auditor_for_owner_override(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Withdraw live auditor authority before an owner override commits."""
+
+        callback = self._revoke_auditor_authority
+        if callback is None:
+            return
+        try:
+            callback(project_id, task_id)
+        except Exception:  # owner authority must remain fail-closed
+            logger.warning(
+                "failed to revoke auditor authority for %s/%s",
                 project_id,
                 task_id,
                 exc_info=True,
@@ -1361,8 +1387,8 @@ class TerminalTransitionCoordinator:
         """Apply an authorized owner override to bypass auditing.
 
         Directly applies a terminal status when authorized by a project owner,
-        persisting an override audit record and human-readable comment before
-        changing the task status.
+        persisting an override audit record, changing the task status, and
+        only then posting the human-readable comment.
 
         Parameters
         ----------
@@ -2088,23 +2114,12 @@ class TerminalTransitionCoordinator:
             return decision.outcome
 
         assert decision.target_status is not None
-        # --- Post the result comment before mutating status.  A tracker
-        # failure to accept the comment must not leave the record without an
-        # explanation, so we log and continue — the audit record already
-        # holds the verdict and classification.
-        posted = False
-        if self._post_comments and decision.comment_text:
-            try:
-                tracker.add_comment(
-                    identifier, decision.comment_text, author="oompah"
-                )
-                posted = True
-            except Exception:
-                logger.exception(
-                    "Failed to post audit-result comment for %s", identifier
-                )
-
-        # --- Apply the target status.  For a passing Done+Merged chain we
+        # --- Apply the target status before any human-readable result
+        # comment.  The metadata commit above is the durable verdict; this
+        # tracker write is the authoritative lifecycle transition.  If it
+        # fails, leave the intent unapplied for recovery and do not publish a
+        # misleading PASS/FAIL comment while the issue remains In Validation.
+        # For a passing Done+Merged chain we
         # keep the issue in In Validation so the auditor can drive Merged; a
         # single-target chain moves straight to its terminal state.
         applied_status = decision.target_status
@@ -2122,6 +2137,21 @@ class TerminalTransitionCoordinator:
                 applied_status,
                 identifier,
             )
+
+        # --- Post the result comment only after the authoritative status was
+        # accepted.  A comment failure is best-effort and cannot undo the
+        # completed audit or the terminal status.
+        posted = False
+        if status_applied and self._post_comments and decision.comment_text:
+            try:
+                tracker.add_comment(
+                    identifier, decision.comment_text, author="oompah"
+                )
+                posted = True
+            except Exception:
+                logger.exception(
+                    "Failed to post audit-result comment for %s", identifier
+                )
 
         if status_applied:
             try:
@@ -2353,6 +2383,7 @@ class TerminalTransitionCoordinator:
         # stale outcome.  Invalid or stale override attempts intentionally do
         # not disturb a valid delivery claim.
         self._revoke_delivery_for_terminal_transition(project_id, identifier)
+        self._revoke_auditor_for_owner_override(project_id, identifier)
 
         overridden_audit_ids = [
             record.audit_id
@@ -2415,7 +2446,28 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.METADATA_WRITE_FAILED,
             )
 
-        # Step 5: Post explanatory comment before status change
+        # Step 5: Apply the status before any explanatory comment.  The owner
+        # record is already durable, so a tracker/comment failure cannot make
+        # human-readable history claim a terminal state that the tracker did
+        # not accept.
+        target_status = _target_state_to_status(requested_target)
+        try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
+            # project-owner override.
+            tracker.update_issue(identifier, status=target_status)
+        except Exception:
+            logger.exception(
+                "Failed to apply override status %r for %s",
+                target_status,
+                identifier,
+            )
+            return OverrideResult(
+                success=False,
+                reason="failed to update tracker status",
+                error_code=OverrideRejection.STATUS_UPDATE_FAILED,
+            )
+
+        # Step 6: Post explanatory comment after the authoritative status.
         posted = False
         if self._post_comments:
             safe_actor = redact_terminal_audit_text(authorized_actor.identity)
@@ -2436,24 +2488,6 @@ class TerminalTransitionCoordinator:
                     reason="failed to post override comment",
                     error_code=OverrideRejection.COMMENT_FAILED,
                 )
-
-        # Step 6: Apply terminal status
-        target_status = _target_state_to_status(requested_target)
-        try:
-            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
-            # project-owner override.
-            tracker.update_issue(identifier, status=target_status)
-        except Exception:
-            logger.exception(
-                "Failed to apply override status %r for %s",
-                target_status,
-                identifier,
-            )
-            return OverrideResult(
-                success=False,
-                reason="failed to update tracker status",
-                error_code=OverrideRejection.STATUS_UPDATE_FAILED,
-            )
 
         cleanup_diagnostics: list[dict[str, str]] = []
         try:

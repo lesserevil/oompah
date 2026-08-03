@@ -468,6 +468,10 @@ class TerminalAuditEnforcement:
         self._recovery_scan_error_count = 0
         self._lifecycle_lock = threading.RLock()
         self._lifecycle_state_lock = threading.RLock()
+        # Counts are derived from the post-recovery metadata snapshot.  An
+        # unapplied result intent is an actionable finalization failure, not a
+        # provider transport or command-policy failure.
+        self.finalization_failure_counts: dict[str, int] = {}
 
     def _load_root_state(self) -> dict[str, Any]:
         if self._load_state_callback is not None:
@@ -871,6 +875,7 @@ class TerminalAuditEnforcement:
         recovered: list[PendingAudit] = []
         self._recovery_scan_complete = True
         self._recovery_scan_error_count = 0
+        self.finalization_failure_counts = {}
         for project_id, tracker in scope_list:
             try:
                 all_issues = self._all_issues(tracker)
@@ -939,6 +944,23 @@ class TerminalAuditEnforcement:
                     self._recovery_scan_complete = False
                     self._recovery_scan_error_count += 1
                     continue
+                raw_intents = document.unknown_fields.get(
+                    TERMINAL_RESULT_INTENTS_KEY, []
+                )
+                if isinstance(raw_intents, list):
+                    failures = sum(
+                        1
+                        for raw_intent in raw_intents
+                        if isinstance(raw_intent, Mapping)
+                        and raw_intent.get("applied", True) is False
+                        and raw_intent.get("project_id") == str(project_id)
+                        and raw_intent.get("task_id") == str(issue.identifier)
+                    )
+                    if failures:
+                        self.finalization_failure_counts[str(project_id)] = (
+                            self.finalization_failure_counts.get(str(project_id), 0)
+                            + failures
+                        )
                 if document.is_quarantined:
                     self._error(f"metadata_quarantined:{project_id}:{issue.identifier}")
                     self._recovery_scan_complete = False

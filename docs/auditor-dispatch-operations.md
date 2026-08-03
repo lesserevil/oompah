@@ -270,36 +270,23 @@ then rotates to the next independent candidate.
 
 ### Uncommitted Finalization Failures
 
-**Context (OOMPAH-734):** In rare cases, an auditor may reach its turn ceiling after deciding a verdict, or may crash/timeout after deciding but before confirming finalization. The coordinator persists the verdict separately from the human-readable comment, ensuring the durable result is never lost.
+**Context (OOMPAH-734):** An auditor can reach its turn ceiling after deciding a verdict, or crash/timeout before submitting it. Oompah reserves a finalization turn for the structured result and never treats prose or a task comment as a verdict.
 
 **Symptoms:**
 
-- Dashboard shows "PASS — Done" in a recent comment, but the task is still in `In Validation`
 - Dashboard terminal-audit health banner shows "uncommitted audit finalization failures"
-- Task does not advance automatically but remains under review
+- The task remains in `In Validation` and no PASS/FAIL result comment appears
 
-**Root cause:** Auditor reached its turn ceiling or crashed after deciding the verdict but before the coordinator confirmed finalization (posting the result comment and applying the tracker status). The durable verdict is persisted; only the human-facing comment is missing.
+**Root cause:** Either the auditor exited without submitting a structured result, or the coordinator persisted the result but the tracker rejected its status update. In the first case the attempt is retried as a finalization failure. In the second case the completed verdict and an unapplied status intent remain durable. Both cases fail closed, and neither can publish a misleading result comment.
 
 **Recovery:**
 
-1. The coordinator automatically detects the missing comment on the next startup or recovery tick.
-2. Coordinator re-applies the durable verdict:
-   - Computes the same human-readable message from the persisted verdict
-   - Posts the result comment idempotently (no duplicate comments)
-   - Applies the terminal status (Done/Merged/Archived)
-3. Task advances normally without requiring operator intervention.
+1. Restore the provider or tracker operation identified by the alert.
+2. For an exit without a submitted result, the scheduler rotates to the next independent candidate after retry backoff.
+3. For an unapplied durable result intent, restart oompah with `make restart`. Startup recovery revalidates the task identity, target, and evidence fingerprint before retrying the exact status write.
+4. Recovery marks the intent applied after the tracker accepts the status. It does not infer a verdict from existing comments or manufacture a result comment.
 
-**If recovery does not occur within one minute:**
-
-```bash
-# Force recovery via audit rearm (reapplies the persisted verdict)
-oompah task set-status TASK-123 Done \
-  --project PROJECT_ID \
-  --audit-retry \
-  --audit-retry-reason "Finalization recovery reapplying committed verdict"
-```
-
-The rearm is safe; it will recognize the already-committed verdict and reapply the same status/comment without creating duplicate work.
+If a tracker write remains unavailable after restart, keep the task in `In Validation` and repair the tracker. Do not use comment text to choose a terminal state. A project owner may use the authenticated override flow only after independently verifying the intended target and current evidence fingerprint.
 
 ### Audit Exhausted After Workspace or Transport Failures
 

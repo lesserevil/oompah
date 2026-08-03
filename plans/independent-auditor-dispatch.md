@@ -219,11 +219,11 @@ If the auditor reaches its turn ceiling before calling `submit_audit_result` (ra
 
 #### Recovery Path for Exit-After-Finalization-Call-but-Before-Coordinator-Persistence
 
-This is mitigated by finalization timeout handling:
+This is mitigated by durable coordinator ordering:
 
-1. If coordinator receives the call within finalization timeout, the verdict is persisted atomically
-2. Coordinator posts the human-readable result comment on recovery (see commit-before-comment recovery path)
-3. If the call times out before reaching the coordinator, the auditor exit is treated as a transient failure (see "On Transient Failure" below)
+1. If the coordinator receives the call, it persists the verdict atomically before applying tracker state or posting a comment.
+2. Startup recovery revalidates and applies a persisted result intent; it does not derive or publish a verdict from comment text.
+3. If the call exits before persistence, the auditor attempt stays fail-closed and is classified separately from provider transport and command-policy failures.
 
 ### Retry and Recovery Semantics
 

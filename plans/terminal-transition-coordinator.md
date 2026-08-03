@@ -405,18 +405,15 @@ Unknown classifications raise `ValueError` — the switch fails closed for any n
 
 3. **Apply tracker state** (idempotent writes, safe to retry):
    - Update the task status (only if verdict is not ERROR)
-   - Post the human-readable result comment
+   - Only after the status succeeds, post the human-readable result comment
 
-#### Recovery path for exit-before-comment:
+#### Recovery path for an unapplied status intent:
 
 If the auditor process crashes, times out, or receives a policy denial **after step 1 but before step 3**:
 
-1. On restart or recovery, the coordinator loads the audit record and sees `COMPLETED` verdict
-2. The coordinator detects that no result comment has been posted (check tracker history)
-3. The coordinator re-applies steps 2–3 safely (idempotent):
-   - Recompute the same message from the persisted verdict
-   - Retry the tracker writes
-   - No verdict or classification changes; no duplicate audit records
+1. On restart, enforcement loads the `COMPLETED` record and its unapplied status intent.
+2. Recovery revalidates project/task identity, target, lifecycle, and evidence fingerprint.
+3. Recovery retries the exact status write and marks the intent applied after acceptance. It does not infer a verdict from comments or manufacture a comment during recovery.
 
 #### Auditor turn-ceiling boundary:
 
@@ -425,13 +422,13 @@ When an auditor approaches or reaches its turn ceiling while deciding a PASS ver
 1. The auditor **must reserve the finalization call as non-starvable**:
    - Final ordinary turn: complete the audit logic, gather evidence, decide PASS/FAIL
    - Finalization call (outside the ordinary turn budget): invoke `submit_audit_result` with the verdict
-   - The finalization call must complete within a small fixed budget (e.g., 10 seconds)
+   - API sessions expose only `submit_audit_result` on the reserved finalization turn
 
 2. The coordinator persists the verdict atomically in step 1 above, **independently of whether the auditor's session later completes normally or times out**
 
-3. On service restart or after the auditor's session ends:
-   - Load persisted completed verdicts and detect missing comments
-   - Safely apply comments and tracker state without re-opening the verdict
+3. On service restart:
+   - Load persisted completed verdicts and their unapplied status intents
+   - Safely apply tracker state without reopening or redispatching the verdict
 
 This ensures an auditor reaching its turn ceiling **cannot strand the task in In Validation** — the durable verdict is already committed and will be surfaced to the tracker on recovery.
 
@@ -441,7 +438,7 @@ This ensures an auditor reaching its turn ceiling **cannot strand the task in In
 - `MALFORMED_RESULT` and `INFRASTRUCTURE_ERROR` classifications never apply a status.
 - Retry ceilings never apply a status.
 - `NEEDS_HUMAN` results whose comment is not actionable are rejected — the coordinator will not move the task to `Needs Human` without an actionable explanation.
-- A tracker write failure for the status or the comment logs the failure but does not roll back the audit record — the persisted attempt is durable, so a retry can reapply the tracker state without reopening the verdict.
+- A tracker status failure leaves an observable unapplied intent and suppresses the result comment; a comment failure after the status succeeds does not roll back the durable audit record.
 - **Commit-before-comment enforcement**: Verdict records are persisted COMPLETED before any tracker comment; provider/timeout/process-crash failures after persistence do not corrupt the durable verdict.
 
 ## Testing Strategy

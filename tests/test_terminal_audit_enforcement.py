@@ -1366,6 +1366,41 @@ def test_recovery_selects_one_newest_current_result_intent(tmp_path):
     assert intents[1]["retired_reason"] == "recovered_current_intent"
 
 
+def test_recovery_rebuilds_finalization_failure_counts_without_accumulating(tmp_path):
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+    tracker.fail_status_updates = True
+    record = _pending_record(
+        "project-a", "TASK-1", "audit-pass", request_state=RequestState.COMPLETED
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                TERMINAL_RESULT_INTENTS_KEY: [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "audit_id": record.audit_id,
+                        "attempt_id": "attempt-pass",
+                        "target_state": record.target_state.value,
+                        "evidence_fingerprint": record.evidence_fingerprint.digest,
+                        "status": "Done",
+                        "audit_ids": [record.audit_id],
+                        "applied": False,
+                    }
+                ]
+            },
+        ).to_dict()
+    }
+    enforcer = _enforcer(tmp_path)
+
+    enforcer.recover_pending_audits([("project-a", tracker)])
+    assert enforcer.finalization_failure_counts == {"project-a": 1}
+
+    enforcer.recover_pending_audits([("project-a", tracker)])
+    assert enforcer.finalization_failure_counts == {"project-a": 1}
+
+
 def test_dispatch_cas_does_not_resurrect_completed_audit(tmp_path):
     """A stale dispatch snapshot cannot overwrite a PASS completion."""
     tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
