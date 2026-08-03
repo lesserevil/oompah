@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T20:06:58.931438Z'
+updated_at: '2026-08-03T21:05:54.663244Z'
 work_branch: OOMPAH-724
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/689
@@ -122,6 +122,31 @@ oompah.work_branch: OOMPAH-724
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fea797ff10f8: '2026-08-03T21:05:41.526577+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    target_state: Done
+    evidence_fingerprint: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    audit_ids:
+    - audit-d2e1f06b9b13
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T21:05:41.526584+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    audit_id: audit-d2e1f06b9b13
+    attempt_id: attempt-fea797ff10f8
+    target_state: Done
+    evidence_fingerprint: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    status: In Validation
+    audit_ids:
+    - audit-d2e1f06b9b13
+    applied: true
+    created_at: '2026-08-03T21:05:41.526594+00:00'
+    applied_at: '2026-08-03T21:05:51.472203+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +154,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-724
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +163,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fea797ff10f8
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,13 +173,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T20:06:50.846791+00:00'
       branch_key: OOMPAH-724
+      verdict: pass
+      completed_at: '2026-08-03T21:05:41.526460+00:00'
+      ended_at: '2026-08-03T21:05:41.526460+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:43:14.892619+00:00'
-    updated_at: '2026-08-03T20:06:50.846791+00:00'
+    updated_at: '2026-08-03T21:05:41.526460+00:00'
   - version: 1
     audit_id: audit-416640aad5b6
     project_id: proj-14849f1b
@@ -436,5 +464,25 @@ author: oompah
 created: 2026-08-03 20:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:05
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: e0e1769757167c48853d850c484840f129aa56cf
+- merged_pr: #689
+- head_ancestor_of_main: true
+- focused_tests: tests/test_submission_fencing.py 3/3 passed
+- neighbor_tests: tests/test_worker_submission.py+test_integration_executor.py+test_retry_authority_generation.py+test_orchestrator_handlers.py 325/325 passed
+- extra_tests: tests/test_projects.py+test_models.py 133/133 passed
+- branch_gate: make test passed for e0e1769757167c48853d850c484840f129aa56cf per prior comment
+- models_change: oompah/models.py:1472 accepted_submission_record on RunningEntry
+- accept_change: oompah/orchestrator.py:29698 _accept_worker_submission revokes retry authority after stamping accepted record
+- handler_change: oompah/orchestrator.py:29793 _handle_revoked_submission_exit preserves worktree, validates HEAD, reopens Open with recovery ref or sets READY_TO_INTEGRATE
+- exit_route: oompah/orchestrator.py:30587 routes accepted+revoked entries into _handle_revoked_submission_exit before quarantine
 ---
 <!-- COMMENTS:END -->
