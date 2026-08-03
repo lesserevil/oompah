@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.duplicate_screening import new_claim_record
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.scm import ReviewRequest
 from oompah.statuses import (
@@ -1155,6 +1155,11 @@ class TestSharedModeDispatchGating:
             state="Needs Rebase",
             priority=0,
         )
+        parent_tracker = MagicMock()
+        parent_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="TASK-462", issue_type="epic"
+        )
+        orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
         orch._reviews_cache = {}
 
         assert orch._should_dispatch(child) is False
@@ -1188,7 +1193,6 @@ class TestSharedModeDispatchGating:
                 state="open",
             ),
         ]
-
         ready = orch._select_dispatchable(children)
 
         assert [issue.identifier for issue in ready] == ["task-a"]
@@ -1293,6 +1297,11 @@ class TestSharedModeDispatchGating:
                 priority=0,
             ),
         ]
+        parent_tracker = MagicMock()
+        parent_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="TASK-462", issue_type="epic"
+        )
+        orch._tracker_for_issue = MagicMock(return_value=parent_tracker)
 
         ready = orch._select_dispatchable(children)
 
@@ -4560,10 +4569,10 @@ class TestResolveEpicTargetBranch:
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "epic-epic-A"
 
-    def test_nested_epic_shared_parent_tracker_error_returns_project_branch(
+    def test_nested_epic_shared_parent_tracker_error_fails_closed(
         self, tmp_path
     ):
-        """If _resolve_parent_epic returns None (tracker error), fall back to project.branch."""
+        """A nested epic never falls back to project.branch on lookup failure."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         child_epic = _make_issue(
@@ -4574,8 +4583,12 @@ class TestResolveEpicTargetBranch:
         )
         # Simulate tracker error — resolve_parent_epic returns None
         with patch.object(orch, "_resolve_parent_epic", return_value=None):
-            target = orch._resolve_epic_target_branch(child_epic, proj)
-        assert target == "main"
+            with pytest.raises(EpicTargetResolutionError, match="not a confirmed"):
+                orch._resolve_epic_target_branch(child_epic, proj)
+        assert any(
+            alert["source"] == "epic_target_unresolved:epic-B"
+            for alert in orch._alerts
+        )
 
 
 # ------------------------------- nested epic PR target in _open_epic_main_prs

@@ -857,6 +857,31 @@ class DispatchAuthorityRevoked(RuntimeError):
     """Raised when an accepted lifecycle change withdraws a worker run."""
 
 
+class EpicTargetResolutionError(RuntimeError):
+    """A nested epic target could not be authoritatively resolved.
+
+    This is deliberately distinct from a confirmed top-level epic.  Callers
+    handling synchronization must retry after the tracker hierarchy becomes
+    readable instead of substituting the project's default branch.
+    """
+
+    retryable = True
+
+    def __init__(
+        self,
+        epic_identifier: str,
+        parent_id: str,
+        reason: str,
+    ) -> None:
+        self.epic_identifier = str(epic_identifier or "").strip()
+        self.parent_id = str(parent_id or "").strip()
+        self.reason = str(reason or "parent hierarchy is unavailable").strip()
+        super().__init__(
+            f"Cannot resolve synchronization target for epic "
+            f"{self.epic_identifier}: parent {self.parent_id} {self.reason}"
+        )
+
+
 @dataclass
 class DispatchTarget:
     """A resolved provider/model candidate for a single dispatch attempt.
@@ -9606,13 +9631,17 @@ class Orchestrator:
 
         try:
             epic_branch = self.project_store.epic_branch_name(epic_id)
-            target_branch = self._resolve_epic_target_branch(epic, project) or "main"
+            target_branch = self._resolve_epic_target_branch(
+                epic,
+                project,
+                snapshot=issues,
+            )
 
             # Nested epics may target their parent epic's branch. Allow repair
             # if target_branch is the authoritative parent's branch; reject if
             # it's an unrelated epic branch (epic-to-epic not via parent).
             if target_branch.startswith("epic-"):
-                parent_epic = self._resolve_parent_epic(epic)
+                parent_epic = self._resolve_parent_epic(epic, snapshot=issues)
                 if parent_epic is None:
                     # Epic branches without a parent are not allowed.
                     return False
@@ -9740,6 +9769,7 @@ class Orchestrator:
                 active_rebase = self._find_active_epic_rebase_sibling(
                     tracker,
                     epic,
+                    target_branch=target_branch,
                 )
                 if active_rebase is None:
                     self._file_rebase_task(
@@ -9755,6 +9785,12 @@ class Orchestrator:
                     EpicRebaseState.REBASING,
                     project_id=project_id,
                     reason="queue_staleness_block",
+                )
+                self._record_epic_rebase_target(
+                    epic_id,
+                    target_branch=target_branch,
+                    project_id=project_id,
+                    parent_id=getattr(epic, "parent_id", None),
                 )
                 logger.info(
                     "%s rebase task for %s due to queue staleness block: %s",
@@ -12583,10 +12619,183 @@ class Orchestrator:
         title = (issue.title or "").strip().lower()
         return title.startswith("rebase ") and epic_branch in title
 
+    @staticmethod
+    def _epic_rebase_helper_target(issue: Issue) -> str | None:
+        """Return a helper's recorded target, including legacy title evidence."""
+        raw_target = getattr(issue, "target_branch", None)
+        target = raw_target.strip() if isinstance(raw_target, str) else ""
+        if target:
+            return target
+        title = str(getattr(issue, "title", "") or "")
+        match = re.search(r"\s+onto\s+(.+?)\s*$", title, flags=re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
+    def _prepare_epic_rebase_helper_target(
+        self,
+        issue: Issue,
+    ) -> tuple[bool, str]:
+        """Populate and validate a helper's target before worker dispatch.
+
+        The helper title is legacy evidence, not hierarchy authority. Resolve
+        the parent epic again so a stale or metadata-less helper cannot create
+        a workspace from the project default branch. The in-memory field is
+        populated even when the best-effort metadata repair is unavailable;
+        the title remains durable evidence for the next tracker refresh.
+        """
+        if not self._is_epic_rebase_task(issue):
+            return True, ""
+        parent_id = (
+            issue.parent_id.strip()
+            if isinstance(issue.parent_id, str)
+            else ""
+        )
+        if not parent_id:
+            return False, "epic_rebase_parent_missing"
+        try:
+            project = (
+                self.project_store.get(issue.project_id)
+                if issue.project_id
+                else None
+            )
+        except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
+            logger.warning(
+                "Cannot load project for epic rebase helper %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False, "epic_rebase_project_unresolved"
+        if project is None:
+            return False, "epic_rebase_project_missing"
+        try:
+            parent = self._resolve_parent_epic(issue, fail_closed=True)
+            if parent is None:
+                return False, "epic_rebase_parent_unresolved"
+            expected = self._resolve_epic_target_branch(parent, project)
+        except EpicTargetResolutionError:
+            return False, "epic_rebase_target_unresolved"
+        except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
+            logger.warning(
+                "Cannot prepare target for epic rebase helper %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False, "epic_rebase_target_unresolved"
+
+        recorded = self._epic_rebase_helper_target(issue)
+        if recorded and recorded != expected:
+            try:
+                tracker = self._tracker_for_issue(issue)
+                if not self._supersede_wrong_epic_rebase_helper(
+                    tracker,
+                    issue,
+                    target_branch=expected,
+                    parent_id=parent_id,
+                ):
+                    return False, "epic_rebase_wrong_target_claimed"
+            except Exception as exc:  # noqa: BLE001 - preserve the helper
+                logger.warning(
+                    "Cannot supersede wrong-target rebase helper %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                return False, "epic_rebase_wrong_target"
+            return False, "epic_rebase_wrong_target"
+
+        issue.target_branch = expected
+        try:
+            tracker = self._tracker_for_issue(issue)
+            tracker.set_metadata_field(
+                issue.identifier,
+                "oompah.target_branch",
+                expected,
+            )
+        except Exception as exc:  # noqa: BLE001 - title remains durable evidence
+            logger.warning(
+                "Could not refresh target metadata for epic rebase helper %s: %s",
+                issue.identifier,
+                exc,
+            )
+        return True, ""
+
+    def _supersede_wrong_epic_rebase_helper(
+        self,
+        tracker,
+        helper: Issue,
+        *,
+        target_branch: str,
+        parent_id: str | None,
+    ) -> bool:
+        """Retire an active helper with stale target evidence.
+
+        This only changes the tracker task after a fresh read and never
+        removes worktrees or recovery refs. A helper already claimed by a
+        worker is left alone; a later retry can reconcile it without racing
+        that worker.
+        """
+        identifier = str(getattr(helper, "identifier", "") or "").strip()
+        if not identifier:
+            return False
+        issue_id = str(getattr(helper, "id", "") or "").strip()
+        if issue_id in self.state.running or issue_id in self.state.claimed:
+            logger.warning(
+                "Leaving wrong-target rebase helper %s claimed; expected %s",
+                identifier,
+                target_branch,
+            )
+            return False
+        try:
+            current = tracker.fetch_issue_detail(identifier)
+        except Exception as exc:  # noqa: BLE001 - do not race an unreadable task
+            logger.warning(
+                "Cannot supersede wrong-target rebase helper %s: %s",
+                identifier,
+                exc,
+            )
+            return False
+        if current is None:
+            return True
+        current_id = str(getattr(current, "id", "") or "").strip()
+        if current_id in self.state.running or current_id in self.state.claimed:
+            return False
+        if _state_key(getattr(current, "state", "")) not in {
+            _state_key(OPEN),
+            _state_key(IN_PROGRESS),
+            _state_key(NEEDS_REBASE),
+        }:
+            return True
+        try:
+            tracker.update_issue(identifier, status=ARCHIVED)
+            tracker.add_comment(
+                identifier,
+                (
+                    "Superseded: this rebase helper recorded target "
+                    f"{self._epic_rebase_helper_target(current) or '<missing>'}, "
+                    f"but the authoritative target is {target_branch} for "
+                    f"parent {parent_id or '<top-level>'}. No worktree or "
+                    "recovery ref was deleted."
+                ),
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001 - preserve helper for retry
+            logger.warning(
+                "Failed to supersede wrong-target rebase helper %s: %s",
+                identifier,
+                exc,
+            )
+            return False
+        logger.info(
+            "Superseded wrong-target rebase helper %s (expected %s)",
+            identifier,
+            target_branch,
+        )
+        return True
+
     def _find_active_epic_rebase_sibling(
         self,
         tracker,
         epic: Issue,
+        *,
+        target_branch: str | None = None,
     ) -> Issue | None:
         """Find an actionable existing rebase task for ``epic``.
 
@@ -12650,6 +12859,22 @@ class Orchestrator:
                 continue
             if self._is_epic_rebase_task(child, epic.identifier):
                 matches.append(child)
+
+        if target_branch is not None:
+            expected = str(target_branch or "").strip()
+            matching: list[Issue] = []
+            for helper in matches:
+                recorded = self._epic_rebase_helper_target(helper)
+                if recorded == expected:
+                    matching.append(helper)
+                    continue
+                self._supersede_wrong_epic_rebase_helper(
+                    tracker,
+                    helper,
+                    target_branch=expected,
+                    parent_id=getattr(epic, "parent_id", None),
+                )
+            matches = matching
 
         if not matches:
             return None
@@ -14101,7 +14326,13 @@ class Orchestrator:
                 exc,
             )
 
-    def _resolve_parent_epic(self, issue: Issue) -> Issue | None:
+    def _resolve_parent_epic(
+        self,
+        issue: Issue,
+        *,
+        snapshot: Mapping[str, Issue] | Iterable[Issue] | None = None,
+        fail_closed: bool = False,
+    ) -> Issue | None:
         """Resolve a child issue's parent rollup, or None when this issue has
         no parent or the parent should not be handled as an epic rollup.
 
@@ -14112,23 +14343,66 @@ class Orchestrator:
         children also counts even if its ``epic`` label was accidentally
         omitted; otherwise one bad metadata sync can bypass the per-project
         rollup policy and create stray child PRs.
+
+        ``fail_closed`` is used by target resolution. It distinguishes a
+        confirmed top-level issue (no ``parent_id``) from a parent that is
+        temporarily unreadable or missing. Ordinary child-policy callers keep
+        the historical ``None`` result for unresolved parents.
         """
         parent_id = (issue.parent_id or "").strip()
         if not parent_id:
             return None
-        try:
-            tracker = self._tracker_for_issue(issue)
-            parent = tracker.fetch_issue_detail(parent_id)
-        except Exception as exc:
+
+        def unresolved(reason: str) -> Issue | None:
+            if fail_closed:
+                raise EpicTargetResolutionError(issue.identifier, parent_id, reason)
             logger.debug(
-                "Failed to fetch parent epic %s for child %s: %s",
+                "Parent epic %s for child %s is unresolved: %s",
                 parent_id,
                 issue.identifier,
-                exc,
+                reason,
             )
             return None
+
+        parent: Issue | None
+        snapshot_children: set[str] = set()
+        if snapshot is not None:
+            snapshot_values = (
+                snapshot.values() if isinstance(snapshot, Mapping) else snapshot
+            )
+            by_alias: dict[str, Issue] = {}
+            for candidate in snapshot_values:
+                if candidate is None:
+                    continue
+                for alias in (
+                    getattr(candidate, "id", None),
+                    getattr(candidate, "identifier", None),
+                ):
+                    alias_text = str(alias or "").strip()
+                    if alias_text:
+                        by_alias[alias_text] = candidate
+                candidate_parent = str(
+                    getattr(candidate, "parent_id", None) or ""
+                ).strip()
+                if candidate_parent:
+                    snapshot_children.add(candidate_parent)
+            parent = by_alias.get(parent_id)
+            if parent is None:
+                return unresolved("is absent from the canonical project snapshot")
+        else:
+            try:
+                tracker = self._tracker_for_issue(issue)
+                parent = tracker.fetch_issue_detail(parent_id)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to fetch parent epic %s for child %s: %s",
+                    parent_id,
+                    issue.identifier,
+                    exc,
+                )
+                return unresolved(f"could not be fetched ({exc})")
         if not parent:
-            return None
+            return unresolved("does not exist")
         # Carry the project_id over from the child for downstream
         # consumers that rely on it (the parent record may have it set
         # already, but be defensive).
@@ -14136,7 +14410,12 @@ class Orchestrator:
             parent.project_id = issue.project_id
         if (parent.issue_type or "").strip().lower() == "epic":
             return parent
-        if self._issue_has_children(parent):
+        has_children = (
+            parent_id in snapshot_children
+            if snapshot is not None
+            else self._issue_has_children(parent)
+        )
+        if has_children:
             logger.debug(
                 "Treating parent %s as epic rollup for %s because the parent has children",
                 parent.identifier,
@@ -14309,6 +14588,20 @@ class Orchestrator:
                         exc,
                     )
             return path, epic
+
+        if self._is_epic_rebase_task(issue):
+            target_ready, target_reason = self._prepare_epic_rebase_helper_target(issue)
+            if not target_ready:
+                parent_id = (
+                    issue.parent_id.strip()
+                    if isinstance(issue.parent_id, str)
+                    else ""
+                )
+                raise EpicTargetResolutionError(
+                    issue.identifier,
+                    parent_id,
+                    target_reason,
+                )
 
         if not issue.project_id:
             workspace = self._authority_guarded_call(
@@ -14980,7 +15273,12 @@ class Orchestrator:
                 continue
 
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
-            target_branch = self._resolve_epic_target_branch(issue, project) or "main"
+            try:
+                target_branch = self._resolve_epic_target_branch(issue, project)
+            except EpicTargetResolutionError:
+                # The alert emitted by target resolution is the retryable
+                # queue/dashboard diagnostic. Never inspect or mutate git.
+                continue
             if target_branch.startswith("epic-"):
                 # Epic branches never synchronize directly with each other.
                 # Their shared work reaches other epics after it lands on main.
@@ -15033,6 +15331,12 @@ class Orchestrator:
                         project_id=project_id,
                         reason="main_advanced",
                     )
+                    self._record_epic_rebase_target(
+                        issue.identifier,
+                        target_branch=target_branch,
+                        project_id=project_id,
+                        parent_id=getattr(issue, "parent_id", None),
+                    )
                 elif current_state == EpicRebaseState.REBASING and entry:
                     if time.time() - entry.updated_at > rebase_timeout_s:
                         logger.warning(
@@ -15049,6 +15353,12 @@ class Orchestrator:
                         issue.identifier,
                         EpicRebaseState.REBASED,
                         project_id=project_id,
+                    )
+                    self._record_epic_rebase_target(
+                        issue.identifier,
+                        target_branch=target_branch,
+                        project_id=project_id,
+                        parent_id=getattr(issue, "parent_id", None),
                     )
                 elif current_state == EpicRebaseState.STALE:
                     # Staleness cleared (e.g., manual rebase)
@@ -15300,7 +15610,12 @@ class Orchestrator:
             if provider is None:
                 continue
             slug = extract_repo_slug(project.repo_url)
-            target_branch = self._resolve_epic_target_branch(issue, project)
+            try:
+                target_branch = self._resolve_epic_target_branch(issue, project)
+            except EpicTargetResolutionError:
+                # Parent hierarchy is authoritative input to PR creation.
+                # An unresolved nested target must not push or open a PR.
+                continue
 
             # Authoritative already-landed check — MUST come before the
             # open-PR idempotency check below. A shared epic lands exactly
@@ -16047,7 +16362,13 @@ class Orchestrator:
             return False
         return ahead > 0
 
-    def _resolve_epic_target_branch(self, epic: Issue, project) -> str:
+    def _resolve_epic_target_branch(
+        self,
+        epic: Issue,
+        project,
+        *,
+        snapshot: Mapping[str, Issue] | Iterable[Issue] | None = None,
+    ) -> str:
         """Resolve the target branch for an epic's completion PR.
 
         For nested epics in ``shared`` mode: if ``epic`` has a parent epic P,
@@ -16063,10 +16384,77 @@ class Orchestrator:
         targets P's branch; the top-level epic targets
         ``project.default_branch`` (typically ``main``).
         """
-        parent_epic = self._resolve_parent_epic(epic)
-        if parent_epic is not None:
-            return self._epic_branch_for_issue(parent_epic)
-        return project.default_branch
+        parent_id = (epic.parent_id or "").strip()
+        if not parent_id:
+            target = str(getattr(project, "default_branch", "") or "main").strip()
+            self._clear_epic_target_resolution_alert(epic.identifier)
+            return target or "main"
+
+        try:
+            parent_epic = self._resolve_parent_epic(
+                epic,
+                snapshot=snapshot,
+                fail_closed=True,
+            )
+        except EpicTargetResolutionError as exc:
+            self._record_epic_target_resolution_failure(epic, exc)
+            raise
+
+        if parent_epic is None:
+            exc = EpicTargetResolutionError(
+                epic.identifier,
+                parent_id,
+                "is not a confirmed epic rollup",
+            )
+            self._record_epic_target_resolution_failure(epic, exc)
+            raise exc
+
+        try:
+            target = self._epic_branch_for_issue(parent_epic)
+        except Exception as exc:  # noqa: BLE001 - target evidence is required
+            resolution_error = EpicTargetResolutionError(
+                epic.identifier,
+                parent_id,
+                f"has an invalid branch identity ({exc})",
+            )
+            self._record_epic_target_resolution_failure(epic, resolution_error)
+            raise resolution_error from exc
+        target = str(target or "").strip()
+        if not target:
+            resolution_error = EpicTargetResolutionError(
+                epic.identifier,
+                parent_id,
+                "has no usable branch target",
+            )
+            self._record_epic_target_resolution_failure(epic, resolution_error)
+            raise resolution_error
+        self._clear_epic_target_resolution_alert(epic.identifier)
+        return target
+
+    def _record_epic_target_resolution_failure(
+        self,
+        epic: Issue,
+        error: EpicTargetResolutionError,
+    ) -> None:
+        """Expose an unresolved hierarchy as a retryable dashboard alert."""
+        source = f"epic_target_unresolved:{epic.identifier}"
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Epic {epic.identifier} synchronization is paused: {error}. "
+                    "This is retryable; no default-branch rebase, push, or helper "
+                    "task will be created until the parent hierarchy is readable."
+                ),
+            }
+        )
+        logger.warning("%s", error)
+
+    def _clear_epic_target_resolution_alert(self, epic_identifier: str) -> None:
+        source = f"epic_target_unresolved:{epic_identifier}"
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
 
     def _remote_branch_exists(
         self,
@@ -16307,6 +16695,36 @@ class Orchestrator:
     # ------------------------------------------------------------------
     # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)
     # ------------------------------------------------------------------
+
+    def _record_epic_rebase_target(
+        self,
+        epic_identifier: str,
+        *,
+        target_branch: str,
+        project_id: str | None = None,
+        parent_id: str | None = None,
+        resolution: str = "authoritative_parent",
+    ) -> None:
+        """Persist the exact target used for an epic rebase decision.
+
+        Target resolution happens before this method is called. Keeping the
+        evidence beside the rebase state lets restart recovery, completion,
+        and dashboard consumers verify that a helper did not silently fall
+        back to the project default branch.
+        """
+        entry = self._epic_rebase_states.get(epic_identifier)
+        if entry is None:
+            logger.debug(
+                "Cannot record epic rebase target for untracked epic %s",
+                epic_identifier,
+            )
+            return
+        entry.target_branch = str(target_branch or "").strip() or None
+        entry.target_parent_id = str(parent_id or "").strip() or None
+        entry.target_resolution = str(resolution or "").strip()
+        if project_id:
+            entry.project_id = project_id
+        self._persist_epic_rebase_states()
 
     def _set_epic_rebase_state(
         self,
@@ -16551,7 +16969,11 @@ class Orchestrator:
             # Nested epics may sync with their parent epic's branch.
             parent_epic = self._resolve_parent_epic(issue)
             if parent_epic is None:
-                # No parent: unrelated epic branch is prohibited.
+                # A present parent that is temporarily unavailable is a
+                # retryable hierarchy failure, not proof of an unrelated
+                # target. The target resolver has already fenced mutation.
+                if (issue.parent_id or "").strip():
+                    return False, "parent_target_unresolved"
                 return False, "epic_to_epic_prohibited"
             parent_branch = self._epic_branch_for_issue(parent_epic)
             if target_branch != parent_branch:
@@ -16605,7 +17027,10 @@ class Orchestrator:
             if not project:
                 continue
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
-            target_branch = self._resolve_epic_target_branch(issue, project) or "main"
+            try:
+                target_branch = self._resolve_epic_target_branch(issue, project)
+            except EpicTargetResolutionError:
+                continue
             allowed, reason = self._epic_synchronization_decision(
                 issue, target_branch
             )
@@ -16642,6 +17067,12 @@ class Orchestrator:
                         project_id=issue.project_id,
                         reason=reason,
                     )
+                    self._record_epic_rebase_target(
+                        issue.identifier,
+                        target_branch=target_branch,
+                        project_id=issue.project_id,
+                        parent_id=getattr(issue, "parent_id", None),
+                    )
                     filed += 1
                     continue
 
@@ -16650,6 +17081,7 @@ class Orchestrator:
                 open_rebase = self._find_active_epic_rebase_sibling(
                     tracker,
                     issue,
+                    target_branch=target_branch,
                 )
                 if open_rebase is not None:
                     logger.debug(
@@ -16664,6 +17096,12 @@ class Orchestrator:
                         project_id=issue.project_id,
                         reason=reason,
                     )
+                    self._record_epic_rebase_target(
+                        issue.identifier,
+                        target_branch=target_branch,
+                        project_id=issue.project_id,
+                        parent_id=getattr(issue, "parent_id", None),
+                    )
                     continue
 
                 self._file_rebase_task(
@@ -16674,6 +17112,12 @@ class Orchestrator:
                     EpicRebaseState.REBASING,
                     project_id=issue.project_id,
                     reason=reason,
+                )
+                self._record_epic_rebase_target(
+                    issue.identifier,
+                    target_branch=target_branch,
+                    project_id=issue.project_id,
+                    parent_id=getattr(issue, "parent_id", None),
                 )
                 filed += 1
             except Exception as exc:
@@ -16708,7 +17152,7 @@ class Orchestrator:
             f"was detected as stale. Do NOT create a new branch or PR — "
             f"work directly on `{epic_branch}`."
         )
-        tracker.create_issue(
+        created = tracker.create_issue(
             title=title,
             issue_type="task",
             description=description,
@@ -16720,6 +17164,52 @@ class Orchestrator:
             parent=epic.identifier,
             initial_status=NEEDS_REBASE,
         )
+        # Persist the resolved target independently of the human-readable
+        # title. Tracker refreshes, dispatch prompts, restart recovery, and
+        # completion all use this immutable evidence instead of reparsing an
+        # old target or defaulting to main.
+        raw_created_identifier = getattr(created, "identifier", None)
+        if not isinstance(raw_created_identifier, str) or not raw_created_identifier.strip():
+            raw_created_identifier = getattr(created, "id", None)
+        created_identifier = (
+            raw_created_identifier.strip()
+            if isinstance(raw_created_identifier, str)
+            else ""
+        )
+        target_evidence = {
+            "version": 1,
+            "epic_identifier": epic.identifier,
+            "epic_branch": epic_branch,
+            "target_branch": target_branch,
+            "parent_id": str(getattr(epic, "parent_id", None) or "").strip() or None,
+            "resolution": (
+                "authoritative_parent"
+                if str(getattr(epic, "parent_id", None) or "").strip()
+                else "confirmed_top_level"
+            ),
+        }
+        if created_identifier:
+            try:
+                tracker.set_metadata_field(
+                    created_identifier,
+                    "oompah.target_branch",
+                    target_branch,
+                )
+                tracker.set_metadata_field(
+                    created_identifier,
+                    "oompah.epic_rebase_target",
+                    target_evidence,
+                )
+                if hasattr(created, "target_branch"):
+                    created.target_branch = target_branch
+            except Exception as exc:  # noqa: BLE001 - task remains recoverable
+                logger.warning(
+                    "Filed rebase helper %s but could not persist target "
+                    "evidence %s: %s",
+                    created_identifier,
+                    target_branch,
+                    exc,
+                )
         logger.info(
             "Filed rebase task for %s (branch=%s, target=%s)",
             epic.identifier,
@@ -16859,6 +17349,10 @@ class Orchestrator:
         # dispatchable unit so the agent fixes the existing epic branch.
         if (issue.issue_type or "").strip().lower() == "epic" and not epic_review_repair:
             return _reject("epic")
+        if not duplicate_preflight:
+            target_ready, target_reason = self._prepare_epic_rebase_helper_target(issue)
+            if not target_ready:
+                return _reject(target_reason)
         if not epic_review_repair and self._issue_requires_parent_epic(issue):
             if canonicalize_status(issue.state) != NEEDS_HUMAN:
                 self._mark_issue_needs_epic_parent(issue, issue.project_id)
@@ -21136,7 +21630,10 @@ class Orchestrator:
             provider, slug = provider_cache[project_id]
             if provider is None or not slug:
                 continue
-            target_branch = self._resolve_epic_target_branch(epic, project)
+            try:
+                target_branch = self._resolve_epic_target_branch(epic, project)
+            except EpicTargetResolutionError:
+                continue
             if not self._epic_branch_landed_on_target(
                 provider,
                 slug,
@@ -21469,11 +21966,11 @@ class Orchestrator:
                     try:
                         target_branch = str(
                             self._resolve_epic_target_branch(parent, project)
-                            or project.default_branch
-                            or "main"
                         ).strip()
-                    except Exception:  # noqa: BLE001 - default is still explicit
-                        target_branch = str(project.default_branch or "main").strip()
+                    except EpicTargetResolutionError:
+                        # The child remains Done until the authoritative
+                        # parent hierarchy can be read again.
+                        continue
                     if target_branch not in refreshed_targets:
                         refreshed_targets[target_branch] = (
                             self._refresh_landing_evidence_target_refs(
@@ -21743,14 +22240,15 @@ class Orchestrator:
             if (epic.project_id or "").strip()
             else None
         )
-        try:
-            landed_target = (
-                self._resolve_epic_target_branch(epic, project)
-                if project is not None
-                else ""
-            )
-        except Exception:  # noqa: BLE001 - metadata checks still apply
+        if project is None:
             landed_target = ""
+        else:
+            try:
+                landed_target = self._resolve_epic_target_branch(epic, project)
+            except EpicTargetResolutionError:
+                # Do not manufacture landing evidence from the epic branch
+                # when the nested hierarchy is currently unreadable.
+                return
         containment_targets = (landed_target,) if landed_target else (epic_branch,)
         repo_path = (
             os.fspath(getattr(project, "repo_path", ""))
@@ -23758,6 +24256,20 @@ class Orchestrator:
             # sibling goes terminal, the check sees "nothing active", and a
             # duplicate is filed every tick until the conflict clears.
             children = self._fetch_epic_children(issue)
+            raw_parent_id = getattr(issue, "parent_id", None)
+            nested_parent_id = (
+                raw_parent_id.strip() if isinstance(raw_parent_id, str) else ""
+            )
+            if nested_parent_id:
+                try:
+                    # For nested epics the provider's review target is not
+                    # authoritative: legacy reviews may have been opened
+                    # against main. Resolve the parent before any repair
+                    # mutation. Top-level conflict repairs retain the review
+                    # target for compatibility with existing PRs.
+                    target_branch = self._resolve_epic_target_branch(issue, project)
+                except EpicTargetResolutionError:
+                    return
             if self._is_mature_epic_review_issue(issue, children):
                 self._mark_epic_review_repair_issue(
                     tracker,
@@ -23779,6 +24291,12 @@ class Orchestrator:
                     EpicRebaseState.REBASING,
                     project_id=project.id,
                 )
+                self._record_epic_rebase_target(
+                    issue.identifier,
+                    target_branch=target_branch,
+                    project_id=project.id,
+                    parent_id=getattr(issue, "parent_id", None),
+                )
                 self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                 logger.info(
                     "YOLO: marked mature epic %s as P0 Needs Rebase "
@@ -23799,6 +24317,7 @@ class Orchestrator:
                 existing = self._find_active_epic_rebase_sibling(
                     tracker,
                     issue,
+                    target_branch=target_branch,
                 )
                 if existing is not None:
                     # Rebase agent already queued/in flight — let it finish.
@@ -23807,6 +24326,12 @@ class Orchestrator:
                         issue.identifier,
                         EpicRebaseState.REBASING,
                         project_id=project.id,
+                    )
+                    self._record_epic_rebase_target(
+                        issue.identifier,
+                        target_branch=target_branch,
+                        project_id=project.id,
+                        parent_id=getattr(issue, "parent_id", None),
                     )
                     self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                     return
@@ -23825,6 +24350,12 @@ class Orchestrator:
                     issue.identifier,
                     EpicRebaseState.REBASING,
                     project_id=project.id,
+                )
+                self._record_epic_rebase_target(
+                    issue.identifier,
+                    target_branch=target_branch,
+                    project_id=project.id,
+                    parent_id=getattr(issue, "parent_id", None),
                 )
                 self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                 self.state.completed.discard(issue.id)
@@ -30879,6 +31410,13 @@ class Orchestrator:
                 EpicRebaseState.REBASED,
                 project_id=project_id,
             )
+            if current.target_branch:
+                self._record_epic_rebase_target(
+                    current.identifier,
+                    target_branch=current.target_branch,
+                    project_id=project_id,
+                    parent_id=getattr(current, "parent_id", None),
+                )
         current.state = IN_REVIEW
         logger.info(
             "Epic review repair completed for %s; returned to In Review",
@@ -34758,6 +35296,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "state": entry.state,
                     "updated_at": entry.updated_at,
                     "project_id": entry.project_id,
+                    "target_branch": entry.target_branch,
+                    "target_parent_id": entry.target_parent_id,
+                    "target_resolution": entry.target_resolution or None,
                     "reason": entry.reason or (
                         "main_advanced" if entry.state == EpicRebaseState.STALE.value else None
                     ),

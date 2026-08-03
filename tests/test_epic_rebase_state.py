@@ -25,7 +25,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
 from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
 
 
@@ -75,6 +75,35 @@ def _make_project():
             "default_branch": "main",
         },
     )()
+
+
+def _nested_epic_fixture(orch, *, parent_id: str = "EPIC-PARENT"):
+    """Configure the smallest proactive-rebase fixture for hierarchy tests."""
+    project = _make_project()
+    project.id = "proj-1"
+    project.repo_path = "/repo"
+    project.repo_url = "https://github.com/org/repo"
+    epic = _make_issue(
+        "EPIC-CHILD",
+        parent_id=parent_id,
+        labels=["rebase-requested"],
+    )
+    parent = _make_issue(parent_id, issue_type="epic")
+    tracker = MagicMock()
+    orch.project_store.get.return_value = project
+    orch.project_store.epic_branch_name.side_effect = lambda ident: f"epic-{ident}"
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._tracker_for_issue = MagicMock(return_value=tracker)
+    orch._fetch_epic_children = MagicMock(return_value=[])
+    orch._is_mature_epic_review_issue = MagicMock(return_value=False)
+    orch._file_rebase_task = MagicMock()
+    orch._set_epic_rebase_state = MagicMock()
+    orch._epic_rebase_states[epic.identifier] = EpicRebaseStateEntry(
+        state=EpicRebaseState.STALE.value,
+        updated_at=time.time(),
+        project_id=project.id,
+    )
+    return project, epic, parent, tracker
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +204,178 @@ class TestSetEpicRebaseState:
         ]
         # The label was already present on the issue, so no add-label needed.
         assert len(add_label_calls) == 0
+
+
+class TestEpicTargetResolution:
+    def test_transient_nested_parent_failure_does_not_file_or_dispatch_helper(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, _parent, tracker = _nested_epic_fixture(orch)
+        tracker.fetch_issue_detail.side_effect = RuntimeError("tracker timeout")
+
+        assert orch._dispatch_proactive_rebase_agents([epic]) == 0
+        orch._file_rebase_task.assert_not_called()
+        assert any(
+            alert["source"] == "epic_target_unresolved:EPIC-CHILD"
+            for alert in orch._alerts
+        )
+
+    def test_parent_recovery_files_exactly_one_authoritative_helper_target(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, parent, tracker = _nested_epic_fixture(orch)
+        tracker.fetch_issue_detail.return_value = parent
+
+        assert orch._dispatch_proactive_rebase_agents([epic]) == 1
+        orch._file_rebase_task.assert_called_once_with(
+            tracker,
+            epic,
+            "epic-EPIC-CHILD",
+            "epic-EPIC-PARENT",
+        )
+        assert not any(
+            call.kwargs.get("target_branch") == "main"
+            for call in orch._file_rebase_task.call_args_list
+        )
+        assert orch._alerts == []
+
+    def test_parent_deletion_or_malformed_metadata_fails_closed(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, _parent, tracker = _nested_epic_fixture(orch)
+        tracker.fetch_issue_detail.return_value = None
+        with pytest.raises(EpicTargetResolutionError, match="does not exist"):
+            orch._resolve_epic_target_branch(epic, project)
+
+        malformed = _make_issue("EPIC-PARENT", issue_type="task")
+        tracker.fetch_issue_detail.return_value = malformed
+        with pytest.raises(EpicTargetResolutionError, match="not a confirmed"):
+            orch._resolve_epic_target_branch(epic, project)
+
+    def test_workspace_creation_fails_closed_when_nested_helper_target_is_unreadable(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, _parent, tracker = _nested_epic_fixture(orch)
+        helper = _make_issue(
+            "REBASE-1",
+            state=NEEDS_REBASE,
+            parent_id=epic.identifier,
+        )
+        helper.title = "Rebase epic-EPIC-CHILD onto main"
+        helper.description = "Rebase the epic branch."
+        tracker.fetch_issue_detail.side_effect = RuntimeError("tracker timeout")
+
+        with pytest.raises(EpicTargetResolutionError):
+            orch._create_workspace_for_issue(helper)
+        orch.project_store.create_worktree.assert_not_called()
+        orch.project_store.create_epic_worktree.assert_not_called()
+
+    def test_filed_helper_persists_target_evidence(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.create_issue.return_value = _make_issue(
+            "REBASE-1",
+            state=NEEDS_REBASE,
+            parent_id="EPIC-CHILD",
+        )
+        epic = _make_issue("EPIC-CHILD", parent_id="EPIC-PARENT")
+
+        orch._file_rebase_task(
+            tracker,
+            epic,
+            "epic-EPIC-CHILD",
+            "epic-EPIC-PARENT",
+        )
+
+        tracker.set_metadata_field.assert_any_call(
+            "REBASE-1",
+            "oompah.target_branch",
+            "epic-EPIC-PARENT",
+        )
+        tracker.set_metadata_field.assert_any_call(
+            "REBASE-1",
+            "oompah.epic_rebase_target",
+            {
+                "version": 1,
+                "epic_identifier": "EPIC-CHILD",
+                "epic_branch": "epic-EPIC-CHILD",
+                "target_branch": "epic-EPIC-PARENT",
+                "parent_id": "EPIC-PARENT",
+                "resolution": "authoritative_parent",
+            },
+        )
+
+    def test_restart_reuses_existing_targeted_helper_without_duplicate(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, parent, tracker = _nested_epic_fixture(orch)
+        tracker.fetch_issue_detail.return_value = parent
+        existing = _make_issue(
+            "REBASE-1",
+            state=NEEDS_REBASE,
+            parent_id=epic.identifier,
+        )
+        existing.title = "Rebase epic-EPIC-CHILD onto epic-EPIC-PARENT"
+        existing.target_branch = "epic-EPIC-PARENT"
+        tracker.fetch_issues_by_states.return_value = [existing]
+        orch._fetch_epic_children.return_value = [existing]
+
+        target = orch._resolve_epic_target_branch(epic, project)
+        assert target == "epic-EPIC-PARENT"
+        orch._record_epic_rebase_target(
+            epic.identifier,
+            target_branch=target,
+            project_id=project.id,
+            parent_id=epic.parent_id,
+        )
+        restarted = _make_orchestrator(tmp_path)
+        restarted.project_store.epic_branch_name.side_effect = (
+            lambda ident: f"epic-{ident}"
+        )
+        restarted._fetch_epic_children = MagicMock(return_value=[existing])
+        restored = restarted._epic_rebase_states[epic.identifier]
+        assert restored.target_branch == "epic-EPIC-PARENT"
+        assert restored.target_parent_id == "EPIC-PARENT"
+        assert orch._find_active_epic_rebase_sibling(
+            tracker,
+            epic,
+            target_branch=target,
+        ) is existing
+        assert restarted._find_active_epic_rebase_sibling(
+            tracker,
+            epic,
+            target_branch=restored.target_branch,
+        ) is existing
+        orch._file_rebase_task.assert_not_called()
+
+    def test_wrong_target_helper_is_archived_without_recovery_ref_cleanup(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        project, epic, parent, tracker = _nested_epic_fixture(orch)
+        tracker.fetch_issue_detail.side_effect = lambda identifier: (
+            parent if identifier == parent.identifier else wrong
+        )
+        wrong = _make_issue(
+            "REBASE-WRONG",
+            state=NEEDS_REBASE,
+            parent_id=epic.identifier,
+        )
+        wrong.title = "Rebase epic-EPIC-CHILD onto main"
+        wrong.target_branch = "main"
+        tracker.fetch_issues_by_states.return_value = [wrong]
+
+        assert orch._resolve_epic_target_branch(epic, project) == "epic-EPIC-PARENT"
+        assert orch._find_active_epic_rebase_sibling(
+            tracker,
+            epic,
+            target_branch="epic-EPIC-PARENT",
+        ) is None
+        tracker.update_issue.assert_called_once_with(
+            "REBASE-WRONG", status="Archived"
+        )
+        orch.project_store.remove_worktree.assert_not_called()
 
     def test_uses_legacy_tracker_when_no_project_id(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
@@ -462,12 +663,20 @@ class TestSnapshot:
     def test_includes_epic_rebase_states(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         orch._epic_rebase_states["epic-1"] = EpicRebaseStateEntry(
-            state="rebasing", updated_at=1234.0, project_id="proj-1"
+            state="rebasing",
+            updated_at=1234.0,
+            project_id="proj-1",
+            target_branch="epic-parent",
+            target_parent_id="parent-1",
+            target_resolution="authoritative_parent",
         )
         snapshot = orch.get_snapshot()
         assert "epic_rebase_states" in snapshot
         assert snapshot["epic_rebase_states"]["epic-1"]["state"] == "rebasing"
         assert snapshot["epic_rebase_states"]["epic-1"]["updated_at"] == 1234.0
+        assert snapshot["epic_rebase_states"]["epic-1"]["target_branch"] == "epic-parent"
+        assert snapshot["epic_rebase_states"]["epic-1"]["target_parent_id"] == "parent-1"
+        assert snapshot["epic_rebase_states"]["epic-1"]["target_resolution"] == "authoritative_parent"
 
 
 # ---------------------------------------------------------------------------

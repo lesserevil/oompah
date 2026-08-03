@@ -85,6 +85,12 @@ class EpicRebaseStateEntry:
     # actionable values identify an explicitly requested or conflict-driven
     # synchronization.
     reason: str = ""
+    # Durable evidence for the branch this state is allowed to synchronize
+    # against.  Callers must not infer the project default branch when this
+    # evidence is absent for a nested epic.
+    target_branch: str | None = None
+    target_parent_id: str | None = None
+    target_resolution: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -96,6 +102,12 @@ class EpicRebaseStateEntry:
             d["retry_count"] = self.retry_count
         if self.reason:
             d["reason"] = self.reason
+        if self.target_branch:
+            d["target_branch"] = self.target_branch
+        if self.target_parent_id:
+            d["target_parent_id"] = self.target_parent_id
+        if self.target_resolution:
+            d["target_resolution"] = self.target_resolution
         return d
 
     @classmethod
@@ -106,6 +118,9 @@ class EpicRebaseStateEntry:
             project_id=d.get("project_id") or None,
             retry_count=int(d.get("retry_count", 0) or 0),
             reason=str(d.get("reason", "") or ""),
+            target_branch=(str(d.get("target_branch", "")).strip() or None),
+            target_parent_id=(str(d.get("target_parent_id", "")).strip() or None),
+            target_resolution=str(d.get("target_resolution", "") or ""),
         )
 
 
