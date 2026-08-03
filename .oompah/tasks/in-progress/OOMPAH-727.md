@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:58:13.400591Z'
+updated_at: '2026-08-03T17:07:07.376712Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -200,5 +200,20 @@ author: oompah
 created: 2026-08-03 16:58
 ---
 Continuation run #1: reviewing recovered state from prior agent run. Recovery checkpoint (22674acb) contains 341-line addition to oompah/projects.py (new _cleanup_direct_epic_auxiliary_workspace_locked + _registered_worktree_branch_paths helpers, integration into cleanup_terminal_issue) and 392-line addition to tests/test_projects.py (TestDirectEpicAuxiliaryCleanup with 8 test scenarios). Running focused tests now to verify correctness before creating a proper commit.
+---
+author: oompah
+created: 2026-08-03 17:07
+---
+Verification: all focused tests pass on commit ab69c0eb8.
+- TestDirectEpicAuxiliaryCleanup: 10/10 new tests pass (EXOCOMP-240 happy path, dirty/recovery/rebase/unpublished/mismatch/shared/cross-project preservation, idempotent second pass)
+- TestEpicRepairWorkspaceCleanup (OOMPAH-581 compatibility): 7/7 pass
+- TestRemoveWorktreeCleanup (terminal lifecycle): 17/17 pass
+- TestGitWorktreeAddWithRecovery: 3/3 pass
+- test_terminal_audit.py + test_terminal_audit_workspace_recovery.py: 31 pass
+- test_repo_hygiene.py + test_orchestrator_repo_hygiene.py: 19 pass
+- test_terminal_audit_scanner.py + test_terminal_audit_enforcement.py: 27 pass
+- test_workspace.py + test_epic_rebase_state.py: 32 pass
+- Full test_projects.py: 113/113 pass (including all new tests)
+Branch pushed as origin/OOMPAH-727 at ab69c0eb8.
 ---
 <!-- COMMENTS:END -->
