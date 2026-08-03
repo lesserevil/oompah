@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T16:23:15.308092Z'
+updated_at: '2026-08-03T20:05:27.022325Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
