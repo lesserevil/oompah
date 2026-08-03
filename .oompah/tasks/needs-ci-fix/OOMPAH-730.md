@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-730
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Execute and reconcile safe container-cycle repairs automatically
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T18:15:21.355080Z'
+updated_at: '2026-08-03T18:27:40.235869Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -235,5 +236,10 @@ author: oompah
 created: 2026-08-03 18:15
 ---
 Branch quality gate passed for `6046b2340c539b2f770e8448648b2d1d729084fc` using `make test` in 419.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 18:27
+---
+YOLO: CI tests failed on MR #687. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
