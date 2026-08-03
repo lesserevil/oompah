@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:04:21.909208Z'
+updated_at: '2026-08-03T15:05:52.772427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-03 15:04
 ---
 **Implementation**: Fixed git rev-list rejection by creating structured git-subcommand capability table in oompah/auditor.py. Key changes: 1) Added _GIT_SUBCOMMAND_CAPABILITIES dict mapping subcommands to safe flags (prevents one-off regex fixes), 2) Implemented _is_safe_git_rev_list_command() validator that checks flags and operands safely, 3) Added 'rev-list' to _AUDITOR_COMMAND_RE regex pattern, 4) Enhanced check_auditor_command() with special git rev-list validation - safe commands allowed, unsupported variants return recoverable errors (don't consume budget), dangerous syntax denied. 5) Added 14 comprehensive tests covering EXOCOMP-241 production forms, safe variants, unsupported-but-recoverable syntax, and dangerous payloads. All existing auditor and authority-boundary tests still pass (186 auditor tests + 155 boundary tests).
+---
+author: oompah
+created: 2026-08-03 15:05
+---
+**Verification**: All test suites pass. Verified: 1) 6/6 EXOCOMP-241 production forms allowed without policy budget consumption, 2) 5/5 dangerous syntax patterns correctly denied, 3) 2/2 unsupported-but-recoverable variants return proper errors, 4) Auditor can recover and submit verdict after read-only validation. Full test results: 31 auditor contract tests (all pass), 155 authority boundary tests (all pass), 44 terminal audit health tests (all pass). Total: 230/230 tests passing. No write-capable commands admitted. Git rev-list with --count, --left-right, --oneline validated against hardcoded safe flags. Dangerous variants (piping, redirects, --delete-refs) correctly caught. Ready for submission.
 ---
 <!-- COMMENTS:END -->
