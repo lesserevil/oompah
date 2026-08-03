@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-726
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prune terminal nested-epic worktrees using recorded target-branch evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T17:03:43.077573Z'
+updated_at: '2026-08-03T17:04:11.857545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d31cbbb4-79c3-4cf1-9e6c-d1945332e021
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 51649
   total_output_tokens: 351
@@ -68,6 +68,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-726
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:03:38.254173+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-726
+  head_sha: 713e5d9c9c4e60c3852d618bb09de9251682f43d
+  submitted_at: '2026-08-03T17:03:59.983739+00:00'
+  updated_at: '2026-08-03T17:03:59.983739+00:00'
 ---
 ## Summary
 
@@ -202,5 +210,16 @@ created: 2026-08-03 17:03
 ---
 Verification: Nested cleanup, projects, repository hygiene, and terminal lifecycle suite: 440 passed. Full parallel fallback runner completed against 15,143 tests, and terminal mutation scan passed (6 allowlisted mutations). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726' itself remains environment-blocked before collection by the repeatable uv DBus transient-scope error.
+---
+author: oompah
+created: 2026-08-03 17:04
+---
+Completion: Delivered and pushed OOMPAH-726 at 713e5d9c9. Nested epics now use canonical recorded parent-target evidence with authoritative target reachability checks, preserving all fail-closed recovery guards; the refactor makes that routing contract explicit. Focused and fallback full checks completed; make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726' bootstrap is blocked by the documented environment uv DBus error.
+---
+author: oompah
+created: 2026-08-03 17:04
+---
+Nested epic terminal cleanup now verifies recorded target-branch landing evidence and safely prunes merged source worktrees
 ---
 <!-- COMMENTS:END -->
