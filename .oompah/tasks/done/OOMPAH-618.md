@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-618
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Keep ACP shell commands off the scheduler event loop
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-08-02T18:27:42.284371Z'
+updated_at: '2026-08-03T20:04:12.635424Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-618
 target_branch: null
 review_url: null
