@@ -2328,6 +2328,19 @@ class Orchestrator:
                 self._owner_claim_key(project_id, issue_id)
             )
 
+    def _has_live_owner_claim(
+        self,
+        issue_id: str,
+        project_id: str | None,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        """Return whether direct-owner authority currently fences dispatch."""
+
+        claim = self._owner_claim_for_issue(issue_id, project_id)
+        checked_at = time.time() if now is None else now
+        return bool(claim is not None and claim.expires_at > checked_at)
+
     def _live_owner_claim_for_issue_locked(
         self,
         issue_id: str,
@@ -15379,6 +15392,8 @@ class Orchestrator:
             return _reject("retry_pending")
         if issue.id in self.state.completed:
             return _reject("completed")
+        if self._has_live_owner_claim(issue.id, issue.project_id):
+            return _reject("direct_owner_claim")
         is_p0 = issue.priority is not None and issue.priority == 0
         if not is_p0:
             if self._available_slots() <= 0:
@@ -25644,6 +25659,17 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
             return
+        if implementation_dispatch and self._has_live_owner_claim(
+            issue.id,
+            issue.project_id,
+        ):
+            logger.info(
+                "Skipping implementation dispatch of %s: direct owner owns task",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            return
         self.state.reject_streak.pop(issue.id, None)
 
         # Resolve profile and compute natural_profile_name for default_first_dispatch.
@@ -31422,8 +31448,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         project_id: str | None = None,
         reason: str = "authority changed",
         notify: bool = True,
+        schedule_termination: bool = True,
     ) -> int:
-        """Idempotently withdraw pending and in-flight retry authority."""
+        """Idempotently withdraw pending and in-flight retry authority.
+
+        Callers performing a synchronous authority takeover may set
+        ``schedule_termination=False`` and await :meth:`_terminate_running`
+        themselves.  That keeps the old runtime visible until provider
+        retirement finishes without racing a background termination task.
+        """
         issue_id = str(issue_id or "").strip() or None
         identifier = str(identifier or "").strip() or None
         project_id = str(project_id or "").strip() or None
@@ -31531,12 +31564,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if notify:
                 self._notify_observers()
 
-        for running_id in terminate_ids:
-            self._schedule_running_termination(
-                running_id,
-                cleanup_workspace=False,
-                task_name_prefix="quarantine-worker",
-            )
+        if schedule_termination:
+            for running_id in terminate_ids:
+                self._schedule_running_termination(
+                    running_id,
+                    cleanup_workspace=False,
+                    task_name_prefix="quarantine-worker",
+                )
         return cancelled
 
     def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
