@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:06:16.850425Z'
+updated_at: '2026-08-03T15:06:30.460436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: af4a42f1-cdf1-4876-aa66-403642c0229c
 oompah.task_costs:
-  total_input_tokens: 50481
-  total_output_tokens: 603
+  total_input_tokens: 51271
+  total_output_tokens: 808
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 50481
-      output_tokens: 603
+      input_tokens: 51271
+      output_tokens: 808
       cost_usd: 0.0
   runs:
   - profile: default
@@ -61,6 +61,12 @@ oompah.task_costs:
     output_tokens: 603
     cost_usd: 0.0
     recorded_at: '2026-08-03T14:57:05.476175+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 790
+    output_tokens: 205
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T15:06:28.359348+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-722__20260803T145628Z
@@ -166,5 +172,15 @@ author: oompah
 created: 2026-08-03 15:06
 ---
 Implemented git rev-list support with structured capability table and comprehensive security validation. Created _GIT_SUBCOMMAND_CAPABILITIES for systematic git command expansion, added _is_safe_git_rev_list_command() validator, and enhanced check_auditor_command() to handle read-only rev-list operations safely. All EXOCOMP-241 production forms (--left-right --count, --count with revision ranges) now allowed without consuming policy budget. Unsupported but non-mutating variants return recoverable errors. Dangerous syntax (shell escapes, redirects, mutating flags) properly denied. Comprehensive test coverage: 14 new tests + all existing tests pass (230/230 in focused suites).
+---
+author: oompah
+created: 2026-08-03 15:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 43
+- Tokens: 790 in / 205 out [995 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 26s
+- Log: OOMPAH-722__20260803T145827Z.jsonl
 ---
 <!-- COMMENTS:END -->
