@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-730
 type: bug
-status: In Validation
+status: Done
 priority: 0
 title: Execute and reconcile safe container-cycle repairs automatically
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T19:37:37.112406Z'
+updated_at: '2026-08-03T19:38:31.297041Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -169,6 +169,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T19:29:02.838918+00:00'
     applied_at: '2026-08-03T19:29:07.239791+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e3b888bc743f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: An independent auditor durably recorded Audit PASS at 2026-08-03 19:29
+      UTC, but the live pre-OOMPAH-734 finalization path left the task In Validation
+      and launched a redundant auditor that later hit the OOMPAH-736 command-policy
+      defect.
+    created_at: '2026-08-03T19:38:27.187762+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -573,5 +593,12 @@ author: oompah
 created: 2026-08-03 19:37
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 19:38
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: An independent auditor durably recorded Audit PASS at 2026-08-03 19:29 UTC, but the live pre-OOMPAH-734 finalization path left the task In Validation and launched a redundant auditor that later hit the OOMPAH-736 command-policy defect.
 ---
 <!-- COMMENTS:END -->
