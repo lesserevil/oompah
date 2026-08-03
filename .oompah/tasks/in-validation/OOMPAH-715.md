@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-715
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make full-sync event-loop test deterministic under full-gate load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:48:47.024359Z'
+updated_at: '2026-08-03T01:59:25.839233Z'
 work_branch: OOMPAH-715
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/672
@@ -105,6 +105,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/672
 oompah.review_number: '672'
 oompah.work_branch: OOMPAH-715
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2005a0765e8c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-715
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 09e5442de7f31e83999c19bf1df91acca1e17c15829442d27dc1bf3db064083c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:59:18.430597+00:00'
+  - version: 1
+    audit_id: audit-74fa6640743a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-715
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 09e5442de7f31e83999c19bf1df91acca1e17c15829442d27dc1bf3db064083c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:59:18.430597+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -212,5 +251,15 @@ author: oompah
 created: 2026-08-03 01:48
 ---
 Completion-audit guidance while the old service is deployed: use only approved read_file, list_files, search_files, and simple single read-only run_command calls. Do not use grep, shell pipes, redirection, command chaining, or whole-file reads. Exact head 27c62eca57fa115c3d22d2e4053181ae40fb1b8b passed the complete make test gate in 417.1s.
+---
+author: oompah
+created: 2026-08-03 01:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 01:59
+---
+YOLO: merged PR #672.
 ---
 <!-- COMMENTS:END -->
