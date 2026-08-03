@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:10:32.972368Z'
+updated_at: '2026-08-03T19:11:11.590409Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cf40d993-9162-4f24-8816-1de62175bc9a
+oompah.agent_run_id: 741ec8c7-e97b-4cf7-90bb-11f9a8cbf3e5
 oompah.task_costs:
   total_input_tokens: 50240
   total_output_tokens: 181
@@ -127,5 +127,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 49s
 - Log: OOMPAH-734__20260803T190947Z.jsonl
+---
+author: oompah
+created: 2026-08-03 19:11
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 19:11
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
