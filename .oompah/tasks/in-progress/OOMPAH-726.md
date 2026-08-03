@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:04:57.344993Z'
+updated_at: '2026-08-03T16:05:20.260558Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-08-03 16:04
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-03 16:05
+---
+Understanding: I will trace terminal managed-worktree cleanup and its nested-epic/review-audit metadata paths, then add narrowly scoped target-branch landing evidence guards. I will preserve default-branch and task-style cleanup behavior, add regression coverage for fast-forward/merge/deletion/failure/idempotence cases, run focused tests and the configured gate, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
