@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:12:20.622365Z'
+updated_at: '2026-08-03T19:12:29.314929Z'
 work_branch: null
 target_branch: null
 review_url: null
