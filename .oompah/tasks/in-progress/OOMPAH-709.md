@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:50:28.901718Z'
+updated_at: '2026-08-03T00:06:43.636102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-02 23:50
 ---
 Made tick-delegation tests deterministic without production scheduler changes. Forced slow telemetry reproduces the former load-only path, exact background completion is awaited, executor teardown is test-scoped, and background failures remain observable. Pushed head 0b14dec5438f6a29317c31b0341744c8c1c4e007; focused module 277 passed plus five repeated parallel delegation runs.
+---
+author: oompah
+created: 2026-08-03 00:06
+---
+New live branch-gate reproduction from OOMPAH-702: TestTickDelegation::test_tick_notifies_observers failed only when full-suite load crossed the slow-tick diagnostic threshold. Its _handle_dispatch_needed AsyncMock returned None, violating the production mapping contract before _notify_observers. Extending this root-cause branch to make the observer test's dispatch result valid and force the diagnostic path deterministically.
 ---
 <!-- COMMENTS:END -->
