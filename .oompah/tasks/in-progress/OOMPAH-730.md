@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:27:12.389197Z'
+updated_at: '2026-08-03T17:36:56.883516Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-08-03 17:27
 ---
 Implementation/verification: Added the durable container-cycle repair executor, policy toggle, per-step service-state journal, parent-only Git CAS synchronization, scoped conflict/race handling, exact cancelled-row restoration CAS, tracker reconciliation, and API diagnostics. Focused suites pass: 87 tests.
+---
+author: oompah
+created: 2026-08-03 17:36
+---
+Live operator workaround evidence: pushed EXOCOMP authoritative parent epic-EXOCOMP-127 to 2d08fde7072d4c7161f7bab0a4aa36f9754fb475 with exact audited ancestors EXOCOMP-145=b0d047ea97d00deb5c9b83054ddfb6de1491f0a9, EXOCOMP-171=f1e60cb4a3aa94d1af2cdbdf4767e6a2ed4cc1fa, and EXOCOMP-172=3377d707470a4dbe27fd9c962c0acb4e95e1289d. The parent merge passed 708 tests, both release smoke tests, make fmt-check, make lint, and compliance. Once exact delivery was proven, removed only the obsolete EXOCOMP-149 -> EXOCOMP-171 tracker dependency. Oompah then restored all 21 cycle-cancelled queue rows to ready automatically (cancelled-cycle count 21 -> 0; Exocomp ready count 11 -> 32). The permanent executor should perform this ancestry proof, CAS parent delivery, obsolete-edge reconciliation, and same-head queue restore atomically/idempotently.
 ---
 <!-- COMMENTS:END -->
