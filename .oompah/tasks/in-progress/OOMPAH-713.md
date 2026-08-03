@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:23:16.323496Z'
+updated_at: '2026-08-03T01:44:17.688482Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 51s
 - Log: OOMPAH-713__20260803T010140Z.jsonl
+---
+author: oompah
+created: 2026-08-03 01:44
+---
+Direct owner is rebasing the submitted auditor-policy fix onto newly merged OOMPAH-710 to preserve both bounded read-tool behavior and recoverable read-only policy validation. I will also add the missing end-to-end tool-session regression proving a recoverable denial can be followed by submit_audit_result.
 ---
 <!-- COMMENTS:END -->
