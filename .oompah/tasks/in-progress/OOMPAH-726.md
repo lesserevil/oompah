@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:59:19.074028Z'
+updated_at: '2026-08-03T17:01:06.827409Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +190,11 @@ author: oompah
 created: 2026-08-03 16:59
 ---
 Implementation: Refactored the orchestrator-only nested cleanup evidence into an explicit TypedDict contract. This is behavior-preserving: it documents the exact optional ProjectStore kwargs and prevents ordinary terminal cleanup from implicitly entering the stricter nested path.
+---
+author: oompah
+created: 2026-08-03 17:01
+---
+Verification: Focused cleanup, projects, hygiene, and terminal lifecycle suites passed (440 tests). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-726' was attempted twice but could not create the server-supplied task venv because the environment's uv launcher returned DBus Error.InvalidArgs before test collection. I am using the provisioned runner plus the terminal scanner as a safe fallback.
 ---
 <!-- COMMENTS:END -->

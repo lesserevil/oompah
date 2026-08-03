@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T16:55:27.916312Z'
+updated_at: '2026-08-03T17:01:04.010161Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,33 @@ author: oompah
 created: 2026-08-03 16:55
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-03 17:01
+---
+**Verification (Attempt #2):**
+
+Reviewed the prior agent's work and ran focused tests to verify correctness.
+
+**Test Results:**
+- `tests/test_submission_fencing.py`: 3/3 tests PASSED (EXOCOMP-172 reproduction, clean submission path, authority revocation)
+- `tests/test_worker_submission.py`: 12/12 tests PASSED (no regressions)
+- `tests/test_retry_authority_generation.py`: 21/21 tests PASSED (no regressions)
+- `tests/test_integration_executor.py`: 15/15 tests PASSED (no regressions)
+- `tests/test_orchestrator_handlers.py` + `test_orchestrator_github_lifecycle.py` + `tests/test_projects.py`: 421/421 tests PASSED
+- `tests/test_models.py`: 30/30 tests PASSED
+
+**Summary of delivered changes:**
+1. `oompah/models.py`: Added `accepted_submission_record` field to `RunningEntry`
+2. `oompah/orchestrator.py`: 
+   - `_accept_worker_submission()` now immediately revokes authority after recording submission (fencing)
+   - New `_handle_revoked_submission_exit()` validates final worktree state before enqueuing integration
+   - Worker exit path routes revoked+accepted submissions through the new handler
+3. `tests/test_submission_fencing.py`: 3 comprehensive tests covering EXOCOMP-172 scenario
+
+**Acceptance criteria met:**
+- Late mutations after submission acceptance can no longer churn through Ready→Integrate→recovery failure
+- Clean accepted submissions proceed directly to integration
+- Late changes are preserved via recovery checkpoint and task is reopened for explicit retry
 ---
 <!-- COMMENTS:END -->
