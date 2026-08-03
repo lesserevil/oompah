@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -13,10 +13,10 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-03T00:27:18.550833Z'
+updated_at: '2026-08-03T00:27:28.794117Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/668
 review_number: null
 review_head: null
 merged_at: null
@@ -107,6 +107,7 @@ oompah.integration:
   head_sha: 6e9584168600320114f827e2644e6d3d926cef7a
   submitted_at: '2026-08-02T23:13:45.346868+00:00'
   updated_at: '2026-08-02T23:13:45.346868+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/668
 ---
 ## Summary
 
