@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Needs CI Fix
+status: Open
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T01:04:34.420744Z'
+updated_at: '2026-08-03T01:05:08.996970Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,17 @@ FAILED tests/test_release_pick_validation.py::test_should_dispatch_allow_source_
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 01:05
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #2)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
