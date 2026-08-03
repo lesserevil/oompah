@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -887,11 +888,99 @@ _AUDITOR_SECRET_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ``awk`` and ``sed`` are useful for bounded source inspection, but their
+# language/options are broad enough that adding them to the general command
+# allowlist would accidentally admit writes, process control, or shell
+# escapes. Recognize only the two print-only forms auditors commonly use:
+# numeric NR ranges in awk and numeric-address ``p`` commands in sed.
+_AWK_READ_ONLY_PROGRAM_RE = re.compile(
+    r"^NR\s*>=\s*[0-9]+\s*&&\s*NR\s*<=\s*[0-9]+"
+    r"(?:\s*\{\s*print\s*\})?$",
+    re.IGNORECASE,
+)
+_SED_PRINT_ONLY_SCRIPT_RE = re.compile(
+    r"^(?:[0-9]+(?:,[0-9]+)?)?p$",
+    re.IGNORECASE,
+)
+_AUDITOR_SAFE_PATH_TOKEN_RE = re.compile(r"^[A-Za-z0-9_./+@=,:-]+$")
+
+
+def _auditor_shell_tokens(command: str) -> list[str] | None:
+    """Tokenize a candidate inspection command without executing shell syntax."""
+
+    if "\n" in command or "\r" in command:
+        # Newlines are shell command separators even though shlex treats them
+        # as ordinary whitespace in this mode.
+        return None
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        return list(lexer)
+    except ValueError:
+        # Unclosed quotes and malformed shell escapes are not read-only forms.
+        return None
+
+
+def _auditor_safe_input_paths(paths: list[str]) -> bool:
+    """Return whether all candidate input paths are safe worktree-relative names."""
+
+    if not paths:
+        return False
+    for path in paths:
+        if (
+            path == "-"
+            or path.startswith("-")
+            or not _AUDITOR_SAFE_PATH_TOKEN_RE.fullmatch(path)
+            or _AUDITOR_PATH_ESCAPE_RE.search(path)
+            or _AUDITOR_SECRET_PATH_RE.search(path)
+        ):
+            return False
+    return True
+
+
+def _is_read_only_inspection_command(command: str) -> bool:
+    """Recognize narrowly safe, unsupported awk/sed inspection commands."""
+
+    tokens = _auditor_shell_tokens(command)
+    if not tokens:
+        return False
+    if tokens[0].lower() == "awk" and len(tokens) >= 3:
+        return bool(
+            _AWK_READ_ONLY_PROGRAM_RE.fullmatch(tokens[1])
+            and _auditor_safe_input_paths(tokens[2:])
+        )
+    if (
+        tokens[0].lower() == "sed"
+        and len(tokens) >= 4
+        and tokens[1] == "-n"
+    ):
+        return bool(
+            _SED_PRINT_ONLY_SCRIPT_RE.fullmatch(tokens[2])
+            and _auditor_safe_input_paths(tokens[3:])
+        )
+    return False
+
+
+def _recoverable_read_only_denial() -> AuditorCommandDenial:
+    """Build the stable validation response for safe-but-unsupported syntax."""
+
+    return AuditorCommandDenial(
+        "Error: auditor capability policy rejected unsupported read-only shell "
+        "syntax; run each inspection separately or use search_files and bounded "
+        "read_file calls. The command was not executed. "
+        f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+        recoverable=True,
+        reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+    )
+
 
 def check_auditor_command(command: str) -> str | None:
     """Return a denial for commands outside the read/test allowlist."""
 
     normalized = str(command or "").strip()
+    if _is_read_only_inspection_command(normalized):
+        return _recoverable_read_only_denial()
     if not normalized or not _AUDITOR_COMMAND_RE.fullmatch(normalized):
         return (
             "Error: auditor capability policy permits only read-only repository "

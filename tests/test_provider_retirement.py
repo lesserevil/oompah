@@ -341,6 +341,41 @@ def test_repeated_auditor_shell_denials_force_bounded_independent_retry(
     )
 
 
+def test_read_only_awk_and_sed_validation_does_not_rotate_auditor(
+    tmp_path,
+) -> None:
+    orch = _orchestrator(tmp_path)
+    entry = _entry(state=IN_VALIDATION, auditor=True)
+    orch.state.running[entry.issue.id] = entry
+    orch._schedule_running_termination = MagicMock()
+    commands = (
+        "awk 'NR>=7790 && NR<=7900' oompah/orchestrator.py",
+        "sed -n '7790,7900p' oompah/orchestrator.py",
+    )
+
+    for command in commands:
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": command},
+            action_policy=auditor_policy(
+                task_identifier=entry.identifier,
+                project_id=entry.issue.project_id,
+            ),
+            policy_denial_handler=lambda denial: orch._record_auditor_policy_denial(
+                entry.issue.id,
+                entry.run_id,
+                denial,
+            ),
+        )
+        assert result.startswith("Error:")
+
+    assert entry.policy_denial_count == 0
+    assert entry.retirement_pending is False
+    assert entry.forced_exit_reason is None
+    orch._schedule_running_termination.assert_not_called()
+
+
 def test_forced_auditor_retirement_records_retry_before_releasing_claim(
     tmp_path,
 ) -> None:
