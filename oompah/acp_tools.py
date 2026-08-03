@@ -71,6 +71,26 @@ from oompah.terminal_audit import (
 logger = logging.getLogger(__name__)
 
 
+def _read_file_input_schema() -> dict[str, Any]:
+    """Return the shared optional-chunk schema for MCP read_file tools."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "offset": {"type": "integer", "minimum": 0, "default": 0},
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64_000,
+                "default": 32_000,
+            },
+        },
+        "required": ["path"],
+        "additionalProperties": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Shared project-management helpers (TASK-464.8)
 # ---------------------------------------------------------------------------
@@ -1078,9 +1098,10 @@ def build_tool_catalog(
 
     @tool(
         "read_file",
-        "Read the contents of a file inside the workspace. Path is "
-        "workspace-relative. Returns file contents or an error message.",
-        {"path": str},
+        "Read a bounded chunk of a file inside the workspace. Path is "
+        "workspace-relative. Use optional zero-based character offset and "
+        "limit to continue large files through this approved tool.",
+        _read_file_input_schema(),
     )
     async def read_file(args: dict[str, Any]) -> dict[str, Any]:
         return _wrap_text(_exec_read_file(workspace, args))
@@ -1423,10 +1444,15 @@ def build_codex_tool_catalog(
     # (positional kwargs, scalar types) and the docstrings clear.
 
     @function_tool
-    def read_file(path: str) -> str:
-        """Read the contents of a file inside the workspace. Path is
-        workspace-relative. Returns file contents or an error message."""
-        return _exec_read_file(workspace, {"path": path})
+    def read_file(path: str, offset: int = 0, limit: int = 32_000) -> str:
+        """Read a bounded chunk of a workspace-relative file.
+
+        Continue large files with the returned zero-based character offset.
+        """
+        return _exec_read_file(
+            workspace,
+            {"path": path, "offset": offset, "limit": limit},
+        )
 
     @function_tool
     def write_file(path: str, content: str) -> str:
@@ -1721,9 +1747,10 @@ def build_opencode_tool_catalog(
 
     @tool(
         "read_file",
-        "Read the contents of a file inside the workspace. Path is "
-        "workspace-relative. Returns file contents or an error message.",
-        {"path": str},
+        "Read a bounded chunk of a file inside the workspace. Path is "
+        "workspace-relative. Use optional zero-based character offset and "
+        "limit to continue large files through this approved tool.",
+        _read_file_input_schema(),
     )
     async def read_file(args: dict[str, Any]) -> dict[str, Any]:
         return _wrap_text(_exec_read_file(workspace, args))

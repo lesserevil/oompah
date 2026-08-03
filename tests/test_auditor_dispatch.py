@@ -396,6 +396,45 @@ def test_successful_retry_after_transient_failure():
     assert completed.attempts[1].verdict == Verdict.PASS
 
 
+def test_two_transport_failures_rotate_to_third_healthy_candidate():
+    """A healthy independent transport remains eligible after two failures."""
+    from oompah.terminal_audit import FailureClassification, Verdict
+
+    now = datetime(2026, 8, 2, tzinfo=timezone.utc)
+    candidates = [
+        Candidate("provider-a", "model-a"),
+        Candidate("provider-b", "model-b"),
+        Candidate("provider-c", "model-c"),
+    ]
+    lane = _lane(candidates, now=now, max_attempts=3)
+    record = _record()
+
+    for expected_provider in ("provider-a", "provider-b"):
+        plan, reason = lane.plan(record, [], branch_key="branch-1")
+        assert reason is None
+        assert plan is not None
+        assert plan.candidate.provider_id == expected_provider
+        record = lane.finish_attempt(
+            lane.persist_plan(record, plan),
+            plan.attempt_id,
+            reason="provider-private oversized result denied by audit policy",
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+        )
+
+    healthy, reason = lane.plan(record, [], branch_key="branch-1")
+    assert reason is None
+    assert healthy is not None
+    assert healthy.candidate.provider_id == "provider-c"
+    persisted = lane.persist_plan(record, healthy)
+    completed = replace(
+        persisted.attempts[-1],
+        verdict=Verdict.PASS,
+        request_state=RequestState.PENDING,
+    )
+    assert completed.verdict == Verdict.PASS
+    assert healthy.rotation_count == 2
+
+
 def test_duplicate_tick_coalescing_prevents_duplicate_dispatch():
     """Concurrent dispatches for same audit do not create duplicate attempts."""
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)

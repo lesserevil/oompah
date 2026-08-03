@@ -292,6 +292,32 @@ def test_orchestrator_snapshot_and_alert_recovery_shapes(tmp_path: Path) -> None
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_snapshot_discards_running_gauge_after_last_auditor_exits(
+    tmp_path: Path,
+) -> None:
+    """An empty agent map cannot retain a persisted running audit gauge."""
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._terminal_audit_metrics.record_running(
+            "project-a", "TASK-1", "audit-1", attempts=2
+        )
+        assert orchestrator._terminal_audit_metrics.snapshot()["running"] == 1
+        assert orchestrator.state.running == {}
+
+        snapshot = orchestrator.get_snapshot()
+
+        assert snapshot["running"] == []
+        assert snapshot["terminal_audit"]["running"] == 0
+        assert snapshot["terminal_audit_health"]["in_progress_count"] == 0
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_restart_reconciles_stale_no_candidate_alert_from_cancelled_metadata(
     tmp_path: Path,
 ) -> None:
