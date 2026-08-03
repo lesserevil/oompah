@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-716
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Do not exhaust auditor policy budget on read-only awk and sed inspection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:02:02.962763Z'
+updated_at: '2026-08-03T03:03:29.217927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,3 +50,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 03:03
+---
+Filed from live OOMPAH-714 terminal-audit evidence: read-only awk/sed inspection commands consumed the fatal policy budget and rotated an otherwise healthy auditor. Promoting for automatic dispatch while OOMPAH-714 finishes validation.
+---
+<!-- COMMENTS:END -->
