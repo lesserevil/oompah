@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T20:00:03.278393Z'
+updated_at: '2026-08-03T20:00:16.681916Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ author: oompah
 created: 2026-08-03 20:00
 ---
 Verification: focused suites pass — tests/test_integration_retry_alert_recovery.py (21/21), tests/test_dashboard_integration_recovery_filter.py (2/2), tests/test_parallel_epic_children.py (33/33), tests/test_orchestrator_conflict_repair.py (5/5), tests/test_integration_queue.py (19/19), tests/test_integration_conflict_repair.py (14/14), tests/test_dashboard_credential_warning.py (31/31), tests/test_dashboard_state_read_warning.py (22/22), tests/test_dashboard_websocket_liveness.py (9/9), tests/test_config.py (115/115). Broader orchestrator regression pass: tests/test_orchestrator_handlers.py + tests/test_epic_strategy.py = 510/510. Total 781 tests green. No regressions in credential-error/state-read/websocket-liveness alert paths — those continue to render because they are actionable (action_required missing/undefined → treated as actionable in the dashboard filter). The full make test branch gate will run once when the branch is review-ready.
+---
+author: oompah
+created: 2026-08-03 20:00
+---
+Completion: implemented backend + frontend behavior for OOMPAH-735 end-to-end. Backend: structured recovery_state/action_required schema on integration_retry alerts, pure staticmethod classifier, snapshot-time reconciliation from live orchestrator state, config-driven freshness threshold, explicit clear on successful integration. Frontend: dashboard otherAlerts filter drops action_required===false so normal automatic recovery is task-local, not a global operator warning. Acceptance criteria satisfied: normal recovery is progress not alert; every visible global warning is actionable; stale/exhausted/revoked recovery re-arms deterministically at snapshot time (state API and websocket); no diagnostics, retry history, or authority fencing is lost.
 ---
 <!-- COMMENTS:END -->
