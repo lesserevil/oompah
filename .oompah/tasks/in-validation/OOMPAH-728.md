@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:33:55.839787Z'
+updated_at: '2026-08-03T17:34:20.013947Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -70,13 +70,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1698
+  total_input_tokens: 54
+  total_output_tokens: 10306
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1698
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 44
+      output_tokens: 8608
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +89,12 @@ oompah.task_costs:
     output_tokens: 1698
     cost_usd: 0.0
     recorded_at: '2026-08-03T16:21:03.010806+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 44
+    output_tokens: 8608
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T17:34:17.864260+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-728__20260803T162028Z
@@ -358,5 +368,15 @@ Safe evidence:
 - structural_relevance_reasons: parent; child; same_parent_sibling; hard_start_dependency; dependency; hard_start_dependent; dependent
 - self_sufficient_prompt: must_do updated to forbid oompah task CLI/curl/HTTP/localhost/loopback fallback; read-only tool catalogs restrict duplicate_detector to read_file/list_files/search_files
 - branch_gate_prior_run: make test passed for 2d682cacc in 430.7s (per prior comment 2026-08-03 17:09)
+---
+author: oompah
+created: 2026-08-03 17:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 48, Tool calls: 38
+- Tokens: 44 in / 8.6K out [8.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 59s
+- Log: OOMPAH-728__20260803T172029Z.jsonl
 ---
 <!-- COMMENTS:END -->
