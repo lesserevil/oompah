@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: In Validation
+status: Merged
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T01:42:17.406483Z'
+updated_at: '2026-08-03T01:43:15.033270Z'
 work_branch: OOMPAH-710
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/671
@@ -121,6 +121,28 @@ oompah.work_branch: OOMPAH-710
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-42b009b4e569
+    project_id: proj-14849f1b
+    task_id: OOMPAH-710
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58d8c5b00a9c81275d7a2a118c90c2fef16593239552cdaf1f3acd09812d9055
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact submitted head 205f413440767c5c2c94c641504f96f6a71c77bb passed
+      the complete make test branch gate (15,000+ tests in 432.5s), PR #671 passed
+      Python 3.11/3.12/3.13 CI and merged as 5f3969d6d235cae0589cf73f7f7bb634d5f1008c.
+      The deployed completion auditor then reproduced the local shell-policy false
+      positive tracked and fixed by OOMPAH-713; this was not a code-defect verdict.
+      Owner override prevents another known-broken retry.'
+    created_at: '2026-08-03T01:43:07.600271+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -377,5 +399,12 @@ author: oompah
 created: 2026-08-03 01:42
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 01:43
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact submitted head 205f413440767c5c2c94c641504f96f6a71c77bb passed the complete make test branch gate (15,000+ tests in 432.5s), PR #671 passed Python 3.11/3.12/3.13 CI and merged as 5f3969d6d235cae0589cf73f7f7bb634d5f1008c. The deployed completion auditor then reproduced the local shell-policy false positive tracked and fixed by OOMPAH-713; this was not a code-defect verdict. Owner override prevents another known-broken retry.
 ---
 <!-- COMMENTS:END -->
