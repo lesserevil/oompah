@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:51:15.538416Z'
+updated_at: '2026-08-03T20:51:32.179377Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 839c30f1-6216-4565-b372-1ba53c244783
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 1381845
   total_output_tokens: 9577
@@ -102,6 +102,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-734
     source_sha: 561070d6c405563830c20d8569dfa543f0fd5832
     completed_at: '2026-08-03T19:18:57.184079+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-734
+  head_sha: 7c8bcabcaf9a078723eaba42d3c3efeaa528435f
+  submitted_at: '2026-08-03T20:51:23.137508+00:00'
+  updated_at: '2026-08-03T20:51:23.137508+00:00'
 ---
 ## Summary
 
@@ -409,5 +417,10 @@ author: oompah
 created: 2026-08-03 20:51
 ---
 Completion: Delivered and pushed commit 7c8bcabca. The fix guarantees metadata/status-before-comment ordering, reserves a structured finalization turn at the auditor ceiling, prevents prose verdicts from masquerading as durable results, classifies finalization failures distinctly, recovers unapplied intents idempotently, preserves fingerprint/CAS sibling fencing, and retires live auditors on owner authority revocation. Focused gate: 359 passed; terminal mutation scan passed. Branch is clean and exactly matches origin/OOMPAH-734. make test was attempted but its astral-uv Snap bootstrap is blocked by the sandbox DBus transient-scope error; the trusted submission gate will run the full suite.
+---
+author: oompah
+created: 2026-08-03 20:51
+---
+Prevented auditor turn exhaustion from stranding terminal transitions: terminal outcomes now commit before comments, auditors receive a forced reserved finalization turn, uncommitted exits are fail-closed and observable, sibling dispatch is fenced, and owner overrides retire live auditor authority. 359 focused tests and terminal mutation scan passed; full make test invocation was environment-blocked at the Snap uv bootstrap.
 ---
 <!-- COMMENTS:END -->
