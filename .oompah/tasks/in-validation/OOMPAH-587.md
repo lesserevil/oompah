@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T20:09:27.465266Z'
+updated_at: '2026-08-03T20:12:35.086634Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -113,6 +113,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T05:08:58.797722+00:00'
     updated_at: '2026-08-03T20:02:55.236934+00:00'
+  - version: 1
+    audit_id: audit-6e50495cb29c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-03T20:12:31.603557+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
