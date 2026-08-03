@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T15:40:18.706601Z'
+updated_at: '2026-08-03T15:40:56.847133Z'
 work_branch: null
 target_branch: null
 review_url: null

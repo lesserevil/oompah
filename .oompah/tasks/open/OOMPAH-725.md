@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-725
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Reject lifecycle-incompatible Merged overrides for shared-epic children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T15:33:53.224136Z'
+updated_at: '2026-08-03T15:40:50.698619Z'
 work_branch: null
 target_branch: null
 review_url: null
