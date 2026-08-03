@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,10 +12,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:43:55.298095Z'
+updated_at: '2026-08-03T00:44:04.375665Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/669
 review_number: null
 review_head: null
 merged_at: null
@@ -74,6 +74,7 @@ oompah.integration:
   head_sha: 234507c7c76611d5a10cf3eeec341f8773aadf34
   submitted_at: '2026-08-03T00:08:07.478804+00:00'
   updated_at: '2026-08-03T00:08:07.478804+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/669
 ---
 ## Summary
 
