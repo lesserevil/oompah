@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:33:15.475219Z'
+updated_at: '2026-08-03T23:40:29.040404Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -169,5 +169,39 @@ author: oompah
 created: 2026-08-03 23:33
 ---
 Understanding (Merge Conflict Resolver): Branch epic-OOMPAH-740--task-OOMPAH-745 currently has no unique commits — it is at the same HEAD as origin/epic-OOMPAH-740 (583fb2369). There are no merge conflicts to resolve. My scope is to: (1) fetch + rebase onto origin/epic-OOMPAH-740 (will be a no-op), (2) push the branch to origin to establish remote tracking, and (3) hand off to an implementation agent with the 'test' focus, since the actual work (writing browser-level alert density and recovery regression tests) has not started. Note: this task is blocked by OOMPAH-742, OOMPAH-743, and OOMPAH-744 which are also in the same not-yet-implemented state.
+---
+author: oompah
+created: 2026-08-03 23:40
+---
+Focus handoff: merge_conflict
+
+**Outcome:** No conflicts found. The branch epic-OOMPAH-740--task-OOMPAH-745 had no unique commits — it was at the same HEAD as origin/epic-OOMPAH-740 (583fb2369). Rebase was a no-op. Branch has been pushed to origin to establish remote tracking.
+
+**Evidence:**
+- git fetch + git rebase origin/epic-OOMPAH-740 → 'Current branch is up to date'
+- git push --force-with-lease -u origin → new branch pushed successfully
+- git status → branch up to date with origin/epic-OOMPAH-740--task-OOMPAH-745, nothing to commit
+
+**Relevant files for implementation:**
+- tests/test_dashboard_credential_warning.py — primary pattern for dashboard JS static-analysis tests (parse HTML, extract JS functions, assert behavior)
+- tests/test_ws_lifecycle.py — WebSocket mock infrastructure pattern
+- tests/test_ws_full_sync.py and tests/test_ws_fault_injection.py — convergence/full-resync patterns
+- oompah/templates/dashboard.html — lines 3275–3295 (renderAlertItem, renderAlertSummary), lines 3545–3620 (handleStateUpdate alert routing)
+- Existing dashboard alert tests: test_dashboard_credential_warning.py, test_credential_error_alert.py, test_github_intake_alert_lifecycle.py
+
+**Alert routing in dashboard.html:**
+- cred_error: alerts → dedicated cred-error banner
+- auth_health: alerts → auth-health banner  
+- All other alerts → alerts-banner (#alerts-list) + agent-bar warnings inline
+- renderAlertItem, renderAlertSummary, renderTerminalAuditHealth, renderQualityGateHealth, renderRepoHygieneHealth are the key rendering functions
+
+**Remaining work:**
+- Implement test_dashboard_alert_density.py (or extend existing test files) covering the scope in the task description: mixed payloads, bounded height assertions, actionable vs. normal fact filtering, expansion/collapse, recovery clearing, accessibility checks for disclosure state/focus order
+- This task is blocked by OOMPAH-742, OOMPAH-743, OOMPAH-744 — those dependencies must be integrated before OOMPAH-745 can land
+
+**Risks:**
+- The sibling tasks (742, 743, 744) are also at origin/epic-OOMPAH-740 HEAD with no commits — all four tasks in the epic appear to be at the implementation starting point; coordination will be needed to avoid test file conflicts
+
+**Recommended next focus:** test
 ---
 <!-- COMMENTS:END -->
