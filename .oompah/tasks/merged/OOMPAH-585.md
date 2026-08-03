@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-03T23:52:08.730047Z'
+updated_at: '2026-08-03T23:52:14.665203Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -1397,5 +1397,29 @@ author: oompah
 created: 2026-08-03 23:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 23:52
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- task_id: OOMPAH-585
+- requested_target: Merged
+- main_head_now: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+- pr_number: 596
+- pr_merge_commit_on_main: b98d6400c9a6b2addd53cb931770065621657ebc
+- pr_merge_ancestor_check: exit_0_confirmed
+- parent_epic_task: OOMPAH-584
+- parent_epic_pr_number: 603
+- parent_epic_merge_commit_on_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- parent_epic_ancestor_check: exit_0_confirmed
+- new_module_on_main: oompah/terminal_audit_health.py confirmed present
+- focused_tests_total: 264 passed (health 44, selector 49, dispatch 14, enforcement 50, provider 64, close_race 22, dashboard 19, api 2)
+- prior_gate_result: make test passed in 255.7s on 4510fb912ae
+- lifecycle_blocker_note: Recurring reconciliation block contradicted by git ancestor check exit_0_confirmed
+- acceptance_criteria_status: All satisfied: endpoint validation, safe diagnostics, retry, stale-reconciliation, durable alerts, health clearing, gates
 ---
 <!-- COMMENTS:END -->
