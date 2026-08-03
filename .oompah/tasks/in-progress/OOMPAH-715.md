@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-715
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make full-sync event-loop test deterministic under full-gate load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:10:15.886043Z'
+updated_at: '2026-08-03T01:10:36.665084Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d0427dce-b528-488a-beae-6dade84db42e
+oompah.agent_run_id: 91eaa4c6-55c8-442b-a2b7-8ffb0fabb39f
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1261
@@ -150,5 +150,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 30s
 - Log: OOMPAH-715__20260803T010945Z.jsonl
+---
+author: oompah
+created: 2026-08-03 01:10
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 01:10
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
