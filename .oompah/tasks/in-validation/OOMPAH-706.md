@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-03T00:10:54.357632Z'
+updated_at: '2026-08-03T00:19:17.626526Z'
 work_branch: OOMPAH-706
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/667
@@ -109,6 +109,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/667
 oompah.review_number: '667'
 oompah.work_branch: OOMPAH-706
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f47f6e36b436
+    project_id: proj-14849f1b
+    task_id: OOMPAH-706
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9eede4aa7940adec0d9d9f608bda4ef4d973f041682049f15fba4b92a7a36e8a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T00:19:10.103753+00:00'
+  - version: 1
+    audit_id: audit-53320474246e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-706
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9eede4aa7940adec0d9d9f608bda4ef4d973f041682049f15fba4b92a7a36e8a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T00:19:10.103753+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -229,5 +268,15 @@ author: oompah
 created: 2026-08-03 00:10
 ---
 Branch quality gate passed for `0b78028a691b4c21935d9c9dc3b69d59f8448643` using `make test` in 394.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 00:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 00:19
+---
+YOLO: merged PR #667.
 ---
 <!-- COMMENTS:END -->
