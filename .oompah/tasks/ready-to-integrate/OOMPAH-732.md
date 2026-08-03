@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:51:06.965903Z'
+updated_at: '2026-08-03T18:51:47.531507Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -117,13 +117,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 2a43b5d3-d498-4126-817a-93a7d08768ed
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1882
+  total_input_tokens: 50
+  total_output_tokens: 12246
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1882
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 40
+      output_tokens: 10364
       cost_usd: 0.0
   runs:
   - profile: default
@@ -132,6 +136,12 @@ oompah.task_costs:
     output_tokens: 1882
     cost_usd: 0.0
     recorded_at: '2026-08-03T18:01:38.119231+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 40
+    output_tokens: 10364
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T18:51:45.308947+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-732__20260803T175332Z
@@ -280,5 +290,15 @@ author: oompah
 created: 2026-08-03 18:51
 ---
 Fixed standalone Ready delivery starvation via three coordinated changes in oompah/orchestrator.py: (1) removed updated_at from _standalone_delivery_evidence_revision to prevent benign tracker bookkeeping from revoking live delivery authority—the primary live regression cause; (2) added _standalone_delivery_future separate from _integration_future so a long standalone gate cannot block shared-epic queue claims and vice versa; (3) moved standalone reconciler arm to the start of _tick() before dispatch and maintenance lanes. Added two regression tests: test_standalone_gate_does_not_hold_shared_queue_driver (proves bidirectional future separation) and test_benign_tracker_timestamp_change_keeps_exact_head_authority (proves benign revision reads cannot revoke delivery). All 309 focused tests pass.
+---
+author: oompah
+created: 2026-08-03 18:51
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 51
+- Tokens: 40 in / 10.4K out [10.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 23s
+- Log: OOMPAH-732__20260803T182634Z.jsonl
 ---
 <!-- COMMENTS:END -->
