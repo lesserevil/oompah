@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:51:16.656499Z'
+updated_at: '2026-08-03T17:52:44.802873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7d79dbe3-3a3d-4f4e-98ec-4d291c90df6f
+oompah.agent_run_id: d1068741-8ed0-4cf1-b7f1-b696116fb903
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1382
