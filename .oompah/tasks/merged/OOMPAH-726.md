@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T22:24:04.754558Z'
+updated_at: '2026-08-03T22:24:08.781851Z'
 work_branch: OOMPAH-726
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/691
@@ -148,8 +148,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-ce93ee0a4616
-    applied: false
+    applied: true
     created_at: '2026-08-03T22:24:00.138914+00:00'
+    applied_at: '2026-08-03T22:24:06.828217+00:00'
   version: 1
   pending_chain:
   - version: 1
