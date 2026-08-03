@@ -2740,6 +2740,318 @@ class TestDirectEpicAuxiliaryCleanup:
 # ProjectStore.find_by_name
 # ---------------------------------------------------------------------------
 
+
+class TestNestedEpicTerminalCleanup:
+    """Nested epic cleanup follows the recorded parent-target landing proof."""
+
+    @staticmethod
+    def _setup_repo(tmp_path, *, landing: str | None = "merge"):
+        remote = tmp_path / "origin.git"
+        repo = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for args in (
+            ["config", "user.name", "Oompah Test"],
+            ["config", "user.email", "oompah@example.test"],
+            ["remote", "add", "origin", str(remote)],
+        ):
+            subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        (repo / "README.md").write_text("initial\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-nested-terminal",
+            name="nested-terminal",
+            repo_url=str(remote),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+
+        parent_branch = store.epic_branch_name("PARENT")
+        source_branch = store.epic_branch_name("CHILD")
+        subprocess.run(["git", "branch", parent_branch], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "push", "-u", "origin", parent_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(["git", "branch", source_branch], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "push", "-u", "origin", source_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        worktree = store.epic_worktree_path_for(project.id, "CHILD")
+        subprocess.run(
+            ["git", "worktree", "add", worktree, source_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        (Path(worktree) / "child.txt").write_text("nested work\n", encoding="utf-8")
+        subprocess.run(["git", "add", "child.txt"], cwd=worktree, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "nested child"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        source_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        if landing is not None:
+            subprocess.run(["git", "checkout", parent_branch], cwd=repo, check=True)
+            merge_args = (
+                ["git", "merge", "--no-ff", "--no-edit", source_branch]
+                if landing == "merge"
+                else ["git", "merge", "--ff-only", source_branch]
+            )
+            subprocess.run(
+                merge_args,
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "push", "origin", parent_branch],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(["git", "checkout", "main"], cwd=repo, check=True)
+
+        return store, project, worktree, source_branch, parent_branch, source_head
+
+    @pytest.mark.parametrize("landing", ["merge", "fast-forward"])
+    def test_prunes_clean_nested_epic_after_parent_landing(
+        self, tmp_path, landing
+    ):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path, landing=landing
+        )
+        subprocess.run(
+            ["git", "push", "origin", "--delete", source],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        changed, skip_reason = store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        )
+
+        assert (changed, skip_reason) == (True, None)
+        assert not os.path.isdir(worktree)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{source}"],
+            cwd=project.repo_path,
+            check=False,
+        ).returncode == 1
+
+    def test_target_fetch_failure_preserves_source_worktree_and_ref(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        with patch.object(
+            store,
+            "_run_network_git",
+            return_value=subprocess.CompletedProcess(
+                ["git", "fetch"], 1, "", "target unavailable"
+            ),
+        ):
+            with pytest.raises(ProjectError, match="target branch refresh failed"):
+                store.cleanup_terminal_issue(
+                    project.id,
+                    "CHILD",
+                    branch_name=source,
+                    is_epic=True,
+                    target_branch=target,
+                    review_head=source_head,
+                    require_target_branch=True,
+                )
+        assert os.path.isdir(worktree)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{source}"],
+            cwd=project.repo_path,
+            check=False,
+        ).returncode == 0
+
+    def test_unreachable_head_and_wrong_target_are_preserved(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path, landing=None
+        )
+        wrong_target = store.epic_branch_name("OTHER")
+        subprocess.run(["git", "branch", wrong_target], cwd=project.repo_path, check=True)
+        subprocess.run(
+            ["git", "push", "-u", "origin", wrong_target],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        with pytest.raises(ProjectError, match="not reachable"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=wrong_target,
+                review_head=source_head,
+                require_target_branch=True,
+            )
+        assert os.path.isdir(worktree)
+        assert target != wrong_target
+
+    def test_dirty_and_active_nested_worktrees_are_preserved(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        (Path(worktree) / "uncommitted.txt").write_text("keep\n", encoding="utf-8")
+        with pytest.raises(ProjectError, match="dirty task worktree"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=target,
+                review_head=source_head,
+                require_target_branch=True,
+            )
+        assert os.path.isdir(worktree)
+
+        (Path(worktree) / "uncommitted.txt").unlink()
+        git_dir = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        git_dir_path = Path(git_dir)
+        if not git_dir_path.is_absolute():
+            git_dir_path = Path(worktree) / git_dir_path
+        (git_dir_path / "rebase-merge").mkdir()
+        (git_dir_path / "rebase-merge" / "head-name").write_text(
+            f"refs/heads/{source}\n", encoding="utf-8"
+        )
+        with pytest.raises(ProjectError, match="active rebase"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=target,
+                review_head=source_head,
+                require_target_branch=True,
+            )
+        assert os.path.isdir(worktree)
+
+    def test_missing_nested_evidence_and_unregistered_path_fail_closed(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        with pytest.raises(ProjectError, match="target branch evidence"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                require_target_branch=True,
+            )
+        assert os.path.isdir(worktree)
+
+        subprocess.run(
+            ["git", "worktree", "remove", worktree, "--force"],
+            cwd=project.repo_path,
+            check=True,
+        )
+        os.makedirs(worktree)
+        with pytest.raises(ProjectError, match="unregistered worktree"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=target,
+                review_head=source_head,
+                require_target_branch=True,
+            )
+        assert os.path.isdir(worktree)
+
+    def test_repeated_cleanup_is_quiet_and_idempotent(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        first = store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        )
+        second = store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        )
+        assert first == (True, None)
+        assert second == (False, None)
+        assert not os.path.exists(worktree)
+
 class TestProjectStoreFindByName:
     """Tests for the secondary name-based project lookup."""
 

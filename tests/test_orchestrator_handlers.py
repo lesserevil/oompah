@@ -1690,6 +1690,72 @@ class TestHandleAutoUpdate:
 class TestTerminalWorktreeCleanup:
     """Terminal task cleanup removes only discardable worktrees."""
 
+    def test_nested_epic_cleanup_requires_canonical_recorded_parent_target(
+        self, tmp_path
+    ):
+        project = _make_project()
+        project.default_branch = "main"
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "CHILD",
+            state="Merged",
+            issue_type="epic",
+            project_id=project.id,
+        )
+        issue.parent_id = "PARENT"
+        issue.work_branch = "epic-CHILD"
+        issue.target_branch = "epic-PARENT"
+        issue.review_head = "a" * 40
+        parent = _make_issue(
+            "PARENT",
+            state="Open",
+            issue_type="epic",
+            project_id=project.id,
+        )
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._epic_branch_for_issue = MagicMock(return_value="epic-PARENT")
+        orch.project_store.epic_branch_name.return_value = "epic-PARENT"
+
+        evidence = orch._nested_epic_terminal_cleanup_evidence(project, issue)
+
+        assert evidence == {
+            "require_target_branch": True,
+            "target_branch": "epic-PARENT",
+            "review_head": "a" * 40,
+        }
+
+        issue.target_branch = "main"
+        assert orch._nested_epic_terminal_cleanup_evidence(project, issue) == {
+            "require_target_branch": True,
+        }
+
+    def test_nested_epic_can_use_passing_terminal_audit_as_landing_evidence(
+        self, tmp_path
+    ):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "CHILD",
+            state="Merged",
+            issue_type="epic",
+            project_id=project.id,
+        )
+        issue.parent_id = "PARENT"
+        issue.target_branch = "epic-PARENT"
+        parent = _make_issue("PARENT", issue_type="epic", project_id=project.id)
+        orch._resolve_parent_epic = MagicMock(return_value=parent)
+        orch._epic_branch_for_issue = MagicMock(return_value="epic-PARENT")
+        orch.project_store.epic_branch_name.return_value = "epic-PARENT"
+        orch._historical_done_has_passed_merged_audit = MagicMock(return_value=True)
+
+        evidence = orch._nested_epic_terminal_cleanup_evidence(project, issue)
+
+        assert evidence == {
+            "require_target_branch": True,
+            "target_branch": "epic-PARENT",
+        }
+        orch._historical_done_has_passed_merged_audit.assert_called_once()
+
     class StaleCleanupStore:
         def __init__(self, projects, cleanup_result=(0, False)):
             self._projects = list(projects)

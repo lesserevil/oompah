@@ -21,7 +21,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
-from typing import Any
+from typing import Any, TypedDict
 
 from oompah.agent import (
     AgentError,
@@ -514,6 +514,14 @@ def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str
 
 _TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 _TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+
+
+class _NestedEpicCleanupEvidence(TypedDict, total=False):
+    """Optional ProjectStore kwargs that prove a nested epic may be removed."""
+
+    target_branch: str
+    review_head: str
+    require_target_branch: bool
 
 
 def _audit_observability_time(value: object) -> datetime | None:
@@ -4176,16 +4184,22 @@ class Orchestrator:
 
         cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
         if cleanup is not None:
-            result = self.project_store.cleanup_terminal_issue(
-                project.id,
-                issue.identifier,
-                branch_name=str(issue.work_branch or "").strip() or None,
-                is_epic=_is_epic_issue(issue),
-                issue_number=(
+            cleanup_kwargs = {
+                "branch_name": str(issue.work_branch or "").strip() or None,
+                "is_epic": _is_epic_issue(issue),
+                "issue_number": (
                     str(issue.issue_number).strip()
                     if issue.issue_number
                     else None
                 ),
+            }
+            cleanup_kwargs.update(
+                self._nested_epic_terminal_cleanup_evidence(project, issue)
+            )
+            result = self.project_store.cleanup_terminal_issue(
+                project.id,
+                issue.identifier,
+                **cleanup_kwargs,
             )
             # Handle both old bool return and new (bool, skip_reason) tuple
             if isinstance(result, tuple):
@@ -4210,6 +4224,100 @@ class Orchestrator:
                 issue.identifier,
             )
         return True, None
+
+    def _nested_epic_terminal_cleanup_evidence(
+        self,
+        project: Any,
+        issue: Issue,
+    ) -> _NestedEpicCleanupEvidence:
+        """Return verified target evidence required for a nested epic cleanup.
+
+        A terminal status and a branch name are not landing proof.  Nested
+        epics are special because their source branch is intentionally merged
+        into a parent epic branch rather than the configured default branch.
+        Resolve that parent, require the task's recorded target to be the
+        canonical parent branch, and require either the exact persisted review
+        head or a current-fingerprint passing terminal-Merged audit.  Invalid
+        or unavailable evidence is represented as a required-but-empty target
+        so ProjectStore fails closed without changing ordinary cleanup paths.
+        """
+
+        if not _is_epic_issue(issue) or not str(issue.parent_id or "").strip():
+            return {}
+
+        # Keep the cleanup-only kwargs explicit: ordinary terminal cleanup
+        # must not accidentally opt into the stricter nested-epic path.
+        required: _NestedEpicCleanupEvidence = {"require_target_branch": True}
+        try:
+            parent = self._resolve_parent_epic(issue)
+            if parent is None:
+                logger.info(
+                    "Deferring nested epic cleanup for %s: parent epic is unavailable",
+                    issue.identifier,
+                )
+                return required
+            canonical_parent_branch = self.project_store.epic_branch_name(
+                parent.identifier
+            )
+            resolved_parent_branch = self._epic_branch_for_issue(parent)
+        except Exception as exc:  # noqa: BLE001 - cleanup must fail closed
+            logger.info(
+                "Deferring nested epic cleanup for %s: target resolution failed: %s",
+                issue.identifier,
+                exc,
+            )
+            return required
+
+        recorded_target = str(issue.target_branch or "").strip()
+        if (
+            not recorded_target
+            or resolved_parent_branch != canonical_parent_branch
+            or recorded_target != canonical_parent_branch
+        ):
+            logger.info(
+                "Deferring nested epic cleanup for %s: recorded target %r does not "
+                "match canonical parent target %r",
+                issue.identifier,
+                recorded_target or None,
+                canonical_parent_branch,
+            )
+            return required
+
+        recorded_review_head = str(issue.review_head or "").strip()
+        usable_review_head = (
+            recorded_review_head
+            if re.fullmatch(r"[0-9a-fA-F]{40,64}", recorded_review_head)
+            else ""
+        )
+        audit_proves_landing = False
+        if not usable_review_head:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                audit_proves_landing = self._historical_done_has_passed_merged_audit(
+                    issue,
+                    tracker,
+                    str(project.id),
+                )
+            except Exception as exc:  # noqa: BLE001 - optional evidence source
+                logger.info(
+                    "Deferring nested epic cleanup for %s: terminal audit "
+                    "evidence unavailable: %s",
+                    issue.identifier,
+                    exc,
+                )
+
+        if not usable_review_head and not audit_proves_landing:
+            logger.info(
+                "Deferring nested epic cleanup for %s: no exact reviewed head or "
+                "passing terminal-Merged audit",
+                issue.identifier,
+            )
+            return required
+
+        required["target_branch"] = canonical_parent_branch
+        if usable_review_head:
+            required["review_head"] = usable_review_head
+        return required
 
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
         """Remove worktrees and branches for issues safe to discard.
