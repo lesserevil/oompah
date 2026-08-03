@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -12,10 +12,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-03T00:10:38.037942Z'
+updated_at: '2026-08-03T00:10:47.529793Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/667
 review_number: null
 review_head: null
 merged_at: null
@@ -105,6 +105,7 @@ oompah.integration:
   head_sha: 0b78028a691b4c21935d9c9dc3b69d59f8448643
   submitted_at: '2026-08-02T23:20:28.116349+00:00'
   updated_at: '2026-08-02T23:20:28.116349+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/667
 ---
 ## Summary
 
