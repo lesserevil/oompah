@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T22:06:22.399398Z'
+updated_at: '2026-08-03T22:07:17.629613Z'
 work_branch: OOMPAH-737
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/693
@@ -68,13 +68,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1961
+  total_input_tokens: 16
+  total_output_tokens: 2078
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1961
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 117
       cost_usd: 0.0
   runs:
   - profile: default
@@ -83,6 +87,12 @@ oompah.task_costs:
     output_tokens: 1961
     cost_usd: 0.0
     recorded_at: '2026-08-03T20:15:16.864091+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 117
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T22:07:14.597872+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-737__20260803T200951Z
@@ -337,5 +347,15 @@ Safe evidence:
 - acceptance_durable_restart_safe: test_lifecycle_reconciliation_batches_are_durable_and_restart_safe + test_lifecycle_reconciliation_finishes_after_status_write_metadata_failure
 - acceptance_failure_isolation: test_lifecycle_reconciliation_isolates_tracker_failures_and_retries
 - acceptance_deferred_startup: test_initialize_can_defer_lifecycle_reconciliation
+---
+author: oompah
+created: 2026-08-03 22:07
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 95, Tool calls: 77
+- Tokens: 6 in / 117 out [123 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 43m 2s
+- Log: OOMPAH-737__20260803T212429Z.jsonl
 ---
 <!-- COMMENTS:END -->
