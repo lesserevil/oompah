@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T20:33:57.514106Z'
+updated_at: '2026-08-03T20:35:45.730762Z'
 work_branch: OOMPAH-726
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/691
@@ -99,7 +99,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-726
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -122,13 +122,27 @@ oompah.terminal_audit:
       ended_at: '2026-08-03T20:33:48.151145+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-03T20:33:58.151108+00:00'
+    - version: 1
+      attempt_id: attempt-e4ac7c8d4bc8
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+      created_at: '2026-08-03T20:35:44.534801+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-03T20:35:44.534801+00:00'
+      branch_key: OOMPAH-726
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:23:01.143691+00:00'
-    updated_at: '2026-08-03T20:33:48.151145+00:00'
+    updated_at: '2026-08-03T20:35:44.534801+00:00'
   - version: 1
     audit_id: audit-ce93ee0a4616
     project_id: proj-14849f1b
@@ -164,6 +178,20 @@ oompah.terminal_audit:
     ended_at: '2026-08-03T20:33:48.151145+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-03T20:33:58.151108+00:00'
+  - version: 1
+    attempt_id: attempt-e4ac7c8d4bc8
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+    created_at: '2026-08-03T20:35:44.534801+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-03T20:35:44.534801+00:00'
+    branch_key: OOMPAH-726
+    candidate_rotation_count: 1
 ---
 ## Summary
 
