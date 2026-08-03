@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:55:38.770852Z'
+updated_at: '2026-08-03T18:16:11.708206Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,15 @@ author: oompah
 created: 2026-08-03 17:55
 ---
 Discovery: _create_workspace_for_issue currently sends all parallel shared-epic children, including auto-filed Rebase epic-* helpers, to derived private branches; submission then enqueues every parented task into ordinary child integration. That executor correctly rejects a preserved shared-epic checkout after the helper force-pushes the epic. The fix needs explicit direct-maintenance classification, canonical epic-worktree routing, guarded publication reconciliation, and audited Done staging while preserving normal child integration.
+---
+author: oompah
+created: 2026-08-03 18:16
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 151
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 13s
+- Log: OOMPAH-731__20260803T175306Z.jsonl
 ---
 <!-- COMMENTS:END -->
