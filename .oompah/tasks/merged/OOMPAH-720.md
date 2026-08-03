@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-720
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep owner-override fingerprints stable while audit attempts rotate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:58:48.532319Z'
+updated_at: '2026-08-03T14:59:29.834259Z'
 work_branch: OOMPAH-720
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/679
@@ -143,6 +143,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T14:57:28.899788+00:00'
     applied_at: '2026-08-03T14:57:33.583990+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2ed5694bd80f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-720
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1edcd29fc7df98a6bb1d55efef1c19150c8039913895d16e58b90f083cee0ebd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Operator independently verified the Merged transition after Audit PASS
+      for Done at exact head 5643fa42363bdaa5b28828d00d10d9e7ca9e217f. The auditor
+      confirmed merge SHA 8d58087fa3aee54da42e153020a0748d6c5201cb, 386 focused tests
+      with zero failures, and the full exact-head gate of 15,100 passed, 7 skipped,
+      1 expected xfail. A second Merged audit would duplicate the accepted evidence
+      while the deployed service still lacks this task's race/idempotency fix.
+    created_at: '2026-08-03T14:59:25.862923+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -406,5 +428,12 @@ author: oompah
 created: 2026-08-03 14:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 14:59
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Operator independently verified the Merged transition after Audit PASS for Done at exact head 5643fa42363bdaa5b28828d00d10d9e7ca9e217f. The auditor confirmed merge SHA 8d58087fa3aee54da42e153020a0748d6c5201cb, 386 focused tests with zero failures, and the full exact-head gate of 15,100 passed, 7 skipped, 1 expected xfail. A second Merged audit would duplicate the accepted evidence while the deployed service still lacks this task's race/idempotency fix.
 ---
 <!-- COMMENTS:END -->
