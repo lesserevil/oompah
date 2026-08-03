@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T19:38:31.297041Z'
+updated_at: '2026-08-03T19:38:40.429000Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -153,7 +153,8 @@ oompah.terminal_audit:
     evidence_fingerprint: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
     audit_ids:
     - audit-9d581825cc7b
-    kind: result
+    - audit-5537cd234487
+    kind: override
     applied: true
     retired_at: '2026-08-03T19:29:02.838901+00:00'
   oompah.terminal_audit_result_intents:
@@ -169,6 +170,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T19:29:02.838918+00:00'
     applied_at: '2026-08-03T19:29:07.239791+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-e3b888bc743f
@@ -188,7 +190,7 @@ oompah.terminal_audit:
       and launched a redundant auditor that later hit the OOMPAH-736 command-policy
       defect.
     created_at: '2026-08-03T19:38:27.187762+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -250,7 +252,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -281,7 +283,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
-    updated_at: '2026-08-03T19:37:30.318790+00:00'
+    updated_at: '2026-08-03T19:38:33.773126+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
@@ -600,5 +602,10 @@ created: 2026-08-03 19:38
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: An independent auditor durably recorded Audit PASS at 2026-08-03 19:29 UTC, but the live pre-OOMPAH-734 finalization path left the task In Validation and launched a redundant auditor that later hit the OOMPAH-736 command-policy defect.
+---
+author: oompah
+created: 2026-08-03 19:38
+---
+Applied the already-recorded independent PASS; OOMPAH-734 tracks stranded PASS finalization and OOMPAH-736 tracks the redundant audit's command-policy denials.
 ---
 <!-- COMMENTS:END -->

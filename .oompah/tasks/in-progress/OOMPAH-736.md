@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:33:32.204185Z'
+updated_at: '2026-08-03T19:38:43.900469Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,29 @@ The issue is about aligning the auditor command policy with project-required Mak
 6. Add tests for the regression case
 
 Let me explore the codebase structure now.
+---
+author: oompah
+created: 2026-08-03 19:38
+---
+## Discovery
+
+Found the key components:
+
+1. **Command Validation**: `oompah/auditor.py::check_auditor_command()` - uses a hardcoded regex `_AUDITOR_COMMAND_RE` that only allows specific make targets (test, test-serial, check-secrets)
+
+2. **Project Config**: `oompah/models.py::Project` class - has test_command, test_command_full fields but no validation target configuration
+
+3. **Auditor Prompt**: `oompah/prompt.py::render_auditor_prompt()` - generates prompt but doesn't reference the specific allowed commands
+
+4. **Policy Flow**: `oompah/authority_boundary.py::check_command()` calls check_auditor_command and has access to policy.project_id
+
+**Implementation Plan:**
+1. Add `auditor_validation_targets: list[str]` field to Project class (e.g., ['test', 'test-serial', 'check-secrets', 'fmt-check', 'lint', 'help'])
+2. Modify check_auditor_command to accept optional project_id
+3. Build command regex dynamically from project config
+4. Update auditor prompt to list approved commands
+5. Handle fallback to defaults when project config is missing
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
