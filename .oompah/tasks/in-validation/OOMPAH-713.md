@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T02:20:28.116688Z'
+updated_at: '2026-08-03T02:20:34.219546Z'
 work_branch: OOMPAH-713
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/673
@@ -403,5 +403,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 29s
 - Log: OOMPAH-713__20260803T021656Z.jsonl
+---
+author: oompah
+created: 2026-08-03 02:20
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-03 02:20
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
