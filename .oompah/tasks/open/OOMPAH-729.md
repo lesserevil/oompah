@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-729
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Rearm terminal audit after evidence-only remediation on the same head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T16:23:52.854950Z'
+updated_at: '2026-08-03T16:24:02.187193Z'
 work_branch: null
 target_branch: null
 review_url: null
