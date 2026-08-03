@@ -396,3 +396,153 @@ def test_acp_agent_passes_auditor_policy_to_backend(monkeypatch):
     assert options_seen[0].auditor is True
     assert options_seen[0].audit_target.audit_id == "audit-42"
     assert options_seen[0].audit_result_handler is result_handler
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # EXOCOMP-241 production evidence: exact forms from the terminal audit
+        "git rev-list --left-right --count origin/main...origin/epic-EXOCOMP-132",
+        "git rev-list --count origin/main..origin/epic-EXOCOMP-132",
+        "git rev-list --count origin/epic-EXOCOMP-132..origin/main",
+        # Additional safe variants with common flags
+        "git rev-list --count HEAD",
+        "git rev-list --left-right --count main..develop",
+        "git rev-list --oneline main develop",
+    ],
+)
+def test_git_rev_list_read_only_inspection_allowed_without_policy_budget(
+    command: str,
+):
+    """Verify EXOCOMP-241 rev-list forms are allowed and don't consume policy budget."""
+    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    denials: list[str] = []
+
+    result = _execute_tool(
+        Path(".").resolve(),
+        "run_command",
+        {"command": command},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    # Command should execute (not denied)
+    assert not result.startswith("Error:"), f"Command was denied: {result}"
+    assert denials == [], f"Policy budget consumed: {denials}"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # Extended flags that might not be explicitly supported yet
+        # but are still read-only
+        "git rev-list --graph --oneline --all",
+        "git rev-list --pretty=%H origin/main...origin/develop",
+    ],
+)
+def test_git_rev_list_unsupported_read_only_variants_are_recoverable(
+    command: str,
+):
+    """Verify unsupported but safe rev-list variants return recoverable errors."""
+    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    denials: list[str] = []
+
+    result = _execute_tool(
+        Path(".").resolve(),
+        "run_command",
+        {"command": command},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    # May be denied as unsupported read-only syntax, but must be recoverable
+    if result.startswith("Error:"):
+        assert "not executed" in result
+        assert "read-only" in result.lower() or "syntax" in result.lower()
+    # Policy budget should NOT be consumed (recoverable error)
+    assert denials == [], f"Policy budget should not be consumed: {denials}"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # Dangerous rev-list flags that mutate state
+        "git rev-list --delete-refs main",
+        # Compound commands with shell escapes
+        "git rev-list --count HEAD | wc -l",
+        "git rev-list HEAD && git commit -m 'hacked'",
+        # Output redirection (dangerous)
+        "git rev-list --count HEAD > output.txt",
+        # Command substitution
+        "git rev-list $(git rev-parse HEAD)",
+    ],
+)
+def test_git_rev_list_with_dangerous_syntax_is_denied(command: str):
+    """Verify dangerous rev-list variants are denied without executing."""
+    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    denials: list[str] = []
+
+    result = _execute_tool(
+        Path(".").resolve(),
+        "run_command",
+        {"command": command},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    # Should be denied
+    assert result.startswith("Error:"), f"Dangerous command was allowed: {result}"
+
+
+def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path):
+    """Verify unsupported but safe rev-list syntax doesn't consume policy budget."""
+    target = _target()
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
+    denials: list[str] = []
+
+    # Use a rev-list variant that might not be explicitly supported yet
+    # but is still read-only
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "git rev-list --abbrev-commit HEAD~5..HEAD"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    # May be rejected as unsupported read-only syntax, but recoverable
+    if result.startswith("Error:"):
+        assert "not executed" in result or "recoverable" in result.lower()
+    assert denials == [], f"Policy budget should not be consumed: {denials}"
+
+    # Auditor should still be able to use other commands
+    pwd = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "pwd"},
+        action_policy=policy,
+    )
+    assert not pwd.startswith("Error:")
+
+    # And should be able to submit verdict
+    received = []
+    verdict = _execute_tool(
+        tmp_path,
+        AUDITOR_RESULT_TOOL_NAME,
+        {
+            "audit_id": target.audit_id,
+            "target_state": target.target_state,
+            "evidence_fingerprint": target.evidence_fingerprint,
+            "verdict": "pass",
+            "message": "Recovered from rev-list validation.",
+            "attempt_id": target.attempt_id,
+        },
+        action_policy=policy,
+        audit_target=target,
+        audit_result_handler=received.append,
+    )
+    assert '"accepted": true' in verdict
+    assert received[0].audit_id == target.audit_id
