@@ -3941,17 +3941,42 @@ class ProjectStore:
         wt_path: str,
         *,
         branch_name: str,
+        target_branch: str | None = None,
+        review_head: str | None = None,
+        merge_commit_sha: str | None = None,
+        require_target_branch: bool = False,
     ) -> None:
         """Refuse terminal removal unless dirty work is durably preserved.
 
         Terminal cleanup is allowed for clean work whose head is already
         published on its branch or reachable from the default branch.  A
         local-only head is retained because removing its worktree would make
-        the task's only copy unrecoverable.
+        the task's only copy unrecoverable.  ``target_branch`` is an explicit
+        exception for nested epic rollups: the caller must supply the
+        recorded target and durable review/audit evidence, and this method
+        refreshes and verifies that target before allowing removal.
         """
 
+        if require_target_branch and not str(target_branch or "").strip():
+            raise ProjectError(
+                f"Refusing terminal cleanup of {wt_path}: recorded target "
+                "branch evidence is unavailable"
+            )
+
+        if target_branch:
+            registered_paths = self._registered_worktree_paths(project.repo_path)
+            if os.path.realpath(wt_path) not in registered_paths:
+                raise ProjectError(
+                    f"Refusing terminal cleanup of unregistered worktree {wt_path}"
+                )
+
         if not _is_git_working_tree(wt_path):
+            if target_branch:
+                raise ProjectError(
+                    f"Refusing terminal cleanup of non-git worktree {wt_path}"
+                )
             return
+
         status = self._git_status_for_worktree(wt_path)
         if status.returncode != 0:
             raise ProjectError(
@@ -4038,6 +4063,18 @@ class ProjectStore:
             )
         head_sha = head.stdout.strip()
 
+        if target_branch:
+            self._assert_terminal_target_landing_locked(
+                project,
+                issue_identifier,
+                branch_name=branch_name,
+                head_sha=head_sha,
+                target_branch=target_branch,
+                review_head=review_head,
+                merge_commit_sha=merge_commit_sha,
+            )
+            return
+
         published = subprocess.run(
             ["git", "merge-base", "--is-ancestor", "HEAD", f"origin/{branch_name}"],
             cwd=wt_path,
@@ -4064,6 +4101,159 @@ class ProjectStore:
             raise ProjectError(
                 f"Refusing terminal cleanup of unpublished task worktree "
                 f"{wt_path}; head {head_sha} has no pushed or merged evidence"
+            )
+
+    def _assert_terminal_target_landing_locked(
+        self,
+        project: Project,
+        issue_identifier: str,
+        *,
+        branch_name: str,
+        head_sha: str,
+        target_branch: str,
+        review_head: str | None = None,
+        merge_commit_sha: str | None = None,
+    ) -> None:
+        """Verify a nested epic head against its recorded target branch.
+
+        A target branch recorded in task metadata is not itself landing proof.
+        Refresh the exact remote-tracking ref (with pruning so a normally
+        deleted source branch is not mistaken for a live branch), then require
+        the exact worktree head to be contained in that target.  A caller may
+        additionally provide a durable merge commit; when normal ancestry is
+        unavailable, that commit is accepted only when it is on the target and
+        names the exact worktree head as a parent.
+        """
+
+        target_branch = str(target_branch or "").strip()
+        if not target_branch:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: empty target branch"
+            )
+        if target_branch == branch_name:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: target branch "
+                f"{target_branch!r} is the source branch"
+            )
+
+        try:
+            ref_check = subprocess.run(
+                ["git", "check-ref-format", "--branch", target_branch],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not validate terminal target branch {target_branch!r}: {exc}"
+            ) from exc
+        if ref_check.returncode != 0:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: invalid target "
+                f"branch {target_branch!r}"
+            )
+
+        try:
+            fetched = self._run_network_git(
+                project,
+                ["git", "fetch", "--prune", "origin", target_branch],
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not refresh terminal target branch {target_branch!r}: {exc}"
+            ) from exc
+        if fetched.returncode != 0:
+            raise ProjectError(
+                "Refusing terminal cleanup because target branch refresh failed: "
+                f"{fetched.stderr.strip()[:500]}"
+            )
+
+        target_ref = f"origin/{target_branch}"
+        target_sha = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{target_ref}^{{commit}}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if target_sha.returncode != 0 or not target_sha.stdout.strip():
+            raise ProjectError(
+                f"Refusing terminal cleanup because target branch {target_branch!r} "
+                "is unavailable after refresh"
+            )
+
+        review_head = str(review_head or "").strip()
+        if review_head:
+            if not re.fullmatch(r"[0-9a-fA-F]{40,64}", review_head):
+                raise ProjectError(
+                    f"Refusing terminal cleanup of {issue_identifier}: invalid "
+                    "recorded review head"
+                )
+            if review_head.lower() != head_sha.lower():
+                raise ProjectError(
+                    f"Refusing terminal cleanup of {issue_identifier}: worktree "
+                    "head differs from the reviewed head"
+                )
+
+        contained = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", head_sha, target_ref],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if contained.returncode == 0:
+            return
+
+        merge_commit_sha = str(merge_commit_sha or "").strip()
+        if not merge_commit_sha:
+            raise ProjectError(
+                f"Refusing terminal cleanup of unpublished nested epic worktree "
+                f"{issue_identifier}; head {head_sha} is not reachable from "
+                f"origin/{target_branch}"
+            )
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", merge_commit_sha):
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: invalid "
+                "recorded merge commit"
+            )
+
+        merge_on_target = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", merge_commit_sha, target_ref],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if merge_on_target.returncode != 0:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: recorded merge "
+                "commit is not reachable from the target branch"
+            )
+        merge_parents = subprocess.run(
+            ["git", "rev-list", "--parents", "-n", "1", merge_commit_sha],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if merge_parents.returncode != 0:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: recorded merge "
+                "commit is unavailable"
+            )
+        parents = merge_parents.stdout.strip().split()[1:]
+        if head_sha not in parents:
+            raise ProjectError(
+                f"Refusing terminal cleanup of {issue_identifier}: recorded merge "
+                "commit does not have the exact worktree head as a parent"
             )
 
     def _remove_worktree_locked(
@@ -4274,6 +4464,10 @@ class ProjectStore:
         branch_name: str | None = None,
         is_epic: bool = False,
         issue_number: str | None = None,
+        target_branch: str | None = None,
+        review_head: str | None = None,
+        merge_commit_sha: str | None = None,
+        require_target_branch: bool = False,
     ) -> tuple[bool, str | None]:
         """Remove one terminal issue's worktree and Oompah-owned branch.
 
@@ -4325,6 +4519,48 @@ class ProjectStore:
                         issue_identifier,
                         epic_path,
                         branch_name=candidate,
+                        target_branch=target_branch,
+                        review_head=review_head,
+                        merge_commit_sha=merge_commit_sha,
+                        require_target_branch=require_target_branch,
+                    )
+                elif require_target_branch and (
+                    self._ref_exists(project.repo_path, f"refs/heads/{candidate}")
+                    or self._ref_exists(
+                        project.repo_path,
+                        f"refs/remotes/origin/{candidate}",
+                    )
+                ):
+                    if not target_branch:
+                        raise ProjectError(
+                            f"Refusing terminal cleanup of {issue_identifier}: "
+                            "recorded target branch evidence is unavailable"
+                        )
+                    source_sha = subprocess.run(
+                        [
+                            "git",
+                            "rev-parse",
+                            "--verify",
+                            f"refs/heads/{candidate}^{{commit}}",
+                        ],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                    )
+                    if source_sha.returncode != 0 or not source_sha.stdout.strip():
+                        raise ProjectError(
+                            f"cannot prove terminal branch head for {issue_identifier}"
+                        )
+                    self._assert_terminal_target_landing_locked(
+                        project,
+                        issue_identifier,
+                        branch_name=candidate,
+                        head_sha=source_sha.stdout.strip(),
+                        target_branch=target_branch,
+                        review_head=review_head,
+                        merge_commit_sha=merge_commit_sha,
                     )
                 worktree_removed = self._remove_epic_worktree_locked(
                     project_id,
