@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T01:49:04.698840Z'
+updated_at: '2026-08-03T01:53:06.978122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -320,5 +320,10 @@ author: oompah
 created: 2026-08-03 01:49
 ---
 Direct owner is refreshing the accepted owner-claim race fix onto current origin/main after OOMPAH-702 and OOMPAH-710 merged, then will rerun its focused owner/duplicate/release suites and resubmit the new exact head.
+---
+author: oompah
+created: 2026-08-03 01:53
+---
+Direct-owner rebase and verification complete at exact clean head ce9e9fe007850e75b9814b3e1e12a657d4ceb3db on current origin/main. Affected owner-claim, duplicate-dispatch, and release-selection suites pass 86/86; make check-secrets passes. Resubmitting this exact head for the serialized full branch gate.
 ---
 <!-- COMMENTS:END -->
