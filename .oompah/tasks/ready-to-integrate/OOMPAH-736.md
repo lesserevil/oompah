@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:50:19.117498Z'
+updated_at: '2026-08-03T19:50:32.490280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,52 @@ author: oompah
 created: 2026-08-03 19:50
 ---
 Implemented project validation-command contract for auditor policy alignment. Projects can now configure auditor_validation_targets (e.g., ['test', 'fmt-check', 'lint']) and the auditor will allow those commands without exhausting policy budget. Dynamic regex generation aligns prompt guidance with enforcement. Fixes EXOCOMP-159 regression where fmt-check/lint denials caused candidate exhaustion.
+---
+author: oompah
+created: 2026-08-03 19:50
+---
+## Completion Summary
+
+**Issue:** EXOCOMP-159 regression where auditor policy denials for project-required validation targets (fmt-check, lint, help) exhausted candidates and sent task to Needs Human despite healthy providers.
+
+**Root Cause:** Auditor capability policy had a hardcoded regex allowing only test, test-serial, check-secrets. No mechanism to configure project-specific validation targets.
+
+**Solution Delivered:**
+
+1. **Structured Validation Contract:**
+   - Project.auditor_validation_targets field for explicit approved Makefile targets
+   - Defaults to ['test', 'test-serial', 'check-secrets'] for backward compatibility
+   - Supports configuration like ['test', 'fmt-check', 'lint', 'help']
+
+2. **Dynamic Policy Generation:**
+   - _get_auditor_validation_targets() fetches project config
+   - _build_auditor_command_regex() generates regex from targets
+   - check_auditor_command() now accepts project_id for context
+
+3. **Prompt Alignment:**
+   - render_auditor_prompt() now displays approved targets section
+   - Users see exactly which make commands are allowed
+   - Eliminates prompt-enforcement disagreement
+
+4. **Test Coverage:**
+   - 15 comprehensive tests verify regression fix
+   - Dynamic regex validation tests
+   - Project model serialization tests
+   - All 58 tests pass (31 existing + 15 new + 12 focus)
+
+**Key Changes:**
+- oompah/models.py: Added auditor_validation_targets field
+- oompah/auditor.py: Dynamic regex generation and validation
+- oompah/authority_boundary.py: Pass project_id to validation
+- oompah/prompt.py: Include approved targets in prompt
+- tests/test_auditor_validation_targets.py: Regression test suite
+
+**Acceptance Criteria Met:**
+✓ Auditors can execute project-required non-mutating validation commands
+✓ Prompt guidance and enforcement no longer disagree
+✓ EXOCOMP-159-style exhaustion no longer occurs
+✓ Arbitrary shell and repository mutation remain fail-closed
+
+Work complete and submitted for integration.
 ---
 <!-- COMMENTS:END -->
