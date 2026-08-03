@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:17:38.285659Z'
+updated_at: '2026-08-03T15:21:27.728930Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -273,5 +273,10 @@ author: oompah
 created: 2026-08-03 15:17
 ---
 **Discovery**: The failing test `test_tick_does_not_await_maintenance_heal` is missing the `_recover_release_addendum_leases = MagicMock(return_value=0)` stub that all sibling tests in `TestMaintenanceLaneNonBlocking` carry. Under 4-worker xdist CI load, the real `_recover_release_addendum_leases` reads all `.oompah/tasks/*.md` files and can exceed the 15s asyncio timeout, causing the test to incorrectly conclude that `_tick()` is awaiting maintenance. OOMPAH-688 and OOMPAH-670 fixed the exact same pattern for the sibling tests but missed this one. The fix is to add the stub and change `_handle_dispatch_needed=AsyncMock()` to `AsyncMock(return_value={})` to protect the slow-tick formatting path.
+---
+author: oompah
+created: 2026-08-03 15:21
+---
+**Verification**: All focused tests pass after fix. 4/4 TestMaintenanceLaneNonBlocking tests pass, 31/31 auditor contract tests pass, 4/4 ACP tool output bounds tests pass, 277/277 orchestrator handler tests pass. Root cause: `_recover_release_addendum_leases` was not stubbed in `test_tick_does_not_await_maintenance_heal`, causing false 15s asyncio timeout under 4-worker xdist CI load. Fix mirrors OOMPAH-688/OOMPAH-670 pattern already applied to sibling tests.
 ---
 <!-- COMMENTS:END -->
