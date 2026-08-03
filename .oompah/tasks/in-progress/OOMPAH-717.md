@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:01:58.530706Z'
+updated_at: '2026-08-03T13:02:13.636006Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-03 13:01
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 13:02
+---
+Understanding: the failure combines generated-helper paths entering submitted heads, masked subprocess errors, incorrect race classification, and an unbounded queue retry loop. I’ll trace ProjectStore, integration executor/queue, orchestrator health routing, and dashboard diagnostics; implement safe rejection/repair signaling, accurate errors, bounded backoff with fair scheduling, then add focused regression tests.
 ---
 <!-- COMMENTS:END -->
