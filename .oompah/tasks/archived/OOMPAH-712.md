@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-712
 type: task
-status: Open
+status: Archived
 priority: null
 title: Keep retiring terminal auditors visible until provider exit
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-03T00:23:44.424551Z'
-updated_at: '2026-08-03T00:25:01.802384Z'
+updated_at: '2026-08-03T00:29:04.887084Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,6 +21,29 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f0233d42aa7e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-712
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58c13464c4a9338abbd786402a8bef620ae36aa6834b05bc60e5cabb081a3690
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'No implementation exists or is required: timestamp correlation disproved
+      the suspected hidden provider. The only real gauge inconsistency is covered
+      and tested by OOMPAH-710.'
+    created_at: '2026-08-03T00:29:01.303447+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -38,5 +61,17 @@ author: oompah
 created: 2026-08-03 00:24
 ---
 Direct owner claim. OOMPAH-710 is a hard prerequisite because it fixes the provider-private spill trigger and stale audit gauge; this task now isolates the remaining lifecycle visibility gap where a live retiring auditor provider outlives its RunningEntry.
+---
+author: oompah
+created: 2026-08-03 00:29
+---
+Investigation disproved the reported hidden-runtime sequence before implementation. The empty /api/v1/state observation occurred in the gap after Opus attempt #1 retired at 00:21:35 and before Sonnet attempt #2 dispatched at 00:21:44/started at 00:21:50. The later pgrep saw that new Sonnet attempt, not a provider whose RunningEntry had been removed. Logs show both policy-denial attempts remained bounded and were terminated through the visible retirement path. The sole real contradiction was terminal_audit.running=1 during an empty-agent gap; OOMPAH-710 already fixes that stale gauge. Archiving this false-positive duplicate without code changes.
+---
+author: oompah
+created: 2026-08-03 00:29
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: No implementation exists or is required: timestamp correlation disproved the suspected hidden provider. The only real gauge inconsistency is covered and tested by OOMPAH-710.
 ---
 <!-- COMMENTS:END -->
