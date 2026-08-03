@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:17:47.828254Z'
+updated_at: '2026-08-03T23:24:36.811772Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -187,5 +187,21 @@ UNDERSTANDING: This task requires fixing the dashboard's WebSocket state handlin
 The fix focuses on dashboard.html WebSocket handling and potentially server.py full-sync response. Related prior work: OOMPAH-691 through OOMPAH-695.
 
 Plan: (1) Explore relevant code, (2) Understand current state handling, (3) Implement atomic replacement logic, (4) Test all required scenarios, (5) Ensure no regressions.
+---
+author: oompah
+created: 2026-08-03 23:24
+---
+DISCOVERY: Found relevant code in oompah/templates/dashboard.html. Key findings:
+
+1. WebSocket handler (_observeWebSocketEnvelope) detects gaps and epoch changes, triggers full_sync requests
+2. full_sync response carries unified payload with state + issues + revisions
+3. handleStateUpdate() currently receives incremental state updates but doesn't atomically clear stale UI
+4. Current flow: state/issues messages update DOM incrementally, but full_sync handling merges rather than replaces
+
+Main issue: When full_sync arrives, alerts, quality gates, repo hygiene, and auth health panels are updated incrementally. If an alert was removed from the snapshot, it's not removed from the DOM.
+
+Test files: test_ws_full_sync.py (server-side full_sync logic), test_ws_lifecycle.py (client WebSocket lifecycle)
+
+Next: Examine how handleStateUpdate processes full_sync responses and design atomic replacement logic.
 ---
 <!-- COMMENTS:END -->
