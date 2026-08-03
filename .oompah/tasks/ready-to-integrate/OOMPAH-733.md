@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:37:13.695421Z'
+updated_at: '2026-08-03T19:37:56.960766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,13 +69,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: f0a0e3e6-1ceb-4efc-9fe5-38e09092eb10
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1711
+  total_input_tokens: 13
+  total_output_tokens: 2018
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1711
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 3
+      output_tokens: 307
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +88,12 @@ oompah.task_costs:
     output_tokens: 1711
     cost_usd: 0.0
     recorded_at: '2026-08-03T18:26:35.074433+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 307
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:37:53.542868+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-733__20260803T182536Z
@@ -252,5 +262,15 @@ author: oompah
 created: 2026-08-03 19:37
 ---
 Fixed terminal-audit-scan CI failure by adding an allowlist entry in terminal_mutation_scanner.py for Orchestrator._supersede_wrong_epic_rebase_helper. This function archives stale wrong-target rebase helper tasks; it has worker-race guards and the terminal enforcement sweep provides the audit backstop. The scan now shows 8 identified, 8 explicitly allowlisted. All focused suites pass.
+---
+author: oompah
+created: 2026-08-03 19:37
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 46, Tool calls: 29
+- Tokens: 3 in / 307 out [310 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 49s
+- Log: OOMPAH-733__20260803T192611Z.jsonl
 ---
 <!-- COMMENTS:END -->
