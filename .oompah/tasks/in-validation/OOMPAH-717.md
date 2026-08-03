@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:57:17.248330Z'
+updated_at: '2026-08-03T14:00:27.670114Z'
 work_branch: OOMPAH-717
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/677
@@ -106,6 +106,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/677
 oompah.review_number: '677'
 oompah.work_branch: OOMPAH-717
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4477aca88238
+    project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:00:19.534168+00:00'
+  - version: 1
+    audit_id: audit-0e41f170f41b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:00:19.534168+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -338,5 +377,15 @@ author: oompah
 created: 2026-08-03 13:57
 ---
 Live NODEVIRT workaround succeeded: removed the tracked generated helper from NODEVIRT-8/10/11/12/15/16/21, ignored the generated helper directory, pushed and resubmitted exact repaired heads. NODEVIRT-8 integrated on attempt 1 instead of hot-looping; downstream corrected rows remain eligible.
+---
+author: oompah
+created: 2026-08-03 14:00
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 14:00
+---
+YOLO: merged PR #677.
 ---
 <!-- COMMENTS:END -->
