@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T01:43:15.033270Z'
+updated_at: '2026-08-03T01:43:18.658011Z'
 work_branch: OOMPAH-710
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/671
@@ -142,7 +142,19 @@ oompah.terminal_audit:
       positive tracked and fixed by OOMPAH-713; this was not a code-defect verdict.
       Owner override prevents another known-broken retry.'
     created_at: '2026-08-03T01:43:07.600271+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-710
+    target_state: Merged
+    evidence_fingerprint: 58d8c5b00a9c81275d7a2a118c90c2fef16593239552cdaf1f3acd09812d9055
+    audit_ids:
+    - audit-dd31f0420e15
+    - audit-850649c8210e
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T01:43:17.308663+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -150,7 +162,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-710
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -181,13 +193,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T01:40:53.708076+00:00'
-    updated_at: '2026-08-03T01:42:12.102876+00:00'
+    updated_at: '2026-08-03T01:43:17.308609+00:00'
   - version: 1
     audit_id: audit-850649c8210e
     project_id: proj-14849f1b
     task_id: OOMPAH-710
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -199,6 +211,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T01:40:53.708076+00:00'
+    updated_at: '2026-08-03T01:43:17.308644+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-52d878537afd
