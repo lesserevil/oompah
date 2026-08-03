@@ -611,6 +611,10 @@ class ServiceConfig:
     integration_retry_max_attempts: int = 5
     integration_retry_backoff_seconds: int = 5
     integration_retry_max_backoff_seconds: int = 300
+    # Policy-authorized, fail-closed execution of exact container-cycle
+    # repairs. Operators can disable the policy without changing workflow
+    # structure while retaining diagnosis and fencing.
+    container_cycle_repair_enabled: bool = True
     # Full SHA of the lifecycle contract deployed by the operator. This is
     # intentionally server configuration, never candidate-branch input; set
     # it only after a lifecycle change has been separately reviewed/deployed.
@@ -1194,6 +1198,9 @@ class ServiceConfig:
             ),
             integration_retry_max_backoff_seconds=_env_int(
                 "OOMPAH_INTEGRATION_RETRY_MAX_BACKOFF_SECONDS", None, 300
+            ),
+            container_cycle_repair_enabled=_env_bool(
+                "OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", None, True
             ),
             quality_gate_safety_head=_env_str(
                 "OOMPAH_QUALITY_GATE_SAFETY_HEAD", None, ""

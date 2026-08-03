@@ -73,6 +73,13 @@ def test_exocomp_shape_detects_container_cycle_and_exact_sha():
     assert cycle.affected_ready_tasks == ("EXOCOMP-142",)
     assert cycle.prerequisite_shas == (("EXOCOMP-141", "1" * 40),)
     assert cycle.selected_repair == "needs_human_authorized_delivery_order"
+    assert cycle.to_dict()["repair_plan"] == {
+        "kind": "needs_authorized_delivery_order",
+        "authoritative_container": None,
+        "prerequisite_shas": {"EXOCOMP-141": "1" * 40},
+        "dependent_containers": ["EXOCOMP-129", "EXOCOMP-134"],
+        "policy": "parent_only",
+    }
 
 
 def test_longer_multi_epic_cycle_is_reported_as_one_deterministic_component():
