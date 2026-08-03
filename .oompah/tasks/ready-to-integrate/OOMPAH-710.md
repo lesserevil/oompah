@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T01:03:23.290807Z'
+updated_at: '2026-08-03T01:23:24.661595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,15 @@ author: oompah
 created: 2026-08-03 01:03
 ---
 Live delivery note: the exact-head branch gate was not a test failure. It was interrupted as superseded at 00:57:42Z concurrently with OOMPAH-709 auditor retirement, with the OOMPAH-710 remote head unchanged. OOMPAH-714 now tracks the cross-task cancellation/stranding bug. This task remains valid and should be retried at the same accepted head after current review capacity frees.
+---
+author: oompah
+created: 2026-08-03 01:23
+---
+Direct owner re-armed the unchanged exact head 205f413440767c5c2c94c641504f96f6a71c77bb. Its previous branch gate was interrupted by the cross-task cancellation bug tracked in OOMPAH-714, not by a test failure. Focused verification remains 295 passed plus make check-secrets; resubmitting for a clean isolated full gate.
+---
+author: oompah
+created: 2026-08-03 01:23
+---
+Re-armed unchanged exact head after unrelated auditor retirement incorrectly canceled its first gate; OOMPAH-714 owns the root-cause fix.
 ---
 <!-- COMMENTS:END -->

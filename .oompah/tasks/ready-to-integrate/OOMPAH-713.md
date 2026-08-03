@@ -7,11 +7,12 @@ title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-710
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:17:27.438046Z'
+updated_at: '2026-08-03T01:23:16.323496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,6 +103,7 @@ oompah.integration:
   head_sha: ed288443a155dbdfd62bf1b5efe30161f169451d
   submitted_at: '2026-08-03T01:17:11.810774+00:00'
   updated_at: '2026-08-03T01:17:11.810774+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
