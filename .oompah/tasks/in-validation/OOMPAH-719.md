@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T15:10:02.785364Z'
+updated_at: '2026-08-03T15:10:33.263992Z'
 work_branch: OOMPAH-719
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/680
@@ -113,13 +113,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1755
+  total_input_tokens: 16
+  total_output_tokens: 2682
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1755
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 927
       cost_usd: 0.0
   runs:
   - profile: default
@@ -128,6 +132,12 @@ oompah.task_costs:
     output_tokens: 1755
     cost_usd: 0.0
     recorded_at: '2026-08-03T14:03:23.400115+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 927
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T15:10:31.050080+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-719__20260803T140233Z
@@ -391,5 +401,15 @@ Safe evidence:
 - changed_files: oompah/acp_tools.py, oompah/api_agent.py, oompah/auditor.py, oompah/orchestrator.py, oompah/prompt.py, tests/test_acp_tool_output_bounds.py, tests/test_auditor_contract.py
 - new_class: CommandOutputStore
 - new_tool: read_command_output
+---
+author: oompah
+created: 2026-08-03 15:10
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 50, Tool calls: 39
+- Tokens: 6 in / 927 out [933 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 48s
+- Log: OOMPAH-719__20260803T150449Z.jsonl
 ---
 <!-- COMMENTS:END -->
