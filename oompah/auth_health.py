@@ -116,22 +116,34 @@ class OperatorAuthHealth:
         if snap["recent_401_count"] == 0:
             return None
         count = snap["recent_401_count"]
+        summary = (
+            f"Operator HTTP Basic auth: {count} failed "
+            f"request{'s' if count != 1 else ''} in the last "
+            f"{int(window_seconds // 60)} min — credentials may be stale."
+        )
+        remediation = (
+            "Update OOMPAH_HTPASSWD_FILE (or regenerate .htpasswd beside "
+            "your .env), then run `make restart` to reload credentials."
+        )
         return {
             "level": "warning",
+            "severity": "warning",
             "source": "auth_health:operator",
-            "message": (
-                f"Operator HTTP Basic auth: {count} failed "
-                f"request{'s' if count != 1 else ''} in the last "
-                f"{int(window_seconds // 60)} min — credentials may be stale."
-            ),
+            "stable_id": "auth_health:operator",
+            "action_required": True,
+            "recovery_state": "active",
+            "lifecycle_state": "active",
+            "status": "active",
+            "active": True,
+            "recovered": False,
+            "summary": summary,
+            "message": summary,
             "detail": (
                 "The server's htpasswd file may not match the credentials "
                 "being supplied.  This does not affect running workers."
             ),
-            "action": (
-                "Update OOMPAH_HTPASSWD_FILE (or regenerate .htpasswd beside "
-                "your .env), then run `make restart` to reload credentials."
-            ),
+            "remediation": remediation,
+            "action": remediation,
         }
 
 
@@ -279,26 +291,38 @@ class WorkerAuthHealth:
                 "the worker may not be forwarding the capability header."
             )
 
+        summary = (
+            f"Worker task-handoff auth: {description} "
+            f"in the last {window_min} min.{not_accepted_note}"
+        )
+        remediation = (
+            "Check that agent_environment() strips OOMPAH_SERVER_PASSWORD "
+            "and forwards OOMPAH_TASK_HANDOFF_TOKEN and "
+            "OOMPAH_TASK_HANDOFF_PROJECT_ID to every spawned worker.  "
+            "See docs/scoped-task-cli-authentication.md for the live probe "
+            "procedure."
+        )
         return {
             "level": "warning",
+            "severity": "warning",
             "source": "auth_health:worker",
-            "message": (
-                f"Worker task-handoff auth: {description} "
-                f"in the last {window_min} min.{not_accepted_note}"
-            ),
+            "stable_id": "auth_health:worker",
+            "action_required": True,
+            "recovery_state": "active",
+            "lifecycle_state": "active",
+            "status": "active",
+            "active": True,
+            "recovered": False,
+            "summary": summary,
+            "message": summary,
             "detail": (
                 "Worker tokens are scoped to one project and task.  "
                 "Cross-scope rejections indicate a misconfigured project_id or "
                 "task identifier.  Missing-token errors indicate the worker "
                 "did not receive or forward OOMPAH_TASK_HANDOFF_TOKEN."
             ),
-            "action": (
-                "Check that agent_environment() strips OOMPAH_SERVER_PASSWORD "
-                "and forwards OOMPAH_TASK_HANDOFF_TOKEN and "
-                "OOMPAH_TASK_HANDOFF_PROJECT_ID to every spawned worker.  "
-                "See docs/scoped-task-cli-authentication.md for the live probe "
-                "procedure."
-            ),
+            "remediation": remediation,
+            "action": remediation,
         }
 
 
