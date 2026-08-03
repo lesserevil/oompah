@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:10:08.136007Z'
+updated_at: '2026-08-03T14:10:39.317543Z'
 work_branch: OOMPAH-718
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
@@ -250,5 +250,10 @@ author: oompah
 created: 2026-08-03 14:10
 ---
 Implementation: rebase conflict resolved in oompah/server.py. The merged queue summary retains OOMPAH-717 retry/backoff and generated-helper diagnostics while retaining OOMPAH-718 container-cycle fields, repair path, and cycle-priority wait reason. Rebase completed as c47cae954; no scope beyond conflict reconciliation.
+---
+author: oompah
+created: 2026-08-03 14:10
+---
+Verification: resolved rebase passed focused serial coverage: scripts/run-tests.sh serial tests/test_container_dependency_graph.py tests/test_server_dependencies.py tests/test_integration_queue.py tests/test_parallel_epic_children.py — 82 passed in 13.39s. This covers container-cycle detection, dependency rejection, queue repair/retry behavior, and parallel epic integration diagnostics.
 ---
 <!-- COMMENTS:END -->
