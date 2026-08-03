@@ -12,6 +12,7 @@ Acceptance criteria (from OOMPAH-484):
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -673,6 +674,57 @@ def _orchestrator(issue: Issue):
     orch.state.completed = set()
     orch.request_refresh = MagicMock()
     return orch, tracker, coordinator
+
+
+@pytest.mark.asyncio
+async def test_terminal_stage_refreshes_issue_inside_task_ownership_lock():
+    """API staging passes authoritative detail, not its stale caller snapshot."""
+
+    stale = Issue(
+        "task-refresh",
+        "task-refresh",
+        "Task",
+        description="work",
+        state="In Validation",
+    )
+    authoritative = Issue(
+        "task-refresh",
+        "task-refresh",
+        "Task",
+        description="work",
+        state="In Validation",
+    )
+    authoritative.integration = SimpleNamespace(
+        task_branch="feature/task-refresh",
+        head_sha="head-sha",
+        base_branch="main",
+        base_sha="base-sha",
+        integrated_sha="integrated-sha",
+    )
+    orch, tracker, coordinator = _orchestrator(stale)
+    tracker.fetch_issue_detail = lambda identifier: authoritative
+    orch.issue_transition_lock = lambda _issue_id: asyncio.Lock()
+
+    payload, error = await server_module._stage_terminal_transition(
+        orch=orch,
+        tracker=tracker,
+        project_id="proj-1",
+        issue=stale,
+        target=TargetState.DONE,
+        body={
+            "audit_override": True,
+            "override_reason": "Recover unchanged integrated task",
+            "actor_login": "owner",
+        },
+    )
+
+    assert error is None
+    assert payload is not None
+    assert coordinator.overrides[0]["current_issue"] is authoritative
+    expected_fingerprint = server_module._terminal_evidence_fingerprint(
+        authoritative, "proj-1"
+    )
+    assert coordinator.overrides[0]["evidence_fingerprint"] == expected_fingerprint
 
 
 @pytest.fixture
