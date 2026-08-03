@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-718
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:12:07.062307Z'
+updated_at: '2026-08-03T14:19:44.405489Z'
 work_branch: OOMPAH-718
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
@@ -102,6 +102,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/678
 oompah.review_number: '678'
 oompah.work_branch: OOMPAH-718
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-de39b377917f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-718
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8363b611899f61dc8a696b3e9755e4701beacd6756e7f8471d8f33b46f4a3bc6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:19:36.766922+00:00'
+  - version: 1
+    audit_id: audit-9d1bb30c72c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-718
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8363b611899f61dc8a696b3e9755e4701beacd6756e7f8471d8f33b46f4a3bc6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:19:36.766922+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -275,5 +314,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 34s
 - Log: OOMPAH-718__20260803T140848Z.jsonl
+---
+author: oompah
+created: 2026-08-03 14:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 14:19
+---
+YOLO: merged PR #678.
 ---
 <!-- COMMENTS:END -->
