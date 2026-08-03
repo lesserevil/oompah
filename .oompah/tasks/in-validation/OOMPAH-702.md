@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T01:23:33.032767Z'
+updated_at: '2026-08-03T01:24:20.495474Z'
 work_branch: OOMPAH-702
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/670
@@ -123,6 +123,29 @@ oompah.work_branch: OOMPAH-702
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3e433757c537
+    project_id: proj-14849f1b
+    task_id: OOMPAH-702
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 665335cc6f57b53e5e9c655d107c2a6e6e39dc3b3934deee9f1b564aa65062ab
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Exact submitted head d7eaa2a1861d595fef08da60c4139dbf838929f9 passed
+      the complete make test branch gate (15,024 passed in 402.6s), PR #670 passed
+      all Python 3.11/3.12/3.13 checks and merged as 5042e610b6e31d29196bc183df5d6d664074c89b.
+      Completion auditor retries are failing on the already-filed false-positive read-only
+      shell policy bug OOMPAH-713, and their retirement is canceling unrelated gates
+      via OOMPAH-714. Owner override breaks the deadlock without weakening implementation
+      verification.'
+    created_at: '2026-08-03T01:24:19.409017+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

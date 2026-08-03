@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:14:24.348223Z'
+updated_at: '2026-08-03T01:24:15.260522Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-08-03 01:14
 ---
 Verification: The focused full-sync test passes, the complete test_event_driven_loop.py module passes 60/60 serially, and three concurrent pytest-xdist runs each pass 60/60. The delayed-scheduling barrier test has not produced pending-task warnings.
+---
+author: oompah
+created: 2026-08-03 01:24
+---
+Completion: Reworked tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_full_sync_loop_posts_full_sync_events to use explicit delayed-sleep, dispatch-queue, and second-emission barriers. Cleanup now cancels and drains the producer and queue waiter deterministically; production code is unchanged. Verified 60 event-loop tests serially, three concurrent xdist module runs (60/60 each), the full parallel runner (15,047 passed; 41 existing warnings), focused ResourceWarning/RuntimeWarning checks, and make check-secrets. Normal make test setup was blocked before pytest by this worker's uv DBus transient-scope error and managed CLI snapshot identity check; the exact underlying parallel runner passed. Commit was rebased and pushed as a1705bc7f-derived HEAD.
 ---
 <!-- COMMENTS:END -->
