@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:37:37.902041Z'
+updated_at: '2026-08-03T13:38:24.929159Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 21384bd4-bc80-462b-b669-8252a3e55b73
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1538
@@ -274,5 +274,15 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
   warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 13:38
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-03 13:38
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
