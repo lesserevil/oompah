@@ -1,18 +1,19 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:38:53.468773Z'
+updated_at: '2026-08-03T22:39:48.540549Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -230,5 +231,10 @@ author: oompah
 created: 2026-08-03 22:38
 ---
 Branch quality gate passed for `fbfa32b13993fb061db18f0712f0864bf3719e23` using `make test` in 411.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 22:39
+---
+YOLO: Merge conflict detected on MR #694. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
