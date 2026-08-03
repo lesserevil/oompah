@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-719
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep oversized auditor run_command output inside the authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:03:29.032827Z'
+updated_at: '2026-08-03T14:06:24.107638Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,7 +111,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a1b015a9-b482-4b4b-9c7d-766cca6bc6a4
+oompah.agent_run_id: 53e4bbe5-009f-4c16-a342-ce69769f30c1
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1755
@@ -189,5 +189,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 56s
 - Log: OOMPAH-719__20260803T140233Z.jsonl
+---
+author: oompah
+created: 2026-08-03 14:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 14:06
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
