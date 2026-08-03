@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-450
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Link project bootstrap guide to CLI installation instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-07-27T21:40:13.502614Z'
+updated_at: '2026-08-03T22:17:23.264060Z'
 work_branch: OOMPAH-450
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/557
@@ -38,6 +38,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/557
 oompah.review_number: '557'
 oompah.work_branch: OOMPAH-450
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fe9550ea7f71
+    project_id: proj-14849f1b
+    task_id: OOMPAH-450
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4e4f8076f93f01757b7baa599b1a9792083a8ba3231c7457d75b7e0a7add4d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-03T22:17:14.929682+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -155,5 +177,10 @@ author: oompah
 created: 2026-07-27 21:40
 ---
 YOLO: merged PR #557.
+---
+author: oompah
+created: 2026-08-03 22:17
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
