@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:17:45.600125Z'
+updated_at: '2026-08-03T19:18:42.046514Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +208,18 @@ author: oompah
 created: 2026-08-03 19:17
 ---
 Verification: Focused dashboard health suite passed: 20 tests in tests/test_dashboard_terminal_audit_health.py. git diff --check passed. make test-setup could not run because the sandboxed Snap uv launcher failed with cannot create transient scope; the self-contained focused suite was run with the available pytest runtime instead. Full make test is deferred to the orchestrator's complete branch gate after backend implementation.
+---
+author: oompah
+created: 2026-08-03 19:18
+---
+Focus handoff: frontend
+
+Outcome: Added the user-facing observability slice and pushed commit 561070d6c. The terminal-audit health banner now presents finalization_failure_count as uncommitted audit finalization failures, distinct from provider launch/transport and local auditor command-policy failures.
+
+Relevant files and evidence: oompah/templates/dashboard.html and tests/test_dashboard_terminal_audit_health.py. Focused test command python3 -m pytest tests/test_dashboard_terminal_audit_health.py -q passed 20 tests; git diff --check passed. make test-setup was blocked by the sandboxed Snap uv transient-scope failure, so the self-contained suite used the available pytest runtime.
+
+Remaining work and risks: Backend must add and populate the durable finalization_failure_count health fact and alert source; commit the structured verdict before any PASS/FAIL comment; provide a non-starvable finalization path at the turn ceiling; keep exit-before-commit fail-closed; fence same-target/same-fingerprint sibling dispatch; terminate persisted/running auditors on authority revocation; and add the required coordinator, scheduler, lifecycle, health, crash-ordering, race, and revocation tests. The frontend intentionally does not infer outcomes from comments.
+
+Recommended next focus: backend/feature implementation in terminal_transition_coordinator.py, auditor_dispatch.py, orchestrator.py, terminal_audit_health.py, and their focused test suites. Preserve the existing needs:backend routing.
 ---
 <!-- COMMENTS:END -->
