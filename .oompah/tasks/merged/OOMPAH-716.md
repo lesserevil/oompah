@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-716
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Do not exhaust auditor policy budget on read-only awk and sed inspection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:52:53.541287Z'
+updated_at: '2026-08-03T03:54:37.956960Z'
 work_branch: OOMPAH-716
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/676
@@ -118,6 +118,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-6c9441974cca: '2026-08-03T03:52:22.075403+00:00'
+    attempt-7c81c1cf9ec6: '2026-08-03T03:54:33.454823+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-716
@@ -128,6 +129,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T03:52:22.075413+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-716
+    target_state: Merged
+    evidence_fingerprint: 2163a29ee77f41dbd2cfcbd03475c27199fb7bcf741cb58a814dc8942838b4f6
+    audit_ids:
+    - audit-54d13af03658
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T03:54:33.454845+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-716
@@ -141,6 +151,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T03:52:22.075427+00:00'
     applied_at: '2026-08-03T03:52:26.105044+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-716
+    audit_id: audit-54d13af03658
+    attempt_id: attempt-7c81c1cf9ec6
+    target_state: Merged
+    evidence_fingerprint: 2163a29ee77f41dbd2cfcbd03475c27199fb7bcf741cb58a814dc8942838b4f6
+    status: Merged
+    audit_ids:
+    - audit-54d13af03658
+    applied: false
+    created_at: '2026-08-03T03:54:33.454869+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -182,7 +203,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-716
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -191,7 +212,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7c81c1cf9ec6
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -201,13 +222,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T03:52:47.690909+00:00'
       branch_key: OOMPAH-716
+      verdict: pass
+      completed_at: '2026-08-03T03:54:33.454570+00:00'
+      ended_at: '2026-08-03T03:54:33.454570+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T03:48:41.231851+00:00'
-    updated_at: '2026-08-03T03:52:47.690909+00:00'
+    updated_at: '2026-08-03T03:54:33.454570+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6c9441974cca
@@ -420,5 +444,29 @@ author: oompah
 created: 2026-08-03 03:52
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 03:54
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 688b1f4a3f310f641aaae348742759abc879e45b
+- origin_main_head: b97187abdd50d76deda75be427f26049fd396cb6
+- merge_commit: b97187abdd50d76deda75be427f26049fd396cb6
+- branch_merged_into_main: true
+- commits_on_branch: c98b76098, 688b1f4a3
+- files_changed: oompah/auditor.py, tests/test_auditor_contract.py, tests/test_authority_boundary.py, tests/test_provider_retirement.py
+- focused_tests_passed: 227
+- focused_suites: tests/test_authority_boundary.py tests/test_auditor_contract.py tests/test_provider_retirement.py tests/test_terminal_audit_health.py
+- acceptance_awk_recovery_test: tests/test_auditor_contract.py::test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor_can_continue[awk]
+- acceptance_sed_recovery_test: tests/test_auditor_contract.py::test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor_can_continue[sed]
+- acceptance_merge_base_test: tests/test_auditor_contract.py::test_git_merge_base_inspection_does_not_consume_policy_budget
+- acceptance_non_rotation_test: tests/test_provider_retirement.py::test_read_only_awk_and_sed_validation_does_not_rotate_auditor
+- mutation_fatal_examples: sed -i; sed -e; awk system(); awk print > file; awk print backtick id; awk range then newline+git commit; sed | git commit -F -; git status > file; git status; git commit; bash -lc; git push; git merge --no-ff; git reset --hard
+- full_make_test_reported: 15085 passed, 7 skipped, 1 xfailed at 399s on head 688b1f4a3 per prior branch quality gate
+- [REDACTED-credential-key]: pass
 ---
 <!-- COMMENTS:END -->
