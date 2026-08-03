@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T20:14:53.133307Z'
+updated_at: '2026-08-03T20:15:06.243327Z'
 work_branch: null
 target_branch: null
 review_url: null
