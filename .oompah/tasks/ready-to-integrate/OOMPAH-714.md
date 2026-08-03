@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T02:25:06.430424Z'
+updated_at: '2026-08-03T02:35:06.724022Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 305d407f-df41-444a-99ba-646b35a657fe
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 35898491
   total_output_tokens: 55788
@@ -118,9 +118,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-714
-  head_sha: 7781e4caa24d43e355e2723708d679f7e2804ac3
-  submitted_at: '2026-08-03T02:11:43.115766+00:00'
-  updated_at: '2026-08-03T02:11:43.115766+00:00'
+  head_sha: 28bb1e3c212a07e765e5cb461c08b7a578c5c8f6
+  submitted_at: '2026-08-03T02:35:00.404764+00:00'
+  updated_at: '2026-08-03T02:35:00.404764+00:00'
 ---
 ## Summary
 
@@ -267,5 +267,15 @@ author: oompah
 created: 2026-08-03 02:25
 ---
 Direct owner claim acquired before final integration rebase. I will hold this task out of scheduler dispatch, refresh the exact fix onto merged OOMPAH-713 now, then rebase once more after OOMPAH-711 lands and run the combined affected suites before resubmission.
+---
+author: oompah
+created: 2026-08-03 02:34
+---
+Direct-owner final integration rebase complete at exact clean head 28bb1e3c212a07e765e5cb461c08b7a578c5c8f6 on merged OOMPAH-711 and OOMPAH-713. Recovery checkpoint history was consolidated into one task commit. Combined owner-takeover, auditor-policy, quality-gate, delivery-recovery, standalone-integration, and dashboard suite passes 647/647; make check-secrets passes. Resubmitting this exact head for the full branch gate.
+---
+author: oompah
+created: 2026-08-03 02:35
+---
+Rebased exact-owner gate cancellation onto all prerequisite fixes and verified the combined 647-test affected surface.
 ---
 <!-- COMMENTS:END -->
