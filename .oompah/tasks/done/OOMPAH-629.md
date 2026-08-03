@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-629
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Reject cross-task branch evidence before integration mutation
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-08-02T18:29:23.937562Z'
+updated_at: '2026-08-03T20:05:09.867539Z'
 work_branch: epic-OOMPAH-585
 target_branch: null
 review_url: null
