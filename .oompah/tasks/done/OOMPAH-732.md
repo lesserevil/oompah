@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-732
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Prevent standalone Ready delivery starvation after restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T19:34:39.034508Z'
+updated_at: '2026-08-03T19:35:17.408384Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -201,6 +201,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T19:33:05.331781+00:00'
     applied_at: '2026-08-03T19:33:11.579559+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-cf7cd56c3c63
+    project_id: proj-14849f1b
+    task_id: OOMPAH-732
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: The independent auditor durably recorded PASS at 2026-08-03 19:33 UTC
+      and exited normally, but the live pre-OOMPAH-734 finalization path left the
+      tracker In Validation.
+    created_at: '2026-08-03T19:35:12.384405+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -242,18 +261,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-732
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-68bd61015e96
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+      created_at: '2026-08-03T19:35:00.718363+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T19:35:00.718363+00:00'
+      branch_key: OOMPAH-732
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:22:09.888848+00:00'
+    updated_at: '2026-08-03T19:35:00.718363+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6011975b42a6
@@ -267,6 +300,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-03T19:23:16.035666+00:00'
+    branch_key: OOMPAH-732
+  - version: 1
+    attempt_id: attempt-68bd61015e96
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    created_at: '2026-08-03T19:35:00.718363+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T19:35:00.718363+00:00'
     branch_key: OOMPAH-732
 ---
 ## Summary
@@ -461,5 +507,22 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 19s
 - Log: OOMPAH-732__20260803T192328Z.jsonl
+---
+author: oompah
+created: 2026-08-03 19:35
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-03 19:35
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 19:35
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: The independent auditor durably recorded PASS at 2026-08-03 19:33 UTC and exited normally, but the live pre-OOMPAH-734 finalization path left the tracker In Validation.
 ---
 <!-- COMMENTS:END -->
