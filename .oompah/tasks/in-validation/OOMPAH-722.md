@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:39:30.436633Z'
+updated_at: '2026-08-03T15:48:29.445215Z'
 work_branch: OOMPAH-722
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/682
@@ -110,6 +110,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/682
 oompah.review_number: '682'
 oompah.work_branch: OOMPAH-722
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-20f689d40ead
+    project_id: proj-14849f1b
+    task_id: OOMPAH-722
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:48:22.871647+00:00'
+  - version: 1
+    audit_id: audit-216604382e44
+    project_id: proj-14849f1b
+    task_id: OOMPAH-722
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:48:22.871647+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -332,5 +371,15 @@ author: oompah
 created: 2026-08-03 15:39
 ---
 Branch quality gate passed for `3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2` using `make test` in 404.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 15:48
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 15:48
+---
+YOLO: merged PR #682.
 ---
 <!-- COMMENTS:END -->
