@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T00:04:56.073324Z'
+updated_at: '2026-08-03T01:03:23.290807Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ author: oompah
 created: 2026-08-03 00:04
 ---
 Bound oversized auditor tool results before provider transport, kept continuations inside the approved read-only tool channel, reconciled stale audit gauges, and added provider-rotation regressions.
+---
+author: oompah
+created: 2026-08-03 01:03
+---
+Live delivery note: the exact-head branch gate was not a test failure. It was interrupted as superseded at 00:57:42Z concurrently with OOMPAH-709 auditor retirement, with the OOMPAH-710 remote head unchanged. OOMPAH-714 now tracks the cross-task cancellation/stranding bug. This task remains valid and should be retried at the same accepted head after current review capacity frees.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T01:03:08.223719Z'
+updated_at: '2026-08-03T01:03:20.419807Z'
 work_branch: null
 target_branch: null
 review_url: null
