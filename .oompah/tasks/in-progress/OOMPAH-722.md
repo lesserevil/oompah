@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T14:57:12.951578Z'
+updated_at: '2026-08-03T14:57:56.981069Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 87f91e64-f60b-4ca0-b8f3-bfaede93d3ab
+oompah.agent_run_id: af4a42f1-cdf1-4876-aa66-403642c0229c
 oompah.task_costs:
   total_input_tokens: 50481
   total_output_tokens: 603
