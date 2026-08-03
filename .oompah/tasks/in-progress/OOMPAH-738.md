@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:24:25.399609Z'
+updated_at: '2026-08-03T21:35:21.680158Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-03 21:24
 ---
 Discovery correction: state.running is shared between the API and scheduler/provider-exit loops. Existing list(state.running.items()) calls are unsafe because dict iteration can fail during concurrent mutation; the worker-exit handler removes entries without the existing retry-authority lock. The PATCH terminal cleanup loop and retry-authority scan are the critical paths, with post-commit broadcast/cleanup exceptions currently reaching the generic 500 handler.
+---
+author: oompah
+created: 2026-08-03 21:35
+---
+Verification: focused terminal/API/coordinator suites passed (227 tests); provider retirement, auditor exit, dispatch-close, and submission-fencing suites passed (41 tests, two existing coroutine warnings); lifecycle, audit observability, telemetry, server blocking, and event-loop suites passed (132 tests). The new locked-snapshot race test and post-commit diagnostics tests pass.
 ---
 <!-- COMMENTS:END -->
