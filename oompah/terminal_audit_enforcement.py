@@ -43,6 +43,7 @@ from oompah.terminal_audit import (
     RequestState,
     TerminalAuditRecord,
     TargetState,
+    Verdict,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -60,6 +61,7 @@ PENDING_REQUEST_STATES = frozenset({RequestState.PENDING, RequestState.IN_PROGRE
 TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 
 _TERMINAL_STATUS_RANK = {
     status_key(DONE): 1,
@@ -407,6 +409,8 @@ class TerminalAuditEnforcement:
         project_store: Any | None = None,
         load_state: Callable[[], Mapping[str, Any]] | None = None,
         save_state: Callable[[Mapping[str, Any]], None] | None = None,
+        validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
+        | None = None,
     ) -> None:
         self.state_path = state_path or service_state_path
         if self.state_path is None and load_state is None:
@@ -415,6 +419,7 @@ class TerminalAuditEnforcement:
         self.project_store = project_store or _NoopProjectStore()
         self._load_state_callback = load_state
         self._save_state_callback = save_state
+        self._validate_terminal_transition = validate_terminal_transition
         self.state = TerminalAuditEnforcementState()
         self.pending_audits: list[PendingAudit] = []
         self.errors: list[str] = []
@@ -664,6 +669,44 @@ class TerminalAuditEnforcement:
         wanted = {status_key(value) for value in self.terminal_states}
         return status_key(state) in wanted
 
+    def _lifecycle_conflict(
+        self,
+        issue: Issue,
+        target_state: TargetState,
+        project_id: str,
+    ) -> str | None:
+        """Return a fail-closed lifecycle conflict for recovery replay."""
+
+        if target_state != TargetState.MERGED:
+            return None
+        validator = self._validate_terminal_transition
+        if validator is None:
+            return None
+        try:
+            conflict = validator(issue, target_state, project_id)
+        except Exception as exc:  # recovery must not replay unverifiable Merged
+            logger.warning(
+                "Could not verify recovered Merged lifecycle for %s/%s: %s",
+                project_id,
+                issue.identifier,
+                exc,
+                exc_info=True,
+            )
+            return (
+                f"Merged recovery for {issue.identifier} could not verify shared-epic "
+                "landing evidence; the parent review must land on its configured "
+                "target branch first."
+            )
+        if isinstance(conflict, str) and conflict.strip():
+            return conflict.strip()
+        if conflict is False:
+            return (
+                f"Merged recovery for {issue.identifier} is incompatible with the "
+                "shared-epic lifecycle; the parent review must land on its "
+                "configured target branch first."
+            )
+        return None
+
     @staticmethod
     def _tuple_for(
         project_id: str, issue: Issue, fingerprint: EvidenceFingerprint
@@ -809,6 +852,9 @@ class TerminalAuditEnforcement:
             # died between persisting the intent and writing its status.
             with self.project_store.project_write_lock(str(project_id)):
                 for issue in all_issues:
+                    self._reconcile_incompatible_shared_epic_merged(
+                        store, tracker, issue, str(project_id)
+                    )
                     self._recover_terminal_override(
                         store, tracker, issue, str(project_id)
                     )
@@ -877,6 +923,214 @@ class TerminalAuditEnforcement:
         if persist:
             self._persist(self._load_root_state())
         return list(self.pending_audits)
+
+    def _reconcile_incompatible_shared_epic_merged(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> bool:
+        """Restore legacy shared children to audited Done before recovery.
+
+        Older service versions could persist a project-owner Merged override
+        for a child whose work existed only on the epic branch.  If the child
+        has a completed passing Done audit, Done is the safe durable state to
+        restore.  The incompatible Merged rows remain in the audit ledger for
+        history, while only that child's Merged rows/override/intents are
+        retired so unrelated audits are untouched.
+        """
+
+        validator = self._validate_terminal_transition
+        if validator is None or canonicalize_status(getattr(issue, "state", "")) != MERGED:
+            return False
+
+        try:
+            conflict = validator(issue, TargetState.MERGED, project_id)
+        except Exception:
+            logger.warning(
+                "Could not classify legacy Merged child %s/%s during recovery",
+                project_id,
+                issue.identifier,
+                exc_info=True,
+            )
+            return False
+        if not isinstance(conflict, str) or not conflict.strip():
+            return False
+
+        identifier = str(issue.identifier)
+        try:
+            document = store.read(identifier)
+        except Exception:
+            return False
+        if document.is_quarantined:
+            return False
+
+        done_records = [
+            record
+            for record in document.pending_chain
+            if record.project_id == project_id
+            and record.task_id in {identifier, str(getattr(issue, "id", "") or "")}
+            and record.target_state == TargetState.DONE
+            and record.request_state == RequestState.COMPLETED
+            and any(attempt.verdict == Verdict.PASS for attempt in record.attempts)
+        ]
+        if not done_records:
+            return False
+
+        try:
+            # The completed Done audit is the evidence for this repair.  Do
+            # not reopen implementation work or create a new audit attempt.
+            # TERMINAL-AUDIT-ALLOW OOMPAH-725: serialized legacy reconciliation.
+            tracker.update_issue(identifier, status=DONE)
+        except Exception:
+            logger.warning(
+                "Could not restore incompatible Merged child %s/%s to Done",
+                project_id,
+                identifier,
+                exc_info=True,
+            )
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(current):
+            unknown = dict(current.unknown_fields)
+            chain = [
+                replace(record, request_state=RequestState.SUPERSEDED, updated_at=now)
+                if (
+                    record.project_id == project_id
+                    and record.task_id in {identifier, str(getattr(issue, "id", "") or "")}
+                    and record.target_state == TargetState.MERGED
+                    and record.request_state
+                    in {
+                        RequestState.PENDING,
+                        RequestState.IN_PROGRESS,
+                        RequestState.COMPLETED,
+                    }
+                )
+                else record
+                for record in current.pending_chain
+            ]
+
+            raw_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            overrides: list[dict[str, Any]] = []
+            for raw in raw_overrides if isinstance(raw_overrides, list) else []:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                if (
+                    item.get("project_id") == project_id
+                    and item.get("task_id") == identifier
+                    and item.get("target_state") == TargetState.MERGED.value
+                ):
+                    item.update(
+                        {
+                            "applied": True,
+                            "lifecycle_reconciled": True,
+                            "reconciled_to": DONE,
+                            "retired_reason": "shared_epic_parent_not_landed",
+                            "reconciled_at": now,
+                        }
+                    )
+                overrides.append(item)
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+
+            raw_retirements = unknown.get(TERMINAL_RETIREMENTS_KEY, [])
+            retirements: list[dict[str, Any]] = []
+            for raw in raw_retirements if isinstance(raw_retirements, list) else []:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                if (
+                    item.get("project_id") == project_id
+                    and item.get("task_id") == identifier
+                    and item.get("target_state") == TargetState.MERGED.value
+                ):
+                    # Keep the historical identity but reopen its fence so a
+                    # later, genuinely landed Merged request can proceed.
+                    item.update(
+                        {
+                            "applied": False,
+                            "lifecycle_reconciled": True,
+                            "reconciled_to": DONE,
+                            "retired_reason": "shared_epic_parent_not_landed",
+                        }
+                    )
+                retirements.append(item)
+            unknown[TERMINAL_RETIREMENTS_KEY] = retirements
+
+            raw_intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if isinstance(raw_intents, list):
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
+                    {
+                        **dict(raw),
+                        "applied": True,
+                        "retired_by_reconciliation": True,
+                        "retired_reason": "shared_epic_parent_not_landed",
+                        "reconciled_at": now,
+                    }
+                    if (
+                        isinstance(raw, Mapping)
+                        and raw.get("project_id") == project_id
+                        and raw.get("task_id") == identifier
+                        and raw.get("target_state") == TargetState.MERGED.value
+                    )
+                    else raw
+                    for raw in raw_intents
+                    if isinstance(raw, Mapping)
+                ]
+
+            rows = [
+                dict(row)
+                for row in (unknown.get(LIFECYCLE_RECONCILIATIONS_KEY) or [])
+                if isinstance(row, Mapping)
+            ]
+            rows.append(
+                {
+                    "project_id": project_id,
+                    "task_id": identifier,
+                    "from": MERGED,
+                    "to": DONE,
+                    "reason": "shared_epic_parent_not_landed",
+                    "conflict": conflict,
+                    "done_audit_ids": [record.audit_id for record in done_records],
+                    "created_at": now,
+                }
+            )
+            unknown[LIFECYCLE_RECONCILIATIONS_KEY] = rows
+            return replace(current, pending_chain=chain, unknown_fields=unknown)
+
+        try:
+            store.update(identifier, _finalize)
+        except Exception:
+            logger.warning(
+                "Could not finalize incompatible Merged child repair %s/%s",
+                project_id,
+                identifier,
+                exc_info=True,
+            )
+            return False
+
+        try:
+            tracker.add_comment(
+                identifier,
+                f"Lifecycle reconciliation restored {identifier} to audited Done: "
+                f"{conflict}",
+                author="oompah",
+            )
+        except Exception:
+            logger.debug(
+                "Could not post legacy lifecycle reconciliation comment for %s",
+                identifier,
+                exc_info=True,
+            )
+        logger.warning(
+            "Reconciled incompatible shared-epic child %s/%s from Merged to Done",
+            project_id,
+            identifier,
+        )
+        return True
 
     def _recover_terminal_override(
         self,
@@ -971,6 +1225,22 @@ class TerminalAuditEnforcement:
         target_state = target_override.target_state.value
         target_status = _target_state_status(target_state)
         assert target_status is not None
+
+        lifecycle_conflict = self._lifecycle_conflict(
+            issue, target_override.target_state, project_id
+        )
+        if lifecycle_conflict is not None:
+            self._retire_terminal_overrides(
+                store,
+                identifier,
+                project_id,
+                {
+                    target_override.override_id: (
+                        f"lifecycle_incompatible: {lifecycle_conflict}"
+                    )
+                },
+            )
+            return
 
         current_status = str(getattr(issue, "state", "") or "")
         current_rank = _TERMINAL_STATUS_RANK.get(status_key(current_status), 0)
@@ -1258,21 +1528,25 @@ class TerminalAuditEnforcement:
                     record.target_state.value
                 ):
                     stale_reason = stale_reason or "target_mismatch"
-                elif (
+                elif record.target_state == TargetState.MERGED:
+                    stale_reason = self._lifecycle_conflict(
+                        issue, record.target_state, project_id
+                    )
+                if stale_reason is None and (
                     intent_fingerprint is None
                     or intent_fingerprint != record.evidence_fingerprint
                 ):
                     stale_reason = stale_reason or "audit_evidence_mismatch"
-                elif current_fingerprint != record.evidence_fingerprint:
+                elif stale_reason is None and current_fingerprint != record.evidence_fingerprint:
                     # The task was revised after the result was persisted.
                     # Never replay a terminal status for an obsolete revision.
                     stale_reason = "current_evidence_mismatch"
-                elif record.request_state in (
+                elif stale_reason is None and record.request_state in (
                     RequestState.SUPERSEDED,
                     RequestState.CANCELLED,
                 ):
                     stale_reason = "audit_record_retired"
-                elif record.request_state != RequestState.COMPLETED:
+                elif stale_reason is None and record.request_state != RequestState.COMPLETED:
                     # The result intent may be ahead of the record write.  It
                     # is not stale, but it is not replayable until completion
                     # is visible in the same durable document.

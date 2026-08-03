@@ -83,6 +83,15 @@ ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
         "TerminalTransitionCoordinator._override_transition_locked",
         "update_issue",
     ): "Applies a validated, persisted project-owner override.",
+    (
+        "oompah/terminal_audit_enforcement.py",
+        "TerminalAuditEnforcement._reconcile_incompatible_shared_epic_merged",
+        "update_issue",
+    ): (
+        "Restores a legacy incompatible Merged child to its already completed "
+        "Done audit during serialized startup recovery; it does not create an "
+        "audit."
+    ),
 }
 
 

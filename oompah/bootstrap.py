@@ -404,6 +404,7 @@ async def setup_services(
         project_store=project_store,
         revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
+        validate_terminal_transition=orchestrator._validate_terminal_transition,
     )
     terminal_transition_coordinator.set_metrics(
         orchestrator._terminal_audit_metrics
