@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:24:36.811772Z'
+updated_at: '2026-08-03T23:33:02.044783Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -203,5 +203,30 @@ Main issue: When full_sync arrives, alerts, quality gates, repo hygiene, and aut
 Test files: test_ws_full_sync.py (server-side full_sync logic), test_ws_lifecycle.py (client WebSocket lifecycle)
 
 Next: Examine how handleStateUpdate processes full_sync responses and design atomic replacement logic.
+---
+author: oompah
+created: 2026-08-03 23:33
+---
+IMPLEMENTATION: Added atomic clearing of stale alert/health UI during full_sync.
+
+Changes in oompah/templates/dashboard.html:
+1. Created _clearAllAlertAndHealthUI() function that:
+   - Hides all alert/health banner elements
+   - Clears all list/detail content (innerHTML='', textContent='')
+   - Removes degraded CSS classes from panels
+   - Clears running agent chips
+
+2. Modified _applyFullSyncMessage() to:
+   - Call _clearAllAlertAndHealthUI() BEFORE handleStateUpdate()
+   - Ensures full_sync payload is an authoritative replacement
+   - Prevents mixed-generation rendering
+
+The approach ensures atomic DOM mutation: all stale UI is cleared in one operation before the new snapshot is applied. This prevents scenarios where:
+- Old alerts remain visible alongside new state
+- Quality gate panels persist after recovery
+- Running chips remain after completion
+- Auth health shows stale plane status
+
+Next: Test the implementation and verify no regressions.
 ---
 <!-- COMMENTS:END -->
