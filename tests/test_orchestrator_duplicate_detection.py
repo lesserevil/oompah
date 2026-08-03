@@ -101,6 +101,7 @@ class TestShouldDispatchRejectsDuplicateCandidate:
         orch.state.reject_streak = {}
         orch.state.owner_claims = {}
         orch._owner_claims_lock = threading.RLock()
+        orch._retry_authority_lock = threading.RLock()
 
         orch._is_project_paused = lambda pid: False
         orch._is_rate_limited = lambda: False
@@ -538,6 +539,7 @@ class TestProposedDispatchFiltering:
         orch.state.reject_streak = {}
         orch.state.owner_claims = {}
         orch._owner_claims_lock = threading.RLock()
+        orch._retry_authority_lock = threading.RLock()
 
         orch._is_project_paused = lambda pid: False
         orch._issue_has_children = lambda issue: False
@@ -858,6 +860,7 @@ class TestDispatchResponsivenessLimits:
         orch.state.running = {}
         orch.state.claimed = set()
         orch.state.retry_attempts = {}
+        orch._retry_authority_lock = threading.RLock()
         orch._available_slots = lambda: 2
         orch._should_dispatch = MagicMock(return_value=False)
 

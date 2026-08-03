@@ -525,6 +525,7 @@ def _make_orchestrator_with_project(project: Project):
     from oompah.models import OrchestratorState
     orch.state = OrchestratorState()
     orch._owner_claims_lock = threading.RLock()
+    orch._retry_authority_lock = threading.RLock()
     orch.config = config
     orch.project_store = store
     orch._paused = False

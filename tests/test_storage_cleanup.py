@@ -211,11 +211,13 @@ def test_pressure_uses_free_byte_or_percent_threshold(tmp_path):
 
 
 def _scheduler(config: ServiceConfig) -> Orchestrator:
+    import threading
     orchestrator = Orchestrator.__new__(Orchestrator)
     orchestrator.config = config
     orchestrator._maintenance_jobs = {}
     orchestrator._maintenance_status = {}
     orchestrator._storage_cleanup_paths = lambda: ("/tmp/a", "/tmp/b", ["/tmp"])
+    orchestrator._retry_authority_lock = threading.RLock()
     return orchestrator
 
 

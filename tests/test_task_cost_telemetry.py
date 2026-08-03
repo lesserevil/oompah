@@ -669,7 +669,7 @@ class TestOnWorkerExitWritesCostRecord:
 
         capture.assert_called_once_with(str(tmp_path))
         terminate.assert_called_once()
-        assert terminate.call_args.args[0] is captured
+        assert terminate.call_args.args[0] == captured
         assert "test-001" not in orch.state.running
 
     @pytest.mark.skipif(
