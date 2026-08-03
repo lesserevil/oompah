@@ -206,6 +206,59 @@ def _set_all_issues(tracker: mock.MagicMock, issues: list[Issue]) -> None:
     tracker.fetch_all_issues.return_value = issues
 
 
+def test_standalone_gate_does_not_hold_shared_queue_driver(harness):
+    """A long standalone gate must not delay shared-epic queue recovery."""
+    orch, _project, _tracker, _provider, _detect, _gate = harness
+    orch.config.parallel_epic_children_enabled = True
+
+    standalone_started = threading.Event()
+    release_standalone = threading.Event()
+    shared_queue_started = threading.Event()
+
+    def blocked_standalone_reconciliation() -> None:
+        standalone_started.set()
+        assert release_standalone.wait(timeout=5)
+
+    orch._reconcile_standalone_ready_to_integrate_tasks = (
+        blocked_standalone_reconciliation
+    )
+    orch._sync_ready_integration_submissions = mock.MagicMock()
+    orch.project_store.list_all.side_effect = (
+        lambda: (shared_queue_started.set() or [])
+    )
+    orch._handle_reconcile = mock.AsyncMock()
+    orch._handle_review_check = mock.AsyncMock()
+    orch._handle_dispatch_needed = mock.AsyncMock(return_value={})
+    orch._handle_yolo_review = mock.AsyncMock(return_value=0.0)
+    orch._notify_observers = mock.MagicMock()
+    orch._maybe_run_watchdog = mock.MagicMock()
+    orch._recover_release_addendum_leases = mock.MagicMock(return_value=0)
+    orch._run_step5b_maintenance = mock.MagicMock()
+    orch._run_step5c_epic_maintenance = mock.MagicMock()
+
+    async def _run() -> None:
+        with mock.patch(
+            "oompah.orchestrator.validate_dispatch_config",
+            return_value=[],
+        ):
+            await orch._tick()
+            await asyncio.wait_for(
+                asyncio.to_thread(standalone_started.wait),
+                timeout=1,
+            )
+            await asyncio.wait_for(
+                asyncio.to_thread(shared_queue_started.wait),
+                timeout=1,
+            )
+            release_standalone.set()
+            await asyncio.gather(
+                orch._standalone_delivery_future,
+                orch._integration_future,
+            )
+
+    asyncio.run(_run())
+
+
 def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness):
     """A rejected standalone task cannot retain an old gate generation."""
     orch, project, tracker, _provider, _detect, _gate = harness
@@ -244,6 +297,45 @@ def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness)
     )
     assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
     assert not _delivery_alerts(orch)
+
+
+def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
+    """Concurrent tracker bookkeeping must not cancel delivery authority."""
+    orch, project, tracker, _provider, _detect, _gate = harness
+    task = _issue("TASK-REVISION", branch="feature/revision")
+    tracker.fetch_issues_by_states.return_value = [task]
+
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        "abc123",
+        lambda: "abc123",
+    )
+
+    def concurrent_refresh() -> Issue:
+        def update_timestamp() -> None:
+            task.updated_at = datetime.now(timezone.utc)
+
+        updater = threading.Thread(target=update_timestamp)
+        updater.start()
+        updater.join(timeout=5)
+        refreshed = copy.copy(task)
+        refreshed.updated_at = datetime.now(timezone.utc)
+        return refreshed
+
+    tracker.fetch_issue_detail.side_effect = concurrent_refresh
+    refreshed = concurrent_refresh()
+    assert orch._standalone_delivery_evidence_revision(refreshed) == (
+        authority.evidence_revision
+    )
+    tracker.fetch_issue_detail.side_effect = lambda _identifier: refreshed
+    assert orch._standalone_delivery_authorized(authority, tracker)
+    assert (
+        orch._standalone_delivery_authorities[(project.id, task.identifier)]
+        is authority
+    )
 
 
 def test_legacy_quality_gate_facade_uses_generation_fallback(harness):
