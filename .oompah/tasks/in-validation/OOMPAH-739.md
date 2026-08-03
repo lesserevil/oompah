@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:56:02.112653Z'
+updated_at: '2026-08-03T23:56:28.121229Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: bdfd34a4-f64c-4988-9e59-1137d2202d64
 oompah.task_costs:
-  total_input_tokens: 1522500
-  total_output_tokens: 40880
+  total_input_tokens: 1522669
+  total_output_tokens: 47150
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -56,6 +56,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 1474094
       output_tokens: 8501
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 169
+      output_tokens: 6270
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +86,12 @@ oompah.task_costs:
     output_tokens: 8501
     cost_usd: 0.0
     recorded_at: '2026-08-03T22:45:06.628970+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 169
+    output_tokens: 6270
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T23:56:21.768401+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-739__20260803T211724Z
@@ -129,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-739
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +148,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ca080198b28b
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,6 +158,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T22:55:51.811845+00:00'
       branch_key: OOMPAH-739
+      ended_at: '2026-08-03T23:56:26.198813+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: lesserevil
@@ -176,7 +188,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ca080198b28b
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -186,6 +198,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-03T22:55:51.811845+00:00'
     branch_key: OOMPAH-739
+    ended_at: '2026-08-03T23:56:26.198813+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
@@ -394,5 +408,15 @@ author: oompah
 created: 2026-08-03 22:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 23:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 120
+- Tokens: 169 in / 6.3K out [6.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 0m 26s
+- Log: OOMPAH-739__20260803T225611Z.jsonl
 ---
 <!-- COMMENTS:END -->
