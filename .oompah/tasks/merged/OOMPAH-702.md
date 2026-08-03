@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T01:24:20.495474Z'
+updated_at: '2026-08-03T01:24:24.403501Z'
 work_branch: OOMPAH-702
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/670
@@ -652,5 +652,12 @@ author: oompah
 created: 2026-08-03 01:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 01:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Exact submitted head d7eaa2a1861d595fef08da60c4139dbf838929f9 passed the complete make test branch gate (15,024 passed in 402.6s), PR #670 passed all Python 3.11/3.12/3.13 checks and merged as 5042e610b6e31d29196bc183df5d6d664074c89b. Completion auditor retries are failing on the already-filed false-positive read-only shell policy bug OOMPAH-713, and their retirement is canceling unrelated gates via OOMPAH-714. Owner override breaks the deadlock without weakening implementation verification.
 ---
 <!-- COMMENTS:END -->
