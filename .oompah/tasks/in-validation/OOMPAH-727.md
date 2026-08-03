@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T17:26:44.716816Z'
+updated_at: '2026-08-03T17:36:22.956343Z'
 work_branch: OOMPAH-727
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/685
@@ -127,6 +127,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/685
 oompah.review_number: '685'
 oompah.work_branch: OOMPAH-727
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-89399af60cd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-727
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 946ea77753dfb857220dd0a476bd127a912163a95f293b1569e9e707901a8086
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T17:36:12.143444+00:00'
+  - version: 1
+    audit_id: audit-91aee5a5411d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-727
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 946ea77753dfb857220dd0a476bd127a912163a95f293b1569e9e707901a8086
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T17:36:12.143444+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -272,5 +311,15 @@ author: oompah
 created: 2026-08-03 17:26
 ---
 Branch quality gate passed for `ab69c0eb8ae7721493ae99334bd5fc3e7564bec1` using `make test` in 406.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 17:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 17:36
+---
+YOLO: merged PR #685.
 ---
 <!-- COMMENTS:END -->
