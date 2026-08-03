@@ -2981,6 +2981,134 @@ function _routeWebSocketMessage(msg) {
   }
 }
 
+// OOMPAH-744: Bounded diagnostics for a presentation-replacement failure. A
+// single failed clear+apply must not generate a warning loop; we retain the
+// last few messages in memory for the diagnostics panel and cap them here so
+// a repeated fault does not grow without bound.
+var _presentationReplacementDiagnostics = [];
+var _PRESENTATION_REPLACEMENT_DIAGNOSTIC_MAX = 5;
+
+function _recordPresentationReplacementFailure(phase, error) {
+  try {
+    var message = (error && error.message) ? String(error.message) : String(error);
+    if (message.length > 240) message = message.slice(0, 240) + '…';
+    _presentationReplacementDiagnostics.push({
+      phase: String(phase || 'unknown'),
+      message: message,
+      at: Date.now()
+    });
+    while (_presentationReplacementDiagnostics.length >
+           _PRESENTATION_REPLACEMENT_DIAGNOSTIC_MAX) {
+      _presentationReplacementDiagnostics.shift();
+    }
+    // Console once per fault; do not re-broadcast into the alert stream to
+    // avoid a warning loop when the state producer is itself the source of
+    // the fault.
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[oompah] presentation replacement failure in ' +
+        phase + ': ' + message);
+    }
+  } catch (loopGuard) {
+    // The diagnostics path must never re-enter; swallow silently.
+  }
+}
+
+// OOMPAH-744: Atomically clear all alert and health UI elements before an
+// authoritative full_sync snapshot is applied.  Each authoritative snapshot
+// is a REPLACEMENT for every alert, terminal-audit, quality-gate,
+// authentication, and repository-health presentation fact — never a merge.
+// The individual render functions (renderAlertCenter, renderQualityGateHealth,
+// etc.) already atomically replace their own DOM.  This defensive clear
+// removes any stale DOM that (a) predates a shape change in the snapshot
+// contract, (b) was written outside the standard render path, or (c) would
+// otherwise remain visible if a render function returned early after
+// _applyFullSyncMessage started.  All targeted IDs correspond to elements
+// present in the current dashboard template (post OOMPAH-741/742/743).
+function _clearAllAlertAndHealthUI() {
+  // Alert center (the sole board-displacing alert surface post OOMPAH-742).
+  // Reset the summary counters, hide the expanded list, and clear the
+  // announcement signature so the next authoritative render is not
+  // treated as an idempotent no-op after we have thrown away the DOM.
+  var alertCenter = document.getElementById('alert-center');
+  var alertCenterList = document.getElementById('alert-center-list');
+  var alertCenterCount = document.getElementById('alert-center-count');
+  var alertCenterSeverity = document.getElementById('alert-center-severity-label');
+  var alertCenterLive = document.getElementById('alert-center-live');
+  if (alertCenter) {
+    alertCenter.setAttribute('data-alert-count', '0');
+    alertCenter.setAttribute('data-highest-severity', 'none');
+    alertCenter.setAttribute('aria-expanded', 'false');
+    alertCenter.setAttribute('aria-label', 'No active operator alerts');
+    alertCenter.removeAttribute('data-alert-signature');
+    var toggle = alertCenter.querySelector('.alert-center-toggle');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'No active alerts');
+    }
+  }
+  if (alertCenterList) {
+    alertCenterList.innerHTML = '';
+    alertCenterList.hidden = true;
+  }
+  if (alertCenterCount) alertCenterCount.textContent = '0';
+  if (alertCenterSeverity) alertCenterSeverity.textContent = '';
+  if (alertCenterLive) alertCenterLive.textContent = '';
+
+  // Diagnostic-facts section (informational, non-actionable facts).
+  var diagnosticFacts = document.getElementById('diagnostic-facts');
+  var diagnosticFactsList = document.getElementById('diagnostic-facts-list');
+  if (diagnosticFacts) diagnosticFacts.hidden = true;
+  if (diagnosticFactsList) diagnosticFactsList.innerHTML = '';
+
+  // Terminal-audit health banner.
+  var terminalAuditHealth = document.getElementById('terminal-audit-health');
+  var terminalAuditDetail = document.getElementById('terminal-audit-health-detail');
+  if (terminalAuditHealth) terminalAuditHealth.hidden = true;
+  if (terminalAuditDetail) terminalAuditDetail.textContent = '';
+
+  // Branch quality gate health banner.
+  var qualityGateHealth = document.getElementById('quality-gate-health');
+  var qualityGateDetail = document.getElementById('quality-gate-health-detail');
+  if (qualityGateHealth) qualityGateHealth.hidden = true;
+  if (qualityGateDetail) qualityGateDetail.textContent = '';
+
+  // Repository hygiene health panel and its child lists.
+  var repoHygienePanel = document.getElementById('repo-hygiene-health');
+  var repoHygieneIcon = document.getElementById('repo-hygiene-health-icon');
+  var repoHygieneTitle = document.getElementById('repo-hygiene-health-title');
+  var repoHygieneSummary = document.getElementById('repo-hygiene-health-summary');
+  var repoHygieneInventory = document.getElementById('repo-hygiene-inventory');
+  var repoHygieneOverdue = document.getElementById('repo-hygiene-overdue');
+  var repoHygieneOverdueList = document.getElementById('repo-hygiene-overdue-list');
+  var repoHygieneErrors = document.getElementById('repo-hygiene-errors');
+  var repoHygieneErrorList = document.getElementById('repo-hygiene-error-list');
+  if (repoHygienePanel) {
+    repoHygienePanel.hidden = true;
+    repoHygienePanel.classList.remove('degraded');
+  }
+  if (repoHygieneIcon) repoHygieneIcon.textContent = '';
+  if (repoHygieneTitle) repoHygieneTitle.textContent = '';
+  if (repoHygieneSummary) repoHygieneSummary.textContent = '';
+  if (repoHygieneInventory) repoHygieneInventory.innerHTML = '';
+  if (repoHygieneOverdue) repoHygieneOverdue.hidden = true;
+  if (repoHygieneOverdueList) repoHygieneOverdueList.innerHTML = '';
+  if (repoHygieneErrors) repoHygieneErrors.hidden = true;
+  if (repoHygieneErrorList) repoHygieneErrorList.innerHTML = '';
+
+  // Authentication health banner and its plane badges / detail list.
+  var authHealthBanner = document.getElementById('auth-health-banner');
+  var authHealthPlanes = document.getElementById('auth-health-planes');
+  var authHealthDetails = document.getElementById('auth-health-details');
+  if (authHealthBanner) authHealthBanner.hidden = true;
+  if (authHealthPlanes) authHealthPlanes.innerHTML = '';
+  if (authHealthDetails) authHealthDetails.innerHTML = '';
+
+  // Running agent chips.  A stale completed agent (dropped completion state
+  // that later triggered a full_sync) must not remain visible.
+  var runningAgentsContainer = document.getElementById('running-agents');
+  if (runningAgentsContainer) runningAgentsContainer.innerHTML = '';
+}
+
 function _applyFullSyncMessage(msg) {
   if (!msg.state || !msg.issues) {
     wsFullSyncPending = false;
@@ -3003,12 +3131,30 @@ function _applyFullSyncMessage(msg) {
   const wasApplying = wsApplyingFullSync;
   wsApplyingFullSync = true;
   try {
-    handleStateUpdate(msg.state);
+    // OOMPAH-744: atomically replace every alert, terminal-audit,
+    // quality-gate, authentication, and repository-health presentation fact
+    // before rendering the authoritative snapshot. The clear + render pair
+    // runs inside a single synchronous frame so mixed-generation rendering
+    // (a stale banner beside a recovered live counter) cannot be observed.
+    try {
+      _clearAllAlertAndHealthUI();
+    } catch (clearErr) {
+      _recordPresentationReplacementFailure('clear', clearErr);
+    }
+    try {
+      handleStateUpdate(msg.state);
+    } catch (stateErr) {
+      _recordPresentationReplacementFailure('state', stateErr);
+    }
     if (stateRevision !== null) wsLastAppliedStateRevision = stateRevision;
-    if (currentProjects.length > 0) {
-      renderBoard(filterByProject(msg.issues));
-    } else {
-      renderBoard(msg.issues);
+    try {
+      if (currentProjects.length > 0) {
+        renderBoard(filterByProject(msg.issues));
+      } else {
+        renderBoard(msg.issues);
+      }
+    } catch (boardErr) {
+      _recordPresentationReplacementFailure('board', boardErr);
     }
     if (issueRevision !== null) wsLastAppliedIssueRevision = issueRevision;
     refreshOpenDetailPanel();
