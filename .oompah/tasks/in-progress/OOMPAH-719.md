@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:06:55.164971Z'
+updated_at: '2026-08-03T14:10:21.469948Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-03 14:06
 ---
 Understanding: oversized output from an allowed auditor run_command must be bounded before provider persistence, with approved continuation/read access that stays within the audit authority boundary. I will trace the ACP/Claude result bridge, auditor prompt/tool handling, and lifecycle alert/counter paths; then implement focused tests and verify the relevant suites.
+---
+author: oompah
+created: 2026-08-03 14:10
+---
+Discovery: OOMPAH-710 already bounds read_file/search_files at the shared api_agent helper, but _exec_run_command still returns unbounded stdout/stderr. Claude, Codex, and OpenCode ACP catalogs all call that helper; auditor catalogs currently expose only read_file/list_files/search_files/run_command/submit_audit_result. I will add a per-session opaque command-output store plus read_command_output paging/search, wire it through all ACP bridges and API tool execution, and update the trusted auditor prompt so continuations never mention filesystem/provider paths.
 ---
 <!-- COMMENTS:END -->
