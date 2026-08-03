@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:04:43.492128Z'
+updated_at: '2026-08-03T03:09:26.801452Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-03 03:04
 ---
 Understanding: classify narrowly provable read-only awk range/print and sed print-only inspection as recoverable validation, preserving fatal handling for write-capable or state-changing commands; add regression coverage across policy, auditor recovery, denial accounting, and terminal health.
+---
+author: oompah
+created: 2026-08-03 03:09
+---
+Additional live evidence from OOMPAH-714 Merged audit attempt at 2026-08-03T03:08:41Z: `git merge-base --is-ancestor 28bb1e3c... main` was denied with the generic auditor capability message, so it appears fatal rather than recoverable. Please cover the underlying rule: safe unsupported single-command repository inspection must either be narrowly allowed or return the stable recoverable marker; mutating/path-escape/credential commands must remain fatal.
 ---
 <!-- COMMENTS:END -->
