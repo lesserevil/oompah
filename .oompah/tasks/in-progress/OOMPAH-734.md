@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T21:10:40.937666Z'
+updated_at: '2026-08-03T21:11:12.819716Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -552,5 +552,10 @@ author: oompah
 created: 2026-08-03 21:10
 ---
 Verification: Focused terminal override and terminal transition coordinator suites pass: python3 -m pytest -q tests/test_terminal_override.py tests/test_terminal_transition_coordinator.py => 159 passed in 0.94s. make test-setup was attempted first as prescribed but the sandboxed astral-uv Snap remains blocked by the known DBus transient-scope kernel-thread error; the provisioned pytest runtime ran the focused gate successfully.
+---
+author: oompah
+created: 2026-08-03 21:11
+---
+Completion: Repaired the branch-gate failure with commit 17f0b2a29 by aligning the stale owner-override regression test with the implemented status-before-comment safety contract. Focused verification is 159 passed. The clean local branch and origin/OOMPAH-734 both resolve to 17f0b2a29f70585105efbe3990ea7db1537c0986. No GitHub PR exists yet because review creation is gated on successful submission, so the trusted full make test gate will rerun from this pushed head.
 ---
 <!-- COMMENTS:END -->
