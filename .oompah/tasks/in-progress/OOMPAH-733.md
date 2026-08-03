@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:54:51.029418Z'
+updated_at: '2026-08-03T18:55:45.216019Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ created: 2026-08-03 18:54
 ---
 Verification update: after tightening helper dispatch/workspace routing, the full focused suites pass at 329 passed in 100.14s. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733' was retried twice but could not enter its setup phase because astral-uv failed with DBus InvalidArgs (kernel-thread transient-scope error); no project tests ran through Make.
+---
+author: oompah
+created: 2026-08-03 18:55
+---
+Verification: directly affected integration-queue, conflict-repair, restart API, and event-loop recovery suites also pass: 87 passed in 32.42s. The only unavailable check is the Makefile gate setup, which is blocked by the environment's astral-uv/DBus transient-scope failure before pytest starts.
 ---
 <!-- COMMENTS:END -->
