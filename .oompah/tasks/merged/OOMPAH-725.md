@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-725
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Reject lifecycle-incompatible Merged overrides for shared-epic children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T17:35:35.794091Z'
+updated_at: '2026-08-03T17:38:20.816818Z'
 work_branch: OOMPAH-725
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/683
@@ -101,6 +101,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-e037acfa5103: '2026-08-03T17:33:33.915636+00:00'
+    attempt-2751e31f2a83: '2026-08-03T17:38:15.313858+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-725
@@ -111,6 +112,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T17:33:33.915643+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-725
+    target_state: Merged
+    evidence_fingerprint: a7ff1bb74939f78604a194da24ce954526fe1fe19b662ff3f25fbee78b54e14f
+    audit_ids:
+    - audit-7739be5a5fd4
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T17:38:15.313876+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-725
@@ -124,6 +134,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T17:33:33.915652+00:00'
     applied_at: '2026-08-03T17:33:40.710382+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-725
+    audit_id: audit-7739be5a5fd4
+    attempt_id: attempt-2751e31f2a83
+    target_state: Merged
+    evidence_fingerprint: a7ff1bb74939f78604a194da24ce954526fe1fe19b662ff3f25fbee78b54e14f
+    status: Merged
+    audit_ids:
+    - audit-7739be5a5fd4
+    applied: false
+    created_at: '2026-08-03T17:38:15.313897+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -185,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-725
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -194,7 +215,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2751e31f2a83
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -204,13 +225,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T17:35:29.589458+00:00'
       branch_key: OOMPAH-725
+      verdict: pass
+      completed_at: '2026-08-03T17:38:15.313674+00:00'
+      ended_at: '2026-08-03T17:38:15.313674+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T16:57:49.580019+00:00'
-    updated_at: '2026-08-03T17:35:29.589458+00:00'
+    updated_at: '2026-08-03T17:38:15.313674+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4197d293cfc6
@@ -450,5 +474,22 @@ author: oompah
 created: 2026-08-03 17:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 17:38
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 34be8724a511307bd44ccb9d58f7c8101494aaf0
+- ancestor_of_default_branch: true
+- default_branch_head: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
+- pr: #683
+- branch_gate: make test passed in 414.6s
+- focused_suites: 389 passed + 1 xfail; 233 boundary passed; terminal-mutation scan 7/7 allowlisted
+- task_type: top-level task (not shared-epic child)
+- changed_files: oompah/acp_tools.py, oompah/bootstrap.py, oompah/orchestrator.py, oompah/server.py, oompah/terminal_audit_enforcement.py, oompah/terminal_mutation_scanner.py, oompah/terminal_transition_coordinator.py, tests/test_epic_strategy.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_status_interfaces.py, tests/test_terminal_transition_coordinator.py
 ---
 <!-- COMMENTS:END -->
