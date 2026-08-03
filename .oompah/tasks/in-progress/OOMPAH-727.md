@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:07:05.159627Z'
+updated_at: '2026-08-03T16:10:11.371564Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-03 16:07
 ---
 Understanding: terminal/hygiene cleanup must identify clean auxiliary direct-epic maintenance workspaces on scheduler-derived task branches, prove terminal/audited durable reachability and inactive Git state, and prune only the auxiliary worktree plus exact local derived ref. I will trace existing epic repair and nested-target guards, add conservative branch-identity evidence, cover the requested safety matrix, then run focused tests and the project gate.
+---
+author: oompah
+created: 2026-08-03 16:10
+---
+Discovery: cleanup is centered in oompah/projects.py. cleanup_terminal_issue passes a task's recorded work_branch into _assert_terminal_worktree_safe_locked, so a direct-epic maintenance task whose managed issue path is actually on epic-<parent>--task-<id> raises on branch mismatch. Existing _cleanup_epic_repair_workspace_locked safely handles OOMPAH-581's epic-path/<id>-branch residue, while epic_child_branch_name defines the exact private branch shape needed here. I’ll extend the non-epic terminal path with narrow parent-epic/derived-branch evidence and preserve all existing guards.
 ---
 <!-- COMMENTS:END -->
