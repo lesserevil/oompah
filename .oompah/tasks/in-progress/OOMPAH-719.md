@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:41:49.997811Z'
+updated_at: '2026-08-03T14:42:46.829421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ created: 2026-08-03 14:41
 ---
 Verification complete: full equivalent pytest gate passed 15099 tests, 7 skipped, 1 xfailed, 40 existing warnings. Focused ACP/auditor, API, terminal-audit health/dashboard/cleanup suites all pass. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-719'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-719' was attempted twice but stopped before tests because astral-uv could not create a transient systemd scope in this environment; no project test failure occurred.
+---
+author: oompah
+created: 2026-08-03 14:42
+---
+Completion: delivered and pushed commit 13aed584. Oversized auditor run_command output is bounded before provider transport; auditor-only read_command_output pages/searches opaque saved results; Claude/Codex/OpenCode/API paths share the guard; auditor prompt and API policy wiring prevent provider-private path recovery. Full equivalent gate passed 15099 passed, 7 skipped, 1 xfailed. Branch is clean and up to date with origin/OOMPAH-719.
 ---
 <!-- COMMENTS:END -->
