@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-718
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:07:27.097033Z'
+updated_at: '2026-08-03T14:07:37.224435Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/678
 review_number: null
 review_head: null
 merged_at: null
@@ -97,6 +97,7 @@ oompah.integration:
   head_sha: c9734b0cf5e7ce375b31350ee9543627b5facc0a
   submitted_at: '2026-08-03T13:44:08.534408+00:00'
   updated_at: '2026-08-03T13:44:08.534408+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/678
 ---
 ## Summary
 
