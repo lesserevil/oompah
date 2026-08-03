@@ -1177,6 +1177,9 @@ class Orchestrator:
         # tracker state is the durable authority across restart.
         self._revoked_authority_generations: dict[str, str] = {}
         self._persisted_retry_entries: list[RetryEntry] = []
+        # Tracks the number of completion verifier rejections per issue
+        # Used to limit retry attempts when submission validation fails
+        self._verifier_reject_counts: dict[str, int] = {}
         # Legacy single tracker (used when no projects are configured).  In
         # managed-project mode the native factory makes this tracker
         # fail-closed for task mutations, so an unscoped caller cannot write
