@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-729
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Rearm terminal audit after evidence-only remediation on the same head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T18:40:52.631506Z'
+updated_at: '2026-08-03T19:04:52.095152Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -133,6 +133,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T18:38:33.293721+00:00'
     applied_at: '2026-08-03T18:38:40.269322+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8bfb181d5591
+    project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Independent auditor recorded Audit PASS at 2026-08-03T18:38Z with exact
+      head e4b2865e, merge a7fc6676, and passing focused verification; the task remained
+      In Validation and a redundant second auditor was dispatched.
+    created_at: '2026-08-03T19:04:45.441995+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -397,5 +416,12 @@ author: oompah
 created: 2026-08-03 18:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 19:04
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Independent auditor recorded Audit PASS at 2026-08-03T18:38Z with exact head e4b2865e, merge a7fc6676, and passing focused verification; the task remained In Validation and a redundant second auditor was dispatched.
 ---
 <!-- COMMENTS:END -->
