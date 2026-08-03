@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:50:06.513254Z'
+updated_at: '2026-08-03T18:50:19.937670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -255,5 +255,17 @@ Moved standalone delivery `run_in_executor` arm to the very start of `_tick()`, 
 **New tests**:
 - `test_standalone_gate_does_not_hold_shared_queue_driver`: proves concurrent future separation—standalone reconciler and shared-epic queue driver launch and run independently in the same tick.
 - `test_benign_tracker_timestamp_change_keeps_exact_head_authority`: concurrent tracker timestamp advances (comments, refreshes) on a live exact-head delivery cannot revoke the current authority generation.
+---
+author: oompah
+created: 2026-08-03 18:50
+---
+Verification: All focused tests pass.
+
+- `tests/test_standalone_ready_to_integrate.py`: 32 passed (includes 2 new regression tests)
+- `tests/test_orchestrator_handlers.py`: 277 passed
+- Integration, quality gate, review capacity, restart API suites: 100 passed
+- Broad keyword sweep across all affected neighbor suites: 439 passed, 14723 deselected
+
+Branch rebased onto origin/main and pushed as origin/OOMPAH-732.
 ---
 <!-- COMMENTS:END -->
