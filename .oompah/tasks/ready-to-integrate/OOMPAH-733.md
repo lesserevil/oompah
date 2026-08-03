@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:01:32.120777Z'
+updated_at: '2026-08-03T19:02:11.850909Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8a5fe562-c267-4707-8489-075b5971fcdc
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1711
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-733
     source_sha: a7fc6676c44d6c88cf9a955002d51454929a2b20
     completed_at: '2026-08-03T18:26:35.114601+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-733
+  head_sha: e08f2db26d7f1dc48ab85effb89b1f4bd80720e0
+  submitted_at: '2026-08-03T19:02:02.597455+00:00'
+  updated_at: '2026-08-03T19:02:02.597455+00:00'
 ---
 ## Summary
 
@@ -172,5 +180,10 @@ author: oompah
 created: 2026-08-03 19:01
 ---
 Implementation update: added a final pre-worker target fence. Epic rebase helpers now re-resolve their parent target during dispatch and workspace creation, persist refreshed target metadata, and are rejected/superseded before mutation when hierarchy is unavailable or the recorded target is stale. Restart/state/dashboard and prompt/workflow target evidence are covered.
+---
+author: oompah
+created: 2026-08-03 19:02
+---
+Fail-closed nested epic target resolution with durable parent-target evidence, helper fencing, restart recovery, and regression coverage.
 ---
 <!-- COMMENTS:END -->
