@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:26:08.923113Z'
+updated_at: '2026-08-03T19:27:12.006880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-08-03 19:26
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-03 19:27
+---
+Understanding: CI gate failed with terminal-audit-scan error. `_supersede_wrong_epic_rebase_helper` in orchestrator.py calls `update_issue()` for `Archived` state (line 12767) without routing through `TerminalTransitionCoordinator` or being documented in the allowlist in `terminal_mutation_scanner.py`. Fix: either route the call through TerminalTransitionCoordinator or add an allowlist entry. Reading the code now to determine the minimal correct fix.
 ---
 <!-- COMMENTS:END -->
