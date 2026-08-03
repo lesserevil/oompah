@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T17:49:38.217750Z'
+updated_at: '2026-08-03T18:02:20.286112Z'
 work_branch: OOMPAH-727
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/685
@@ -141,6 +141,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-45e3fdc15aae: '2026-08-03T17:46:28.350280+00:00'
+    attempt-95ddae9e3728: '2026-08-03T18:02:15.794248+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-727
@@ -151,6 +152,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T17:46:28.350293+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-727
+    target_state: Merged
+    evidence_fingerprint: 946ea77753dfb857220dd0a476bd127a912163a95f293b1569e9e707901a8086
+    audit_ids:
+    - audit-91aee5a5411d
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T18:02:15.794265+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-727
@@ -164,6 +174,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T17:46:28.350310+00:00'
     applied_at: '2026-08-03T17:46:33.610159+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-727
+    audit_id: audit-91aee5a5411d
+    attempt_id: attempt-95ddae9e3728
+    target_state: Merged
+    evidence_fingerprint: 946ea77753dfb857220dd0a476bd127a912163a95f293b1569e9e707901a8086
+    status: Merged
+    audit_ids:
+    - audit-91aee5a5411d
+    applied: false
+    created_at: '2026-08-03T18:02:15.794282+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -205,7 +226,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-727
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -214,7 +235,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-95ddae9e3728
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -224,13 +245,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T17:49:23.861873+00:00'
       branch_key: OOMPAH-727
+      verdict: pass
+      completed_at: '2026-08-03T18:02:15.794081+00:00'
+      ended_at: '2026-08-03T18:02:15.794081+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T17:36:12.143444+00:00'
-    updated_at: '2026-08-03T17:49:23.861873+00:00'
+    updated_at: '2026-08-03T18:02:15.794081+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-45e3fdc15aae
@@ -466,5 +490,25 @@ author: oompah
 created: 2026-08-03 17:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 18:02
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: ab69c0eb8ae7721493ae99334bd5fc3e7564bec1
+- merge_commit_on_main: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
+- pr_number: 685
+- commit_on_main: true
+- implementation_file: oompah/projects.py
+- cleanup_function_line: 4306
+- integration_call_site_line: 4652
+- test_class: tests/test_projects.py::TestDirectEpicAuxiliaryCleanup at line 2353
+- focused_direct_epic_result: 10 passed in 1.28s
+- focused_epic_repair_and_remove_worktree_result: 24 passed in 1.17s
+- branch_gate_status: make test passed at ab69c0eb8 (independently verified per prior comment)
 ---
 <!-- COMMENTS:END -->
