@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-726
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prune terminal nested-epic worktrees using recorded target-branch evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T20:13:57.966867Z'
+updated_at: '2026-08-03T20:23:09.864303Z'
 work_branch: OOMPAH-726
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/691
@@ -80,6 +80,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/691
 oompah.review_number: '691'
 oompah.work_branch: OOMPAH-726
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-56c2b9477182
+    project_id: proj-14849f1b
+    task_id: OOMPAH-726
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T20:23:01.143691+00:00'
+  - version: 1
+    audit_id: audit-ce93ee0a4616
+    project_id: proj-14849f1b
+    task_id: OOMPAH-726
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T20:23:01.143691+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -240,5 +279,15 @@ author: oompah
 created: 2026-08-03 20:13
 ---
 Branch quality gate passed for `713e5d9c9c4e60c3852d618bb09de9251682f43d` using `make test` in 404.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 20:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 20:23
+---
+YOLO: merged PR #691.
 ---
 <!-- COMMENTS:END -->
