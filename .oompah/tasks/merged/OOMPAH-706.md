@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-03T00:23:15.948916Z'
+updated_at: '2026-08-03T00:24:14.227517Z'
 work_branch: OOMPAH-706
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/667
@@ -127,6 +127,28 @@ oompah.work_branch: OOMPAH-706
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-90dc584e1da0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-706
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9eede4aa7940adec0d9d9f608bda4ef4d973f041682049f15fba4b92a7a36e8a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override after PR #667 merged exact accepted head 0b78028a691b4c21935d9c9dc3b69d59f8448643
+      as 67c9a24c8248a27a564c4eadcfdfdea0615b5e04; isolated branch gate passed 15,017
+      tests and all GitHub CI matrices passed. Opus and Sonnet completion auditors
+      were terminated only by the known provider-private oversized-tool-result boundary
+      bug under repair in OOMPAH-710; the transient hidden-retirement visibility regression
+      is separately tracked in OOMPAH-712.'
+    created_at: '2026-08-03T00:24:10.285471+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -423,5 +445,12 @@ author: oompah
 created: 2026-08-03 00:23
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 00:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override after PR #667 merged exact accepted head 0b78028a691b4c21935d9c9dc3b69d59f8448643 as 67c9a24c8248a27a564c4eadcfdfdea0615b5e04; isolated branch gate passed 15,017 tests and all GitHub CI matrices passed. Opus and Sonnet completion auditors were terminated only by the known provider-private oversized-tool-result boundary bug under repair in OOMPAH-710; the transient hidden-retirement visibility regression is separately tracked in OOMPAH-712.
 ---
 <!-- COMMENTS:END -->
