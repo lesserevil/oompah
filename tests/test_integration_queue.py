@@ -79,6 +79,36 @@ def test_compare_and_swap_cancel_preserves_new_head(tmp_path):
     assert current.state == "ready"
 
 
+def test_restore_cancelled_requires_exact_branch_and_head(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    assert store.cancel(
+        "p1",
+        "A",
+        reason="container dependency cycle requires authorized repair",
+        expected_head_sha=queued.head_sha,
+        expected_state="ready",
+    )
+
+    assert store.restore_cancelled(
+        "p1",
+        "A",
+        expected_head_sha=queued.head_sha,
+        expected_task_branch=queued.task_branch,
+        expected_epic_id=queued.epic_id,
+    )
+    restored = store.items(project_id="p1", epic_id="E-1")[0]
+    assert restored.state == "ready"
+    assert restored.head_sha == queued.head_sha
+    assert not store.restore_cancelled(
+        "p1",
+        "A",
+        expected_head_sha="different",
+        expected_task_branch=queued.task_branch,
+        expected_epic_id=queued.epic_id,
+    )
+
+
 def test_expired_lease_recovers_after_restart(tmp_path):
     path = tmp_path / "queue.sqlite3"
     store = IntegrationQueueStore(str(path))

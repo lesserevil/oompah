@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping
 
 from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -2949,7 +2949,13 @@ def _on_agent_activity(
     )
 
 
-def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
+def _integration_queue_summary(
+    item,
+    issue,
+    issues,
+    *,
+    repair_evidence: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Serialize a queue row with its operator-facing wait reason."""
 
     result = item.to_dict()
@@ -3038,6 +3044,9 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
         )
         result["container_cycle"] = container_cycle.to_dict()
         result["selected_repair"] = container_cycle.selected_repair
+        result["container_cycle_repair"] = (
+            dict(repair_evidence) if isinstance(repair_evidence, Mapping) else None
+        )
     elif state == "blocked":
         reason = item.last_error or "Integration requires task repair"
     elif state == "integrating":
@@ -3091,7 +3100,26 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
     if container_cycle is None:
         result.setdefault("container_cycle", None)
         result.setdefault("selected_repair", None)
+        result.setdefault("container_cycle_repair", None)
     return result
+
+
+def _container_cycle_repair_for_item(orch, item) -> dict[str, Any] | None:
+    """Find persisted repair evidence for one exact queue row."""
+
+    repairs = getattr(orch, "_container_cycle_repairs", {})
+    if not isinstance(repairs, Mapping):
+        return None
+    for evidence in repairs.values():
+        if not isinstance(evidence, Mapping):
+            continue
+        plan = evidence.get("plan")
+        if not isinstance(plan, Mapping):
+            continue
+        for row in plan.get("rows") or []:
+            if isinstance(row, Mapping) and row.get("task_id") == item.task_id:
+                return dict(evidence)
+    return None
 
 
 def _fetch_and_serialize_issues(
@@ -3217,6 +3245,10 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
                     integration_item,
                     issue,
                     all_issues,
+                    repair_evidence=_container_cycle_repair_for_item(
+                        orch,
+                        integration_item,
+                    ),
                 )
                 if integration_item is not None
                 else None
@@ -12429,6 +12461,10 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     integration_item,
                     issue,
                     graph_issues,
+                    repair_evidence=_container_cycle_repair_for_item(
+                        orch,
+                        integration_item,
+                    ),
                 )
         result = {
             "id": issue.id,

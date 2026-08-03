@@ -105,6 +105,19 @@ class ContainerDependencyCycle:
             },
             "authoritative_container": self.authoritative_container,
             "selected_repair": self.selected_repair,
+            "repair_plan": {
+                "kind": (
+                    "common_authoritative_parent"
+                    if self.authoritative_container
+                    else "needs_authorized_delivery_order"
+                ),
+                "authoritative_container": self.authoritative_container,
+                "prerequisite_shas": {
+                    task: sha for task, sha in self.prerequisite_shas
+                },
+                "dependent_containers": list(self.containers),
+                "policy": "parent_only",
+            },
         }
 
 

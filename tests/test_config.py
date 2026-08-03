@@ -108,6 +108,7 @@ class TestServiceConfig:
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.close_gate_enabled is True
+        assert cfg.container_cycle_repair_enabled is True
         assert cfg.gitlab_webhook_public_url is None
         assert cfg.workspace_root  # should have a default
 
@@ -119,6 +120,11 @@ class TestServiceConfig:
         monkeypatch.setenv("OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", "true")
         wf = WorkflowDefinition(config={}, prompt_template="test")
         assert ServiceConfig.from_workflow(wf).parallel_epic_children_enabled
+
+    def test_container_cycle_repair_policy_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", "false")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        assert ServiceConfig.from_workflow(wf).container_cycle_repair_enabled is False
 
     def test_gitlab_webhook_public_url_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv(

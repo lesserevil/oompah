@@ -46,7 +46,14 @@ from oompah.provider_health import openai_base_url_error
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
 from oompah.container_dependency_graph import (
     ContainerDependencyCycle,
+    container_for_issue,
     find_container_dependency_cycles,
+)
+from oompah.container_cycle_repair import (
+    ContainerCycleRepairExecutor,
+    ContainerCycleRepairPlan,
+    ContainerCycleRepairResult,
+    CycleRepairRow,
 )
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
@@ -1308,6 +1315,16 @@ class Orchestrator:
         self._last_auto_archive_monotonic: float | None = None
         self._started_monotonic: float = time.monotonic()
         state_data = self._load_state()
+        persisted_cycle_repairs = state_data.get("container_cycle_repairs", {})
+        self._container_cycle_repairs: dict[str, dict[str, Any]] = (
+            {
+                str(key): dict(value)
+                for key, value in persisted_cycle_repairs.items()
+                if isinstance(value, Mapping)
+            }
+            if isinstance(persisted_cycle_repairs, Mapping)
+            else {}
+        )
         self._persisted_retry_entries = self._parse_persisted_retry_entries(
             state_data.get("retry_attempts")
         )
@@ -6858,6 +6875,414 @@ class Orchestrator:
                 missing_reason,
             )
 
+    @staticmethod
+    def _container_cycle_repair_key(cycle: ContainerDependencyCycle) -> str:
+        """Return a stable key for one exact graph/prerequisite snapshot."""
+
+        return hashlib.sha256(
+            (
+                f"{cycle.message_path}|{','.join(cycle.affected_tasks)}|"
+                f"{','.join(f'{task}={sha}' for task, sha in cycle.prerequisite_shas)}"
+            ).encode()
+        ).hexdigest()[:24]
+
+    def _container_cycle_repair_plan(
+        self,
+        project_id: str,
+        cycle: ContainerDependencyCycle,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> ContainerCycleRepairPlan | None:
+        """Build or recover an exact repair plan without widening its scope."""
+
+        authoritative = str(cycle.authoritative_container or "").strip()
+        prerequisite_shas = tuple(
+            (str(task).strip(), str(sha).strip())
+            for task, sha in cycle.prerequisite_shas
+            if str(task).strip() and str(sha).strip()
+        )
+        if not authoritative or not prerequisite_shas:
+            return None
+
+        key = self._container_cycle_repair_key(cycle)
+        existing = getattr(self, "_container_cycle_repairs", {}).get(key, {})
+        raw_plan = existing.get("plan") if isinstance(existing, Mapping) else None
+        if isinstance(raw_plan, Mapping):
+            try:
+                rows = tuple(
+                    CycleRepairRow(
+                        task_id=str(raw["task_id"]),
+                        container_id=str(raw["container_id"]),
+                        epic_id=str(raw["epic_id"]),
+                        task_branch=str(raw["task_branch"]),
+                        head_sha=str(raw["head_sha"]),
+                    )
+                    for raw in (raw_plan.get("rows") or [])
+                    if isinstance(raw, Mapping)
+                )
+                raw_shas = raw_plan.get("prerequisite_shas") or {}
+                selected = tuple(
+                    (str(task), str(sha))
+                    for task, sha in raw_shas.items()
+                    if str(task).strip() and str(sha).strip()
+                )
+                if selected and rows:
+                    return ContainerCycleRepairPlan(
+                        key=key,
+                        authoritative_container=str(
+                            raw_plan.get("authoritative_container") or authoritative
+                        ),
+                        dependent_containers=tuple(
+                            str(value)
+                            for value in (raw_plan.get("dependent_containers") or [])
+                            if str(value).strip()
+                        ),
+                        prerequisite_shas=selected,
+                        declared_closure=tuple(
+                            str(value)
+                            for value in (raw_plan.get("declared_closure") or [])
+                            if str(value).strip()
+                        ),
+                        rows=rows,
+                    )
+            except (KeyError, TypeError, ValueError):
+                logger.warning(
+                    "Ignoring malformed persisted container-cycle repair %s",
+                    key,
+                )
+
+        aliases: dict[str, Issue] = {}
+        issues_by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    aliases[str(alias).strip()] = issue
+                    issues_by_alias[str(alias).strip()] = issue
+        parent_ids = {
+            str(issue.parent_id).strip()
+            for issue in issues
+            if str(issue.parent_id or "").strip()
+        }
+        epic_ids = {
+            str(issue.identifier or issue.id).strip()
+            for issue in issues
+            if str(issue.issue_type or "").strip().lower() == "epic"
+            or str(issue.identifier or issue.id).strip() in parent_ids
+        }
+        affected = set(cycle.affected_ready_tasks)
+        rows: list[CycleRepairRow] = []
+        for item in queue_items:
+            if item.state not in {"ready", "integrating", "cancelled"}:
+                continue
+            if item.state == "cancelled" and "container dependency cycle" not in str(
+                item.last_error or ""
+            ).lower():
+                continue
+            issue = aliases.get(item.task_id)
+            identifier = str(
+                getattr(issue, "identifier", None)
+                or getattr(issue, "id", None)
+                or item.task_id
+            ).strip()
+            if item.task_id not in affected and identifier not in affected:
+                continue
+            container = container_for_issue(issue, issues_by_alias, epic_ids) if issue else None
+            container_id = str(
+                getattr(container, "identifier", None)
+                or getattr(container, "id", None)
+                or item.epic_id
+            ).strip()
+            if container_id not in cycle.containers:
+                continue
+            rows.append(
+                CycleRepairRow(
+                    task_id=item.task_id,
+                    container_id=container_id,
+                    epic_id=item.epic_id,
+                    task_branch=item.task_branch,
+                    head_sha=item.head_sha,
+                )
+            )
+        if not rows:
+            return None
+
+        plan = ContainerCycleRepairPlan(
+            key=key,
+            authoritative_container=authoritative,
+            dependent_containers=tuple(sorted(set(cycle.containers))),
+            prerequisite_shas=prerequisite_shas,
+            # The detector records terminal task tips.  A plan may be widened
+            # only by an explicit persisted closure; defaulting to those tips
+            # makes an unlisted sibling commit fail closed in Git validation.
+            declared_closure=tuple(sorted({sha for _task, sha in prerequisite_shas})),
+            rows=tuple(sorted(rows, key=lambda row: row.task_id)),
+        )
+        self._record_container_cycle_repair(key, {"plan": plan.to_dict(), "phase": "planned"})
+        return plan
+
+    def _record_container_cycle_repair(
+        self,
+        key: str,
+        evidence: Mapping[str, object],
+    ) -> dict[str, Any]:
+        """Merge one durable repair checkpoint into service state."""
+
+        repairs = getattr(self, "_container_cycle_repairs", None)
+        if repairs is None:
+            repairs = self._container_cycle_repairs = {}
+        entry = dict(repairs.get(key) or {})
+        for field_name, value in evidence.items():
+            if field_name == "child" and isinstance(value, Mapping):
+                children = [
+                    dict(child)
+                    for child in (entry.get("children") or [])
+                    if isinstance(child, Mapping)
+                    and child.get("container_id") != value.get("container_id")
+                ]
+                children.append(dict(value))
+                entry["children"] = children
+            elif field_name == "children" and isinstance(value, list):
+                entry[field_name] = [
+                    dict(child) for child in value if isinstance(child, Mapping)
+                ]
+            else:
+                entry[field_name] = value
+        repairs[key] = entry
+        save_state = getattr(self, "_save_state", None)
+        if callable(save_state):
+            save_state(container_cycle_repairs=repairs)
+        return entry
+
+    def _route_container_cycle_conflict(
+        self,
+        project_id: str,
+        tracker,
+        plan: ContainerCycleRepairPlan,
+        result: ContainerCycleRepairResult,
+    ) -> None:
+        """Keep conflicted containers scoped while successful peers proceed."""
+
+        failed = {
+            child.container_id: child
+            for child in result.children
+            if child.action not in {"already_reachable", "fast_forward", "merge_parent"}
+        }
+        for row in plan.rows:
+            child = failed.get(row.container_id)
+            if child is None:
+                continue
+            message = (
+                f"Automatic container-cycle repair reached the common parent, but "
+                f"parent-only synchronization of {child.branch} failed ({child.action}): "
+                f"{child.error or 'unknown conflict'}. Preserve private head "
+                f"{row.head_sha}, resolve only this container against "
+                f"{result.parent_branch}@{result.parent_sha}, push with lease, and "
+                "resubmit the same head. No sibling branch was imported."
+            )
+            try:
+                comments_match = self._tracker_comment_matches(
+                    tracker,
+                    row.task_id,
+                    message,
+                )
+                if not comments_match:
+                    self._mark_needs_human(tracker, row.task_id, message)
+            except Exception as exc:  # noqa: BLE001 - preserve scoped alert
+                logger.warning(
+                    "Could not route container-cycle conflict %s/%s: %s",
+                    project_id,
+                    row.task_id,
+                    exc,
+                )
+
+    def _restore_container_cycle_rows(
+        self,
+        project_id: str,
+        tracker,
+        project,
+        plan: ContainerCycleRepairPlan,
+        result: ContainerCycleRepairResult,
+        executor: ContainerCycleRepairExecutor,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Restore only unchanged private heads after durable reachability."""
+
+        restorable = set(result.restorable_rows)
+        restored: list[str] = []
+        changed: list[str] = []
+        for row in plan.rows:
+            if row.task_id not in restorable:
+                continue
+            remote_head = executor.remote_head(row.task_branch)
+            issue = tracker.fetch_issue_detail(row.task_id)
+            record = getattr(issue, "integration", None) if issue else None
+            current_head = str(
+                getattr(record, "head_sha", "") or getattr(issue, "head_sha", "") or ""
+            ).strip()
+            if remote_head != row.head_sha or (current_head and current_head != row.head_sha):
+                changed.append(row.task_id)
+                message = (
+                    f"Container-cycle repair is complete for {row.container_id}, but "
+                    f"private head authority changed: expected {row.head_sha}, "
+                    f"observed branch {remote_head or '<missing'} and metadata "
+                    f"{current_head or '<missing'}. The cancelled row remains fenced; "
+                    "push the intended head and submit it again."
+                )
+                try:
+                    self._mark_needs_human(tracker, row.task_id, message)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Could not route changed private head %s: %s", row.task_id, exc)
+                continue
+            if issue is None:
+                changed.append(row.task_id)
+                continue
+            restored_by_cas = self.integration_queue.restore_cancelled(
+                project_id,
+                row.task_id,
+                expected_head_sha=row.head_sha,
+                expected_task_branch=row.task_branch,
+                expected_epic_id=row.epic_id,
+            )
+            current = next(
+                (
+                    item
+                    for item in self.integration_queue.items(project_id=project_id)
+                    if item.task_id == row.task_id
+                ),
+                None,
+            )
+            if not restored_by_cas and not (
+                current is not None
+                and current.state == "ready"
+                and current.task_branch == row.task_branch
+                and current.head_sha == row.head_sha
+            ):
+                raise RuntimeError(f"queue restore did not persist for {row.task_id}")
+            # The queue CAS is the first restoration write.  If the private
+            # authority changed, the code above fails without reopening or
+            # rewriting tracker metadata.  Tracker writes follow and are
+            # idempotently repaired on the next scan if a process exits here.
+            tracker.update_issue(row.task_id, status=READY_TO_INTEGRATE)
+            tracker.set_metadata_field(
+                row.task_id,
+                "oompah.integration",
+                IntegrationRecord(
+                    state="ready",
+                    task_branch=row.task_branch,
+                    base_branch=self.project_store.epic_branch_name(row.epic_id),
+                    base_sha=result.parent_sha,
+                    head_sha=row.head_sha,
+                    attempts=getattr(record, "attempts", 0),
+                    submitted_at=getattr(record, "submitted_at", None),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                ).to_dict(),
+            )
+            confirmed = tracker.fetch_issue_detail(row.task_id)
+            confirmed_record = getattr(confirmed, "integration", None)
+            if (
+                confirmed is None
+                or canonicalize_status(getattr(confirmed, "state", ""))
+                != READY_TO_INTEGRATE
+                or str(getattr(confirmed_record, "head_sha", "") or "").strip()
+                != row.head_sha
+            ):
+                raise RuntimeError(
+                    f"tracker restore did not persist for {row.task_id}"
+                )
+            restored.append(row.task_id)
+        self._record_container_cycle_repair(
+            plan.key,
+            {
+                "phase": "queue_restored",
+                "restored_rows": restored,
+                "changed_rows": changed,
+            },
+        )
+        return tuple(restored), tuple(changed)
+
+    def _execute_container_cycle_repair(
+        self,
+        project_id: str,
+        tracker,
+        project,
+        plan: ContainerCycleRepairPlan,
+    ) -> ContainerCycleRepairResult | None:
+        """Apply an authorized policy repair and reconcile its queue rows."""
+
+        if not getattr(self.config, "container_cycle_repair_enabled", True):
+            return None
+        repo_path = str(getattr(project, "repo_path", "") or "").strip()
+        if not repo_path or not os.path.isdir(repo_path):
+            return None
+        entry = getattr(self, "_container_cycle_repairs", {}).get(plan.key, {})
+
+        def run_git(
+            args: list[str],
+            cwd: str | None = None,
+            timeout: int = 60,
+        ) -> subprocess.CompletedProcess[str]:
+            command_cwd = cwd or repo_path
+            if args and args[0] in {"fetch", "push", "ls-remote"}:
+                return self._run_project_network_git(
+                    project,
+                    ["git", *args],
+                    cwd=command_cwd,
+                    timeout=timeout,
+                )
+            return subprocess.run(
+                ["git", *args],
+                cwd=command_cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            )
+
+        executor = ContainerCycleRepairExecutor(
+            repo_path,
+            run_git=run_git,
+            persist=lambda evidence: self._record_container_cycle_repair(
+                plan.key,
+                evidence,
+            ),
+        )
+        with self.project_store.project_write_lock(project_id):
+            result = executor.execute(plan, prior_evidence=entry)
+        if result.status not in {"ready_for_queue_restore", "partial"}:
+            return result
+        if result.status == "partial":
+            self._route_container_cycle_conflict(project_id, tracker, plan, result)
+        if not executor.prove_reachability(plan, result):
+            result.status = "blocked"
+            result.error = "selected prerequisite reachability proof failed"
+            self._record_container_cycle_repair(plan.key, result.to_dict())
+            return result
+        try:
+            restored, changed = self._restore_container_cycle_rows(
+                project_id,
+                tracker,
+                project,
+                plan,
+                result,
+                executor,
+            )
+            result.changed_rows = tuple(
+                sorted(set(result.changed_rows) | set(changed))
+            )
+        except Exception as exc:  # noqa: BLE001 - queue/tracker is a durable boundary
+            result.status = "partial"
+            result.error = f"queue restoration failed: {exc}"
+            self._record_container_cycle_repair(plan.key, result.to_dict())
+            return result
+        if set(restored) != set(result.restorable_rows) - set(result.changed_rows):
+            result.status = "partial"
+            result.error = "not every unchanged fenced row was durably restored"
+            self._record_container_cycle_repair(plan.key, result.to_dict())
+            return result
+        result.status = "complete" if not result.changed_rows else "partial"
+        result.phase = "complete" if result.status == "complete" else "queue_restored"
+        self._record_container_cycle_repair(plan.key, result.to_dict())
+        return result
+
     def _audit_container_dependency_cycles(
         self,
         project_id: str,
@@ -6881,6 +7306,10 @@ class Orchestrator:
             item.task_id
             for item in queue_items
             if item.state in {"ready", "integrating"}
+            or (
+                item.state == "cancelled"
+                and "container dependency cycle" in str(item.last_error or "").lower()
+            )
         ]
         cycles = find_container_dependency_cycles(
             issues,
@@ -6902,9 +7331,7 @@ class Orchestrator:
                     aliases[str(alias).strip()] = issue
         affected_queue_ids: set[str] = set()
         for cycle in cycles:
-            fingerprint = hashlib.sha256(
-                f"{cycle.message_path}|{','.join(cycle.affected_tasks)}".encode()
-            ).hexdigest()[:16]
+            fingerprint = self._container_cycle_repair_key(cycle)[:16]
             source = f"{source_prefix}{fingerprint}"
             sha_text = ", ".join(
                 f"{task}={sha}" for task, sha in cycle.prerequisite_shas
@@ -6982,6 +7409,47 @@ class Orchestrator:
                     )
                     continue
                 affected_queue_ids.add(item.task_id)
+            plan = self._container_cycle_repair_plan(
+                project_id,
+                cycle,
+                issues,
+                queue_items,
+            )
+            repair_result = (
+                self._execute_container_cycle_repair(
+                    project_id,
+                    tracker,
+                    self.project_store.get(project_id),
+                    plan,
+                )
+                if plan is not None
+                else None
+            )
+            if repair_result is not None:
+                alert = next(
+                    (
+                        candidate
+                        for candidate in reversed(self._alerts)
+                        if candidate.get("source") == source
+                    ),
+                    None,
+                )
+                if alert is None:
+                    continue
+                if repair_result.status == "complete":
+                    self._alerts = [
+                        candidate
+                        for candidate in self._alerts
+                        if candidate.get("source") != source
+                    ]
+                    affected_queue_ids.update(repair_result.restorable_rows)
+                else:
+                    alert["message"] = (
+                        f"{alert['message']} Automatic repair phase "
+                        f"{repair_result.phase} is {repair_result.status}. "
+                        f"{repair_result.error or 'retry is safe after restart'}."
+                    )
+                    alert["repair"] = repair_result.to_dict()
         if affected_queue_ids:
             self.request_refresh()
         return cycles

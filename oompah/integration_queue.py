@@ -474,6 +474,49 @@ class IntegrationQueueStore:
             self._conn.commit()
         return bool(result.rowcount)
 
+    def restore_cancelled(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        expected_head_sha: str,
+        expected_task_branch: str,
+        expected_epic_id: str | None = None,
+    ) -> bool:
+        """Rearm one exact cycle-fenced row with a compare-and-swap.
+
+        A normal ``enqueue(..., explicit_retry=True)`` is intentionally
+        allowed to replace an inactive row during a fresh submission.  Repair
+        reconciliation has a narrower contract: it may only restore the row
+        it fenced, and must not overwrite a new private head that won a race
+        while Git was being repaired.
+        """
+
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET state = 'ready', lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?, last_error = NULL,
+                    retry_forced = 0, next_retry_at = NULL
+                WHERE project_id = ? AND task_id = ?
+                  AND state = 'cancelled'
+                  AND task_branch = ? AND head_sha = ?
+                  AND (? IS NULL OR epic_id = ?)
+                """,
+                (
+                    _now_iso(),
+                    project_id,
+                    task_id,
+                    expected_task_branch,
+                    expected_head_sha,
+                    expected_epic_id,
+                    expected_epic_id,
+                ),
+            )
+            self._conn.commit()
+        return bool(result.rowcount)
+
     def _finish(
         self,
         project_id: str,
