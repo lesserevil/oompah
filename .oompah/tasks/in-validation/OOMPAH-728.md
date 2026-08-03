@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:09:48.375830Z'
+updated_at: '2026-08-03T17:19:15.069707Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -107,6 +107,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/684
 oompah.review_number: '684'
 oompah.work_branch: OOMPAH-728
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3dc00ff3f23c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-03T17:19:05.983776+00:00'
+  - version: 1
+    audit_id: audit-1543f6417c72
+    project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-03T17:19:05.983776+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -226,5 +265,15 @@ author: oompah
 created: 2026-08-03 17:09
 ---
 Branch quality gate passed for `2d682cacc8e9f18a6fc12de674b7ac91f37532e1` using `make test` in 430.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 17:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 17:19
+---
+YOLO: merged PR #684.
 ---
 <!-- COMMENTS:END -->
