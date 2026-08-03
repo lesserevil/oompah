@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:11:07.198293Z'
+updated_at: '2026-08-03T17:13:51.315406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-08-03 17:11
 ---
 Understanding: I will trace the OOMPAH-718 cycle analyzer, authoritative-parent and parent-only repair policy, queue fencing/restoration, and dashboard diagnostics. I’ll implement a policy-authorized, compare-and-swap, restart-safe executor with fail-closed conflict/race handling, add focused regression tests, run the required checks, then commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-03 17:13
+---
+Discovery: OOMPAH-718 leaves cycle handling at warning + CAS cancellation. The durable queue already preserves exact task head/branch identity, and ProjectStore provides per-project Git serialization. I’ll add a separate restart-safe repair state machine with explicit phase/evidence, parent-only Git synchronization, conflict/race fencing, and exact-head queue restoration, then invoke it before normal queue grouping.
 ---
 <!-- COMMENTS:END -->
