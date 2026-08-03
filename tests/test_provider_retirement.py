@@ -7,6 +7,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -102,6 +103,70 @@ def test_authority_revocation_from_api_thread_terminates_on_dispatch_loop(
         assert entry.issue.id not in orch.state.claimed_issues
 
     asyncio.run(scenario())
+
+
+def test_running_snapshot_fences_concurrent_provider_exit_mutation(tmp_path) -> None:
+    """Runtime snapshots finish before a provider-exit removal can mutate them."""
+
+    orch = _orchestrator(tmp_path)
+    implementation = _entry()
+    implementation.issue.id = "implementation-1"
+    auditor = _entry(state=IN_VALIDATION, auditor=True)
+    auditor.issue.id = "auditor-1"
+
+    snapshot_started = threading.Event()
+    removal_attempted = threading.Event()
+    release_snapshot = threading.Event()
+
+    class _BlockingItemsDict(dict):
+        def items(self):
+            iterator = iter(super().items())
+            first = next(iterator)
+            yield first
+            snapshot_started.set()
+            assert release_snapshot.wait(timeout=2)
+            yield from iterator
+
+    running = _BlockingItemsDict(
+        {
+            implementation.issue.id: implementation,
+            auditor.issue.id: auditor,
+        }
+    )
+    orch.state.running = running
+
+    def provider_exit() -> None:
+        snapshot_started.wait(timeout=2)
+        removal_attempted.set()
+        orch._remove_running_entry(auditor.issue.id, auditor)
+
+    snapshot_holder: dict[str, tuple[tuple[str, RunningEntry], ...]] = {}
+
+    def take_snapshot() -> None:
+        snapshot_holder["value"] = orch._running_items_snapshot()
+
+    snapshotter = threading.Thread(target=take_snapshot)
+    remover = threading.Thread(target=provider_exit)
+    snapshotter.start()
+    remover.start()
+    try:
+        snapshot_started.wait(timeout=2)
+        assert removal_attempted.wait(timeout=2)
+        # The provider-exit callback is blocked by the authority boundary while
+        # the live dict iterator is being consumed.
+        assert auditor.issue.id in running
+        release_snapshot.set()
+    finally:
+        release_snapshot.set()
+        snapshotter.join(timeout=2)
+        remover.join(timeout=2)
+
+    snapshot = snapshot_holder["value"]
+    assert {issue_id for issue_id, _ in snapshot} == {
+        implementation.issue.id,
+        auditor.issue.id,
+    }
+    assert auditor.issue.id not in running
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires Linux/POSIX process signals")

@@ -856,6 +856,74 @@ def test_patch_owner_override_requires_reason_and_uses_coordinator(client):
     assert tracker.status_updates == []
 
 
+def test_patch_owner_override_returns_committed_result_when_worker_cleanup_fails(client):
+    """A provider-retirement failure must not turn a committed override into 500."""
+
+    issue = Issue("task-cleanup-fails", "task-cleanup-fails", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    orch.state.running = {
+        "run-1": SimpleNamespace(identifier=issue.identifier),
+    }
+    orch._terminate_running = AsyncMock(
+        side_effect=RuntimeError("provider exit raced terminal cleanup")
+    )
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-cleanup-fails",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Done"
+    assert response.json()["cleanup_diagnostics"] == [
+        {
+            "operation": "retire_running_worker",
+            "issue_id": "run-1",
+            "message": "provider exit raced terminal cleanup",
+        }
+    ]
+
+
+def test_patch_owner_override_rolls_back_fence_when_commit_fails(client):
+    """Pre-commit coordinator failure remains fail-closed and retryable."""
+
+    issue = Issue("task-precommit-fails", "task-precommit-fails", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.override_transition = AsyncMock(
+        side_effect=RuntimeError("metadata unavailable before commit")
+    )
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-precommit-fails",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "terminal_transition"
+    assert issue.id not in orch.state.completed
+    assert tracker.status_updates == []
+
+
 def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     issue = Issue(
         "task-retry",

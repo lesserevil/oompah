@@ -311,6 +311,9 @@ class OverrideResult:
     retired_alert_audit_ids: list[str] = field(default_factory=list)
     """Historical identities whose actionable alerts were retired as well."""
 
+    cleanup_diagnostics: list[dict[str, str]] = field(default_factory=list)
+    """Best-effort post-commit cleanup issues that callers should surface."""
+
     reason: str | None = None
     """Human-readable explanation when ``success`` is ``False``."""
 
@@ -628,7 +631,7 @@ class TerminalTransitionCoordinator:
 
     def _clear_retired_alert(
         self, project_id: str, task_id: str, audit_id: str
-    ) -> None:
+    ) -> str | None:
         """Clear one retired audit from metrics and the live alert registry."""
 
         self._record_metric(
@@ -636,10 +639,10 @@ class TerminalTransitionCoordinator:
         )
         callback = self._clear_audit_alert
         if callback is None:
-            return
+            return None
         try:
             callback(project_id, task_id, audit_id)
-        except Exception:
+        except Exception as exc:
             logger.warning(
                 "terminal-audit alert cleanup failed for %s/%s/%s",
                 project_id,
@@ -647,6 +650,8 @@ class TerminalTransitionCoordinator:
                 audit_id,
                 exc_info=True,
             )
+            return str(exc)
+        return None
 
     def _revoke_delivery_for_terminal_transition(
         self,
@@ -1441,9 +1446,17 @@ class TerminalTransitionCoordinator:
                         )
             if outcome.success:
                 for audit_id in outcome.retired_alert_audit_ids:
-                    self._clear_retired_alert(
+                    cleanup_error = self._clear_retired_alert(
                         project_id, current_issue.identifier, audit_id
                     )
+                    if cleanup_error:
+                        outcome.cleanup_diagnostics.append(
+                            {
+                                "operation": "retire_audit_alert",
+                                "audit_id": audit_id,
+                                "message": cleanup_error,
+                            }
+                        )
             return outcome
 
         return await asyncio.to_thread(
@@ -2442,6 +2455,7 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.STATUS_UPDATE_FAILED,
             )
 
+        cleanup_diagnostics: list[dict[str, str]] = []
         try:
             def _finalize_override(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
                 """Commit cancellation, alert retirement, and applied marker together."""
@@ -2482,6 +2496,12 @@ class TerminalTransitionCoordinator:
             # intent remains available to restart reconciliation. Do not report
             # a failed owner override after its terminal write succeeded.
             logger.exception("Failed to finalize overridden audits for %s", identifier)
+            cleanup_diagnostics.append(
+                {
+                    "operation": "finalize_audit_retirement",
+                    "message": "audit retirement finalization failed; recovery will retry",
+                }
+            )
 
         return OverrideResult(
             success=True,
@@ -2490,6 +2510,7 @@ class TerminalTransitionCoordinator:
             posted_comment=posted,
             overridden_audit_ids=overridden_audit_ids,
             retired_alert_audit_ids=retired_alert_audit_ids,
+            cleanup_diagnostics=cleanup_diagnostics,
             error_code=None,
         )
 

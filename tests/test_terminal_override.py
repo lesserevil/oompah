@@ -199,6 +199,59 @@ async def test_authorized_owner_can_override(
 
 
 @pytest.mark.asyncio
+async def test_post_commit_alert_cleanup_failure_is_reported_without_rollback(
+    coordinator, tracker, project_id, task_id, fingerprint, owner_identity
+):
+    """Alert retirement is diagnostic-only after the terminal write commits."""
+
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Test task",
+        description="Test",
+    )
+    project = _MockProject(status_label_authorized_logins=["owner"])
+    pending = TerminalAuditRecord(
+        audit_id="audit-retire-me",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=owner_identity,
+    )
+    tracker.set_metadata(
+        task_id,
+        {METADATA_KEY: TerminalAuditMetadata(pending_chain=[pending]).to_dict()},
+    )
+
+    def fail_alert_cleanup(*_args) -> None:
+        raise RuntimeError("alert registry unavailable")
+
+    coordinator.set_alert_clearer(fail_alert_cleanup)
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Owner-approved terminal repair",
+        project=project,
+    )
+
+    assert result.success is True
+    assert result.applied_status == DONE
+    assert result.cleanup_diagnostics == [
+        {
+            "operation": "retire_audit_alert",
+            "audit_id": "audit-retire-me",
+            "message": "alert registry unavailable",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_authorized_via_additional_login(
     coordinator, tracker, project_id, task_id, fingerprint
 ):

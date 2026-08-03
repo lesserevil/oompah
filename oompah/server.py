@@ -2755,7 +2755,7 @@ def _fetch_open_reviews_for_api(
 def _active_review_branches(orch: "Orchestrator") -> set[str]:
     """Return source branches that currently have an active worker."""
     branches: set[str] = set()
-    for entry in getattr(getattr(orch, "state", None), "running", {}).values():
+    for _, entry in _running_items_snapshot(orch):
         issue = getattr(entry, "issue", None)
         for value in (
             getattr(issue, "work_branch", None),
@@ -2766,6 +2766,21 @@ def _active_review_branches(orch: "Orchestrator") -> set[str]:
             if isinstance(value, str) and value.strip():
                 branches.add(value.strip())
     return branches
+
+
+def _running_items_snapshot(orch: "Orchestrator") -> tuple[tuple[str, Any], ...]:
+    """Return runtime entries under the orchestrator's authority boundary.
+
+    The API and scheduler own different event loops but share the runtime map.
+    Use the orchestrator's locked snapshot method when available; lightweight
+    test doubles and legacy embedders retain the plain-map fallback.
+    """
+
+    snapshotter = getattr(type(orch), "_running_items_snapshot", None)
+    if callable(snapshotter):
+        return tuple(snapshotter(orch))
+    running = getattr(getattr(orch, "state", None), "running", {})
+    return tuple(running.items())
 
 
 def _sync_orchestrator_review_cache(
@@ -5622,13 +5637,16 @@ def _terminal_transition_payload(
     """Return the public terminal-transition response shape."""
 
     if isinstance(result, OverrideResult):
-        return {
+        payload = {
             "ok": True,
             "status": result.applied_status,
             "requested_target": target.value,
             "audit_id": result.override_id,
             "audit_override": True,
         }
+        if result.cleanup_diagnostics:
+            payload["cleanup_diagnostics"] = list(result.cleanup_diagnostics)
+        return payload
 
     return {
         "ok": True,
@@ -11064,6 +11082,7 @@ async def api_update_issue(identifier: str, request: Request):
         terminal_transition_payload: dict[str, Any] | None = None
         terminal_target: TargetState | None = None
         terminal_withdrawn_retry_ids: set[str] = set()
+        terminal_cleanup_diagnostics: list[dict[str, str]] = []
 
         # Optional tracker-identity / branch fields accepted for update.
         # These are persisted to the tracker adapter when supported; validated
@@ -11274,14 +11293,26 @@ async def api_update_issue(identifier: str, request: Request):
                 # Staging owns the pre-await dispatch fence and rolls it back
                 # if rejected. Only a successful terminal transition may
                 # withdraw the retry generation permanently.
-                terminal_withdrawn_retry_ids = _cancel_retry_for_authority_change(
-                    orch,
-                    existing_issue,
-                    identifier,
-                    project_id,
-                    new_status,
-                    new_work_branch,
-                )
+                try:
+                    terminal_withdrawn_retry_ids = _cancel_retry_for_authority_change(
+                        orch,
+                        existing_issue,
+                        identifier,
+                        project_id,
+                        new_status,
+                        new_work_branch,
+                    )
+                except Exception as exc:  # noqa: BLE001 - commit already won
+                    logger.exception(
+                        "Post-commit terminal authority cleanup failed for %s",
+                        identifier,
+                    )
+                    terminal_cleanup_diagnostics.append(
+                        {
+                            "operation": "revoke_implementation_authority",
+                            "message": str(exc),
+                        }
+                    )
                 handled_status = True
 
         if (
@@ -11426,16 +11457,41 @@ async def api_update_issue(identifier: str, request: Request):
                 orch.state.completed.discard(existing_issue.id)
                 orch.state.claimed.discard(existing_issue.id)
             if status_norm != "in_progress":
-                for issue_id, entry in list(orch.state.running.items()):
+                for issue_id, entry in _running_items_snapshot(orch):
                     if entry.identifier == identifier:
                         logger.info(
                             "Terminating agent for %s (moved to %s via UI)",
                             identifier,
                             new_status,
                         )
-                        await orch._terminate_running(
-                            issue_id, cleanup_workspace=(status_norm in terminal)
-                        )
+                        try:
+                            terminated = await orch._terminate_running(
+                                issue_id, cleanup_workspace=(status_norm in terminal)
+                            )
+                        except Exception as exc:  # noqa: BLE001 - commit already won
+                            logger.exception(
+                                "Post-commit worker cleanup failed for %s",
+                                identifier,
+                            )
+                            terminal_cleanup_diagnostics.append(
+                                {
+                                    "operation": "retire_running_worker",
+                                    "issue_id": str(issue_id),
+                                    "message": str(exc),
+                                }
+                            )
+                        else:
+                            if terminated is False:
+                                terminal_cleanup_diagnostics.append(
+                                    {
+                                        "operation": "retire_running_worker",
+                                        "issue_id": str(issue_id),
+                                        "message": (
+                                            "provider processes remain visible; "
+                                            "retirement will be retried"
+                                        ),
+                                    }
+                                )
                         break
 
                 if status_norm in terminal:
@@ -11454,11 +11510,34 @@ async def api_update_issue(identifier: str, request: Request):
         # Needs Human to Open waits for the long safety-net poll even when
         # capacity is immediately available.
         if terminal_transition_payload is not None:
+            if terminal_cleanup_diagnostics:
+                existing_diagnostics = terminal_transition_payload.get(
+                    "cleanup_diagnostics"
+                )
+                if isinstance(existing_diagnostics, list):
+                    existing_diagnostics.extend(terminal_cleanup_diagnostics)
+                    terminal_cleanup_diagnostics = existing_diagnostics
+                else:
+                    terminal_transition_payload["cleanup_diagnostics"] = (
+                        terminal_cleanup_diagnostics
+                    )
             # Wake only after the terminal fence, running-worker termination,
             # and retry cancellation above are all visible. Waking while the
             # old branch owner is still registered can make the audit lane skip
             # this request until the periodic safety-net poll.
-            orch.request_refresh()
+            try:
+                orch.request_refresh()
+            except Exception as exc:  # noqa: BLE001 - commit already won
+                logger.exception(
+                    "Post-commit terminal refresh notification failed for %s",
+                    identifier,
+                )
+                terminal_cleanup_diagnostics.append(
+                    {
+                        "operation": "notify_terminal_refresh",
+                        "message": str(exc),
+                    }
+                )
         elif (
             new_status is not None
             and is_dispatchable_status(new_status)
@@ -11468,7 +11547,21 @@ async def api_update_issue(identifier: str, request: Request):
             )
         ):
             orch.request_refresh()
-        await broadcast_issues()
+        try:
+            await broadcast_issues()
+        except Exception as exc:  # noqa: BLE001 - commit already won
+            if terminal_transition_payload is None:
+                raise
+            logger.exception(
+                "Post-commit terminal broadcast failed for %s",
+                identifier,
+            )
+            terminal_cleanup_diagnostics.append(
+                {
+                    "operation": "broadcast_terminal_result",
+                    "message": str(exc),
+                }
+            )
         return JSONResponse(terminal_transition_payload or {"ok": True})
     except Exception as exc:
         from oompah.tracker import StateBranchFetchError
@@ -13295,7 +13388,7 @@ async def api_agent_activity(identifier: str):
     """Return the activity log for a running agent."""
     try:
         orch = _get_orchestrator()
-        for entry in orch.state.running.values():
+        for _, entry in _running_items_snapshot(orch):
             if entry.identifier == identifier:
                 issue = getattr(entry, "issue", None)
                 project_id = issue.project_id if issue else None

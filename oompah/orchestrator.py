@@ -3301,11 +3301,17 @@ class Orchestrator:
         )
         return True
 
-    @staticmethod
-    def _managed_processes(entry: RunningEntry) -> dict[int, ProcessIdentity]:
-        """Merge fresh workspace descendants into a run's durable evidence."""
+    def _managed_processes(self, entry: RunningEntry) -> dict[int, ProcessIdentity]:
+        """Merge fresh workspace descendants into a run's durable evidence.
 
-        captured = dict(getattr(entry, "managed_processes", {}) or {})
+        Provider callbacks and terminal cleanup can observe the same entry on
+        different loops.  Snapshot the mutable process map under the authority
+        lock, perform process discovery without holding it, then publish the
+        merged result under the lock again.
+        """
+
+        with self._retry_authority_lock:
+            captured = dict(getattr(entry, "managed_processes", {}) or {})
         workspace_path = getattr(entry, "workspace_path", None)
         if isinstance(workspace_path, str) and workspace_path:
             try:
@@ -3322,8 +3328,11 @@ class Orchestrator:
                     workspace_path,
                     exc,
                 )
-        entry.managed_processes = captured
-        return captured
+        with self._retry_authority_lock:
+            current = dict(getattr(entry, "managed_processes", {}) or {})
+            current.update(captured)
+            entry.managed_processes = current
+            return dict(current)
 
     def _schedule_running_termination(
         self,
@@ -3441,7 +3450,7 @@ class Orchestrator:
 
     async def _terminate_all_running(self) -> None:
         """Terminate all running agents without cleaning workspaces."""
-        for issue_id in list(self.state.running.keys()):
+        for issue_id in self._running_keys_snapshot():
             await self._terminate_running(issue_id, cleanup_workspace=False)
         self._notify_observers()
 
@@ -3519,7 +3528,7 @@ class Orchestrator:
 
         # Save issue IDs of anything still running for re-dispatch
         restart_issues = []
-        for issue_id, entry in self.state.running.items():
+        for issue_id, entry in self._running_items_snapshot():
             restart_issues.append(
                 {
                     "issue_id": issue_id,
@@ -3809,6 +3818,56 @@ class Orchestrator:
         """Return the event-loop lock for dispatch/audit ownership of a task."""
 
         return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
+
+    def _running_items_snapshot(self) -> tuple[tuple[str, RunningEntry], ...]:
+        """Return a stable runtime snapshot across API and scheduler threads.
+
+        ``state.running`` is shared by the API loop and the scheduler loop.
+        Converting its live views with ``list(...)`` is not a safe snapshot:
+        another loop can remove a provider entry while the dict iterator is
+        being consumed.  The retry-authority lock is the existing boundary for
+        runtime ownership changes, so use it for both snapshots and map
+        mutations.  Callers must release the lock before awaiting cleanup.
+        """
+
+        with self._retry_authority_lock:
+            return tuple(self.state.running.items())
+
+    def _running_values_snapshot(self) -> tuple[RunningEntry, ...]:
+        """Return running entries without exposing a live dict view."""
+
+        return tuple(entry for _, entry in self._running_items_snapshot())
+
+    def _running_keys_snapshot(self) -> tuple[str, ...]:
+        """Return running issue IDs without exposing a live dict view."""
+
+        return tuple(issue_id for issue_id, _ in self._running_items_snapshot())
+
+    def _current_running_entry(self, issue_id: str) -> RunningEntry | None:
+        """Read one runtime entry under the authority boundary."""
+
+        with self._retry_authority_lock:
+            return self.state.running.get(issue_id)
+
+    def _register_running_entry(self, issue_id: str, entry: RunningEntry) -> None:
+        """Publish a runtime entry atomically with authority revocation."""
+
+        with self._retry_authority_lock:
+            self.state.running[issue_id] = entry
+
+    def _remove_running_entry(
+        self,
+        issue_id: str,
+        expected: RunningEntry | None = None,
+    ) -> bool:
+        """Remove a runtime entry without deleting a replacement generation."""
+
+        with self._retry_authority_lock:
+            current = self.state.running.get(issue_id)
+            if current is None or (expected is not None and current is not expected):
+                return False
+            self.state.running.pop(issue_id, None)
+            return True
 
     def _worker_authority_current(
         self,
@@ -5462,7 +5521,7 @@ class Orchestrator:
         temp_root, log_root, pressure_paths = self._storage_cleanup_paths()
         protected_logs = {
             entry.agent_log_path
-            for entry in list(self.state.running.values())
+            for entry in self._running_values_snapshot()
             if entry.agent_log_path
         }
         result = cleanup_owned_storage(
@@ -5767,7 +5826,7 @@ class Orchestrator:
         """Gracefully stop the orchestrator."""
         self._stopping = True
         # Terminate all running agents
-        for issue_id, entry in list(self.state.running.items()):
+        for issue_id, entry in self._running_items_snapshot():
             await self._terminate_running(issue_id, cleanup_workspace=False)
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
@@ -6405,7 +6464,7 @@ class Orchestrator:
         owner = getattr(self, "_audit_branch_claims", {}).get(branch_key)
         if owner:
             return True
-        for entry in self.state.running.values():
+        for entry in self._running_values_snapshot():
             if entry.issue is None:
                 continue
             if (
@@ -6602,7 +6661,7 @@ class Orchestrator:
                 branch_key = audit_branch_key(issue)
                 active = {
                     entry.audit_attempt_id
-                    for entry in self.state.running.values()
+                    for entry in self._running_values_snapshot()
                     if entry.is_auditor and entry.audit_attempt_id
                 }
                 recovery = lane.recover(record, active_attempt_ids=active)
@@ -6721,7 +6780,7 @@ class Orchestrator:
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
         metrics["in_progress_count"] = sum(
-            1 for entry in self.state.running.values() if entry.is_auditor
+            1 for entry in self._running_values_snapshot() if entry.is_auditor
         )
         metrics["last_dispatched_count"] = dispatched
         # Rebuild health metrics and alerts from the durable audit observations.
@@ -10115,7 +10174,7 @@ class Orchestrator:
             # branch. Private child agents do not touch it and are safe.
             if any(
                 entry.identifier == epic_id
-                for entry in self.state.running.values()
+                for entry in self._running_values_snapshot()
             ):
                 continue
             tracker = self._tracker_for_project(project_id)
@@ -11007,7 +11066,7 @@ class Orchestrator:
     def _duplicate_preflight_running_count(self) -> int:
         return sum(
             1
-            for entry in self.state.running.values()
+            for entry in self._running_values_snapshot()
             if getattr(entry, "duplicate_preflight", False)
         )
 
@@ -11705,7 +11764,7 @@ class Orchestrator:
 
         now = datetime.now(timezone.utc)
         renewed = 0
-        for entry in list(self.state.running.values()):
+        for entry in self._running_values_snapshot():
             if not getattr(entry, "duplicate_preflight", False):
                 continue
             claim_id = getattr(entry, "duplicate_preflight_claim_id", None)
@@ -11847,7 +11906,7 @@ class Orchestrator:
             return True
         count = sum(
             1
-            for e in self.state.running.values()
+            for e in self._running_values_snapshot()
             if _state_key(e.issue.state) == normalized
         )
         return count < limit
@@ -12142,7 +12201,7 @@ class Orchestrator:
             branch = ""
         if branch:
             epic_branch_keys.add(str(branch))
-        for entry in self.state.running.values():
+        for entry in self._running_values_snapshot():
             if getattr(entry, "duplicate_preflight", False):
                 continue
             other = entry.issue
@@ -18175,7 +18234,7 @@ class Orchestrator:
         This catches orphans left by the retry-release "no longer candidate"
         path (TASK-409).
         """
-        running_ids = set(self.state.running.keys())
+        running_ids = set(self._running_keys_snapshot())
         retry_ids = set(self.state.retry_attempts.keys())
         claimed_ids = self.state.claimed
 
@@ -25284,7 +25343,7 @@ class Orchestrator:
         # from all projects. These are the issues that already have or will get
         # an agent, so we want to suppress duplicates from the candidate list.
         in_flight_issues: list[Issue] = []
-        for entry in self.state.running.values():
+        for entry in self._running_values_snapshot():
             if entry.issue:
                 in_flight_issues.append(entry.issue)
 
@@ -26464,7 +26523,7 @@ class Orchestrator:
         """
         # Resolve issue_id from the identifier string.
         issue_id: str | None = None
-        for iid, entry in self.state.running.items():
+        for iid, entry in self._running_items_snapshot():
             if entry.identifier == identifier:
                 issue_id = iid
                 break
@@ -26537,7 +26596,7 @@ class Orchestrator:
         entry = next(
             (
                 current
-                for current in self.state.running.values()
+                for current in self._running_values_snapshot()
                 if current.identifier == identifier
             ),
             None,
@@ -26583,7 +26642,7 @@ class Orchestrator:
             task: checkpoint.get("changed_paths") or []
             for task, checkpoint in checkpoints.items()
         }
-        for entry in self.state.running.values():
+        for entry in self._running_values_snapshot():
             if entry.issue.project_id == project_id:
                 live_paths = self._coordination_changed_paths(entry.identifier)
                 if live_paths:
@@ -26667,7 +26726,7 @@ class Orchestrator:
             entry = next(
                 (
                     current
-                    for current in self.state.running.values()
+                    for current in self._running_values_snapshot()
                     if current.identifier == identifier
                     and current.issue.project_id == project_id
                 ),
@@ -28506,7 +28565,7 @@ class Orchestrator:
             name=f"worker-{issue.identifier}",
         )
 
-        self.state.running[issue.id] = RunningEntry(
+        self._register_running_entry(issue.id, RunningEntry(
             worker_task=worker_task,
             identifier=issue.identifier,
             issue=running_issue,
@@ -28533,7 +28592,7 @@ class Orchestrator:
             assignment_id=assignment_id,
             run_id=run_id,
             authority_generation=authority_generation,
-        )
+        ))
 
         # Post dispatch comment in thread to avoid blocking event loop
         if auditor_plan is not None:
@@ -30919,7 +30978,7 @@ class Orchestrator:
 
     def _handle_agent_event(self, issue_id: str, event: AgentEvent) -> None:
         """Update running entry with agent event data."""
-        entry = self.state.running.get(issue_id)
+        entry = self._current_running_entry(issue_id)
         if not entry or not entry.session:
             return
 
@@ -31644,7 +31703,7 @@ class Orchestrator:
             )
         
         # Clean up the running entry
-        self.state.running.pop(issue_id, None)
+        self._remove_running_entry(issue_id, entry)
         self.state.claimed.discard(issue_id)
         self.state.claimed_issues.pop(issue_id, None)
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
@@ -32346,7 +32405,7 @@ class Orchestrator:
                 issue_id,
             )
             return
-        entry = self.state.running.get(issue_id)
+        entry = self._current_running_entry(issue_id)
         if not entry:
             return
         if not self._is_current_run(issue_id, run_id):
@@ -32391,11 +32450,12 @@ class Orchestrator:
                 ),
             )
             if survivors:
-                entry.managed_processes = {
-                    pid: captured_processes[pid]
-                    for pid in survivors
-                    if pid in captured_processes
-                }
+                with self._retry_authority_lock:
+                    entry.managed_processes = {
+                        pid: captured_processes[pid]
+                        for pid in survivors
+                        if pid in captured_processes
+                    }
                 entry.retirement_pending = True
                 logger.error(
                     "Worker exited with managed subprocesses still alive; "
@@ -32411,11 +32471,12 @@ class Orchestrator:
                     task_name_prefix="retry-process-retirement",
                 )
                 return
-        entry.managed_processes.clear()
+        with self._retry_authority_lock:
+            entry.managed_processes.clear()
         entry.retirement_pending = False
 
         # Do not remove a replacement runtime installed while cleanup yielded.
-        if self.state.running.get(issue_id) is not entry:
+        if self._current_running_entry(issue_id) is not entry:
             return
 
         # Fence accepted submissions against post-handoff worktree mutation
@@ -32437,7 +32498,7 @@ class Orchestrator:
             # Accepted submission/lifecycle state owns this task.  Quarantine
             # its worker only after every captured provider identity is gone;
             # otherwise the dashboard would hide a process that can still edit.
-            self.state.running.pop(issue_id, None)
+            self._remove_running_entry(issue_id, entry)
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
             revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
@@ -32470,7 +32531,7 @@ class Orchestrator:
             )
             self._notify_observers()
             return
-        self.state.running.pop(issue_id, None)
+        self._remove_running_entry(issue_id, entry)
         # The task-handoff registry contains only actionable failures of the
         # assigned task. Verified read-only peer denials are deliberately kept
         # out of it, so they cannot overwrite a successful own-task submit at
@@ -32572,7 +32633,7 @@ class Orchestrator:
                     project_id=project_id,
                 )
             self._audit_metrics["in_progress_count"] = sum(
-                1 for item in self.state.running.values() if item.is_auditor
+            1 for item in self._running_values_snapshot() if item.is_auditor
             )
             self.event_bus.emit(
                 EventType.AGENT_COMPLETED if reason == "normal" else EventType.AGENT_FAILED,
@@ -34093,7 +34154,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # asynchronous termination path will stop its provider/process
             # tree without allowing the worker-exit handler to schedule a new
             # retry or roll the accepted tracker state back.
-            running_items = list(self.state.running.items())
+            running_items = self._running_items_snapshot()
             for running_id, running_entry in running_items:
                 running_issue = getattr(running_entry, "issue", None)
                 if issue_id and running_id != issue_id and getattr(
@@ -34587,7 +34648,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Reconcile running issues: stall detection + tracker state refresh."""
         await self._reconcile_retry_authority()
         # Part A: Stall detection
-        for issue_id, entry in list(self.state.running.items()):
+        for issue_id, entry in self._running_items_snapshot():
             if entry.authority_revoked or entry.retirement_pending:
                 logger.info(
                     "Reconciling retiring worker issue_id=%s identifier=%s "
@@ -34655,13 +34716,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
 
         # Part B: Tracker state refresh
-        running_ids = list(self.state.running.keys())
+        running_ids = list(self._running_keys_snapshot())
         if not running_ids:
             return
 
         # Group running issues by project for targeted tracker queries
         by_project: dict[str | None, list[str]] = {}
-        for issue_id, entry in self.state.running.items():
+        for issue_id, entry in self._running_items_snapshot():
             pid = entry.issue.project_id if entry.issue else None
             by_project.setdefault(pid, []).append(issue_id)
 
@@ -34981,7 +35042,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         def _same_project(candidate_project_id: str | None) -> bool:
             return not project_id or not candidate_project_id or candidate_project_id == project_id
 
-        for running_id, entry in self.state.running.items():
+        for running_id, entry in self._running_items_snapshot():
             entry_issue = getattr(entry, "issue", None)
             entry_keys = {
                 str(value)
@@ -35028,7 +35089,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         cannot become reparented, survive, and keep editing after the runtime
         entry has disappeared.
         """
-        entry = self.state.running.get(issue_id)
+        entry = self._current_running_entry(issue_id)
         if not entry:
             self._terminating_worker_ids.discard(issue_id)
             return True
@@ -35138,11 +35199,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     ),
                 )
             if survivors:
-                entry.managed_processes = {
-                    pid: captured_processes[pid]
-                    for pid in survivors
-                    if pid in captured_processes
-                }
+                with self._retry_authority_lock:
+                    entry.managed_processes = {
+                        pid: captured_processes[pid]
+                        for pid in survivors
+                        if pid in captured_processes
+                    }
                 entry.retirement_pending = True
                 logger.error(
                     "Refusing to forget worker while managed processes survive "
@@ -35153,8 +35215,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 self._notify_observers()
                 return False
-            entry.managed_processes.clear()
-            entry.retirement_pending = False
+            with self._retry_authority_lock:
+                entry.managed_processes.clear()
+                entry.retirement_pending = False
 
             # A retry may reuse the exact task worktree. Snapshot its dirty
             # state after all worker processes are stopped but before the
@@ -35176,7 +35239,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 # process cleanup was yielding.  It owns the worktree now;
                 # the old termination path must not snapshot or later remove
                 # its unsnapshotted changes.
-                if self.state.running.get(issue_id) is not entry:
+                if self._current_running_entry(issue_id) is not entry:
                     logger.info(
                         "Skipping stale recovery snapshot issue_id=%s "
                         "old_run_id=%s newer_generation_owns_workspace=true",
@@ -35204,7 +35267,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 ),
                             ),
                         )
-                        if self.state.running.get(issue_id) is not entry:
+                        if self._current_running_entry(issue_id) is not entry:
                             logger.info(
                                 "Recovery snapshot completed after replacement "
                                 "generation appeared; skipping cleanup issue_id=%s "
@@ -35214,8 +35277,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             )
                             return True
                 except Exception as exc:  # noqa: BLE001 - fail closed for retries
-                    if self.state.running.get(issue_id) is entry:
-                        self.state.running.pop(issue_id, None)
+                    if self._current_running_entry(issue_id) is entry:
+                        self._remove_running_entry(issue_id, entry)
                     self._hold_after_worktree_recovery_failure(
                         entry,
                         issue_id,
@@ -35248,9 +35311,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
             # Keep the runtime visible until worker/session termination has been
             # attempted, and do not remove a replacement entry with the same ID.
-            if self.state.running.get(issue_id) is not entry:
+            if self._current_running_entry(issue_id) is not entry:
                 return True
-            self.state.running.pop(issue_id, None)
+            self._remove_running_entry(issue_id, entry)
 
             # Add runtime to totals
             elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
@@ -35415,7 +35478,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
         live_audit_keys: set[tuple[str, str, str]] = set()
-        for entry in self.state.running.values():
+        for entry in self._running_values_snapshot():
             if not hasattr(entry, "is_auditor"):
                 continue
             if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
@@ -35447,7 +35510,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         running_rows = []
         live_seconds = 0.0
-        for issue_id, entry in self.state.running.items():
+        for issue_id, entry in self._running_items_snapshot():
             elapsed = (now - entry.started_at).total_seconds()
             live_seconds += elapsed
             row: dict[str, Any] = {
@@ -35870,7 +35933,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def get_issue_detail(self, issue_identifier: str) -> dict[str, Any] | None:
         """Return detailed state for a specific issue."""
         # Search running
-        for issue_id, entry in self.state.running.items():
+        for issue_id, entry in self._running_items_snapshot():
             if entry.identifier == issue_identifier:
                 snapshot_entry = None
                 if entry.session:
