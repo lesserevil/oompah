@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:10:05.615570Z'
+updated_at: '2026-08-03T14:13:54.375225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-08-03 14:10
 ---
 Understanding: the owner override is treating audit-attempt rotation and tracker metadata-only refreshes as evidence changes. I will trace fingerprint construction, active-audit selection, and ownership-lock ordering; add race/stale-snapshot regressions; preserve 409s for canonical evidence changes; then run focused tests and the project gate.
+---
+author: oompah
+created: 2026-08-03 14:13
+---
+Discovery: candidate rotation is durable attempt metadata on one audit record under the project write lock; its fingerprint is already the record-level canonical evidence digest. The false 409 comes from trusting a pre-lock API/coordinator Issue snapshot. I will refresh the tracker Issue and recompute compute_issue_evidence_fingerprint inside the locked override operation, while preserving the supplied snapshot as a compatibility fallback when a tracker lacks detail reads.
 ---
 <!-- COMMENTS:END -->
