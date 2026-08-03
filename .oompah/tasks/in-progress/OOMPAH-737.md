@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:47:41.088619Z'
+updated_at: '2026-08-03T20:49:29.990508Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-03 20:47
 ---
 Verification: focused lifecycle, cutover, and config suites pass (194 tests); affected event/server suites passed earlier (499 tests, 1 expected xfail); Granian e2e rerun passes 4/4. Terminal mutation scan passes 8/8 allowlisted and py_compile/git diff checks pass. The full parallel test phase reached 15,188 passed with one transient Granian restart failure that passed in isolation; Makefile setup/test prerequisites remain blocked by the environment uv transient-scope DBus error.
+---
+author: oompah
+created: 2026-08-03 20:49
+---
+Implementation: lifecycle repair now uses a persisted per-row queue with pre-mutation conflict intent, bounded background batches, restart-safe metadata completion, retry/degraded diagnostics, and serialized audit initialization. Orchestrator startup/full-sync paths defer the repair and publish progress through cached state; healthz remains identity-only. Cutover commits a proven candidate before treating resume transport failure as non-fatal.
 ---
 <!-- COMMENTS:END -->
