@@ -6,6 +6,7 @@ Tests that find_similar_issues() is wired into the orchestrator dispatch flow:
 - _should_dispatch rejects duplicate-candidate labelled issues
 """
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -98,6 +99,8 @@ class TestShouldDispatchRejectsDuplicateCandidate:
         orch.state.retry_attempts = {}
         orch.state.completed = set()
         orch.state.reject_streak = {}
+        orch.state.owner_claims = {}
+        orch._owner_claims_lock = threading.RLock()
 
         orch._is_project_paused = lambda pid: False
         orch._is_rate_limited = lambda: False
@@ -533,6 +536,8 @@ class TestProposedDispatchFiltering:
         orch.state.retry_attempts = {}
         orch.state.completed = set()
         orch.state.reject_streak = {}
+        orch.state.owner_claims = {}
+        orch._owner_claims_lock = threading.RLock()
 
         orch._is_project_paused = lambda pid: False
         orch._issue_has_children = lambda issue: False
