@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:10:21.469948Z'
+updated_at: '2026-08-03T14:15:38.413498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -209,5 +209,10 @@ author: oompah
 created: 2026-08-03 14:10
 ---
 Discovery: OOMPAH-710 already bounds read_file/search_files at the shared api_agent helper, but _exec_run_command still returns unbounded stdout/stderr. Claude, Codex, and OpenCode ACP catalogs all call that helper; auditor catalogs currently expose only read_file/list_files/search_files/run_command/submit_audit_result. I will add a per-session opaque command-output store plus read_command_output paging/search, wire it through all ACP bridges and API tool execution, and update the trusted auditor prompt so continuations never mention filesystem/provider paths.
+---
+author: oompah
+created: 2026-08-03 14:15
+---
+Implementation: added CommandOutputStore with bounded 32K pages and opaque session-local result IDs; oversized run_command output now stops before provider transport and offers read_command_output paging/regex search. Wired the operation through Claude/Codex/OpenCode ACP auditor catalogs and API auditor sessions, enforced auditor_policy on API dispatch, and updated the trusted auditor prompt. Added >1 MB make-test coverage proving page/search and submit_audit_result stay path-free.
 ---
 <!-- COMMENTS:END -->
