@@ -199,6 +199,23 @@ def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor
     assert received[0].audit_id == target.audit_id
 
 
+def test_git_merge_base_inspection_does_not_consume_policy_budget():
+    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    denials: list[str] = []
+
+    result = _execute_tool(
+        Path(".").resolve(),
+        "run_command",
+        {"command": "git merge-base --is-ancestor HEAD HEAD"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    assert not result.startswith("Error:")
+    assert "exit_code: 0" in result
+    assert denials == []
+
+
 def test_auditor_file_reads_are_bounded(tmp_path: Path):
     target = tmp_path / "large.txt"
     target.write_text("0123456789" * 10, encoding="utf-8")
