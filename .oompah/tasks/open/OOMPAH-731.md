@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:50:09.003169Z'
+updated_at: '2026-08-03T17:51:16.656499Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,78 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 721a65e211683c1283e69f2cb0f9320f456417f3ce7ea311ecedfd6e7ac233bc
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T17:51:11.546626+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: bea169fc-d1a0-4df6-9802-0726104316ea
-  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
-  claimed_at: '2026-08-03T17:49:52.759668+00:00'
-  claim_expires_at: '2026-08-03T18:19:52.759668+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed all 175 peer tasks in the supplied corpus. OOMPAH-731\
+    \ describes a specific maintenance task submission failure in epic rebase workflows\
+    \ (self-invalidating after successful force-with-lease publish). The closest related\
+    \ archived tasks (OOMPAH-162 through OOMPAH-175) address epic workflow orchestration,\
+    \ strategy consolidation, and release infrastructure, but none cover the maintenance\
+    \ completion path or worktree-head validation issue described in OOMPAH-731. No\
+    \ active duplicate exists in the current task tracker.\n# Duplicate Investigator\
+    \ Analysis: OOMPAH-731\n\nI have reviewed the supplied project task corpus against\
+    \ the current task OOMPAH-731 (\"Complete direct epic rebases without self-invalidating\
+    \ submission\").\n\n**Corpus Review Summary:**\n\nThe current task corpus contains\
+    \ OOMPAH-731 (Open) and 175 other tasks, of which all peer tasks (OOMPAH-1 through\
+    \ OOMPAH-175) are in terminal states (Archived, Done, or Merged). Per the duplicate\
+    \ screening requirements, terminal-state tasks are excluded from duplication analysis\
+    \ as historical context rather than active duplicate targets.\n\n**Scope Match\
+    \ Analysis:**\n\nOOMPAH-731 addresses a specific failure mode in the epic rebase\
+    \ maintenance workflow:\n- Direct epic maintenance tasks (like EXOCOMP-244) successfully\
+    \ rebase and publish epics via force-with-lease\n- Task submission then enters\
+    \ ordinary child integration, where the worktree-head validator rejects the submission\n\
+    - The validator compares the pre-rebase preserved epic checkout against the newly\
+    \ published epic ref and fails\n\nThe closest archived tasks touching related\
+    \ systems:\n- **OOMPAH-162-165**: Epic workflow fixes (stacked children, epic\
+    \ landing detection, shared strategy consolidation) \u2014 all Archived\n- **OOMPAH-160**:\
+    \ Atomic task writes and corrupt-file handling \u2014 Archived  \n- **OOMPAH-166-175**:\
+    \ Epic strategy removal and release addendum infrastructure \u2014 all Archived\n\
+    \nNone of these archived tasks describe the self-invalidating submission problem\
+    \ for direct epic maintenance tasks, and the corpus contains no active (Open/In\
+    \ Progress) duplicate.\n\n---\n\nFocus handoff: duplicate_detector\n\nDuplicate\
+    \ preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: Reviewed all 175\
+    \ peer tasks in the supplied corpus. OOMPAH-731 describes a specific maintenance\
+    \ task submission failure in epic rebase workflows (self-invalidating after successful\
+    \ force-with-lease publish). The closest related archived tasks (OOMPAH-162 through\
+    \ OOMPAH-175) address epic workflow orchestration, strategy consolidation"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 7d79dbe3-3a3d-4f4e-98ec-4d291c90df6f
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1382
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1382
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1382
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T17:51:11.544863+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-731__20260803T175013Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-731
+    source_sha: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
+    completed_at: '2026-08-03T17:51:11.556260+00:00'
 ---
 ## Summary
 
@@ -63,5 +121,15 @@ author: oompah
 created: 2026-08-03 17:50
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 17:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.4K out [1.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 8s
+- Log: OOMPAH-731__20260803T175013Z.jsonl
 ---
 <!-- COMMENTS:END -->
