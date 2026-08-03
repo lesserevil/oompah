@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:49:45.369844Z'
+updated_at: '2026-08-03T18:50:06.513254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,23 @@ Discovery: Three root causes identified from live log evidence.
 3. **Reconciler scheduling position** (secondary): Standalone reconciliation launched only after the epic integration coroutine, so maintenance lane or dispatch starvation could defer the bounded Ready sweep interval.
 
 Relevant files: `oompah/orchestrator.py` (methods `_standalone_delivery_evidence_revision`, `_tick`, `_process_integration_queues`); tests in `tests/test_standalone_ready_to_integrate.py` and `tests/test_orchestrator_handlers.py`.
+---
+author: oompah
+created: 2026-08-03 18:50
+---
+Implementation: Three coordinated fixes in oompah/orchestrator.py.
+
+**Fix 1 — Evidence revision stability (root cause fix)**:
+Removed `updated_at` from `_standalone_delivery_evidence_revision()`. The remaining fields (work_branch, branch_name, target_branch, review_number, review_url, integration.head_sha) are the delivery-relevant submission and review evidence; a lifecycle or exact-head change still fences the claim correctly. This prevents benign tracker comments/bookkeeping from revoking a live delivery authority.
+
+**Fix 2 — Bidirectional scheduling decoupling**:
+Added `_standalone_delivery_future` (separate from `_integration_future`) so that a long standalone exact-head quality gate cannot block shared-epic queue recovery/claim, and vice versa. Removed the sequential `await run_in_executor(_reconcile_standalone_ready_to_integrate_tasks)` from `_process_integration_queues`.
+
+**Fix 3 — Reconciler priority in tick**:
+Moved standalone delivery `run_in_executor` arm to the very start of `_tick()`, before dispatch, maintenance, and watchdog lanes. The future itself coalesces duplicate ticks while one sweep is active.
+
+**New tests**:
+- `test_standalone_gate_does_not_hold_shared_queue_driver`: proves concurrent future separation—standalone reconciler and shared-epic queue driver launch and run independently in the same tick.
+- `test_benign_tracker_timestamp_change_keeps_exact_head_authority`: concurrent tracker timestamp advances (comments, refreshes) on a live exact-head delivery cannot revoke the current authority generation.
 ---
 <!-- COMMENTS:END -->
