@@ -10500,9 +10500,56 @@ async def _publish_owner_claim_state(orch) -> None:
     await _run_api_io(orch._notify_state_only)
 
 
+async def _retire_scheduler_for_owner_claim(orch, issue, project_id: str) -> tuple[bool, str]:
+    """Withdraw scheduler authority and visibly retire its exact runtime.
+
+    The ``human-only`` label is persisted by the caller before this helper is
+    entered.  It blocks fresh candidates while an already-selected dispatch
+    either registers its runtime or releases its transient claim.
+    """
+
+    orch._cancel_retry_for_issue(
+        issue_id=issue.id,
+        identifier=issue.identifier,
+        project_id=project_id,
+        reason="direct owner claimed task",
+        notify=True,
+        schedule_termination=False,
+    )
+
+    loop = asyncio.get_running_loop()
+    timeout_s = max(orch.config.worker_termination_timeout_ms / 1000, 0.25)
+    deadline = loop.time() + timeout_s
+    while (
+        issue.id in orch.state.claimed
+        and issue.id not in orch.state.running
+        and loop.time() < deadline
+    ):
+        # A dispatch may have passed candidate selection before the label was
+        # persisted.  Keep its claim visible and wait for it to reach the
+        # bounded runtime termination path rather than granting two owners.
+        await asyncio.sleep(0.01)
+
+    if issue.id in orch.state.running:
+        terminated = await orch._terminate_running(
+            issue.id,
+            cleanup_workspace=False,
+        )
+        if not terminated:
+            return False, "the scheduler runtime still has live provider processes"
+
+    if (
+        issue.id in orch.state.running
+        or issue.id in orch.state.claimed
+        or issue.id in orch.state.retry_attempts
+    ):
+        return False, "the scheduler authority transition is still in progress"
+    return True, ""
+
+
 @app.post("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
 async def api_grant_owner_claim(project_id: str, identifier: str, request: Request):
-    """Atomically mark a task as direct owner work and grant its lease."""
+    """Atomically take scheduler work over as a direct owner lease."""
 
     orch = _get_orchestrator()
     body, error = await _owner_claim_request_body(request)
@@ -10556,18 +10603,72 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 status_code=400,
             )
 
-    # The project lock is shared with orphan recovery.  Grant the durable
-    # claim before moving state, then make the tracker transition while still
-    # locked, so either side of a watchdog/API race leaves a coherent result.
+    # Persist a dispatch fence before retiring scheduler authority.  A stale
+    # candidate may already have passed selection, so the orchestrator's final
+    # dispatch boundary also checks the durable owner lease granted below.
     try:
         with orch.project_store.project_write_lock(project_id):
+            labels = {str(label).strip().lower() for label in issue.labels or []}
+            if "human-only" not in labels:
+                tracker.add_label(issue.identifier, "human-only")
+                issue.labels = [*(issue.labels or []), "human-only"]
+    except Exception as exc:
+        logger.warning("Owner takeover fence failed for %s/%s: %s", project_id, identifier, exc)
+        return JSONResponse(
+            {"error": {"code": "owner_claim_failed", "message": str(exc)}},
+            status_code=503,
+        )
+
+    retired, retirement_error = await _retire_scheduler_for_owner_claim(
+        orch,
+        issue,
+        project_id,
+    )
+    if not retired:
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
+        await _publish_owner_claim_state(orch)
+        await broadcast_issues()
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "owner_takeover_pending",
+                    "message": retirement_error,
+                }
+            },
+            status_code=409,
+        )
+
+    # The project lock is shared with orphan recovery. Grant the durable claim
+    # and move state while still locked, so no Open/dispatchable window exists.
+    try:
+        with orch.project_store.project_write_lock(project_id):
+            try:
+                tracker.invalidate_read_cache()
+            except Exception:
+                pass
+            current = tracker.fetch_issue_detail(issue.identifier)
+            if current is None or is_terminal_status(current.state) or canonicalize_status(
+                current.state
+            ) == IN_VALIDATION:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "invalid_state",
+                            "message": (
+                                "Task became terminal or In Validation during owner takeover."
+                            ),
+                        }
+                    },
+                    status_code=409,
+                )
             claim = orch.grant_owner_claim(
                 issue_id=issue.id,
                 project_id=project_id,
                 owner_login=owner_login,
                 ttl_hours=ttl_hours,
             )
-            if canonicalize_status(issue.state) != IN_PROGRESS:
+            if canonicalize_status(current.state) != IN_PROGRESS:
                 try:
                     tracker.update_issue(issue.identifier, status=IN_PROGRESS)
                 except Exception:
