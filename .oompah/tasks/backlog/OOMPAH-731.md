@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:45:33.391967Z'
+updated_at: '2026-08-03T17:46:35.420449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live reproduction: EXOCOMP-244 is an auto-filed direct rebase task for epic-EXOC
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 17:46
+---
+Live workaround applied safely: verified EXOCOMP-244 had no running agent; preserved old clean epic-EXOCOMP-135 head 333c3b81 under local recovery/epic-EXOCOMP-135-pre-rebase-333c3b81; detached and repointed the local epic branch to already-published 98e26f09 without reset or deletion; verified both authoritative epic and assigned task worktrees clean at 98e26f09; resubmitted from the required derived task checkout. A submit from the direct epic checkout was rejected because expected_work_branch remains epic-EXOCOMP-135--task-EXOCOMP-244, confirming the branch-model mismatch in scope.
+---
+<!-- COMMENTS:END -->
