@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: Backlog
+status: Decomposed
 priority: 1
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-03T22:56:28.773378Z'
+updated_at: '2026-08-03T22:57:42.680012Z'
 work_branch: null
 target_branch: null
 review_url: null

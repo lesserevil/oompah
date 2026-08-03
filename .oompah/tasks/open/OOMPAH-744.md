@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T22:57:14.311737Z'
+updated_at: '2026-08-03T22:57:35.791983Z'
 work_branch: null
 target_branch: null
 review_url: null

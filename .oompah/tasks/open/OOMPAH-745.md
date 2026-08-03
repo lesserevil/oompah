@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T22:57:22.540734Z'
+updated_at: '2026-08-03T22:57:40.339660Z'
 work_branch: null
 target_branch: null
 review_url: null
