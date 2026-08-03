@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-03T00:21:49.244692Z'
+updated_at: '2026-08-03T00:23:15.948916Z'
 work_branch: OOMPAH-706
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/667
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
     provider-boundary envelope repair.'
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 110782
-  total_output_tokens: 5543
+  total_input_tokens: 110811
+  total_output_tokens: 6096
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -53,8 +53,8 @@ oompah.task_costs:
       output_tokens: 4964
       cost_usd: 0.0
     unknown:
-      input_tokens: 24
-      output_tokens: 579
+      input_tokens: 53
+      output_tokens: 1132
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 579
     cost_usd: 0.0
     recorded_at: '2026-08-03T00:21:31.611607+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 553
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T00:23:11.096634+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-706__20260802T220658Z
@@ -128,7 +134,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-706
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -156,7 +162,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ee91f8360f4c
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -167,13 +173,19 @@ oompah.terminal_audit:
       started_at: '2026-08-03T00:21:43.550964+00:00'
       branch_key: OOMPAH-706
       candidate_rotation_count: 1
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-03T00:23:11.094640+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy denied a mutating or compound shell command; auditors
+        cannot edit, commit, push, merge, or change state'
+      next_retry_at: '2026-08-03T00:23:31.094614+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:19:10.103753+00:00'
-    updated_at: '2026-08-03T00:21:43.550964+00:00'
+    updated_at: '2026-08-03T00:23:11.094640+00:00'
   - version: 1
     audit_id: audit-53320474246e
     project_id: proj-14849f1b
@@ -214,7 +226,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ee91f8360f4c
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -225,6 +237,12 @@ oompah.terminal_audit:
     started_at: '2026-08-03T00:21:43.550964+00:00'
     branch_key: OOMPAH-706
     candidate_rotation_count: 1
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-03T00:23:11.094640+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy denied a mutating or compound shell command; auditors
+      cannot edit, commit, push, merge, or change state'
+    next_retry_at: '2026-08-03T00:23:31.094614+00:00'
 ---
 ## Summary
 
@@ -390,5 +408,20 @@ author: oompah
 created: 2026-08-03 00:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 00:23
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 14
+- Tokens: 29 in / 553 out [582 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 26s
+- Log: OOMPAH-706__20260803T002150Z.jsonl
+---
+author: oompah
+created: 2026-08-03 00:23
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
 ---
 <!-- COMMENTS:END -->
