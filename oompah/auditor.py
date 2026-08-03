@@ -73,6 +73,7 @@ AUDITOR_ALLOWED_TOOLS = frozenset(
         "read_file",
         "list_files",
         "search_files",
+        "read_command_output",
         "run_command",
         AUDITOR_RESULT_TOOL_NAME,
     }

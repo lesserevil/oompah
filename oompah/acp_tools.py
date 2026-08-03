@@ -1057,7 +1057,9 @@ def build_tool_catalog(
         ) from exc
 
     from oompah.api_agent import (
+        CommandOutputStore,
         _exec_read_file,
+        _exec_read_command_output,
         _exec_write_file,
         _exec_edit_file,
         _exec_list_files,
@@ -1084,6 +1086,7 @@ def build_tool_catalog(
 
     workspace = Path(workspace_path)
     current_project_id = project_id
+    command_output_store = CommandOutputStore() if auditor_mode else None
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1152,6 +1155,31 @@ def build_tool_catalog(
         return _wrap_text(_exec_search_files(workspace, args))
 
     @tool(
+        "read_command_output",
+        "Read or search a bounded page of oversized output from a prior "
+        "run_command call. Use the opaque result_id returned by run_command; "
+        "never use a provider path, grep, tail, or a shell pipeline.",
+        {
+            "type": "object",
+            "properties": {
+                "result_id": {"type": "string"},
+                "offset": {"type": "integer", "minimum": 0, "default": 0},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 32_000,
+                    "default": 32_000,
+                },
+                "pattern": {"type": "string"},
+            },
+            "required": ["result_id"],
+            "additionalProperties": False,
+        },
+    )
+    async def read_command_output(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_read_command_output(command_output_store, args))
+
+    @tool(
         "run_command",
         "Run one read-only inspection or configured test command inside the "
         "workspace. Prefer search_files and separate calls over shell "
@@ -1189,6 +1217,7 @@ def build_tool_catalog(
                 args,
                 timeout=run_command_timeout_s,
                 tool_liveness=tool_liveness,
+                output_store=command_output_store,
             )
         )
 
@@ -1315,6 +1344,7 @@ def build_tool_catalog(
             read_file,
             list_files,
             search_files,
+            read_command_output,
             run_command,
             submit_audit_result_tool,
         ]
@@ -1414,7 +1444,9 @@ def build_codex_tool_catalog(
         )
 
     from oompah.api_agent import (
+        CommandOutputStore,
         _exec_read_file,
+        _exec_read_command_output,
         _exec_write_file,
         _exec_edit_file,
         _exec_list_files,
@@ -1439,6 +1471,7 @@ def build_codex_tool_catalog(
 
     workspace = Path(workspace_path)
     current_project_id = project_id
+    command_output_store = CommandOutputStore() if auditor_mode else None
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1497,6 +1530,26 @@ def build_codex_tool_catalog(
         return _exec_search_files(workspace, {"pattern": pattern, "path": path})
 
     @function_tool
+    def read_command_output(
+        result_id: str,
+        offset: int = 0,
+        limit: int = 32_000,
+        pattern: str = "",
+    ) -> str:
+        """Read or search a bounded page of oversized output from a prior
+        ``run_command`` call. Use its opaque ``result_id`` only; never use a
+        provider path, grep, tail, or a shell pipeline."""
+        return _exec_read_command_output(
+            command_output_store,
+            {
+                "result_id": result_id,
+                "offset": offset,
+                "limit": limit,
+                "pattern": pattern,
+            },
+        )
+
+    @function_tool
     async def run_command(command: str) -> str:
         """Run a shell command inside the workspace. Stays inside the
         workspace — ``cd`` to absolute paths outside is refused.
@@ -1526,6 +1579,7 @@ def build_codex_tool_catalog(
             {"command": command},
             timeout=run_command_timeout_s,
             tool_liveness=tool_liveness,
+            output_store=command_output_store,
         )
 
     @function_tool
@@ -1629,7 +1683,14 @@ def build_codex_tool_catalog(
         )
 
     if auditor_mode:
-        return [read_file, list_files, search_files, run_command, submit_audit_result]
+        return [
+            read_file,
+            list_files,
+            search_files,
+            read_command_output,
+            run_command,
+            submit_audit_result,
+        ]
 
     readable = [
         read_file,
@@ -1717,7 +1778,9 @@ def build_opencode_tool_catalog(
         )
 
     from oompah.api_agent import (
+        CommandOutputStore,
         _exec_read_file,
+        _exec_read_command_output,
         _exec_write_file,
         _exec_edit_file,
         _exec_list_files,
@@ -1743,6 +1806,7 @@ def build_opencode_tool_catalog(
         )
 
     workspace = Path(workspace_path)
+    command_output_store = CommandOutputStore() if auditor_mode else None
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1811,6 +1875,31 @@ def build_opencode_tool_catalog(
         return _wrap_text(_exec_search_files(workspace, args))
 
     @tool(
+        "read_command_output",
+        "Read or search a bounded page of oversized output from a prior "
+        "run_command call. Use the opaque result_id returned by run_command; "
+        "never use a provider path, grep, tail, or a shell pipeline.",
+        {
+            "type": "object",
+            "properties": {
+                "result_id": {"type": "string"},
+                "offset": {"type": "integer", "minimum": 0, "default": 0},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 32_000,
+                    "default": 32_000,
+                },
+                "pattern": {"type": "string"},
+            },
+            "required": ["result_id"],
+            "additionalProperties": False,
+        },
+    )
+    async def read_command_output(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_read_command_output(command_output_store, args))
+
+    @tool(
         "run_command",
         "Run one read-only inspection or configured test command inside the "
         "workspace. Prefer search_files and separate calls over shell "
@@ -1848,6 +1937,7 @@ def build_opencode_tool_catalog(
                 args,
                 timeout=run_command_timeout_s,
                 tool_liveness=tool_liveness,
+                output_store=command_output_store,
             )
         )
 
@@ -1971,6 +2061,7 @@ def build_opencode_tool_catalog(
             read_file,
             list_files,
             search_files,
+            read_command_output,
             run_command,
             submit_audit_result_tool,
         ]

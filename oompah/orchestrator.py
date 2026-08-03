@@ -27839,7 +27839,14 @@ class Orchestrator:
                 task_tracker=task_tracker,
                 project_id=issue.project_id or None,
                 task_identifier=issue.identifier,
-                action_policy=action_policy,
+                action_policy=(
+                    auditor_policy(
+                        task_identifier=issue.identifier,
+                        project_id=issue.project_id,
+                    )
+                    if focus.name.lower() == AUDITOR_FOCUS_NAME
+                    else action_policy
+                ),
                 tool_liveness=api_tool_liveness,
                 policy_denial_handler=api_policy_denial_handler,
             )

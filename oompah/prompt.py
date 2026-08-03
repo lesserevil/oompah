@@ -470,6 +470,9 @@ def render_auditor_prompt(
             allowed_actions,
             "- Prefer search_files for repository searches and bounded read_file calls "
             "for focused file inspection.",
+            "- If run_command returns a bounded result_id, use read_command_output "
+            "with that opaque id to page or search the saved result. Never use grep, "
+            "tail, pipes, or an absolute/provider-private path to continue output.",
             "- run_command is restricted server-side to read-only inspection and "
             "test commands, one command at a time. Shell pipelines and separators may "
             "return a recoverable validation response; split the commands and continue.",
