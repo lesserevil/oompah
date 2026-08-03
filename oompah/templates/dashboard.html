@@ -3574,6 +3574,13 @@ function handleStateUpdate(state) {
     if (!a.source) return true;
     if (a.source.indexOf('cred_error:') === 0) return false;
     if (a.source.indexOf('auth_health:') === 0) return false;
+    // OOMPAH-735: a normal automatic recovery (fresh repair worker,
+    // scheduled bounded retry) is task-local progress, not a global
+    // operator warning.  The orchestrator marks such alerts with
+    // action_required=false; the actionable warning is restored by the
+    // reconciler if recovery stops progressing.  Missing/undefined field
+    // is treated as actionable to preserve legacy alert semantics.
+    if (a.action_required === false) return false;
     return true;
   });
   if (otherAlerts.length > 0) {

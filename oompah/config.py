@@ -611,6 +611,12 @@ class ServiceConfig:
     integration_retry_max_attempts: int = 5
     integration_retry_backoff_seconds: int = 5
     integration_retry_max_backoff_seconds: int = 300
+    # Freshness window for reconciling integration_retry alerts against live
+    # recovery.  While a repair agent is running with a fresh event or a
+    # scheduled retry is pending within this window the global alert is
+    # downgraded to informational activity; if the window expires without
+    # progress the actionable warning is restored.  See OOMPAH-735.
+    integration_recovery_freshness_seconds: int = 300
     # Policy-authorized, fail-closed execution of exact container-cycle
     # repairs. Operators can disable the policy without changing workflow
     # structure while retaining diagnosis and fencing.
@@ -817,6 +823,9 @@ class ServiceConfig:
         )
         self.integration_retry_backoff_seconds = max(
             int(self.integration_retry_backoff_seconds), 1
+        )
+        self.integration_recovery_freshness_seconds = max(
+            int(self.integration_recovery_freshness_seconds), 30
         )
         self.integration_retry_max_backoff_seconds = max(
             int(self.integration_retry_max_backoff_seconds),
@@ -1205,6 +1214,9 @@ class ServiceConfig:
             ),
             integration_retry_max_backoff_seconds=_env_int(
                 "OOMPAH_INTEGRATION_RETRY_MAX_BACKOFF_SECONDS", None, 300
+            ),
+            integration_recovery_freshness_seconds=_env_int(
+                "OOMPAH_INTEGRATION_RECOVERY_FRESHNESS_SECONDS", None, 300
             ),
             container_cycle_repair_enabled=_env_bool(
                 "OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", None, True

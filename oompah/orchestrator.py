@@ -7156,10 +7156,255 @@ class Orchestrator:
             alert for alert in self._alerts if alert.get("source") != source
         ]
 
-        retry_source = f"integration_retry:{project_id}:{task_id}"
+        self._clear_integration_retry_alert(project_id, task_id)
+
+    def _clear_integration_retry_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the integration_retry alert once recovery has resolved.
+
+        Called after a successful integration so both actionable warnings
+        and informational activity are removed from the operator alert
+        area.  See OOMPAH-735.
+        """
+
+        source = f"integration_retry:{project_id}:{task_id}"
         self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != retry_source
+            alert for alert in self._alerts if alert.get("source") != source
         ]
+
+    @staticmethod
+    def _classify_integration_retry_recovery(
+        alert: Mapping[str, Any],
+        *,
+        running_focus: str | None,
+        running_last_event_at: float | None,
+        running_authority_revoked: bool,
+        queue_item: IntegrationQueueItem | None,
+        integration_state: str | None,
+        integration_updated_at: float | None,
+        now: float,
+        freshness_seconds: float,
+    ) -> tuple[str, bool, str]:
+        """Compute (recovery_state, action_required, level) for one alert.
+
+        Pure, side-effect free helper so severity/actionability transitions
+        can be exercised deterministically from tests without a live
+        orchestrator.  Callers pass only the observable facts extracted from
+        live state — no message-text heuristics are used.
+        """
+
+        # Successful integration wins over any prior recovery classification.
+        if integration_state == "integrated":
+            return "resolved", False, "info"
+
+        max_attempts = int(alert.get("max_attempts") or 0) or None
+        attempts = int(alert.get("attempts") or 0)
+        recorded_at = alert.get("recorded_at")
+        try:
+            if isinstance(recorded_at, (int, float)):
+                recorded_ts = float(recorded_at)
+            elif isinstance(recorded_at, str) and recorded_at:
+                recorded_ts = datetime.fromisoformat(recorded_at).timestamp()
+            else:
+                recorded_ts = None
+        except ValueError:
+            recorded_ts = None
+
+        # Authority revocation is definitive: the assigned worker is no
+        # longer allowed to make progress, so recovery has stopped.
+        if running_authority_revoked:
+            return "authority_revoked", True, "warning"
+
+        # Retry budget exhaustion — task will not auto-recover.
+        if (
+            max_attempts is not None
+            and attempts >= max_attempts
+            and (queue_item is None or queue_item.state != "ready")
+        ):
+            return "retry_exhausted", True, "warning"
+
+        recovery_focus_names = {
+            "merge_conflict",
+            "feature",
+            "test",
+            "refactor",
+            "chore",
+            "docs",
+            "frontend",
+            "devops",
+            "security",
+        }
+
+        # A running worker matched to a repair focus is fresh recovery
+        # activity.  Freshness is bounded by the last observed event so a
+        # silent worker cannot suppress the alert forever.
+        if running_focus is not None:
+            focus_key = str(running_focus or "").strip().lower()
+            focus_authorised = focus_key in recovery_focus_names or bool(focus_key)
+            if focus_authorised:
+                if running_last_event_at is None:
+                    # No live session/event yet.  Treat as awaiting_repair
+                    # until the worker produces its first event; use the
+                    # alert's recorded_at as the freshness anchor.
+                    if (
+                        recorded_ts is not None
+                        and (now - recorded_ts) > freshness_seconds
+                    ):
+                        return "stale_repair", True, "warning"
+                    return "awaiting_repair", False, "info"
+                if (now - running_last_event_at) <= freshness_seconds:
+                    return "active_repair", False, "info"
+                return "stale_repair", True, "warning"
+
+        # No running worker — check for a scheduled bounded retry.
+        if queue_item is not None and queue_item.state == "ready":
+            next_retry_at = queue_item.next_retry_at
+            budget_ok = (
+                max_attempts is None
+                or int(queue_item.attempts) < max_attempts
+            )
+            if not budget_ok:
+                return "retry_exhausted", True, "warning"
+            if next_retry_at is None:
+                # Ready queue with no scheduled retry — treat as informational
+                # only while the row is still fresh.
+                anchor = recorded_ts
+                if anchor is not None and (now - anchor) > freshness_seconds:
+                    return "no_recovery", True, "warning"
+                return "scheduled_retry", False, "info"
+            # A scheduled retry sufficiently far in the future is normal
+            # activity; one that overshot its freshness window without
+            # firing is stale and warrants operator attention.
+            due_in = next_retry_at - now
+            if due_in > freshness_seconds:
+                return "scheduled_retry", False, "info"
+            if due_in >= -freshness_seconds:
+                return "scheduled_retry", False, "info"
+            return "stale_retry", True, "warning"
+
+        # Blocked queue row waiting for human handoff — actionable.
+        if queue_item is not None and queue_item.state == "blocked":
+            return "no_recovery", True, "warning"
+
+        # No live recovery signal at all.  Preserve the alert's original
+        # recorded classification if it was already flagged actionable
+        # (e.g. retry_exhausted / unrecoverable set at record time).
+        recorded_state = str(alert.get("recovery_state") or "").strip()
+        if recorded_state in {
+            "unrecoverable",
+            "retry_exhausted",
+            "authority_revoked",
+        }:
+            level = "error" if recorded_state == "unrecoverable" else "warning"
+            return recorded_state, True, level
+        return "no_recovery", True, "warning"
+
+    def _reconcile_integration_retry_alerts(
+        self,
+        *,
+        now: float | None = None,
+    ) -> None:
+        """Reconcile integration_retry alerts against live recovery state.
+
+        Runs before publishing a state snapshot so the dashboard, state API,
+        and websocket subscribers observe severity/actionability transitions
+        without a page refresh.  Diagnostics on the alert (task_id, error,
+        attempts, retry history) are preserved unchanged; only ``level``,
+        ``recovery_state``, ``action_required``, and ``updated_at`` are
+        rewritten.
+        """
+
+        current = time.time() if now is None else float(now)
+        freshness = max(
+            float(
+                getattr(
+                    self.config,
+                    "integration_recovery_freshness_seconds",
+                    300,
+                )
+            ),
+            1.0,
+        )
+
+        # Index integration queue items by (project_id, task_id) once.
+        queue_index: dict[tuple[str, str], IntegrationQueueItem] = {}
+        try:
+            for qi in self.integration_queue.items():
+                queue_index[(qi.project_id, qi.task_id)] = qi
+        except Exception:  # noqa: BLE001 — reconciliation must not crash the tick
+            queue_index = {}
+
+        # Index running workers by identifier and project.  We do not need
+        # the whole RunningEntry — just the fields that describe the live
+        # recovery signal.
+        running_index: dict[tuple[str, str], dict[str, Any]] = {}
+        for entry in self.state.running.values():
+            issue = getattr(entry, "issue", None)
+            project_id = str(getattr(issue, "project_id", "") or "")
+            identifier = str(getattr(issue, "identifier", "") or "")
+            if not identifier:
+                continue
+            last_event_at: float | None = None
+            session = getattr(entry, "session", None)
+            if session is not None and getattr(session, "last_timestamp", None):
+                try:
+                    last_event_at = session.last_timestamp.timestamp()
+                except AttributeError:
+                    last_event_at = None
+            row = {
+                "focus_name": getattr(entry, "focus_name", None),
+                "last_event_at": last_event_at,
+                "authority_revoked": bool(
+                    getattr(entry, "authority_revoked", False)
+                ),
+            }
+            running_index[(project_id, identifier)] = row
+
+        updated_at_iso = datetime.fromtimestamp(
+            current, tz=timezone.utc
+        ).isoformat()
+        for alert in self._alerts:
+            source = str(alert.get("source") or "")
+            if not source.startswith("integration_retry:"):
+                continue
+            project_id = str(alert.get("project_id") or "")
+            task_id = str(alert.get("task_id") or "")
+            if not project_id or not task_id:
+                # Legacy alerts without structured identifiers cannot be
+                # reconciled — leave them untouched so they surface as-is.
+                continue
+            queue_item = queue_index.get((project_id, task_id))
+            running_row = running_index.get((project_id, task_id))
+            integration_state: str | None = None
+            integration_updated_at: float | None = None
+            recovery_state, action_required, level = (
+                self._classify_integration_retry_recovery(
+                    alert,
+                    running_focus=(
+                        running_row.get("focus_name") if running_row else None
+                    ),
+                    running_last_event_at=(
+                        running_row.get("last_event_at") if running_row else None
+                    ),
+                    running_authority_revoked=bool(
+                        running_row.get("authority_revoked")
+                        if running_row
+                        else False
+                    ),
+                    queue_item=queue_item,
+                    integration_state=integration_state,
+                    integration_updated_at=integration_updated_at,
+                    now=current,
+                    freshness_seconds=freshness,
+                )
+            )
+            alert["recovery_state"] = recovery_state
+            alert["action_required"] = bool(action_required)
+            alert["level"] = level
+            alert["updated_at"] = updated_at_iso
 
     def _arm_integrated_audit_recovery_alert(
         self,
@@ -9681,6 +9926,9 @@ class Orchestrator:
             *,
             next_retry_at: float | None,
             repair_action: str,
+            recovery_state: str,
+            action_required: bool,
+            level: str | None = None,
         ) -> None:
             source = f"integration_retry:{item.project_id}:{item.task_id}"
             self._alerts = [
@@ -9691,9 +9939,13 @@ class Orchestrator:
                 if next_retry_at is not None
                 else None
             )
+            recorded_at = datetime.now(timezone.utc).isoformat()
+            resolved_level = level or (
+                "warning" if action_required else "info"
+            )
             self._alerts.append(
                 {
-                    "level": "warning",
+                    "level": resolved_level,
                     "source": source,
                     "message": (
                         f"Integration task {item.task_id} failed at "
@@ -9709,6 +9961,13 @@ class Orchestrator:
                     "repair_action": repair_action,
                     "attempts": item.attempts,
                     "max_attempts": retry_budget,
+                    # Structured recovery classification consumed by
+                    # _reconcile_integration_retry_alerts and the dashboard.
+                    # ``recovery_state`` is deliberately explicit so alert
+                    # actionability is never derived from message text.
+                    "recovery_state": recovery_state,
+                    "action_required": bool(action_required),
+                    "recorded_at": recorded_at,
                 }
             )
 
@@ -9836,6 +10095,47 @@ class Orchestrator:
                 repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
+        # Classify the initial recovery state so the global alert can be
+        # reconciled against live recovery without deriving actionability
+        # from message text.  See OOMPAH-735.
+        #   scheduled_retry — bounded automatic retry is pending
+        #   retry_exhausted — repair attempts exhausted; needs a human
+        #   awaiting_repair — routed to a repair worker (e.g. NEEDS_REBASE)
+        #   no_recovery      — needs user resubmission (no auto path)
+        #   unrecoverable    — integrity/auth/transport/policy failure
+        initial_recovery_state: str
+        initial_action_required: bool
+        initial_level: str | None = None
+        if retryable:
+            initial_recovery_state = "scheduled_retry"
+            initial_action_required = False
+        elif state == "needs_human":
+            initial_recovery_state = "retry_exhausted"
+            initial_action_required = True
+        elif result.status in {"conflict", "generated_helper", "needs_rebase", "ci_failure"}:
+            # A repair worker will be dispatched shortly.  While that worker
+            # is fresh the operator does not need to act; the reconciler
+            # will re-arm the warning if no worker appears in the freshness
+            # window.
+            initial_recovery_state = "awaiting_repair"
+            initial_action_required = False
+        elif result.status in {
+            "task_push_race",
+            "stale_head",
+            "missing_head",
+            "missing_epic",
+            "epic_merge_failure",
+        }:
+            # No automatic path forward — the owner must resubmit a
+            # corrected head.  Actionable but not an infrastructure error.
+            initial_recovery_state = "no_recovery"
+            initial_action_required = True
+        else:
+            # Genuine integrity/transport/policy failures — actionable at
+            # error severity to match existing dashboard treatment.
+            initial_recovery_state = "unrecoverable"
+            initial_action_required = True
+            initial_level = "error"
         _record_failure_diagnostic(
             next_retry_at=retry_at if retryable else None,
             repair_action=(
@@ -9848,6 +10148,9 @@ class Orchestrator:
                     else "repair the reported failure, push a clean head, and submit again"
                 )
             ),
+            recovery_state=initial_recovery_state,
+            action_required=initial_action_required,
+            level=initial_level,
         )
         if retryable:
             if result.rebased_task_sha:
@@ -10491,12 +10794,11 @@ class Orchestrator:
                     result,
                 )
                 continue
-            self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source")
-                != f"integration_retry:{item.project_id}:{item.task_id}"
-            ]
+            # Successful integration clears any lingering integration_retry
+            # activity — both actionable warnings and informational recovery
+            # activity — so the operator alert area does not carry stale
+            # rows past the recovery boundary.  See OOMPAH-735.
+            self._clear_integration_retry_alert(item.project_id, item.task_id)
             issue_aliases: dict[str, Issue] = {}
             for issue in issues:
                 for alias in (issue.id, issue.identifier):
@@ -36204,6 +36506,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Do this after promoting live auditor entries from queued to running;
         # otherwise a long-running audit can briefly emit a queue-age alert.
         self._sync_terminal_audit_observability_alerts()
+        # Reconcile integration_retry alerts against live recovery so
+        # actionability/severity is derived from current facts (running
+        # repair worker, scheduled retry freshness, authority revocation,
+        # retry exhaustion) rather than the state captured when the alert
+        # was first recorded.  See OOMPAH-735.
+        self._reconcile_integration_retry_alerts()
 
         running_rows = []
         live_seconds = 0.0
