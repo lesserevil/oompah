@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:11:15.461731Z'
+updated_at: '2026-08-03T03:23:25.295470Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,7 +65,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5e361a50-38cf-4471-9c2f-d96fc394de45
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1325
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-08-03 03:11
 ---
 Discovery: standalone awk/sed requests were rejected by the fixed auditor allowlist before the existing recoverable-shell-syntax path. The denial-budget, candidate-retirement, and terminal-health plumbing from OOMPAH-713 already distinguishes marked local incompatibility from fatal policy/provider failures.
+---
+author: oompah
+created: 2026-08-03 03:23
+---
+Completion: delivered c98b76098 and pushed branch OOMPAH-716. Strict read-only awk/sed inspection now returns recoverable validation with search_files/read_file guidance, while write-capable commands remain fatal. Focused suites (223 + 378), full make test (15085 passed, 7 skipped, 1 xfailed), terminal mutation scan, and make check-secrets completed successfully.
 ---
 <!-- COMMENTS:END -->
