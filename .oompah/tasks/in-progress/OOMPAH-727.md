@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:19:16.554054Z'
+updated_at: '2026-08-03T16:31:10.665854Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,15 @@ author: oompah
 created: 2026-08-03 16:19
 ---
 Implementation: added a conservative ProjectStore direct-epic auxiliary cleanup path. It recognizes only a registered issue worktree on the exact scheduler-derived epic child branch, rejects shared checkouts, active operations, stable recovery refs, dirty state, ref identity changes, protected refs, and missing durable evidence, and compare-and-deletes only the exact local derived ref after worktree removal. Reachability accepts the default/authoritative epic remote or a same-epic private task remote; no remote ref is deleted. Added integration coverage for EXOCOMP-240 shape, staged/unstaged/untracked changes, recovery, paused rebase, unpublished unique heads, wrong suffix, shared checkout, cross-project/unregistered paths, authoritative/remote preservation, and repeated cleanup.
+---
+author: oompah
+created: 2026-08-03 16:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 62
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 18s
+- Log: OOMPAH-727__20260803T160606Z.jsonl
 ---
 <!-- COMMENTS:END -->
