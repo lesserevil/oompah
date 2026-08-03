@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:46:08.788173Z'
+updated_at: '2026-08-03T18:54:51.029418Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,11 @@ author: oompah
 created: 2026-08-03 18:46
 ---
 Verification: focused epic-strategy, epic-rebase-state, parallel-epic-children, and YOLO suites pass: 328 passed in 107.26s. The new regressions cover transient nested parent lookup, recovery to exactly one parent-target helper, malformed/deleted parent metadata, restart-style deduplication, wrong-target supersession without worktree cleanup, and retryable dashboard alerts.
+---
+author: oompah
+created: 2026-08-03 18:54
+---
+Verification update: after tightening helper dispatch/workspace routing, the full focused suites pass at 329 passed in 100.14s. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733' was retried twice but could not enter its setup phase because astral-uv failed with DBus InvalidArgs (kernel-thread transient-scope error); no project tests ran through Make.
 ---
 <!-- COMMENTS:END -->
