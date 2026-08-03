@@ -161,7 +161,6 @@ from oompah.terminal_audit import (
     RequestState,
     TargetState,
     Verdict,
-    compute_evidence_fingerprint,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
@@ -6730,6 +6729,53 @@ class Orchestrator:
             alert for alert in self._alerts if alert.get("source") != source
         ]
 
+    def _arm_integrated_audit_recovery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        target_state: str,
+        reason: str,
+        integrated_sha: str,
+    ) -> bool:
+        """Surface one owner-rearm instruction for a completed audit failure."""
+
+        source = f"terminal_audit_recovery:{project_id}:{task_id}"
+        message = (
+            f"Integrated task {task_id} at {integrated_sha} has no active terminal "
+            f"audit ({reason}). An authenticated project owner must supply the "
+            f"required evidence and rearm target {target_state} with "
+            "`audit_retry_evidence_addendum`; the task remains fail-closed."
+        )
+        existing = next(
+            (alert for alert in self._alerts if alert.get("source") == source),
+            None,
+        )
+        if existing is not None and existing.get("message") == message:
+            return False
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": message,
+            }
+        )
+        return True
+
+    def _clear_integrated_audit_recovery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the recovery instruction after a fresh audit starts."""
+
+        source = f"terminal_audit_recovery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+
     def _audit_blocked_integration_rows(self, project_id: str, tracker) -> None:
         """Alert when a blocked queue row has no retry or human handoff."""
 
@@ -8958,25 +9004,15 @@ class Orchestrator:
             MERGED,
             ARCHIVED,
         }:
+            self._clear_integrated_audit_recovery_alert(
+                item.project_id,
+                item.task_id,
+            )
             return
         record = getattr(issue, "integration", None)
         if record is None or record.state != "integrated" or not record.integrated_sha:
             return
-        fingerprint = compute_evidence_fingerprint(
-            requirements_text=str(issue.description or ""),
-            project_id=item.project_id,
-            task_id=issue.identifier,
-            source_branch=self.project_store.epic_branch_name(item.epic_id),
-            source_sha=record.integrated_sha,
-            target_branch=self.project_store.epic_branch_name(item.epic_id),
-            target_sha=record.integrated_sha,
-            contributors=(
-                ContributorIdentity(
-                    identity=item.task_branch,
-                    source="git-branch",
-                ),
-            ),
-        )
+        fingerprint = compute_issue_evidence_fingerprint(issue, item.project_id)
         transition = await self.request_terminal_transition(
             current_issue=issue,
             requested_target=TargetState.DONE,
@@ -8988,12 +9024,30 @@ class Orchestrator:
             evidence_fingerprint=fingerprint,
         )
         if not transition.success:
-            logger.warning(
-                "Integrated task %s could not enter terminal audit: %s",
+            alert_added = self._arm_integrated_audit_recovery_alert(
+                item.project_id,
                 item.task_id,
-                transition.reason,
+                DONE,
+                transition.reason or "terminal audit transition failed",
+                record.integrated_sha,
             )
+            if alert_added:
+                logger.warning(
+                    "Integrated task %s could not enter terminal audit: %s",
+                    item.task_id,
+                    transition.reason,
+                )
+            else:
+                logger.debug(
+                    "Integrated task %s still awaits terminal audit recovery: %s",
+                    item.task_id,
+                    transition.reason,
+                )
             return
+        self._clear_integrated_audit_recovery_alert(
+            item.project_id,
+            item.task_id,
+        )
         try:
             await asyncio.get_running_loop().run_in_executor(
                 self._tick_pool,

@@ -751,6 +751,30 @@ class TestCmdSetStatus:
         assert data["actor_login"] == "owner"
         handoff.assert_not_called()
 
+    def test_sends_evidence_addendum_as_json_object(self):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Done",
+            summary=None,
+            project="proj-1",
+            actor="owner",
+            audit_retry=True,
+            audit_retry_reason="Pinned evidence supplied",
+            audit_retry_evidence_addendum=(
+                '{"evidence_fingerprint":"' + "a" * 64 + '",'
+                '"checks":[{"name":"make test","result":"passed"}]}'
+            ),
+        )
+        with _make_http_mock({"ok": True, "audit_retry": True}) as http_mock:
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        addendum = http_mock.call_args.kwargs["data"][
+            "audit_retry_evidence_addendum"
+        ]
+        assert addendum["evidence_fingerprint"] == "a" * 64
+        assert addendum["checks"][0]["result"] == "passed"
+
     def test_prints_terminal_queue_response(self, capsys):
         args = _make_args(
             subcommand="set-status",
@@ -1453,6 +1477,22 @@ class TestBuildParser:
         )
         assert args.audit_retry is True
         assert args.audit_retry_reason == "Transport repaired"
+
+    def test_set_status_evidence_addendum_flag_parses(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "set-status",
+                "TASK-1",
+                "Done",
+                "--audit-retry",
+                "--audit-retry-reason",
+                "Evidence supplied",
+                "--audit-retry-evidence-addendum",
+                '{"evidence_fingerprint":"' + "a" * 64 + '","checks":["make test"]}',
+            ]
+        )
+        assert args.audit_retry_evidence_addendum.startswith("{")
 
     def test_add_label_subcommand_parses(self):
         parser = task_cli.build_parser()

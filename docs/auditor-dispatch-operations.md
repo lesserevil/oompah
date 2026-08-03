@@ -286,6 +286,39 @@ failed audit record, preserves its history and evidence fingerprint, appends
 one fresh pending audit, and restores `In Validation`. Repeating the command
 is idempotent. It never reopens or dispatches implementation work.
 
+### Missing Evidence Supplied After Integration
+
+When the audit failed only because required quality-gate evidence was missing,
+an owner can rearm that exact integrated head after supplying the evidence. The
+rearm is accepted only when the failed attempts are classified
+`missing_evidence`, the current canonical evidence fingerprint still matches
+the integrated task, and every named check is successful. It creates a fresh
+pending audit; it does not apply a terminal status or accept the addendum as
+audit evidence.
+
+Use the same authenticated owner command with an explicit JSON addendum:
+
+```bash
+oompah task set-status EXOCOMP-145 Done \
+  --project PROJECT_ID \
+  --audit-retry \
+  --audit-retry-reason "Pinned gate tails supplied for the integrated head" \
+  --audit-retry-evidence-addendum '{
+    "evidence_fingerprint": "<current-canonical-fingerprint>",
+    "checks": [
+      {"name": "make test", "result": "passed"},
+      {"name": "make fmt-check", "result": "passed"},
+      {"name": "make lint", "result": "passed"}
+    ]
+  }'
+```
+
+The equivalent PATCH body uses `audit_retry_evidence_addendum` with the same
+object. The owner actor is authenticated by the server; arbitrary comments,
+non-owner actors, changed heads, failed checks, and previously passed audits
+are rejected. Repeating the identical request coalesces with the one pending
+audit and does not create another auditor.
+
 ## Explicit Owner Override
 
 When an audit is infeasible (e.g., no independent candidates available) or a

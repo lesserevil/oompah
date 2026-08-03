@@ -5667,6 +5667,17 @@ async def _stage_terminal_transition(
         return None, ("override_reason requires audit_override=true.", 400)
     if not audit_retry and body.get("audit_retry_reason") is not None:
         return None, ("audit_retry_reason requires audit_retry=true.", 400)
+    evidence_addendum = body.get("audit_retry_evidence_addendum")
+    if not audit_retry and evidence_addendum is not None:
+        return None, (
+            "audit_retry_evidence_addendum requires audit_retry=true.",
+            400,
+        )
+    if evidence_addendum is not None and not isinstance(evidence_addendum, dict):
+        return None, (
+            "audit_retry_evidence_addendum must be an object.",
+            400,
+        )
 
     coordinator = getattr(orch, "terminal_transition_coordinator", None)
     if coordinator is None or not callable(
@@ -5771,6 +5782,12 @@ async def _stage_terminal_transition(
                     project_id=str(project_id),
                     reason=retry_reason,
                     project=_project_by_id(orch, str(project_id)),
+                    evidence_fingerprint=(
+                        _terminal_evidence_fingerprint(current_issue, str(project_id))
+                        if evidence_addendum is not None
+                        else None
+                    ),
+                    evidence_addendum=evidence_addendum,
                 )
             )
         except (TypeError, ValueError):
@@ -5784,6 +5801,14 @@ async def _stage_terminal_transition(
             _rollback_dispatch_fence()
             if result.reason == "unauthorized_actor":
                 return None, ("Only a project owner may retry an audit.", 403)
+            if result.reason == "invalid_evidence_addendum":
+                return None, ("The evidence addendum is invalid.", 400)
+            if result.reason == "evidence_fingerprint_mismatch":
+                return None, (
+                    "The task changed before the evidence rearm was requested; "
+                    "refresh and retry.",
+                    409,
+                )
             if result.reason in {"audit_not_retryable", "project_mismatch"}:
                 return None, (
                     "No matching exhausted audit can be retried for this task.",

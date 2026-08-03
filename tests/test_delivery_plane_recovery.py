@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner
 from oompah.statuses import DONE, NEEDS_REBASE, OPEN, READY_TO_INTEGRATE
+from oompah.terminal_audit import compute_issue_evidence_fingerprint
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 def _issue(
@@ -97,6 +100,64 @@ def _close(orchestrator: Orchestrator) -> None:
     orchestrator.coordination_store.close()
     orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
     orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="c" * 40)
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            lease_owner="worker-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project.id,
+            issue.identifier,
+            lease_owner="worker-1",
+        )
+
+        orchestrator.request_terminal_transition = mock.AsyncMock(
+            return_value=TransitionResult(success=False, reason="already completed")
+        )
+        asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
+        asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
+
+        alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+        ]
+        assert len(alerts) == 1
+        assert "c" * 40 in alerts[0]["message"]
+        assert "audit_retry_evidence_addendum" in alerts[0]["message"]
+        assert (
+            orchestrator.request_terminal_transition.call_args.kwargs[
+                "evidence_fingerprint"
+            ]
+            == compute_issue_evidence_fingerprint(issue, project.id)
+        )
+
+        issue.state = "In Validation"
+        asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts
+        )
+    finally:
+        _close(orchestrator)
 
 
 def _local_quality_gate_repo(tmp_path):

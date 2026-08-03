@@ -599,6 +599,19 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         reason = getattr(args, "audit_retry_reason", None)
         if reason is not None:
             data["audit_retry_reason"] = reason
+        raw_addendum = getattr(args, "audit_retry_evidence_addendum", None)
+        if isinstance(raw_addendum, str) and raw_addendum.strip():
+            try:
+                addendum = json.loads(raw_addendum)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise SystemExit(
+                    "--audit-retry-evidence-addendum must be valid JSON"
+                ) from exc
+            if not isinstance(addendum, dict):
+                raise SystemExit(
+                    "--audit-retry-evidence-addendum must decode to a JSON object"
+                )
+            data["audit_retry_evidence_addendum"] = addendum
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     handoff_data = {
         "identifier": identifier,
@@ -1264,6 +1277,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="REASON",
         help="Required explanation when --audit-retry is used",
+    )
+    p_status.add_argument(
+        "--audit-retry-evidence-addendum",
+        default=None,
+        metavar="JSON",
+        help=(
+            "JSON evidence addendum for an owner retry after missing evidence; "
+            "must include the current evidence_fingerprint and successful checks"
+        ),
     )
 
     # --- submit ---
