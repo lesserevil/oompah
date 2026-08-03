@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-03T22:49:43.592361Z'
+updated_at: '2026-08-03T22:52:50.695690Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -33,6 +33,7 @@ oompah.terminal_audit:
     attempt-a7b720da0be0: '2026-08-03T21:55:34.706348+00:00'
     attempt-2e95806172dd: '2026-08-03T22:14:14.856706+00:00'
     attempt-d43192a6f512: '2026-08-03T22:36:20.778972+00:00'
+    attempt-b8601de51d2b: '2026-08-03T22:52:49.636935+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -46,8 +47,9 @@ oompah.terminal_audit:
     - audit-93942451e12d
     - audit-562a4fd41918
     - audit-a7e7191f988d
+    - audit-903923a4e0c3
     kind: result
-    applied: false
+    applied: true
     retired_at: '2026-08-03T20:41:48.632975+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -143,6 +145,17 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-03T22:44:30.830082+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    audit_id: audit-903923a4e0c3
+    attempt_id: attempt-b8601de51d2b
+    target_state: Merged
+    evidence_fingerprint: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    status: Merged
+    audit_ids:
+    - audit-903923a4e0c3
+    applied: false
+    created_at: '2026-08-03T22:52:49.637075+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -517,7 +530,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-588
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -526,7 +539,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b8601de51d2b
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -536,13 +549,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T22:49:30.533334+00:00'
       branch_key: epic-OOMPAH-588
+      verdict: pass
+      completed_at: '2026-08-03T22:52:49.636656+00:00'
+      ended_at: '2026-08-03T22:52:49.636656+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T22:45:28.388137+00:00'
-    updated_at: '2026-08-03T22:49:30.533334+00:00'
+    updated_at: '2026-08-03T22:52:49.636656+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
