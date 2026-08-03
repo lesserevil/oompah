@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T21:09:40.777615Z'
+updated_at: '2026-08-03T21:10:40.937666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -542,5 +542,15 @@ author: oompah
 created: 2026-08-03 21:09
 ---
 Discovery: The branch is clean at pushed head 7c8bcabca and no GitHub PR exists yet because the internal make test gate blocked review creation; the supplied gate log is therefore the authoritative failure evidence. The coordinator intentionally applies owner-override status before posting its explanatory comment, but tests/test_terminal_override.py::test_comment_failure_precedes_status_write still asserts the obsolete comment-first contract. The minimal CI repair is to update that test to require the terminal status write to survive a later comment failure while retaining the durable recovery record.
+---
+author: oompah
+created: 2026-08-03 21:10
+---
+Implementation: Updated only tests/test_terminal_override.py. Renamed the stale comment-failure case and changed its contract to assert that the owner-override terminal status is already written when the later explanatory comment fails; the durable override record remains available for reconciliation. No production code or workflow files changed.
+---
+author: oompah
+created: 2026-08-03 21:10
+---
+Verification: Focused terminal override and terminal transition coordinator suites pass: python3 -m pytest -q tests/test_terminal_override.py tests/test_terminal_transition_coordinator.py => 159 passed in 0.94s. make test-setup was attempted first as prescribed but the sandboxed astral-uv Snap remains blocked by the known DBus transient-scope kernel-thread error; the provisioned pytest runtime ran the focused gate successfully.
 ---
 <!-- COMMENTS:END -->
