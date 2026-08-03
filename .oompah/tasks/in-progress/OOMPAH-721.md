@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-721
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not escalate completed duplicate preflights as implementation work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T14:43:22.252849Z'
+updated_at: '2026-08-03T14:43:49.927917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4d397b1b-02ab-4571-8b68-51bae7dd562e
+oompah.agent_run_id: 80074d89-1af4-4932-9513-1c5fc1039e55
 oompah.task_costs:
   total_input_tokens: 50598
   total_output_tokens: 879
@@ -117,5 +117,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 46s
 - Log: OOMPAH-721__20260803T144231Z.jsonl
+---
+author: oompah
+created: 2026-08-03 14:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 14:43
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
