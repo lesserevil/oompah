@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:21:40.536278Z'
+updated_at: '2026-08-03T16:22:12.179146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-03 16:21
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-03 16:22
+---
+Understanding: I will trace duplicate-preflight corpus construction and investigator prompt generation, reproduce the large-project sibling/dependency omission, then implement deterministic structural relevance and bounded evidence while preserving untrusted-text isolation and network-disabled self-sufficiency. I will add regression tests, run focused checks and the Makefile gate, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
