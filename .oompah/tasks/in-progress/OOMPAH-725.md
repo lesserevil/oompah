@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:38:59.378608Z'
+updated_at: '2026-08-03T16:39:30.300828Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,11 @@ author: oompah
 created: 2026-08-03 16:38
 ---
 Implementation: Wired lifecycle validation into both production terminal coordinators, request/retry/apply/override paths, and enforcement recovery. Shared-epic children now require parent review landing evidence for Merged; auto-filed rebase/maintenance children remain Done. Added legacy reconciliation to restore incompatible Merged children to completed Done while preserving audit history and unrelated audits, with API/ACP conflict propagation and scanner allowlist coverage.
+---
+author: oompah
+created: 2026-08-03 16:39
+---
+Verification: Focused terminal coordinator, terminal-audit enforcement, API/ACP status interfaces, epic strategy/rebase, lifecycle, and terminal-audit contract suites passed (389 passed, 1 expected xfail; follow-up boundary checks 233 passed). The terminal mutation scan passes (7/7 allowlisted). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-725'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-725' was attempted twice but could not bootstrap its managed uv environment because astral-uv.uv failed with DBus InvalidArgs (kernel-thread transient scope error), before tests started.
 ---
 <!-- COMMENTS:END -->
