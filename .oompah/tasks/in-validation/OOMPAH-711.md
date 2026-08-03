@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: In Review
+status: In Validation
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T02:24:08.120227Z'
+updated_at: '2026-08-03T02:32:42.765640Z'
 work_branch: OOMPAH-711
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/674
@@ -111,6 +111,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/674
 oompah.review_number: '674'
 oompah.work_branch: OOMPAH-711
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-98d04db0c346
+    project_id: proj-14849f1b
+    task_id: OOMPAH-711
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:32:35.415490+00:00'
+  - version: 1
+    audit_id: audit-18e20ac1a21e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-711
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:32:35.415490+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -344,5 +383,15 @@ author: oompah
 created: 2026-08-03 02:23
 ---
 Branch quality gate passed for `ce9e9fe007850e75b9814b3e1e12a657d4ceb3db` using `make test` in 404.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 02:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 02:32
+---
+YOLO: merged PR #674.
 ---
 <!-- COMMENTS:END -->
