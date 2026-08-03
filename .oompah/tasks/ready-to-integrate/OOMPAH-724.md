@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-724
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence accepted submissions against post-handoff worktree mutation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T17:01:04.010161Z'
+updated_at: '2026-08-03T17:03:04.566428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,6 +88,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-724
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:00:01.957108+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-724
+  head_sha: e0e1769757167c48853d850c484840f129aa56cf
+  submitted_at: '2026-08-03T17:02:58.884611+00:00'
+  updated_at: '2026-08-03T17:02:58.884611+00:00'
 ---
 ## Summary
 
@@ -288,5 +296,10 @@ Reviewed the prior agent's work and ran focused tests to verify correctness.
 - Late mutations after submission acceptance can no longer churn through Ready→Integrate→recovery failure
 - Clean accepted submissions proceed directly to integration
 - Late changes are preserved via recovery checkpoint and task is reopened for explicit retry
+---
+author: oompah
+created: 2026-08-03 17:03
+---
+Fence accepted submissions against post-handoff worktree mutation (EXOCOMP-172 fix). Added submission fencing mechanism: (1) accepted_submission_record field on RunningEntry marks when a worker submission is accepted; (2) _accept_worker_submission() immediately revokes authority to prevent further mutations; (3) new _handle_revoked_submission_exit() validates final worktree state against submitted HEAD, preserves late changes via recovery checkpoint, reopens task with recovery context if late mutations detected, or enqueues for integration if clean. Comprehensive tests cover EXOCOMP-172 reproduction, clean submission path, authority revocation, and all neighboring suites pass with no regressions.
 ---
 <!-- COMMENTS:END -->
