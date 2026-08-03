@@ -26,6 +26,44 @@ from oompah.terminal_transition_coordinator import AuditResult
 AUDITOR_FOCUS_NAME = "auditor"
 AUDITOR_RESULT_TOOL_NAME = "submit_audit_result"
 
+# A rejected shell pipeline is still a safe validation response: the command
+# did not run, and the auditor can split the inspection into the dedicated
+# search/read tools or separate run_command calls.  Keep this marker stable so
+# every backend can preserve the distinction when it forwards the response as
+# plain text.
+AUDITOR_READ_ONLY_SYNTAX_REASON = "auditor_read_only_shell_syntax"
+
+
+class AuditorCommandDenial(str):
+    """String-compatible auditor command denial with recovery metadata."""
+
+    recoverable: bool
+    reason: str
+
+    def __new__(
+        cls,
+        message: str,
+        *,
+        recoverable: bool = False,
+        reason: str = "auditor_command_denied",
+    ) -> "AuditorCommandDenial":
+        result = super().__new__(cls, message)
+        result.recoverable = recoverable
+        result.reason = reason
+        return result
+
+
+def is_recoverable_auditor_command_denial(value: str | None) -> bool:
+    """Return whether a denied command can be retried without retiring an audit.
+
+    The marker fallback keeps this safe across backend adapters that coerce the
+    string subclass to a plain ``str`` while passing tool output around.
+    """
+
+    return bool(
+        isinstance(value, AuditorCommandDenial) and value.recoverable
+    ) or AUDITOR_READ_ONLY_SYNTAX_REASON in str(value or "")
+
 # These names are shared by all agent backends.  ``run_command`` is retained
 # as a single tool so auditors can use the project's configured test command;
 # the command itself is checked by ``check_auditor_command`` below.
@@ -809,6 +847,30 @@ _AUDITOR_COMMAND_MUTATION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The broad historical regex above is retained as a defense-in-depth assertion
+# that compound shell syntax is never executed.  These narrower expressions
+# distinguish a harmless-but-unsupported read-only pipeline from a command
+# that must consume the fatal policy-denial budget.
+_AUDITOR_STATE_CHANGE_RE = re.compile(
+    r"(?:\b(?:rm|mv|cp|mkdir|rmdir|touch|tee|install|truncate|chmod|chown|"
+    r"sed\s+(?:-[^-\s]*i|--in-place)|perl\s+-i|git\s+(?:add|commit|push|"
+    r"pull|fetch|checkout|switch|reset|restore|rebase|merge|cherry-pick|"
+    r"tag|clean|apply|update-ref|branch\s+(?:-(?:d|D|m|M)|--(?:delete|move|copy)))|"
+    r"(?:bash|sh|zsh|fish|env|eval|xargs)\b)"
+    r"|(?:`|\$)"
+    r"|(?:\s--(?:fix|delete)(?:\s|=|$)|\s--output(?:=|\s|$)|"
+    r"\s-(?:delete|exec(?:dir)?|ok(?:dir)?)(?:\s|$)))",
+    re.IGNORECASE,
+)
+_AUDITOR_FILE_REDIRECTION_RE = re.compile(
+    # ``2>&1`` only merges stderr into stdout and is safe to classify as an
+    # unsupported read-only compound command.  All other redirection remains
+    # a fatal denial, including input and append/output redirection.
+    r"(?:>>?|<<)(?!\s*&\s*1)",
+    re.IGNORECASE,
+)
+_AUDITOR_COMPOUND_RE = re.compile(r"[;&|]", re.IGNORECASE)
+
 # The normal run-command helper only rejects a leading ``cd`` outside the
 # worktree. An auditor's shell is narrower: absolute paths, parent traversal,
 # and credential-like files are outside repository/test authority and could
@@ -846,9 +908,23 @@ def check_auditor_command(command: str) -> str | None:
             "file"
         )
     if _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
-        return (
+        if (
+            _AUDITOR_COMPOUND_RE.search(normalized)
+            and not _AUDITOR_STATE_CHANGE_RE.search(normalized)
+            and not _AUDITOR_FILE_REDIRECTION_RE.search(normalized)
+        ):
+            return AuditorCommandDenial(
+                "Error: auditor capability policy rejected unsupported read-only "
+                "shell syntax; run each inspection separately or use search_files "
+                "and bounded read_file calls. The command was not executed. "
+                f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+                recoverable=True,
+                reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+            )
+        return AuditorCommandDenial(
             "Error: auditor capability policy denied a mutating or compound "
-            "shell command; auditors cannot edit, commit, push, merge, or change state"
+            "shell command; auditors cannot edit, commit, push, merge, or change state",
+            reason="auditor_mutating_shell_command",
         )
     return None
 
@@ -858,8 +934,10 @@ __all__ = [
     "AUDITOR_CAPABILITY_POLICY",
     "AUDITOR_FOCUS_NAME",
     "AUDITOR_MUTATING_TOOLS",
+    "AUDITOR_READ_ONLY_SYNTAX_REASON",
     "AUDITOR_RESULT_TOOL_NAME",
     "AUDITOR_RESULT_TOOL_SCHEMA",
+    "AuditorCommandDenial",
     "AuditorCapabilityPolicy",
     "AuditorTargetContract",
     "_MAX_RESULT_MESSAGE_LENGTH",
@@ -873,6 +951,7 @@ __all__ = [
     "auditor_target_contract",
     "check_auditor_session_target",
     "check_auditor_command",
+    "is_recoverable_auditor_command_denial",
     "pending_auditor_target",
     "parse_auditor_result",
     "submit_auditor_result",

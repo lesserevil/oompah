@@ -3298,6 +3298,11 @@ function renderTerminalAuditHealth(health) {
     return;
   }
   const parts = [];
+  if (health.policy_incompatibility_count > 0) {
+    parts.push(
+      health.policy_incompatibility_count + ' local auditor tool-policy incompatibility(s)'
+    );
+  }
   if (health.launch_failure_count > 0 || health.transport_failure_count > 0) {
     parts.push(
       health.launch_failure_count + ' launch, ' +

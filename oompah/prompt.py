@@ -468,7 +468,13 @@ def render_auditor_prompt(
             "",
             "### Allowed read/test actions",
             allowed_actions,
-            "- run_command is restricted server-side to read-only inspection and test commands.",
+            "- Prefer search_files for repository searches and bounded read_file calls "
+            "for focused file inspection.",
+            "- run_command is restricted server-side to read-only inspection and "
+            "test commands, one command at a time. Shell pipelines and separators may "
+            "return a recoverable validation response; split the commands and continue.",
+            "- A validation response from run_command means the command was not "
+            "executed; it is not a provider transport failure or an audit verdict.",
             "- The result tool is the only stateful capability; it submits to the scheduler "
             "and does not directly change repository or tracker state.",
             "",

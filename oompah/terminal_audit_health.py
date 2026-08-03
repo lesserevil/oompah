@@ -90,6 +90,7 @@ class TerminalAuditHealth:
     stale_in_validation_count: int = 0
     launch_failure_count: int = 0
     transport_failure_count: int = 0
+    policy_incompatibility_count: int = 0
     retry_exhausted_count: int = 0
     quarantined_count: int = 0
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS
@@ -99,13 +100,18 @@ class TerminalAuditHealth:
 
     @property
     def failure_count(self) -> int:
-        return self.launch_failure_count + self.transport_failure_count
+        return (
+            self.launch_failure_count
+            + self.transport_failure_count
+            + self.policy_incompatibility_count
+        )
 
     @property
     def degraded(self) -> bool:
         return bool(
             self.launch_failure_count
             or self.transport_failure_count
+            or self.policy_incompatibility_count
             or self.stale_pending_count
             or self.stale_in_validation_count
             or self.retry_exhausted_count
@@ -123,6 +129,7 @@ class TerminalAuditHealth:
             "stale_in_validation_count": self.stale_in_validation_count,
             "launch_failure_count": self.launch_failure_count,
             "transport_failure_count": self.transport_failure_count,
+            "policy_incompatibility_count": self.policy_incompatibility_count,
             "failure_count": self.failure_count,
             "retry_exhausted_count": self.retry_exhausted_count,
             "quarantined_count": self.quarantined_count,
@@ -149,6 +156,7 @@ class TerminalAuditHealth:
             "stale_in_validation_count",
             "launch_failure_count",
             "transport_failure_count",
+            "policy_incompatibility_count",
             "retry_exhausted_count",
             "quarantined_count",
             "stale_after_seconds",
@@ -214,6 +222,8 @@ def _failure_kind(attempt: AuditAttempt) -> str | None:
         return None
     if classification == FailureClassification.INFRASTRUCTURE_ERROR:
         return "transport"
+    if classification == FailureClassification.POLICY_INCOMPATIBILITY:
+        return "policy"
     if any(phrase in low for phrase in _LAUNCH_PHRASES):
         return "launch"
     if any(phrase in low for phrase in _TRANSPORT_PHRASES):
@@ -253,6 +263,7 @@ def build_terminal_audit_health(
     stale_validation = 0
     launch_failures = 0
     transport_failures = 0
+    policy_incompatibilities = 0
     exhausted = 0
     quarantined = 0
     oldest: datetime | None = None
@@ -345,6 +356,9 @@ def build_terminal_audit_health(
                 elif kind == "transport":
                     transport_failures += 1
                     increment(observation.project_id, "transport_failure_count")
+                elif kind == "policy":
+                    policy_incompatibilities += 1
+                    increment(observation.project_id, "policy_incompatibility_count")
 
     oldest_at: str | None = _timestamp(oldest) if oldest is not None else None
     oldest_age: int | None = (
@@ -360,6 +374,7 @@ def build_terminal_audit_health(
         stale_in_validation_count=stale_validation,
         launch_failure_count=launch_failures,
         transport_failure_count=transport_failures,
+        policy_incompatibility_count=policy_incompatibilities,
         retry_exhausted_count=exhausted,
         quarantined_count=quarantined,
         stale_after_seconds=stale_after_seconds,
@@ -404,6 +419,18 @@ def terminal_audit_health_alerts(
                 "recorded for pending audits."
             ),
             "Restore an available auditor transport; retries will continue automatically.",
+        )
+
+    if health.policy_incompatibility_count:
+        add(
+            "policy_incompatibility",
+            "error",
+            "Terminal-audit tool policy is incompatible with auditor commands",
+            (
+                f"{health.policy_incompatibility_count} auditor attempt(s) were "
+                "stopped by the local read-only tool policy."
+            ),
+            "Update the auditor tool catalog or prompt contract; this is not a provider transport outage.",
         )
 
     if health.retry_exhausted_count:

@@ -470,17 +470,26 @@ def check_shell_command(
     regardless of policy.
     """
     if policy is not None and policy.read_only:
-        from oompah.auditor import check_auditor_command
+        from oompah.auditor import (
+            check_auditor_command,
+            is_recoverable_auditor_command_denial,
+        )
 
         auditor_denial = check_auditor_command(command)
         if auditor_denial is not None:
             task_ref = policy.task_identifier
             session_ref = policy.session_id
+            denial_kind = (
+                "policy_tool_incompatibility"
+                if is_recoverable_auditor_command_denial(auditor_denial)
+                else "read_only_auditor_policy"
+            )
             logger.warning(
                 "AUTHORITY_DENY: action='auditor_shell_mutation' task=%r "
-                "session=%r context='redacted' reason=read_only_auditor_policy",
+                "session=%r context='redacted' reason=%s",
                 task_ref,
                 session_ref,
+                denial_kind,
             )
             return auditor_denial
 

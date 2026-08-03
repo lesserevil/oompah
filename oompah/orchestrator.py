@@ -197,6 +197,7 @@ from oompah.auth_health import (
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
+    is_recoverable_auditor_command_denial,
     pending_auditor_target,
 )
 from oompah.auditor_dispatch import (
@@ -1358,6 +1359,7 @@ class Orchestrator:
             "in_progress_count": 0,
             "launch_failure_count": 0,
             "transport_failure_count": 0,
+            "policy_incompatibility_count": 0,
             "retry_exhausted_count": 0,
             "oldest_pending_age_seconds": None,
             "stale_in_validation_count": 0,
@@ -2104,6 +2106,7 @@ class Orchestrator:
             "in_progress_count": health.in_progress_count,
             "launch_failure_count": health.launch_failure_count,
             "transport_failure_count": health.transport_failure_count,
+            "policy_incompatibility_count": health.policy_incompatibility_count,
             "retry_exhausted_count": health.retry_exhausted_count,
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
@@ -3171,6 +3174,19 @@ class Orchestrator:
         denial: str,
     ) -> None:
         """Bound a model loop that repeatedly requests forbidden mutations."""
+
+        if is_recoverable_auditor_command_denial(denial):
+            # A local tool-catalog incompatibility (for example an unsupported
+            # read-only pipeline) is returned to the auditor for recovery. It
+            # must not consume the fatal policy-denial budget or look like a
+            # provider transport outage.
+            logger.info(
+                "Auditor received recoverable read-only command validation "
+                "response issue_id=%s run_id=%s",
+                issue_id,
+                run_id,
+            )
+            return
 
         def _record() -> None:
             entry = self.state.running.get(issue_id)
@@ -29669,6 +29685,11 @@ class Orchestrator:
                 ),
                 0,
             )
+            failure_classification = (
+                FailureClassification.POLICY_INCOMPATIBILITY
+                if reason == "auditor_policy_denial_exhausted"
+                else FailureClassification.INFRASTRUCTURE_ERROR
+            )
             updated = AuditorDispatchLane.finish_attempt(
                 target,
                 entry.audit_attempt_id,
@@ -29679,7 +29700,7 @@ class Orchestrator:
                         milliseconds=self._backoff_delay(rotation + 1)
                     )
                 ),
-                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+                failure_classification=failure_classification,
             )
             self._audit_update_record(
                 store,
