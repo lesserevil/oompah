@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:30:41.276789Z'
+updated_at: '2026-08-03T16:33:23.873794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-08-03 16:30
 ---
 Implementation: Reworked duplicate corpus selection to retain the current task, parent/children/siblings, direct and reverse normal/hard-start dependencies, then title/description similarity candidates before deterministic generic fallback. Added bounded row compaction, stable project scoping/deduplication, comments/status/description evidence, and an explicit insufficient-budget diagnostic. Duplicate investigators are told the corpus is self-sufficient with no CLI/HTTP/loopback fallback; read-only ACP catalogs expose only workspace file tools.
+---
+author: oompah
+created: 2026-08-03 16:33
+---
+Verification update: focused duplicate-preflight, focus, and prompt suites pass (226 passed). The corpus output was manually checked at 32,394 bytes with 203 peers and 100 selected rows, below the 96 KiB cap; required peers were all retained and generic/similarity candidates were bounded deterministically. I am proceeding with the complete Makefile gate and final security review.
 ---
 <!-- COMMENTS:END -->
