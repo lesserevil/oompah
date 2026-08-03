@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:33:08.144958Z'
+updated_at: '2026-08-03T20:47:41.088619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-08-03 20:33
 ---
 Verification so far: 75 focused terminal-enforcement/cutover tests pass; 292 adjacent event-loop/config/build-identity/auth/restart-helper tests pass. Added metadata-write interruption coverage showing restart recovery finalizes the audit ledger without a duplicate Done mutation. A make setup attempt was blocked by the environment's astral-uv DBus transient-scope error, so I’m continuing with the existing project Python environment and will report that gate limitation separately.
+---
+author: oompah
+created: 2026-08-03 20:47
+---
+Verification: focused lifecycle, cutover, and config suites pass (194 tests); affected event/server suites passed earlier (499 tests, 1 expected xfail); Granian e2e rerun passes 4/4. Terminal mutation scan passes 8/8 allowlisted and py_compile/git diff checks pass. The full parallel test phase reached 15,188 passed with one transient Granian restart failure that passed in isolation; Makefile setup/test prerequisites remain blocked by the environment uv transient-scope DBus error.
 ---
 <!-- COMMENTS:END -->
