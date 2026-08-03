@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:27:23.545953Z'
+updated_at: '2026-08-03T18:28:05.834944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-08-03 18:27
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 18:28
+---
+Understanding: nested epic target resolution must distinguish confirmed top-level epics from failed parent lookup; I will trace helper filing, dispatch, persistence, restart, and diagnostics, then fail closed with retryable evidence and regression tests.
 ---
 <!-- COMMENTS:END -->
