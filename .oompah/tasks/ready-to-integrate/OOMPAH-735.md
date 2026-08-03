@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T20:00:31.429876Z'
+updated_at: '2026-08-03T20:01:02.527448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,13 +66,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: e8819ade-af2c-4ae3-b21c-74afd250da81
 oompah.task_costs:
-  total_input_tokens: 6
-  total_output_tokens: 1347
+  total_input_tokens: 163
+  total_output_tokens: 45542
   total_cost_usd: 0.0
   by_model:
     opus:
-      input_tokens: 6
-      output_tokens: 1347
+      input_tokens: 163
+      output_tokens: 45542
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 1347
     cost_usd: 0.0
     recorded_at: '2026-08-03T19:19:24.969979+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 157
+    output_tokens: 44195
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T20:00:51.245579+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-735__20260803T191823Z
@@ -91,14 +97,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-735
     source_sha: 806bf1feee8ac46220c8ec750a5167017834b176
     completed_at: '2026-08-03T19:19:24.988478+00:00'
+  - run_id: OOMPAH-735__20260803T192457Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: frontend
+    source_branch: OOMPAH-735
+    source_sha: bbdb6e8be192b95c924c882ccbadaebfc34f08c1
+    completed_at: '2026-08-03T20:00:51.269049+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-735
+  base_branch: main
+  base_sha: 42da24c2617b86610838c8097eaec2ede58ec44c
   head_sha: bbdb6e8be192b95c924c882ccbadaebfc34f08c1
   submitted_at: '2026-08-03T20:00:27.504873+00:00'
-  updated_at: '2026-08-03T20:00:27.504873+00:00'
+  updated_at: '2026-08-03T20:01:00.165623+00:00'
 ---
 ## Summary
 
@@ -263,5 +279,20 @@ author: oompah
 created: 2026-08-03 20:00
 ---
 Structured recovery_state/action_required schema for integration_retry alerts, snapshot-time reconciliation against live recovery (running repair worker + last event freshness, authority revocation, queue retry_at/attempts, integration state), dashboard filter that drops non-actionable rows from the global banner and inline warnings. 23 new tests + 510 orchestrator regression tests pass.
+---
+author: oompah
+created: 2026-08-03 20:00
+---
+Agent completed successfully in 2162s (44352 tokens)
+---
+author: oompah
+created: 2026-08-03 20:00
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 196, Tool calls: 151
+- Tokens: 157 in / 44.2K out [44.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 36m 2s
+- Log: OOMPAH-735__20260803T192457Z.jsonl
 ---
 <!-- COMMENTS:END -->
