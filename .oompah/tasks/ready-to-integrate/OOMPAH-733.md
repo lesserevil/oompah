@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:36:56.918025Z'
+updated_at: '2026-08-03T19:37:13.695421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,9 +99,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-733
-  head_sha: e08f2db26d7f1dc48ab85effb89b1f4bd80720e0
-  submitted_at: '2026-08-03T19:02:02.597455+00:00'
-  updated_at: '2026-08-03T19:02:02.597455+00:00'
+  head_sha: daefb6fb2dc282879d20c84e4d18015c250a6635
+  submitted_at: '2026-08-03T19:37:09.725945+00:00'
+  updated_at: '2026-08-03T19:37:09.725945+00:00'
 ---
 ## Summary
 
@@ -247,5 +247,10 @@ author: oompah
 created: 2026-08-03 19:36
 ---
 Verification: terminal-audit-scan passes (8 identified, 8 explicitly allowlisted). test_terminal_audit_scanner.py: 15 passed. Epic strategy/rebase state/parallel epic suites: 306 passed in 90.65s. Branch pushed to origin/OOMPAH-733 at daefb6fb2.
+---
+author: oompah
+created: 2026-08-03 19:37
+---
+Fixed terminal-audit-scan CI failure by adding an allowlist entry in terminal_mutation_scanner.py for Orchestrator._supersede_wrong_epic_rebase_helper. This function archives stale wrong-target rebase helper tasks; it has worker-race guards and the terminal enforcement sweep provides the audit backstop. The scan now shows 8 identified, 8 explicitly allowlisted. All focused suites pass.
 ---
 <!-- COMMENTS:END -->
