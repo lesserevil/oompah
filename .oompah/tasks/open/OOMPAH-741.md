@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:00:22.858294Z'
+updated_at: '2026-08-03T23:02:31.493154Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -23,14 +23,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c7a1bdee4c6e9842740640e868811f3e155e2924d6a6e258d7ab165be372c60c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T23:02:22.755502+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1f25aaa0-bf3b-4ee0-b9cb-6909e39fa653
-  claim_owner: a032ecbf-d61c-48ca-9cba-cbf452c15431
-  claimed_at: '2026-08-03T22:59:36.038203+00:00'
-  claim_expires_at: '2026-08-03T23:29:36.038203+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-735 covers integration recovery; OOMPAH-742\u2013\
+    745 cover separate UI, transcript, resynchronization, and browser-test work. None\
+    \ duplicates this cross-producer server-side actionability contract.\nFocus handoff:\
+    \ duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \nMatches:\
+    \ none\n\nEvidence: OOMPAH-735 covers integration recovery; OOMPAH-742\u2013745\
+    \ cover separate UI, transcript, resynchronization, and browser-test work. None\
+    \ duplicates this cross-producer server-side actionability contract."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -46,6 +53,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-740
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
   updated_at: '2026-08-03T23:00:18.598601+00:00'
+oompah.task_costs:
+  total_input_tokens: 46242
+  total_output_tokens: 259
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46242
+      output_tokens: 259
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46242
+    output_tokens: 259
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T23:02:22.753889+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-741__20260803T230037Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-740--task-OOMPAH-741
+    source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
+    completed_at: '2026-08-03T23:02:22.799945+00:00'
 ---
 ## Summary
 
@@ -93,5 +126,15 @@ author: oompah
 created: 2026-08-03 23:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 23:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.2K in / 259 out [46.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 14s
+- Log: OOMPAH-741__20260803T230037Z.jsonl
 ---
 <!-- COMMENTS:END -->
