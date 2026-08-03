@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T15:01:38.545554Z'
+updated_at: '2026-08-03T15:01:49.261400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 17m 48s
 - Log: OOMPAH-721__20260803T144352Z.jsonl
+---
+author: oompah
+created: 2026-08-03 15:01
+---
+Direct-owner correction: the live EXOCOMP-241 first run emitted structured duplicate_preflight_result=inconclusive, but it was registered/commented as ordinary Agent dispatched and then passed through generic standard-to-deep retry. The draft NO_DUPLICATE-only post-exit dispatch does not cover that reproduction; it also selects focus before a completion marker, passes focus.name as override_profile, and bypasses normal candidate/claim/concurrency dispatch. Owner is replacing it with a regression at the dispatch classification/claim-propagation boundary plus bounded screening retry/handoff tests.
 ---
 <!-- COMMENTS:END -->
