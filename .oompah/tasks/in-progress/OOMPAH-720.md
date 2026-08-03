@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:09:40.227887Z'
+updated_at: '2026-08-03T14:10:05.615570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-03 14:09
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-03 14:10
+---
+Understanding: the owner override is treating audit-attempt rotation and tracker metadata-only refreshes as evidence changes. I will trace fingerprint construction, active-audit selection, and ownership-lock ordering; add race/stale-snapshot regressions; preserve 409s for canonical evidence changes; then run focused tests and the project gate.
 ---
 <!-- COMMENTS:END -->
