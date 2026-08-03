@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-03T00:02:54.291178Z'
+updated_at: '2026-08-03T00:02:58.410815Z'
 work_branch: OOMPAH-705
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/666
@@ -132,7 +132,19 @@ oompah.terminal_audit:
       by the known provider-private oversized-tool-result boundary bug tracked and
       under direct repair in OOMPAH-710, not by a code defect in OOMPAH-705.'
     created_at: '2026-08-03T00:02:47.714989+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-705
+    target_state: Merged
+    evidence_fingerprint: 6eee60cd233a1743770b04898cd0283aa5702df57db747cecd99cd19db4a192e
+    audit_ids:
+    - audit-5afe11e5d803
+    - audit-01a9cb534a45
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T00:02:56.733302+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -140,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-705
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -191,13 +203,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T23:55:45.912080+00:00'
-    updated_at: '2026-08-02T23:59:12.100603+00:00'
+    updated_at: '2026-08-03T00:02:56.733274+00:00'
   - version: 1
     audit_id: audit-01a9cb534a45
     project_id: proj-14849f1b
     task_id: OOMPAH-705
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -209,6 +221,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T23:55:45.912080+00:00'
+    updated_at: '2026-08-03T00:02:56.733291+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c5697155a051
