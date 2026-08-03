@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T16:58:08.674698Z'
+updated_at: '2026-08-03T17:08:12.234628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-03 16:58
 ---
 Discovery:  currently only accepts completed records whose attempts are infrastructure/no-auditor/policy failures, and it has no current-fingerprint CAS or durable reason/addendum. The integrated sweep retries every integrated row in nonterminal states, so a completed same-fingerprint failure repeatedly returns  without a dedicated alert. I will add an owner-authenticated  contract requiring the current canonical fingerprint and successful named checks, persist a redacted rearm ledger, and make the sweep surface one idempotent recovery alert for the stale failure.
+---
+author: oompah
+created: 2026-08-03 17:08
+---
+Implementation: extended the existing owner audit-retry path with a strict evidence-addendum mode. It requires the current canonical fingerprint, successful named checks, and a completed missing_evidence audit; supersedes only that failed record, preserves attempts, writes a redacted actor/reason/addendum rearm ledger, restores In Validation, and coalesces concurrent retries. The PATCH API and task CLI expose the documented contract, integrated fingerprint computation now uses the exact landed SHA consistently, and the integration sweep emits one idempotent owner-rearm alert instead of repeating already-completed warnings.
 ---
 <!-- COMMENTS:END -->
