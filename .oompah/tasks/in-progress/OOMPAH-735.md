@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:58:35.126250Z'
+updated_at: '2026-08-03T20:00:03.278393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -240,5 +240,10 @@ author: oompah
 created: 2026-08-03 19:58
 ---
 Implementation: (1) oompah/config.py — added integration_recovery_freshness_seconds (default 300s, env OOMPAH_INTEGRATION_RECOVERY_FRESHNESS_SECONDS). (2) oompah/orchestrator.py::_route_integration_failure — the _record_failure_diagnostic closure now takes recovery_state + action_required + optional level and stamps recorded_at. Route classifies the initial state as scheduled_retry (retryable), retry_exhausted (needs_human), awaiting_repair (conflict/generated_helper/needs_rebase/ci_failure — a repair worker will be dispatched), no_recovery (task_push_race/stale_head/missing_head/missing_epic/epic_merge_failure — owner must resubmit), or unrecoverable (integrity/auth/transport/policy — level=error). (3) Added Orchestrator._classify_integration_retry_recovery — a pure @staticmethod classifier that returns (recovery_state, action_required, level) from observable facts (running focus + last event, authority_revoked, queue state + next_retry_at + attempts, integration state, now, freshness). (4) Added Orchestrator._reconcile_integration_retry_alerts, invoked from get_snapshot() so every state API/WS snapshot publishes the current classification. Diagnostics (task_id, error, failing_step, attempts, max_attempts, next_retry_at, repair_action, recorded_at) are preserved; only level, recovery_state, action_required, updated_at are rewritten. (5) Added Orchestrator._clear_integration_retry_alert so successful integration clears both actionable and informational rows. (6) oompah/templates/dashboard.html — otherAlerts filter now drops alerts with action_required===false so informational recovery activity does not surface in the global operator banner or inline agent warnings. Missing/undefined field is treated as actionable for legacy compatibility. Task-level detail rendering is unchanged.
+---
+author: oompah
+created: 2026-08-03 20:00
+---
+Verification: focused suites pass — tests/test_integration_retry_alert_recovery.py (21/21), tests/test_dashboard_integration_recovery_filter.py (2/2), tests/test_parallel_epic_children.py (33/33), tests/test_orchestrator_conflict_repair.py (5/5), tests/test_integration_queue.py (19/19), tests/test_integration_conflict_repair.py (14/14), tests/test_dashboard_credential_warning.py (31/31), tests/test_dashboard_state_read_warning.py (22/22), tests/test_dashboard_websocket_liveness.py (9/9), tests/test_config.py (115/115). Broader orchestrator regression pass: tests/test_orchestrator_handlers.py + tests/test_epic_strategy.py = 510/510. Total 781 tests green. No regressions in credential-error/state-read/websocket-liveness alert paths — those continue to render because they are actionable (action_required missing/undefined → treated as actionable in the dashboard filter). The full make test branch gate will run once when the branch is review-ready.
 ---
 <!-- COMMENTS:END -->
