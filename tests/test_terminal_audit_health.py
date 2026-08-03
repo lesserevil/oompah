@@ -10,6 +10,7 @@ import pytest
 from oompah.terminal_audit import (
     AuditAttempt,
     EvidenceFingerprint,
+    FailureClassification,
     RequestState,
     TargetState,
     TerminalAuditRecord,
@@ -113,6 +114,7 @@ class TestEmptyBacklog:
             "stale_in_validation_count",
             "launch_failure_count",
             "transport_failure_count",
+            "policy_incompatibility_count",
             "failure_count",
             "retry_exhausted_count",
             "quarantined_count",
@@ -296,6 +298,25 @@ class TestLaunchAndTransportFailures:
         health = build_terminal_audit_health([_obs(rec)], now=NOW)
         assert health.transport_failure_count == 1
         assert health.launch_failure_count == 0
+
+    def test_policy_incompatibility_is_not_transport_failure(self):
+        """Local auditor policy failures must not raise a provider outage alert."""
+        from dataclasses import replace
+
+        attempt = replace(
+            _attempt(
+                "attempt-policy",
+                failure_reason="auditor policy denial limit reached",
+                ended_at=NOW.isoformat(),
+            ),
+            failure_classification=FailureClassification.POLICY_INCOMPATIBILITY,
+        )
+        health = build_terminal_audit_health([_obs(_record(attempts=[attempt]))], now=NOW)
+        assert health.policy_incompatibility_count == 1
+        assert health.transport_failure_count == 0
+        sources = [alert["source"] for alert in terminal_audit_health_alerts(health)]
+        assert HEALTH_ALERT_PREFIX + "policy_incompatibility" in sources
+        assert HEALTH_ALERT_PREFIX + "launch_failures" not in sources
 
     def test_no_auditor_classification_is_not_a_failure(self):
         """NO_AUDITOR classification is exhaustion, not launch/transport failure."""

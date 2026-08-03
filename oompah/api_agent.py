@@ -157,7 +157,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "Read the contents of a file at the given path (relative to workspace root).",
+            "description": (
+                "Read a bounded portion of a file at the given path (relative to "
+                "workspace root). Prefer this for focused inspection."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -206,7 +209,13 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "run_command",
-            "description": "Run a shell command in the workspace directory. Returns stdout, stderr, and exit code.",
+            "description": (
+                "Run one read-only inspection or configured test command in the "
+                "workspace. Use search_files for searches and separate calls "
+                "instead of shell pipelines; unsupported read-only syntax returns "
+                "a recoverable validation response. Returns stdout, stderr, and "
+                "exit code."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -277,8 +286,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "name": "search_files",
             "description": (
                 "Search for a pattern across files in the workspace. "
-                "Returns matching lines with file paths and line numbers. "
-                "Useful for finding where functions, variables, or strings are used."
+                "Returns bounded matching lines with file paths and line numbers. "
+                "Use this instead of grep pipelines for auditor searches."
             ),
             "parameters": {
                 "type": "object",
@@ -895,7 +904,16 @@ def _execute_tool(
                 action_policy, str(args.get("command") or "")
             )
             if shell_denial is not None:
-                if callable(policy_denial_handler):
+                # Unsupported read-only shell syntax is a tool-validation
+                # response. It must be returned to the model so it can split
+                # the inspection into search/read calls, but it is not a
+                # repeated forbidden mutation and must not retire the audit.
+                from oompah.auditor import is_recoverable_auditor_command_denial
+
+                if (
+                    callable(policy_denial_handler)
+                    and not is_recoverable_auditor_command_denial(shell_denial)
+                ):
                     try:
                         policy_denial_handler(shell_denial)
                     except Exception:  # noqa: BLE001 - denial stays fail-closed

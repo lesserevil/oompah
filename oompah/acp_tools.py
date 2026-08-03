@@ -61,6 +61,7 @@ from oompah.authority_boundary import (
     check_read_only_mutation,
     check_shell_command,
 )
+from oompah.auditor import is_recoverable_auditor_command_denial
 from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
@@ -1085,7 +1086,10 @@ def build_tool_catalog(
     current_project_id = project_id
 
     def _record_policy_denial(denial: str) -> None:
-        if callable(policy_denial_handler):
+        if (
+            callable(policy_denial_handler)
+            and not is_recoverable_auditor_command_denial(denial)
+        ):
             try:
                 policy_denial_handler(denial)
             except Exception:  # noqa: BLE001 - denial must remain fail-closed
@@ -1138,9 +1142,10 @@ def build_tool_catalog(
 
     @tool(
         "search_files",
-        "Grep-style search across the workspace. `pattern` is a Python "
-        "regex. Optional `path` narrows the scope. Returns matching "
-        "lines with file:line: prefix.",
+        "Search across the workspace with a Python regex. Optional `path` "
+        "narrows the scope and results are bounded. Use this instead of "
+        "grep pipelines for auditor searches. Returns matching lines with "
+        "file:line: prefix.",
         {"pattern": str, "path": str},
     )
     async def search_files(args: dict[str, Any]) -> dict[str, Any]:
@@ -1148,7 +1153,10 @@ def build_tool_catalog(
 
     @tool(
         "run_command",
-        "Run a shell command inside the workspace. Stays inside the "
+        "Run one read-only inspection or configured test command inside the "
+        "workspace. Prefer search_files and separate calls over shell "
+        "pipelines; unsupported read-only syntax returns a recoverable "
+        "validation response. Stays inside the "
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",
@@ -1433,7 +1441,10 @@ def build_codex_tool_catalog(
     current_project_id = project_id
 
     def _record_policy_denial(denial: str) -> None:
-        if callable(policy_denial_handler):
+        if (
+            callable(policy_denial_handler)
+            and not is_recoverable_auditor_command_denial(denial)
+        ):
             try:
                 policy_denial_handler(denial)
             except Exception:  # noqa: BLE001 - denial must remain fail-closed
@@ -1734,7 +1745,10 @@ def build_opencode_tool_catalog(
     workspace = Path(workspace_path)
 
     def _record_policy_denial(denial: str) -> None:
-        if callable(policy_denial_handler):
+        if (
+            callable(policy_denial_handler)
+            and not is_recoverable_auditor_command_denial(denial)
+        ):
             try:
                 policy_denial_handler(denial)
             except Exception:  # noqa: BLE001 - denial must remain fail-closed
@@ -1787,9 +1801,10 @@ def build_opencode_tool_catalog(
 
     @tool(
         "search_files",
-        "Grep-style search across the workspace. `pattern` is a Python "
-        "regex. Optional `path` narrows the scope. Returns matching "
-        "lines with file:line: prefix.",
+        "Search across the workspace with a Python regex. Optional `path` "
+        "narrows the scope and results are bounded. Use this instead of "
+        "grep pipelines for auditor searches. Returns matching lines with "
+        "file:line: prefix.",
         {"pattern": str, "path": str},
     )
     async def search_files(args: dict[str, Any]) -> dict[str, Any]:
@@ -1797,7 +1812,10 @@ def build_opencode_tool_catalog(
 
     @tool(
         "run_command",
-        "Run a shell command inside the workspace. Stays inside the "
+        "Run one read-only inspection or configured test command inside the "
+        "workspace. Prefer search_files and separate calls over shell "
+        "pipelines; unsupported read-only syntax returns a recoverable "
+        "validation response. Stays inside the "
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",

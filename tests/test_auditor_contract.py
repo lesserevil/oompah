@@ -135,6 +135,76 @@ def test_api_auditor_tool_allowlist_excludes_mutators_and_includes_result_schema
     ).startswith("Error:")
 
 
+def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor_can_continue(
+    tmp_path: Path,
+):
+    target = _target()
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
+    denials: list[str] = []
+
+    validation = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "git log --oneline HEAD 2>&1 | head -5"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+    assert validation.startswith("Error:")
+    assert "not executed" in validation
+    assert denials == []
+
+    search = _execute_tool(
+        tmp_path,
+        "search_files",
+        {"pattern": "needle", "path": "."},
+        action_policy=policy,
+    )
+    assert search.startswith("No matches")
+    pwd = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "pwd"},
+        action_policy=policy,
+    )
+    assert not pwd.startswith("Error:")
+
+    received = []
+    verdict = _execute_tool(
+        tmp_path,
+        AUDITOR_RESULT_TOOL_NAME,
+        {
+            "audit_id": target.audit_id,
+            "target_state": target.target_state,
+            "evidence_fingerprint": target.evidence_fingerprint,
+            "verdict": "pass",
+            "message": "Recovered from read-only command validation.",
+            "attempt_id": target.attempt_id,
+        },
+        action_policy=policy,
+        audit_target=target,
+        audit_result_handler=received.append,
+    )
+    assert '"accepted": true' in verdict
+    assert received[0].audit_id == target.audit_id
+
+
+def test_auditor_file_reads_are_bounded(tmp_path: Path):
+    target = tmp_path / "large.txt"
+    target.write_text("0123456789" * 10, encoding="utf-8")
+    result = _execute_tool(
+        tmp_path,
+        "read_file",
+        {"path": "large.txt", "limit": 12},
+        action_policy=auditor_policy(task_identifier="TASK-1"),
+    )
+    assert "012345678901" in result
+    assert "characters 0:12 of 100" in result
+    assert "continue only through the approved tool" in result
+
+
 def test_api_auditor_can_submit_result_but_normal_sessions_do_not_receive_it():
     target = _target()
     received = []

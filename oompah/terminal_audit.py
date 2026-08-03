@@ -84,6 +84,7 @@ class FailureClassification(str, Enum):
     UNSAFE_ARCHIVE = "unsafe_archive"
     MALFORMED_RESULT = "malformed_result"
     INFRASTRUCTURE_ERROR = "infrastructure_error"
+    POLICY_INCOMPATIBILITY = "policy_incompatibility"
 
     @classmethod
     def from_raw(cls, raw: Any) -> "FailureClassification":

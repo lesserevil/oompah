@@ -1776,6 +1776,12 @@ class TestClassifyFailureToStatus:
             is None
         )
 
+    def test_policy_incompatibility_returns_none_for_nonterminal(self) -> None:
+        assert (
+            classify_failure_to_status(FailureClassification.POLICY_INCOMPATIBILITY)
+            is None
+        )
+
     def test_unsafe_archive_restores_pre_audit_state(self) -> None:
         assert (
             classify_failure_to_status(
@@ -2510,6 +2516,7 @@ class TestApplyNoFailOpenPaths:
         [
             FailureClassification.MALFORMED_RESULT,
             FailureClassification.INFRASTRUCTURE_ERROR,
+            FailureClassification.POLICY_INCOMPATIBILITY,
         ],
     )
     def test_fail_nonterminal_class_never_applies_terminal(

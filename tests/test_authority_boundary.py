@@ -39,6 +39,10 @@ from oompah.authority_boundary import (
     is_action_allowed,
     operator_policy,
 )
+from oompah.auditor import (
+    check_auditor_command,
+    is_recoverable_auditor_command_denial,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -468,6 +472,48 @@ class TestCheckShellCommand:
         result = check_shell_command(policy, "git push")
         assert result is not None
         assert result.startswith("Error:")
+
+
+class TestAuditorReadOnlyShellRecovery:
+    """Read-only syntax errors are recoverable; write paths remain fatal."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git branch -a --contains abc123 | head -30",
+            "git log --oneline abc123 2>&1 | head -5",
+        ],
+    )
+    def test_oompah_709_read_only_forms_are_recoverable_validation(self, command):
+        denial = check_auditor_command(command)
+        assert denial is not None
+        assert denial.startswith("Error:")
+        assert is_recoverable_auditor_command_denial(denial)
+        assert "not executed" in denial
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "grep -n 'needle' oompah/auditor.py",
+            "git status",
+        ],
+    )
+    def test_simple_read_only_commands_remain_admitted(self, command):
+        assert check_auditor_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git status > audit.txt",
+            "git status; git commit -m hacked",
+            "bash -lc 'git status'",
+            "git push origin main",
+        ],
+    )
+    def test_mutation_and_file_redirection_are_not_recoverable(self, command):
+        denial = check_auditor_command(command)
+        assert denial is not None
+        assert not is_recoverable_auditor_command_denial(denial)
 
 
 # ---------------------------------------------------------------------------

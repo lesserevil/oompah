@@ -160,6 +160,7 @@ _NEEDS_REBASE_CLASSES: frozenset[FailureClassification] = frozenset({
 _NONTERMINAL_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.MALFORMED_RESULT,
     FailureClassification.INFRASTRUCTURE_ERROR,
+    FailureClassification.POLICY_INCOMPATIBILITY,
 })
 
 
@@ -823,6 +824,7 @@ class TerminalTransitionCoordinator:
                             in {
                                 FailureClassification.NO_AUDITOR,
                                 FailureClassification.INFRASTRUCTURE_ERROR,
+                                FailureClassification.POLICY_INCOMPATIBILITY,
                             }
                             for attempt in record.attempts
                         )
