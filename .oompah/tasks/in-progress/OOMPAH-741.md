@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:07:34.538830Z'
+updated_at: '2026-08-03T23:09:51.464809Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-03 23:07
 ---
 Understanding: I will trace dashboard snapshot construction and all listed health/alert producers, define or extend a shared structured actionability contract, preserve local diagnostics and metrics, add producer/snapshot/WebSocket coverage, then run focused checks before commit and submission.
+---
+author: oompah
+created: 2026-08-03 23:09
+---
+Discovery: Global alert output converges in Orchestrator.get_snapshot(); terminal audit, repository hygiene, auth health, credential retries, and generic _alerts currently expose incompatible fields. OOMPAH-735 owns integration_retry recovery classification on its separate branch, so this task will normalize its existing fields at the snapshot boundary rather than duplicate recovery logic. Existing health metrics and task-local retry/running rows remain separate diagnostics.
 ---
 <!-- COMMENTS:END -->
