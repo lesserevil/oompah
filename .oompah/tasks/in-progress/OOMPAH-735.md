@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:58:17.466752Z'
+updated_at: '2026-08-03T19:58:35.126250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -235,5 +235,10 @@ author: oompah
 created: 2026-08-03 19:58
 ---
 Discovery: root cause is in oompah/orchestrator.py::_route_integration_failure._record_failure_diagnostic (line 9203) which unconditionally appended a warning-level alert with source integration_retry:{project_id}:{task_id}. Success path at line ~9990 removed the alert only after integration completed. Alerts flow to the dashboard via Orchestrator.get_snapshot()['alerts'] (line 34741) which is consumed by handleStateUpdate() in oompah/templates/dashboard.html: alerts are split into cred/auth/other groups and the 'other' group is rendered both inline in agent-warnings and in the alerts-banner. Since dashboard filtering must key off an explicit signal (not message text), the fix requires structured backend fields (action_required + recovery_state) plus a reconciliation pass so the state API and WS snapshots publish current recovery classification without a page refresh.
+---
+author: oompah
+created: 2026-08-03 19:58
+---
+Implementation: (1) oompah/config.py — added integration_recovery_freshness_seconds (default 300s, env OOMPAH_INTEGRATION_RECOVERY_FRESHNESS_SECONDS). (2) oompah/orchestrator.py::_route_integration_failure — the _record_failure_diagnostic closure now takes recovery_state + action_required + optional level and stamps recorded_at. Route classifies the initial state as scheduled_retry (retryable), retry_exhausted (needs_human), awaiting_repair (conflict/generated_helper/needs_rebase/ci_failure — a repair worker will be dispatched), no_recovery (task_push_race/stale_head/missing_head/missing_epic/epic_merge_failure — owner must resubmit), or unrecoverable (integrity/auth/transport/policy — level=error). (3) Added Orchestrator._classify_integration_retry_recovery — a pure @staticmethod classifier that returns (recovery_state, action_required, level) from observable facts (running focus + last event, authority_revoked, queue state + next_retry_at + attempts, integration state, now, freshness). (4) Added Orchestrator._reconcile_integration_retry_alerts, invoked from get_snapshot() so every state API/WS snapshot publishes the current classification. Diagnostics (task_id, error, failing_step, attempts, max_attempts, next_retry_at, repair_action, recorded_at) are preserved; only level, recovery_state, action_required, updated_at are rewritten. (5) Added Orchestrator._clear_integration_retry_alert so successful integration clears both actionable and informational rows. (6) oompah/templates/dashboard.html — otherAlerts filter now drops alerts with action_required===false so informational recovery activity does not surface in the global operator banner or inline agent warnings. Missing/undefined field is treated as actionable for legacy compatibility. Task-level detail rendering is unchanged.
 ---
 <!-- COMMENTS:END -->
