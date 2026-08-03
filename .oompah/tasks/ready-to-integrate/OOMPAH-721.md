@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-721
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Do not escalate completed duplicate preflights as implementation work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T15:12:15.151856Z'
+updated_at: '2026-08-03T15:12:34.073256Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 80074d89-1af4-4932-9513-1c5fc1039e55
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 51836
   total_output_tokens: 1202
@@ -75,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-721
     source_sha: 99d33e120ffafe28b5790438072bfa9e74f88974
     completed_at: '2026-08-03T14:43:11.558589+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-721
+  head_sha: 145972d505913bad93562ffc96a96870724d0dee
+  submitted_at: '2026-08-03T15:12:28.036171+00:00'
+  updated_at: '2026-08-03T15:12:28.036171+00:00'
 ---
 ## Summary
 
@@ -209,5 +217,10 @@ author: oompah
 created: 2026-08-03 15:12
 ---
 Owner implementation complete at 145972d505913bad93562ffc96a96870724d0dee. Root cause: auto-filed rebase tasks start in Needs Rebase and therefore are ordinary implementation dispatches; generic focus triage nevertheless selected the scheduler-owned duplicate_detector, registering its read-only verdict run as implementation and sending its exit through standard-to-deep escalation. Fix: make duplicate_detector an immutable reserved focus, select it only through the dedicated duplicate-preflight RunningEntry boundary, give its prompt an explicit read-only scheduler contract, and keep reserved foci out of generic handoff mutation instructions. Regression proves EXOCOMP-241-style Needs Rebase work selects merge_conflict, ordinary entries cannot receive Duplicate Investigator, dedicated preflight entries still do, and user focus overrides cannot unreserve it. Checks: terminal mutation scan passed; 180 focus/preflight tests passed at exact rebased head; 300 adjacent focus-triage/auditor/duplicate-detection/epic-strategy tests passed before the conflict-free rebase.
+---
+author: oompah
+created: 2026-08-03 15:12
+---
+Reserve Duplicate Investigator for scheduler-owned preflight; prevent ordinary maintenance tasks from entering duplicate-only escalation loops.
 ---
 <!-- COMMENTS:END -->
