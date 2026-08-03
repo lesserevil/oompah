@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-718
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:43:18.198554Z'
+updated_at: '2026-08-03T13:44:15.594067Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a29cdbfc-7ec4-4ae9-8f18-c57fe8093fc6
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1671
@@ -89,6 +89,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-718
     source_sha: b97187abdd50d76deda75be427f26049fd396cb6
     completed_at: '2026-08-03T13:11:17.285636+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-718
+  head_sha: c9734b0cf5e7ce375b31350ee9543627b5facc0a
+  submitted_at: '2026-08-03T13:44:08.534408+00:00'
+  updated_at: '2026-08-03T13:44:08.534408+00:00'
 ---
 ## Summary
 
@@ -182,5 +190,10 @@ author: oompah
 created: 2026-08-03 13:43
 ---
 Completion: Delivered container-level cycle detection and safe repair fencing. The graph reports deterministic multi-epic paths, affected Ready rows, exact prerequisite SHAs, and an authorized repair selection; dependency mutations return actionable 409s; queue/dashboard summaries expose diagnostics; integration audits route only affected rows to Needs Human without importing sibling work; CAS cancellation preserves newer private heads and independent queues. Focused suites pass (78 tests), and the full fallback gate passes (15,094 passed, 7 skipped, 1 xfailed); direct make test setup remains unavailable because astral-uv cannot create its DBus transient scope in this environment.
+---
+author: oompah
+created: 2026-08-03 13:44
+---
+Implemented deterministic container-level dependency cycle detection, actionable queue/dashboard diagnostics, safe Needs Human repair routing, dependency mutation rejection, and compare-and-swap head fencing. Focused tests and full fallback gate pass.
 ---
 <!-- COMMENTS:END -->
