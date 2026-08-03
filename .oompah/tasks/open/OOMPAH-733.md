@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:24:05.759204Z'
+updated_at: '2026-08-03T18:25:35.189863Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: d31efe1048fb2a727e1b2258c28d0d552076e4d24e28ffbc2fbd4061e24f07d0
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6db7e8a9-4cc1-42c8-a0a7-b2a2c05da814
+  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
+  claimed_at: '2026-08-03T18:25:22.245091+00:00'
+  claim_expires_at: '2026-08-03T18:55:22.245091+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 4788db04-fd8a-454c-a2c0-deb3d357f73b
 ---
 ## Summary
 
@@ -29,3 +47,16 @@ Live reproduction: EXOCOMP-245 was auto-filed as Rebase epic-EXOCOMP-135 onto ma
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 18:25
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 18:25
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
