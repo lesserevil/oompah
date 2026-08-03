@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T16:04:10.941885Z'
+updated_at: '2026-08-03T16:11:45.771395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,40 @@ created: 2026-08-03 16:04
 **Key files to examine:** oompah/server.py (submission authority), orchestrator.py (worker lifecycle), projects.py (recovery snapshots), integration_executor.py (integration checks), task_cli.py (evidence capture)
 
 Starting with code exploration.
+---
+author: oompah
+created: 2026-08-03 16:11
+---
+**Discovery:** 
+
+Found the relevant code paths:
+
+1. **Submission acceptance flow** (orchestrator.py ~line 29695): 
+   - `_accept_worker_submission()` validates and records submission in metadata
+   - Marks task as completed
+   - BUT: Returns immediately while worker still running
+
+2. **Recovery mechanism** (projects.py ~line 2568): 
+   - `preserve_worktree_changes()` captures dirty state to recovery ref
+   - Called during worker cleanup before worktree removal
+   - Recovery marker stored in commit message
+
+3. **Race window**: Between submission acceptance and worker exit:
+   - Authority not revoked - worker can still mutate
+   - Processes not quiesced - formatters, tools can still run
+   - No final cleanliness check before integration eligibility
+
+4. **Current problem** (integration_executor.py line 303):
+   - Integration fails with 'worktree_recovery' status when HEAD differs
+   - Message: "refusing to reset a preserved recovery snapshot"
+   - Causes task to reopen with transient Ready state
+
+5. **Missing pieces**:
+   - No authority revocation on submission acceptance
+   - No quiescence mechanism after acceptance
+   - No final validation before integration enqueue
+   - Recovery reopening needs explicit task state (not transient)
+
+**Key insight:** The recovery system works, but needs fencing around submission acceptance to prevent late mutations becoming integration blockers.
 ---
 <!-- COMMENTS:END -->
