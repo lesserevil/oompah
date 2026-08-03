@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:58:40.923523Z'
+updated_at: '2026-08-03T00:58:44.003308Z'
 work_branch: OOMPAH-709
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/669
@@ -117,7 +117,19 @@ oompah.terminal_audit:
       compound-shell policy; no code defect verdict was produced. Follow-up filed
       for that policy/tool-guidance failure.'
     created_at: '2026-08-03T00:58:36.607087+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-709
+    target_state: Merged
+    evidence_fingerprint: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+    audit_ids:
+    - audit-03c795f5edee
+    - audit-320b7d504592
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T00:58:42.936147+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -125,7 +137,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-709
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -176,13 +188,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:53:05.081583+00:00'
-    updated_at: '2026-08-03T00:57:54.255957+00:00'
+    updated_at: '2026-08-03T00:58:42.936122+00:00'
   - version: 1
     audit_id: audit-320b7d504592
     project_id: proj-14849f1b
     task_id: OOMPAH-709
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -194,6 +206,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:53:05.081583+00:00'
+    updated_at: '2026-08-03T00:58:42.936137+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5cfed9c3692c
