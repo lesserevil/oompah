@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T18:41:25.969058Z'
+updated_at: '2026-08-03T18:41:55.732571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-03 18:41
 ---
 Verification: Ran focused test suites covering all changed behavior. test_worker_submission.py (13 passed), test_projects.py (118 passed), test_epic_strategy.py (234 passed), test_epic_staleness.py + test_epic_rebase_state.py + test_integration_executor.py + test_integration_queue.py (446 passed total), test_parallel_epic_children.py + test_epic_terminal_audit_contract.py (53 passed + 1 xfailed). No regressions found. Branch pushed as 2136743f5.
+---
+author: oompah
+created: 2026-08-03 18:41
+---
+Completion: Delivered complete fix for EXOCOMP-244-style self-invalidating submission. Direct epic rebase helpers now: (1) receive the canonical shared epic worktree so worker and submission share one ref, (2) bypass the ordinary child integration queue on submission, (3) reconcile the registered epic checkout to the proven published SHA via a guarded reset (dirty/active/recovery/divergent states preserved), (4) transition directly to audited Done via the maintenance lifecycle, (5) recover idempotently on restart if the push succeeded before process exit. 499 focused tests pass across all affected suites.
 ---
 <!-- COMMENTS:END -->
