@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T19:38:40.429000Z'
+updated_at: '2026-08-03T19:44:52.245758Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -284,6 +284,23 @@ oompah.terminal_audit:
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
     updated_at: '2026-08-03T19:38:33.773126+00:00'
+  - version: 1
+    audit_id: audit-79e3511c1e90
+    project_id: proj-14849f1b
+    task_id: OOMPAH-730
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-03T19:44:51.181488+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
