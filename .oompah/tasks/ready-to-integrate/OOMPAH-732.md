@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-732
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent standalone Ready delivery starvation after restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:50:19.937670Z'
+updated_at: '2026-08-03T18:51:06.965903Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,6 +142,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-732
     source_sha: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
     completed_at: '2026-08-03T18:01:38.150950+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-732
+  head_sha: 9aadb07d1e9551c3527dec414a426c6eb9b1b857
+  submitted_at: '2026-08-03T18:51:00.602539+00:00'
+  updated_at: '2026-08-03T18:51:00.602539+00:00'
 ---
 ## Summary
 
@@ -267,5 +275,10 @@ Verification: All focused tests pass.
 - Broad keyword sweep across all affected neighbor suites: 439 passed, 14723 deselected
 
 Branch rebased onto origin/main and pushed as origin/OOMPAH-732.
+---
+author: oompah
+created: 2026-08-03 18:51
+---
+Fixed standalone Ready delivery starvation via three coordinated changes in oompah/orchestrator.py: (1) removed updated_at from _standalone_delivery_evidence_revision to prevent benign tracker bookkeeping from revoking live delivery authority—the primary live regression cause; (2) added _standalone_delivery_future separate from _integration_future so a long standalone gate cannot block shared-epic queue claims and vice versa; (3) moved standalone reconciler arm to the start of _tick() before dispatch and maintenance lanes. Added two regression tests: test_standalone_gate_does_not_hold_shared_queue_driver (proves bidirectional future separation) and test_benign_tracker_timestamp_change_keeps_exact_head_authority (proves benign revision reads cannot revoke delivery). All 309 focused tests pass.
 ---
 <!-- COMMENTS:END -->
