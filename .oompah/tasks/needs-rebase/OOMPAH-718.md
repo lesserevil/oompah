@@ -1,21 +1,22 @@
 ---
 id: OOMPAH-718
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:07:37.224435Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-03T14:08:08.194458Z'
+work_branch: OOMPAH-718
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
-review_number: null
+review_number: '678'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -98,6 +99,9 @@ oompah.integration:
   submitted_at: '2026-08-03T13:44:08.534408+00:00'
   updated_at: '2026-08-03T13:44:08.534408+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/678
+oompah.review_number: '678'
+oompah.work_branch: OOMPAH-718
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -216,5 +220,10 @@ author: oompah
 created: 2026-08-03 14:07
 ---
 Branch quality gate passed for `c9734b0cf5e7ce375b31350ee9543627b5facc0a` using `make test` in 403.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 14:08
+---
+YOLO: Merge conflict detected on MR #678. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
