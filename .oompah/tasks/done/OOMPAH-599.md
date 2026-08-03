@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Merged
+status: Done
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-08-02T18:26:11.607919Z'
+updated_at: '2026-08-03T20:03:43.433522Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
