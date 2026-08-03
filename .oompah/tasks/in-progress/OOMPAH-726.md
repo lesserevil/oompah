@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:06:03.259495Z'
+updated_at: '2026-08-03T16:22:23.461576Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-08-03 16:06
 ---
 Discovery: ProjectStore._assert_terminal_worktree_safe_locked currently accepts only source-branch publication or origin/default ancestry; deleted nested-epic sources therefore fail closed even after a reviewed merge into the parent epic. Orchestrator cleanup routes terminal issues through cleanup_terminal_issue without target/evidence context, while Issue and terminal metadata already persist target_branch/review_number/review_head and merge audit data. I am tracing those exact contracts before changing the API.
+---
+author: oompah
+created: 2026-08-03 16:22
+---
+Implementation: ProjectStore now has an opt-in nested-target landing verifier that exact-checks registered worktrees, refreshes/prunes the authoritative target ref, compares the exact reviewed head, accepts ancestry or an explicitly verified merge parent, and protects branch-only cleanup. Orchestrator cleanup resolves canonical parent-epic targets, rejects wrong/missing metadata, and supplies review-head or current-fingerprint passing terminal-Merged audit evidence. Added real bare-remote regression coverage for merge/fast-forward/deleted-source/failure/unreachable/dirty-active/unregistered/idempotent paths and routing tests.
 ---
 <!-- COMMENTS:END -->
