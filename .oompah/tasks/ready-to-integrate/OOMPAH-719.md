@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-719
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep oversized auditor run_command output inside the authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:42:46.829421Z'
+updated_at: '2026-08-03T14:43:17.448243Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,7 +111,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 53e4bbe5-009f-4c16-a342-ce69769f30c1
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1755
@@ -138,6 +138,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-719
     source_sha: fe1412ca98447e0d21307844056a860c1b385f36
     completed_at: '2026-08-03T14:03:23.415868+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-719
+  head_sha: 13aed584ad06674017d1c4ee1a50eef68d9c570e
+  submitted_at: '2026-08-03T14:42:58.418146+00:00'
+  updated_at: '2026-08-03T14:42:58.418146+00:00'
 ---
 ## Summary
 
@@ -230,5 +238,20 @@ author: oompah
 created: 2026-08-03 14:42
 ---
 Completion: delivered and pushed commit 13aed584. Oversized auditor run_command output is bounded before provider transport; auditor-only read_command_output pages/searches opaque saved results; Claude/Codex/OpenCode/API paths share the guard; auditor prompt and API policy wiring prevent provider-private path recovery. Full equivalent gate passed 15099 passed, 7 skipped, 1 xfailed. Branch is clean and up to date with origin/OOMPAH-719.
+---
+author: oompah
+created: 2026-08-03 14:43
+---
+Bound oversized auditor run_command output with opaque approved paging/search continuations; updated ACP/API auditor policy and prompt; added transport-boundary and verdict-flow tests.
+---
+author: oompah
+created: 2026-08-03 14:43
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 115
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 36m 54s
+- Log: OOMPAH-719__20260803T140625Z.jsonl
 ---
 <!-- COMMENTS:END -->
