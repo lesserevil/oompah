@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-736
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Align auditor command policy with project-required Makefile validation targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T21:32:16.628397Z'
+updated_at: '2026-08-03T21:39:52.121760Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -112,6 +112,31 @@ oompah.work_branch: OOMPAH-736
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-6ff4132fbba2-3: '2026-08-03T21:39:43.978305+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-736
+    target_state: Done
+    evidence_fingerprint: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    audit_ids:
+    - audit-6ff4132fbba2
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T21:39:43.978317+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-736
+    audit_id: audit-6ff4132fbba2
+    attempt_id: infrastructure-exhausted-audit-6ff4132fbba2-3
+    target_state: Done
+    evidence_fingerprint: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    status: Needs Human
+    audit_ids:
+    - audit-6ff4132fbba2
+    applied: true
+    created_at: '2026-08-03T21:39:43.978336+00:00'
+    applied_at: '2026-08-03T21:39:50.245107+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -119,7 +144,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-736
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -178,13 +203,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-03T21:32:08.141484+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-03T21:32:48.141457+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-6ff4132fbba2-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-03T21:39:43.978178+00:00'
+      completed_at: '2026-08-03T21:39:43.978178+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:42:40.561716+00:00'
-    updated_at: '2026-08-03T21:32:08.141484+00:00'
+    updated_at: '2026-08-03T21:39:43.978178+00:00'
   - version: 1
     audit_id: audit-d4c464f1ae79
     project_id: proj-14849f1b
@@ -577,5 +614,12 @@ author: oompah
 created: 2026-08-03 21:32
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-03 21:39
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
