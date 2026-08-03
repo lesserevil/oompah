@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: In Review
+status: In Validation
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T01:32:00.449420Z'
+updated_at: '2026-08-03T01:41:00.702685Z'
 work_branch: OOMPAH-710
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/671
@@ -109,6 +109,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/671
 oompah.review_number: '671'
 oompah.work_branch: OOMPAH-710
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dd31f0420e15
+    project_id: proj-14849f1b
+    task_id: OOMPAH-710
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58d8c5b00a9c81275d7a2a118c90c2fef16593239552cdaf1f3acd09812d9055
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:40:53.708076+00:00'
+  - version: 1
+    audit_id: audit-850649c8210e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-710
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 58d8c5b00a9c81275d7a2a118c90c2fef16593239552cdaf1f3acd09812d9055
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:40:53.708076+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -249,5 +288,15 @@ author: oompah
 created: 2026-08-03 01:31
 ---
 Branch quality gate passed for `205f413440767c5c2c94c641504f96f6a71c77bb` using `make test` in 432.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 01:40
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 01:41
+---
+YOLO: merged PR #671.
 ---
 <!-- COMMENTS:END -->
