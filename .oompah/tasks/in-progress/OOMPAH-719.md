@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:15:38.413498Z'
+updated_at: '2026-08-03T14:16:56.529494Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -214,5 +214,10 @@ author: oompah
 created: 2026-08-03 14:15
 ---
 Implementation: added CommandOutputStore with bounded 32K pages and opaque session-local result IDs; oversized run_command output now stops before provider transport and offers read_command_output paging/regex search. Wired the operation through Claude/Codex/OpenCode ACP auditor catalogs and API auditor sessions, enforced auditor_policy on API dispatch, and updated the trusted auditor prompt. Added >1 MB make-test coverage proving page/search and submit_audit_result stay path-free.
+---
+author: oompah
+created: 2026-08-03 14:16
+---
+Verification: focused transport/auditor suites pass (26 tests), broader ACP/API/project-tool suites pass (165 tests), and terminal-audit health/dashboard/cleanup suites pass (91 tests). Ruff reports existing baseline violations outside this change; git diff --check and Python compilation are clean. Starting the complete Makefile gate next.
 ---
 <!-- COMMENTS:END -->

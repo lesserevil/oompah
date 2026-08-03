@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T14:06:41.514470Z'
+updated_at: '2026-08-03T14:16:59.954184Z'
 work_branch: OOMPAH-717
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/677
@@ -118,6 +118,31 @@ oompah.work_branch: OOMPAH-717
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9f32e08bffd1: '2026-08-03T14:16:52.729320+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    target_state: Done
+    evidence_fingerprint: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    audit_ids:
+    - audit-4477aca88238
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T14:16:52.729333+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    audit_id: audit-4477aca88238
+    attempt_id: attempt-9f32e08bffd1
+    target_state: Done
+    evidence_fingerprint: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    status: In Validation
+    audit_ids:
+    - audit-4477aca88238
+    applied: true
+    created_at: '2026-08-03T14:16:52.729350+00:00'
+    applied_at: '2026-08-03T14:16:58.897506+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -125,7 +150,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-717
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,7 +178,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9f32e08bffd1
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -164,13 +189,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T14:06:36.055258+00:00'
       branch_key: OOMPAH-717
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T14:16:52.729118+00:00'
+      ended_at: '2026-08-03T14:16:52.729118+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T14:00:19.534168+00:00'
-    updated_at: '2026-08-03T14:06:36.055258+00:00'
+    updated_at: '2026-08-03T14:16:52.729118+00:00'
   - version: 1
     audit_id: audit-0e41f170f41b
     project_id: proj-14849f1b
@@ -499,5 +527,20 @@ author: oompah
 created: 2026-08-03 14:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 14:16
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 0f835493c2387163aca3e446d1c15fcf97ee1f84
+- gate_result: passed 402.7s
+- pr_merged: PR #677 merged
+- focused_tests: 93 passed (executor:32, queue:17, worker_submission:12, parallel_epic_children:32)
+- key_tests_passing: test_executor_rejects_legacy_tracked_generated_helper_before_shared_mutation, test_executor_reports_reset_error_not_successful_checkout_stderr, test_executor_reports_merge_error_not_successful_checkout_stderr, test_executor_keeps_genuine_epic_compare_and_swap_race_retryable, test_backoff_skips_poisoned_row_and_advances_independent_epic, test_claim_attempt_budget_bounds_repeated_failures
+- files_changed: oompah/integration_executor.py, oompah/integration_queue.py, oompah/orchestrator.py, oompah/projects.py, oompah/server.py, oompah/config.py, oompah/templates/dashboard.html, tests/test_integration_executor.py, tests/test_integration_queue.py, tests/test_worker_submission.py, tests/test_parallel_epic_children.py, tests/test_makefile_restart_wait.py
 ---
 <!-- COMMENTS:END -->

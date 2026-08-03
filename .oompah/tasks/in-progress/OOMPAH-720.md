@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:13:54.375225Z'
+updated_at: '2026-08-03T14:17:05.276031Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-08-03 14:13
 ---
 Discovery: candidate rotation is durable attempt metadata on one audit record under the project write lock; its fingerprint is already the record-level canonical evidence digest. The false 409 comes from trusting a pre-lock API/coordinator Issue snapshot. I will refresh the tracker Issue and recompute compute_issue_evidence_fingerprint inside the locked override operation, while preserving the supplied snapshot as a compatibility fallback when a tracker lacks detail reads.
+---
+author: oompah
+created: 2026-08-03 14:17
+---
+Implementation: owner overrides now refresh tracker detail after acquiring the task ownership lock, and TerminalTransitionCoordinator recomputes canonical evidence from that detail inside the project lock before active-record comparison. Audit lifecycle/provider/model/retry/comment/snapshot fields remain outside EvidenceFingerprint. Added focused regressions covering stale integrated snapshots, rotated attempts, duplicate retirement, authority/alert cleanup, and exactly-once/idempotent replay.
 ---
 <!-- COMMENTS:END -->
