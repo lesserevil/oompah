@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T18:53:07.061908Z'
+updated_at: '2026-08-03T18:53:31.270412Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -129,18 +129,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-83ebd6844473
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+      created_at: '2026-08-03T18:53:29.108427+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T18:53:29.108427+00:00'
+      branch_key: OOMPAH-730
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
+    updated_at: '2026-08-03T18:53:29.108427+00:00'
   - version: 1
     audit_id: audit-5537cd234487
     project_id: proj-14849f1b
@@ -158,7 +172,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-83ebd6844473
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    created_at: '2026-08-03T18:53:29.108427+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T18:53:29.108427+00:00'
+    branch_key: OOMPAH-730
 ---
 ## Summary
 
