@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:05:55.786862Z'
+updated_at: '2026-08-03T23:09:43.023653Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -133,7 +133,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fc13532a-2a41-462a-ad0b-5c0f46db1c81
+oompah.agent_run_id: 6107abe9-9a31-45d4-8323-44673d52a6d0
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-742
 oompah.integration:
   version: 2
@@ -225,5 +225,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 47s
 - Log: OOMPAH-742__20260803T230137Z.jsonl
+---
+author: oompah
+created: 2026-08-03 23:09
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
