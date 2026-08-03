@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: Merged
+status: Done
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T22:47:04.757921Z'
+updated_at: '2026-08-03T22:52:39.751386Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
