@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:25:13.144550Z'
+updated_at: '2026-08-03T13:37:58.108695Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-08-03 13:25
 ---
 Verification: focused suites pass (66 tests). The required make test gate exited before pytest during Make setup because astral-uv could not create its transient scope (DBus InvalidArgs: kernel thread). No full-gate tests ran; I will use the already provisioned interpreter with scripts/run-tests.sh isolation as an environment fallback, then recheck the final diff.
+---
+author: oompah
+created: 2026-08-03 13:37
+---
+Verification: focused dependency/API/parallel suites pass (63 tests after final dashboard-summary assertion). Full project fallback via scripts/run-tests.sh parallel passed 15,094 tests, with 7 skipped, 1 expected xfail, and 43 warnings in 6:57. Direct make test could not start because its uv setup hit the host DBus transient-scope error before pytest.
 ---
 <!-- COMMENTS:END -->
