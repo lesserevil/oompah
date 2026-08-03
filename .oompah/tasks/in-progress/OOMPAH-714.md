@@ -6,12 +6,14 @@ priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-711
+- OOMPAH-713
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T01:33:25.050142Z'
+updated_at: '2026-08-03T01:37:57.854211Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +175,10 @@ author: oompah
 created: 2026-08-03 01:33
 ---
 Reviewed peer coordination inbox: OOMPAH-710 and OOMPAH-713 are submitted but not cherry-picked due overlapping orchestrator/auditor paths. Preserving their interfaces; proceeding with OOMPAH-714 follow-ups for the true auditor-retirement/branch-gate regression, bounded gate telemetry, and legacy gate-facade compatibility.
+---
+author: oompah
+created: 2026-08-03 01:37
+---
+Direct owner added finish-order dependencies on OOMPAH-711 and OOMPAH-713 because those accepted branches overlap orchestrator/dashboard surfaces. Implementation may continue in parallel; integration must rebase after both land and preserve their owner-claim and auditor-policy behavior.
 ---
 <!-- COMMENTS:END -->
