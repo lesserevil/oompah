@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T02:34:03.116030Z'
+updated_at: '2026-08-03T02:37:15.007228Z'
 work_branch: OOMPAH-711
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/674
@@ -113,6 +113,31 @@ oompah.work_branch: OOMPAH-711
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-cd8a58f42e26: '2026-08-03T02:37:10.040698+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-711
+    target_state: Done
+    evidence_fingerprint: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+    audit_ids:
+    - audit-98d04db0c346
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T02:37:10.040708+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-711
+    audit_id: audit-98d04db0c346
+    attempt_id: attempt-cd8a58f42e26
+    target_state: Done
+    evidence_fingerprint: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+    status: In Validation
+    audit_ids:
+    - audit-98d04db0c346
+    applied: true
+    created_at: '2026-08-03T02:37:10.040718+00:00'
+    applied_at: '2026-08-03T02:37:13.976974+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -120,7 +145,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-711
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -129,7 +154,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cd8a58f42e26
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -139,13 +164,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T02:33:57.983988+00:00'
       branch_key: OOMPAH-711
+      verdict: pass
+      completed_at: '2026-08-03T02:37:10.040568+00:00'
+      ended_at: '2026-08-03T02:37:10.040568+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T02:32:35.415490+00:00'
-    updated_at: '2026-08-03T02:33:57.983988+00:00'
+    updated_at: '2026-08-03T02:37:10.040568+00:00'
   - version: 1
     audit_id: audit-18e20ac1a21e
     project_id: proj-14849f1b
@@ -430,5 +458,24 @@ author: oompah
 created: 2026-08-03 02:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 02:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: ce9e9fe007850e75b9814b3e1e12a657d4ceb3db
+- merged_into_main: 94f0dc55ae9887c45791debb717d0c65ada8705f (PR #674)
+- working_tree: clean
+- focused_tests: 86/86 passed (owner-claim, duplicate-dispatch, release-selection)
+- full_gate: make test passed in 404.1s for exact head (per branch quality gate comment)
+- [REDACTED-credential-key]: passed
+- changed_files: oompah/server.py, oompah/orchestrator.py, tests/test_owner_claim.py, tests/test_orchestrator_duplicate_detection.py, tests/test_release_pick_validation.py
+- new_focused_tests: test_owner_claim_api_retires_scheduler_before_granting_direct_work; test_owner_claim_api_keeps_resistant_scheduler_runtime_visible; test_owner_claim_api_waits_for_claim_to_register_before_retirement; test_stale_dispatch_aborts_after_direct_owner_claim
+- restart_recovery_coverage: test_owner_claim_is_restored_from_durable_service_state (pre-existing durable-state coverage)
+- dispatch_fence_points: _should_dispatch reason=direct_owner_claim; _dispatch implementation_dispatch guard; temporary human-only label under project_write_lock
 ---
 <!-- COMMENTS:END -->
