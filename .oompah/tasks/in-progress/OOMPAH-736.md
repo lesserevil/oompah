@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:38:43.900469Z'
+updated_at: '2026-08-03T19:49:48.757698Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,47 @@ Found the key components:
 5. Handle fallback to defaults when project config is missing
 
 Starting implementation now.
+---
+author: oompah
+created: 2026-08-03 19:49
+---
+## Implementation Complete
+
+**What was changed:**
+
+1. **Project Model** (oompah/models.py):
+   - Added `auditor_validation_targets: list[str]` field to Project class
+   - Supports configuration like `['test', 'fmt-check', 'lint', 'help']`
+   - Integrated serialization/deserialization in to_dict/from_dict
+
+2. **Auditor Command Validation** (oompah/auditor.py):
+   - Created `_get_auditor_validation_targets(project_id)` to fetch project config
+   - Created `_build_auditor_command_regex(targets)` to dynamically generate validation regex
+   - Updated `check_auditor_command(command, project_id=None)` to accept project context
+   - Fixed regex to prevent cross-target matching (e.g., 'make test' won't match 'test-serial')
+
+3. **Authority Boundary** (oompah/authority_boundary.py):
+   - Updated call to check_auditor_command() to pass policy.project_id
+
+4. **Auditor Prompt** (oompah/prompt.py):
+   - Extended render_auditor_prompt() with optional project_id/validation_targets
+   - Generates 'Approved validation targets' section in prompt when configured
+   - Lists exact allowed commands (make test, make fmt-check, etc.)
+
+5. **Tests** (tests/test_auditor_validation_targets.py):
+   - 15 comprehensive tests for the regression case
+   - Verifies dynamic regex behavior
+   - Tests Project model serialization
+   - Validates EXOCOMP-159 scenario
+
+**Test Results:**
+✓ All 31 existing auditor_contract tests pass
+✓ All 15 new validation_targets tests pass
+✓ No regressions in adjacent systems
+
+**Regression Fix:**
+- Before: Projects requiring fmt-check/lint exhausted auditor candidates
+- After: Projects can explicitly configure allowed validation targets
+- Prompt now accurately reflects enforcement for better user guidance
 ---
 <!-- COMMENTS:END -->
