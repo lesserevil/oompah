@@ -232,6 +232,7 @@ def _shutdown_test_orchestrator_pools():
             orch._maintenance_future,
             orch._epic_maintenance_future,
             orch._integration_future,
+            orch._standalone_delivery_future,
         ):
             if future is not None and future.done() and not future.cancelled():
                 # Retrieving an exception prevents asyncio's delayed
@@ -244,7 +245,11 @@ async def _await_tick_background(orch: Orchestrator) -> None:
     """Wait for the exact maintenance futures created by the current tick."""
     futures = [
         future
-        for future in (orch._maintenance_future, orch._epic_maintenance_future)
+        for future in (
+            orch._maintenance_future,
+            orch._epic_maintenance_future,
+            orch._standalone_delivery_future,
+        )
         if future is not None
     ]
     if futures:

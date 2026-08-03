@@ -1385,6 +1385,10 @@ class Orchestrator:
         # git/test work runs in the tick pool, then terminal-audit staging
         # resumes on the scheduler loop.
         self._integration_future: "asyncio.Future[None] | None" = None
+        # Standalone Ready delivery has its own maintenance future. A
+        # standalone exact-head quality gate can take minutes; it must not
+        # occupy the future that recovers and claims shared-epic queue rows.
+        self._standalone_delivery_future: "asyncio.Future[None] | None" = None
         # Per-project threading locks for epic maintenance jobs (TASK-466.3).
         # Serialises epic close/PR/staleness/rebase/orphan-reset on the same
         # project so two concurrent maintenance sweeps (e.g. from a tick burst)
@@ -5549,6 +5553,7 @@ class Orchestrator:
                 self._maintenance_future,
                 self._epic_maintenance_future,
                 self._integration_future,
+                self._standalone_delivery_future,
             )
             if future is not None
         ]
@@ -5671,6 +5676,24 @@ class Orchestrator:
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
 
+        # Arm standalone delivery before the dispatch and maintenance lanes.
+        # A full task scan or a long maintenance operation must not defer the
+        # bounded Ready reconciliation interval; the future itself coalesces
+        # duplicate ticks while one sweep is active.
+        if (
+            self.config.parallel_epic_children_enabled
+            and (
+                self._standalone_delivery_future is None
+                or self._standalone_delivery_future.done()
+            )
+        ):
+            self._standalone_delivery_future = (
+                asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    self._reconcile_standalone_ready_to_integrate_tasks,
+                )
+            )
+
         # Detect terminal -> non-terminal -> terminal transitions after the
         # process has started.  Keep this scan on the full-sync cadence so
         # ordinary event-driven ticks remain cheap.
@@ -5744,8 +5767,8 @@ class Orchestrator:
         watchdog_ms = (self._monotonic_clock() - _t_watchdog) * 1000
 
         # Ready private task heads are integrated outside the dispatch lane.
-        # Only one queue driver is live per service instance; SQLite leases
-        # protect restart and multi-tick races.
+        # The shared-epic driver is independent of the standalone driver, so
+        # an exact-head standalone gate cannot hold shared queue claims.
         if (
             self.config.parallel_epic_children_enabled
             and (
@@ -7848,15 +7871,17 @@ class Orchestrator:
     def _standalone_delivery_evidence_revision(issue: Issue) -> tuple[str, ...]:
         """Return the tracker evidence that a standalone delivery observes.
 
-        ``updated_at`` is the primary revision for native and forge trackers.
-        The remaining fields make lightweight test doubles and trackers with
-        coarse timestamps fail closed when review or submission evidence
-        changes.
+        Tracker ``updated_at`` is deliberately not part of this fingerprint.
+        Comments, cache refreshes, and other benign tracker bookkeeping can
+        advance it without changing the accepted delivery. Including that
+        coarse record timestamp revoked the current authority between the
+        remote-head check and PR lookup. The remaining fields are the
+        delivery-relevant submission and review evidence, so a lifecycle or
+        exact-head change still fences the claim.
         """
 
         integration = getattr(issue, "integration", None)
         return (
-            str(getattr(issue, "updated_at", "") or ""),
             str(getattr(issue, "work_branch", "") or ""),
             str(getattr(issue, "branch_name", "") or ""),
             str(getattr(issue, "target_branch", "") or ""),
@@ -9320,11 +9345,6 @@ class Orchestrator:
         await loop.run_in_executor(
             self._tick_pool,
             self._sync_ready_integration_submissions,
-        )
-        # Reconcile standalone Ready to Integrate tasks (no epic parent)
-        await loop.run_in_executor(
-            self._tick_pool,
-            self._reconcile_standalone_ready_to_integrate_tasks,
         )
         self.integration_queue.recover_expired()
 
