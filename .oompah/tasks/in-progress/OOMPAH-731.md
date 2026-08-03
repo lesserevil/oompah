@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:05:31.138972Z'
+updated_at: '2026-08-03T19:06:52.952388Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -318,5 +318,10 @@ author: oompah
 created: 2026-08-03 19:05
 ---
 Discovery: The reported repo-heal failure is not reproducible in isolation. The deterministic YOLO failure is a stale MagicMock fixture: it models an active Rebase epic-* helper without the persisted parent_id that the new direct-maintenance classifier intentionally requires. Production helpers receive that parent at filing, so weakening the classifier would reduce the intended safety boundary.
+---
+author: oompah
+created: 2026-08-03 19:06
+---
+Implementation: Updated the active rebase-sibling test fixture to include its durable identifier and parent epic. This matches the auto-filed helper shape required by the direct-maintenance classifier and retains its fail-closed title-plus-parent safety rule; no production behavior changed.
 ---
 <!-- COMMENTS:END -->
