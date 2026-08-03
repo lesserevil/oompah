@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-08-02T18:25:33.164472Z'
+updated_at: '2026-08-03T20:03:31.741991Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
