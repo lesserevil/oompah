@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:29:01.534767Z'
+updated_at: '2026-08-03T13:29:55.777589Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 91e65009-e787-45cd-857f-a01722ed7500
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1538
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-03 13:29
 ---
 Verification: focused executor/queue/orchestrator/ProjectStore/submission/dashboard suites passed, and the repository parallel gate completed with 15,097 passed, 7 skipped, 1 xfailed, and 45 warnings.  passed. The Makefile wrapper could not create its uv transient scope because the environment returned a DBus kernel-thread error; the same configured test runner completed successfully directly.
+---
+author: oompah
+created: 2026-08-03 13:29
+---
+Completion: commit 76526b08a14ad5a43ed137c2bc844594e3a1f733 is pushed on origin/OOMPAH-717. Generated helpers are rejected with a safe git-rm repair path, integration failures retain the real failing stderr, CAS retries are bounded/backed off and fair, and diagnostics are visible in queue health/dashboard output. Focused suites and the 15,097-test parallel gate passed; branch is clean and up to date.
 ---
 <!-- COMMENTS:END -->
