@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T19:31:01.731604Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-08-03T19:31:12.826512Z'
+work_branch: OOMPAH-724
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/689
+review_number: '689'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -116,6 +116,10 @@ oompah.integration:
   head_sha: e0e1769757167c48853d850c484840f129aa56cf
   submitted_at: '2026-08-03T17:02:58.884611+00:00'
   updated_at: '2026-08-03T17:05:05.794454+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/689
+oompah.review_number: '689'
+oompah.work_branch: OOMPAH-724
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -341,5 +345,10 @@ author: oompah
 created: 2026-08-03 18:00
 ---
 Branch quality gate passed for `e0e1769757167c48853d850c484840f129aa56cf` using `make test` in 406.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 19:31
+---
+Live delivery workaround: OOMPAH-732 is merged but not yet audited/deployed, so the current server still leaves standalone Ready tasks without a delivery path. Opened PR #689 for exact submitted head e0e1769757167c48853d850c484840f129aa56cf after confirming its recorded branch gate passed and project review capacity was free. Preserving max_in_flight_prs=1; later Ready tasks remain queued behind this review.
 ---
 <!-- COMMENTS:END -->
