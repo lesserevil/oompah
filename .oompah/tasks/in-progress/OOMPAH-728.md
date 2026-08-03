@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:22:12.179146Z'
+updated_at: '2026-08-03T16:25:59.499502Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-08-03 16:22
 ---
 Understanding: I will trace duplicate-preflight corpus construction and investigator prompt generation, reproduce the large-project sibling/dependency omission, then implement deterministic structural relevance and bounded evidence while preserving untrusted-text isolation and network-disabled self-sufficiency. I will add regression tests, run focused checks and the Makefile gate, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-03 16:25
+---
+Discovery: _duplicate_preflight_task_corpus currently sorts all scoped tasks by state/identifier, then truncates at 100 tasks and breaks on the first byte overflow. It ignores parent/child/sibling/dependency relationships and description similarity. Issue already carries parent_id, blocked_by, and start_blocked_by, so the fix can rank authoritative tracker records without worker checkout or network fallback.
 ---
 <!-- COMMENTS:END -->
