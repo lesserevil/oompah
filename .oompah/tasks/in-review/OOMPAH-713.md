@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -12,10 +12,10 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T02:06:49.070504Z'
+updated_at: '2026-08-03T02:06:59.351565Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/673
 review_number: null
 review_head: null
 merged_at: null
@@ -104,6 +104,7 @@ oompah.integration:
   submitted_at: '2026-08-03T01:47:19.078322+00:00'
   updated_at: '2026-08-03T01:47:19.078322+00:00'
 oompah.start_blocked_by: *id001
+oompah.review_url: https://github.com/lesserevil/oompah/pull/673
 ---
 ## Summary
 
