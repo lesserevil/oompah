@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-736
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Align auditor command policy with project-required Makefile validation targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:27:41.637758Z'
+updated_at: '2026-08-03T19:28:27.898913Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1fb75a12-8871-435f-81b9-a2b0f12cda68
+oompah.agent_run_id: 173d34b2-b3e3-4a92-aa73-d3721aca11b0
 oompah.task_costs:
   total_input_tokens: 50398
   total_output_tokens: 297
