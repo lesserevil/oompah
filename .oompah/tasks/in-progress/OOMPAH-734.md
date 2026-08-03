@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:15:26.847429Z'
+updated_at: '2026-08-03T20:27:31.994754Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -364,5 +364,10 @@ author: oompah
 created: 2026-08-03 20:15
 ---
 Discovery: The coordinator already durably records completed audit attempts and idempotent sibling retirement, but it currently posts the human-readable result comment before applying the tracker status. Auditor sessions also use only the ordinary turn budget, and health/lifecycle paths do not expose or classify unapplied terminal-result intents. I will close these gaps while preserving fingerprint and authority fencing, then add focused ordering, boundary, recovery, scheduler, revocation, and health coverage.
+---
+author: oompah
+created: 2026-08-03 20:27
+---
+Implementation: Reordered terminal audit status application ahead of PASS/FAIL result comments and made owner overrides status-before-comment as well. Added a reserved auditor finalization turn, immediate API-session stop after structured coordinator acceptance, explicit finalization-failure classification for max-turn exits, durable unapplied-intent health aggregation/alerts, and owner-override fencing that marks and terminates matching live auditors. Added regression coverage for ordering, no-comment-on-status-failure, final-turn single submission, health distinction, budget reservation, and authority revocation.
 ---
 <!-- COMMENTS:END -->
