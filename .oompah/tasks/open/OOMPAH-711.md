@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: In Progress
+status: Open
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:08:28.767422Z'
+updated_at: '2026-08-03T00:09:14.677072Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,15 @@ author: oompah
 created: 2026-08-03 00:08
 ---
 Direct owner claim: reproducing and fixing the live race where an owner duplicate resolution is later overwritten by a superseded preflight exit. This claim must remain authoritative while the current deployed server still lacks OOMPAH-707 durable-owner fencing.
+---
+author: oompah
+created: 2026-08-03 00:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 29
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 25s
+- Log: OOMPAH-711__20260803T000753Z.jsonl
 ---
 <!-- COMMENTS:END -->
