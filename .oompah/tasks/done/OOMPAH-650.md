@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-08-02T18:30:12.370828Z'
+updated_at: '2026-08-03T20:05:21.289801Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null

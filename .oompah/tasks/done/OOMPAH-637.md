@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:10.674366Z'
-updated_at: '2026-08-03T20:05:15.720774Z'
+updated_at: '2026-08-03T20:05:19.862320Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-637
 target_branch: null
 review_url: null
@@ -86,6 +86,10 @@ oompah.terminal_audit:
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:22:23.768564+00:00'
     applied: true
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-03T20:05:17.297720+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-637
@@ -94,9 +98,24 @@ oompah.terminal_audit:
     audit_ids:
     - audit-a89972b0099d
     kind: override
-    applied: true
+    applied: false
     retired_at: '2026-08-02T18:22:33.127909+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-637
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: OOMPAH-637 is an auto-filed epic maintenance/rebase child; its successful
+      terminal target is audited Done. It must not be promoted to Merged merely because
+      it changed the epic branch.
+    done_audit_ids:
+    - audit-a89972b0099d
+    created_at: '2026-08-03T20:05:17.297720+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -277,5 +296,10 @@ created: 2026-08-02 18:22
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
+---
+author: oompah
+created: 2026-08-03 20:05
+---
+Lifecycle reconciliation restored OOMPAH-637 to audited Done: OOMPAH-637 is an auto-filed epic maintenance/rebase child; its successful terminal target is audited Done. It must not be promoted to Merged merely because it changed the epic branch.
 ---
 <!-- COMMENTS:END -->
