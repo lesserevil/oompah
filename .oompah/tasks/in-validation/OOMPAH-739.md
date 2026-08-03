@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:47:23.826064Z'
+updated_at: '2026-08-03T22:55:03.315558Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -120,6 +120,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/694
 oompah.review_number: '694'
 oompah.work_branch: OOMPAH-739
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-461416d2e0fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d441cbf0abbf4453853f300194108d5efaada0e662456141fce0b14c08f4611
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-03T22:54:54.684359+00:00'
+  - version: 1
+    audit_id: audit-d0f8780b1855
+    project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4d441cbf0abbf4453853f300194108d5efaada0e662456141fce0b14c08f4611
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-03T22:54:54.684359+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -298,5 +337,15 @@ author: oompah
 created: 2026-08-03 22:47
 ---
 UNDERSTANDING (continuation): The implementation is committed and rebased cleanly onto current main, but the task remains In Progress after MR conflict handling. I am auditing the resolved diff and its regression coverage against the full acceptance criteria—especially durable evidence vs merely terminal parent state, transient uncertainty, deleted refs, true-unlanded one-time repair, and OOMPAH-447 ownership fencing—before rerunning focused tests and resubmitting.
+---
+author: oompah
+created: 2026-08-03 22:54
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 22:55
+---
+YOLO: merged PR #694.
 ---
 <!-- COMMENTS:END -->
