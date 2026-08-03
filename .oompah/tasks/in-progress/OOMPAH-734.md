@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:27:31.994754Z'
+updated_at: '2026-08-03T20:35:22.916610Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -369,5 +369,15 @@ author: oompah
 created: 2026-08-03 20:27
 ---
 Implementation: Reordered terminal audit status application ahead of PASS/FAIL result comments and made owner overrides status-before-comment as well. Added a reserved auditor finalization turn, immediate API-session stop after structured coordinator acceptance, explicit finalization-failure classification for max-turn exits, durable unapplied-intent health aggregation/alerts, and owner-override fencing that marks and terminates matching live auditors. Added regression coverage for ordering, no-comment-on-status-failure, final-turn single submission, health distinction, budget reservation, and authority revocation.
+---
+author: oompah
+created: 2026-08-03 20:35
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 174
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 3s
+- Log: OOMPAH-734__20260803T200827Z.jsonl
 ---
 <!-- COMMENTS:END -->
