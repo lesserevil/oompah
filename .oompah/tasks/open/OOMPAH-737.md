@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:08:35.662863Z'
+updated_at: '2026-08-03T20:08:54.485277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: f6239072-d3a5-45f8-b015-9977bf4238b0
 ---
 ## Summary
 
@@ -46,3 +47,16 @@ Live regression observed during make restart on 2026-08-03 after deploying fae23
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 20:08
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 20:08
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
