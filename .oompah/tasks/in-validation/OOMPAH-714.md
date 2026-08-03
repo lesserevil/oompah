@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T02:46:57.780451Z'
+updated_at: '2026-08-03T02:55:49.701932Z'
 work_branch: OOMPAH-714
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/675
@@ -125,6 +125,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/675
 oompah.review_number: '675'
 oompah.work_branch: OOMPAH-714
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fbb2e0780012
+    project_id: proj-14849f1b
+    task_id: OOMPAH-714
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34070e96eae79a32f080cb09f6244000bdbdd1da09baef1f3dc921e77887ed21
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:55:43.843503+00:00'
+  - version: 1
+    audit_id: audit-368c38000175
+    project_id: proj-14849f1b
+    task_id: OOMPAH-714
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34070e96eae79a32f080cb09f6244000bdbdd1da09baef1f3dc921e77887ed21
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:55:43.843503+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -286,5 +325,15 @@ author: oompah
 created: 2026-08-03 02:46
 ---
 Branch quality gate passed for `28bb1e3c212a07e765e5cb461c08b7a578c5c8f6` using `make test` in 405.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 02:55
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 02:55
+---
+YOLO: merged PR #675.
 ---
 <!-- COMMENTS:END -->
