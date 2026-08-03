@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:09:44.652488Z'
+updated_at: '2026-08-03T19:10:32.972368Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: bef57ad9a792d097e5a56960af511f86d2370426c2d6472ae28549bd276dc6a3
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T19:10:27.396250+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 04e9717b-14a7-4a10-add9-220e9a5094cc
-  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
-  claimed_at: '2026-08-03T19:09:27.888753+00:00'
-  claim_expires_at: '2026-08-03T19:39:27.888753+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed the supplied active project task corpus; no\
+    \ non-terminal task addresses auditor turn exhaustion, commit-before-comment ordering,\
+    \ terminal audit fencing, or duplicate auditor dispatch. Closest related tasks\
+    \ are terminal and unrelated.\nFocus handoff: duplicate_detector  \nDuplicate\
+    \ preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence: Reviewed the\
+    \ supplied active project task corpus; no non-terminal task addresses auditor\
+    \ turn exhaustion, commit-before-comment ordering, terminal audit fencing, or\
+    \ duplicate auditor dispatch. Closest related tasks are terminal and unrelated."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: cf40d993-9162-4f24-8816-1de62175bc9a
+oompah.task_costs:
+  total_input_tokens: 50240
+  total_output_tokens: 181
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 50240
+      output_tokens: 181
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 50240
+    output_tokens: 181
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:10:27.395221+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-734__20260803T190947Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-734
+    source_sha: 806bf1feee8ac46220c8ec750a5167017834b176
+    completed_at: '2026-08-03T19:10:27.411011+00:00'
 ---
 ## Summary
 
@@ -83,5 +117,15 @@ author: oompah
 created: 2026-08-03 19:09
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 19:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.2K in / 181 out [50.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 49s
+- Log: OOMPAH-734__20260803T190947Z.jsonl
 ---
 <!-- COMMENTS:END -->
