@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: Merged
+status: Done
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-08-02T18:30:41.303281Z'
+updated_at: '2026-08-03T20:04:29.463565Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
