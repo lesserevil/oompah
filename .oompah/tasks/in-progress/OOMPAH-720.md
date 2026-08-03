@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:17:05.276031Z'
+updated_at: '2026-08-03T14:26:43.629202Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,11 @@ author: oompah
 created: 2026-08-03 14:17
 ---
 Implementation: owner overrides now refresh tracker detail after acquiring the task ownership lock, and TerminalTransitionCoordinator recomputes canonical evidence from that detail inside the project lock before active-record comparison. Audit lifecycle/provider/model/retry/comment/snapshot fields remain outside EvidenceFingerprint. Added focused regressions covering stale integrated snapshots, rotated attempts, duplicate retirement, authority/alert cleanup, and exactly-once/idempotent replay.
+---
+author: oompah
+created: 2026-08-03 14:26
+---
+Verification: focused API/coordinator/rotation/enforcement/observability suites passed (289 tests across the focused runs), terminal mutation scan passed (6 identified, 6 allowlisted), and the full repository runner passed 15,100 tests with 7 skipped and 1 expected xfail. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-720'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-720' itself could not initialize its task venv because uv hit a DBus transient-scope error; its trusted-v​​env fallback also correctly rejected a different-checkout runtime.
 ---
 <!-- COMMENTS:END -->
