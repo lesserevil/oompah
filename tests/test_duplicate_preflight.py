@@ -985,6 +985,35 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
     orch._tick_pool.shutdown(wait=True)
 
 
+def test_duplicate_focus_requires_registered_preflight_worker():
+    issue = _issue(
+        identifier="EXOCOMP-241",
+        title="Rebase epic-EXOCOMP-132 onto main",
+        state="Needs Rebase",
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    ordinary_entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        duplicate_preflight=False,
+    )
+    orch.state.running[issue.id] = ordinary_entry
+
+    assert orch._duplicate_preflight_focus(issue) is None
+
+    ordinary_entry.duplicate_preflight = True
+    selected = orch._duplicate_preflight_focus(issue)
+
+    assert selected is not None
+    assert selected.name == "duplicate_detector"
+    assert selected.is_reserved is True
+
+
 @pytest.mark.asyncio
 async def test_reconcile_preserves_open_worker_with_current_preflight_claim():
     issue = _issue()

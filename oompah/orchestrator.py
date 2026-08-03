@@ -213,6 +213,7 @@ from oompah.auditor_dispatch import (
 from oompah.auditor_candidate_selector import AuditorCandidateSelector
 from oompah.authority_boundary import auditor_policy
 from oompah.focus import (
+    DUPLICATE_DETECTOR_FOCUS_NAME,
     _MIN_SCORE_TO_FLAG,
     analyze_completed_issue,
     find_similar_issues,
@@ -26102,15 +26103,14 @@ class Orchestrator:
         entry = self.state.running.get(issue.id)
         if entry is None or not getattr(entry, "duplicate_preflight", False):
             return None
-        return next(
-            (
-                focus
-                for focus in load_foci()
-                if focus.status == "active"
-                and focus.name.strip().lower() == "duplicate_detector"
-            ),
-            None,
-        )
+        try:
+            return select_reserved_focus(DUPLICATE_DETECTOR_FOCUS_NAME)
+        except LookupError:
+            logger.error(
+                "Duplicate preflight for %s has no active reserved focus",
+                issue.identifier,
+            )
+            return None
 
     async def _dispatch(
         self,

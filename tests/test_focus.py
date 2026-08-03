@@ -26,9 +26,11 @@ from oompah.focus import (
     score_focus,
     select_focus,
     select_focus_async,
+    select_reserved_focus,
 )
 from oompah.duplicate_screening import (
     ScreeningVerdict,
+    assess_screening,
     complete_claim_record,
     new_claim_record,
 )
@@ -1152,8 +1154,7 @@ class TestDuplicateDetectorFocus:
         focus = self._get_duplicate_detector()
         assert "rogers" in focus.keywords
 
-    def test_selected_for_duplicate_keyword(self):
-        """An issue with 'duplicate' in title should strongly score duplicate_detector."""
+    def test_duplicate_keyword_cannot_select_scheduler_owned_focus(self):
         foci = [
             self._get_duplicate_detector(),
             Focus(name="feature", role="Feature", description="",
@@ -1161,7 +1162,10 @@ class TestDuplicateDetectorFocus:
         ]
         issue = _make_issue(title="This looks like a duplicate of another issue", labels=[])
         focus = select_focus(issue, foci)
-        assert focus.name == "duplicate_detector"
+        assert focus.name != "duplicate_detector"
+        assert select_reserved_focus("duplicate_detector", foci).name == (
+            "duplicate_detector"
+        )
 
     def test_completed_focus_does_not_receive_the_same_focus_again(self):
         """A handoff lets the next run select a different applicable focus."""
@@ -1203,7 +1207,7 @@ class TestDuplicateDetectorFocus:
 
         assert select_focus(issue, foci).name == "chore"
 
-    def test_task_edit_invalidates_structured_completed_focus(self):
+    def test_task_edit_invalidates_screening_without_leaking_reserved_focus(self):
         duplicate = self._get_duplicate_detector()
         chore = Focus(
             name="chore",
@@ -1226,7 +1230,8 @@ class TestDuplicateDetectorFocus:
         ).to_dict()
         issue.title = "Update duplicate detection documentation with duplicate examples"
 
-        assert select_focus(issue, [duplicate, chore]).name == "duplicate_detector"
+        assert assess_screening(issue).implementation_eligible is False
+        assert select_focus(issue, [duplicate, chore]).name == "chore"
 
     @pytest.mark.asyncio
     async def test_async_triage_excludes_structurally_completed_duplicate_focus(
@@ -1269,8 +1274,7 @@ class TestDuplicateDetectorFocus:
 
         assert selected.name == "chore"
 
-    def test_selected_for_rogers_prefix_issue(self):
-        """An issue with a topic-prefix title should score duplicate_detector."""
+    def test_topic_prefix_cannot_select_scheduler_owned_focus(self):
         foci = [
             self._get_duplicate_detector(),
             Focus(name="bugfix", role="Bug Fixer", description="",
@@ -1278,9 +1282,24 @@ class TestDuplicateDetectorFocus:
         ]
         # "rogers-something" title with no other keyword matches
         issue = _make_issue(title="rogers-xyz issue: cannot authenticate", labels=[])
-        focus = select_focus(issue, foci)
-        # duplicate_detector has "rogers" keyword
-        assert focus.name == "duplicate_detector"
+        assert select_focus(issue, foci).name != "duplicate_detector"
+
+    def test_auto_filed_needs_rebase_task_uses_implementation_focus(self):
+        issue = _make_issue(
+            title="Rebase epic-EXOCOMP-132 onto main",
+            description=(
+                "This task was auto-filed because the epic was detected as stale. "
+                "Work directly on the existing epic branch."
+            ),
+            state="Needs Rebase",
+            issue_type="task",
+            labels=[],
+        )
+
+        focus = select_focus(issue)
+
+        assert focus.name == "merge_conflict"
+        assert focus.name != "duplicate_detector"
 
     def test_render_contains_role(self):
         focus = self._get_duplicate_detector()
@@ -1297,12 +1316,33 @@ class TestDuplicateDetectorFocus:
         rendered = focus.render()
         assert "### You must NOT:" in rendered
 
-    def test_render_requires_a_contextual_focus_handoff(self):
+    def test_render_enforces_reserved_read_only_boundary(self):
         rendered = self._get_duplicate_detector().render()
-        assert "Focus handoff" in rendered
-        assert "remaining work or risks" in rendered
+        assert "Reserved duplicate-screening boundary" in rendered
+        assert "read-only qualification run" in rendered
         assert "Focus handoff: duplicate_detector" in rendered
-        assert "focus-complete:duplicate_detector" in rendered
+        assert "focus-complete:duplicate_detector" not in rendered
+        assert "Reserved completion-auditor boundary" not in rendered
+
+    def test_user_override_cannot_unreserve_duplicate_detector(self, tmp_path):
+        path = tmp_path / "foci.json"
+        path.write_text(
+            '[{"name":"duplicate_detector","role":"Custom",'
+            '"description":"custom","keywords":["duplicate"],'
+            '"reserved":false}]'
+        )
+
+        duplicate = next(
+            focus
+            for focus in load_foci(str(path))
+            if focus.name == "duplicate_detector"
+        )
+
+        assert duplicate.is_reserved is True
+        assert select_focus(
+            _make_issue(title="duplicate task", issue_type="task"),
+            [duplicate],
+        ).name != "duplicate_detector"
 
     def test_serialization_round_trip(self):
         focus = self._get_duplicate_detector()
