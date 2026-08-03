@@ -135,8 +135,16 @@ def test_api_auditor_tool_allowlist_excludes_mutators_and_includes_result_schema
     ).startswith("Error:")
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "awk 'NR>=7790 && NR<=7900' oompah/orchestrator.py",
+        "sed -n '7790,7900p' oompah/orchestrator.py",
+    ],
+)
 def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor_can_continue(
     tmp_path: Path,
+    command: str,
 ):
     target = _target()
     policy = auditor_policy(
@@ -148,7 +156,7 @@ def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor
     validation = _execute_tool(
         tmp_path,
         "run_command",
-        {"command": "git log --oneline HEAD 2>&1 | head -5"},
+        {"command": command},
         action_policy=policy,
         policy_denial_handler=denials.append,
     )
@@ -189,6 +197,23 @@ def test_recoverable_shell_validation_does_not_consume_policy_budget_and_auditor
     )
     assert '"accepted": true' in verdict
     assert received[0].audit_id == target.audit_id
+
+
+def test_git_merge_base_inspection_does_not_consume_policy_budget():
+    policy = auditor_policy(task_identifier="TASK-1", project_id="project-1")
+    denials: list[str] = []
+
+    result = _execute_tool(
+        Path(".").resolve(),
+        "run_command",
+        {"command": "git merge-base --is-ancestor HEAD HEAD"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+
+    assert not result.startswith("Error:")
+    assert "exit_code: 0" in result
+    assert denials == []
 
 
 def test_auditor_file_reads_are_bounded(tmp_path: Path):

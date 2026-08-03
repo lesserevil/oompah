@@ -495,6 +495,7 @@ class TestAuditorReadOnlyShellRecovery:
         "command",
         [
             "grep -n 'needle' oompah/auditor.py",
+            "git merge-base --is-ancestor abc123 main",
             "git status",
         ],
     )
@@ -508,6 +509,16 @@ class TestAuditorReadOnlyShellRecovery:
             "git status; git commit -m hacked",
             "bash -lc 'git status'",
             "git push origin main",
+            "git merge --no-ff feature",
+            "awk 'BEGIN { system(\"id\") }' oompah/orchestrator.py",
+            "awk 'NR>=1 && NR<=2 { print > \"audit.txt\" }' oompah/orchestrator.py",
+            "awk 'NR>=1 && NR<=2' oompah/orchestrator.py > audit.txt",
+            "sed -i 's/foo/bar/' oompah/orchestrator.py",
+            "sed -e 's/foo/bar/' oompah/orchestrator.py",
+            "sed -n '1,2p' oompah/orchestrator.py | git commit -F -",
+            "awk 'NR>=1 && NR<=2 { print `id` }' oompah/orchestrator.py",
+            "awk 'NR>=1 && NR<=2' oompah/orchestrator.py\ngit commit -am hacked",
+            "git reset --hard HEAD",
         ],
     )
     def test_mutation_and_file_redirection_are_not_recoverable(self, command):
