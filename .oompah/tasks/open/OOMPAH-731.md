@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:46:35.420449Z'
+updated_at: '2026-08-03T17:48:22.068685Z'
 work_branch: null
 target_branch: null
 review_url: null
