@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-637
 type: task
-status: Merged
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-587 onto main
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:10.674366Z'
-updated_at: '2026-08-02T18:22:34.649679Z'
+updated_at: '2026-08-03T20:05:15.720774Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-637
 target_branch: null
 review_url: null
