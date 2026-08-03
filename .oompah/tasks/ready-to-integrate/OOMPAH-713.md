@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:16:47.469000Z'
+updated_at: '2026-08-03T01:17:27.438046Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b73e1306-647d-4a61-81fa-f23488f5f91c
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1368
@@ -94,6 +94,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-713
     source_sha: 8b6f368252e653d56f0c1c9a07da0fc825a9cb10
     completed_at: '2026-08-03T01:01:18.338134+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-713
+  head_sha: ed288443a155dbdfd62bf1b5efe30161f169451d
+  submitted_at: '2026-08-03T01:17:11.810774+00:00'
+  updated_at: '2026-08-03T01:17:11.810774+00:00'
 ---
 ## Summary
 
@@ -166,5 +174,20 @@ author: oompah
 created: 2026-08-03 01:16
 ---
 Verification complete: focused authority/auditor/health/coordinator/dashboard suites pass 341 tests; neighboring auditor dispatch (13), terminal-audit core (28), health API/dashboard (14), observability (18), and orchestrator handlers (277) pass. Terminal mutation scan passes (6 identified, 6 allowlisted). make test-setup remains unavailable only because uv transient-scope creation fails with the container DBus/kernel-thread error.
+---
+author: oompah
+created: 2026-08-03 01:17
+---
+Implemented recoverable read-only auditor shell validation, preserved fail-closed mutation controls, separated policy incompatibility from transport health, updated auditor catalogs/prompts/dashboard, and added regression coverage.
+---
+author: oompah
+created: 2026-08-03 01:17
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 130
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 51s
+- Log: OOMPAH-713__20260803T010140Z.jsonl
 ---
 <!-- COMMENTS:END -->
