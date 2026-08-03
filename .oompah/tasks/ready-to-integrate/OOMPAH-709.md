@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:07:17.852567Z'
+updated_at: '2026-08-03T00:08:11.986075Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,9 +71,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-709
-  head_sha: 0b14dec5438f6a29317c31b0341744c8c1c4e007
-  submitted_at: '2026-08-02T23:50:24.472111+00:00'
-  updated_at: '2026-08-02T23:50:24.472111+00:00'
+  head_sha: 234507c7c76611d5a10cf3eeec341f8773aadf34
+  submitted_at: '2026-08-03T00:08:07.478804+00:00'
+  updated_at: '2026-08-03T00:08:07.478804+00:00'
 ---
 ## Summary
 
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-08-03 00:06
 ---
 New live branch-gate reproduction from OOMPAH-702: TestTickDelegation::test_tick_notifies_observers failed only when full-suite load crossed the slow-tick diagnostic threshold. Its _handle_dispatch_needed AsyncMock returned None, violating the production mapping contract before _notify_observers. Extending this root-cause branch to make the observer test's dispatch result valid and force the diagnostic path deterministically.
+---
+author: oompah
+created: 2026-08-03 00:08
+---
+Made tick-delegation tests deterministic under parallel full-suite load, including the live observer-notification slow-diagnostic reproduction from OOMPAH-702; five exact retries and all 277 orchestrator-handler tests pass.
 ---
 <!-- COMMENTS:END -->

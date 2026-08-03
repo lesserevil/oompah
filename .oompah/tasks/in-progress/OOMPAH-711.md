@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:07:52.673277Z'
+updated_at: '2026-08-03T00:08:06.415548Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -180,5 +180,10 @@ author: oompah
 created: 2026-08-03 00:07
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-03 00:08
+---
+Understanding: owner resolution must fence the exact duplicate-preflight generation; matching workers must be cancelled/awaited or tombstoned before success, and late results/exits may only do bounded cleanup after validating generation, claim, fingerprint, and status. I will trace owner resolution, claim/exit, and restart paths, add race-focused regressions, then verify and submit.
 ---
 <!-- COMMENTS:END -->
