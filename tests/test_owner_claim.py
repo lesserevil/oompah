@@ -304,6 +304,60 @@ def test_owner_claim_api_keeps_resistant_scheduler_runtime_visible(tmp_path):
     tracker.update_issue.assert_not_called()
 
 
+def test_owner_claim_api_waits_for_claim_to_register_before_retirement(tmp_path):
+    """A dispatch between selection and RunningEntry registration is fenced."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    orch.state.claimed.add(issue.id)
+    running = MagicMock()
+    running.issue = issue
+    running.identifier = issue.identifier
+    running.authority_generation = "generation-1"
+    original_cancel = orch._cancel_retry_for_issue
+
+    def cancel_then_register(**kwargs):
+        result = original_cancel(**kwargs)
+        loop = asyncio.get_running_loop()
+
+        def register_runtime():
+            orch.state.claimed.discard(issue.id)
+            orch.state.running[issue.id] = running
+
+        loop.call_later(0.01, register_runtime)
+        return result
+
+    async def terminate(issue_id, *, cleanup_workspace):
+        assert issue_id == issue.id
+        assert cleanup_workspace is False
+        assert orch.state.running[issue.id] is running
+        orch.state.running.pop(issue.id)
+        return True
+
+    orch._cancel_retry_for_issue = MagicMock(side_effect=cancel_then_register)
+    orch._terminate_running = AsyncMock(side_effect=terminate)
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(endpoint, json={"actor_login": "alice"})
+
+    assert response.status_code == 200, response.text
+    orch._terminate_running.assert_awaited_once_with(
+        issue.id,
+        cleanup_workspace=False,
+    )
+    assert issue.id not in orch.state.claimed
+    assert issue.id not in orch.state.running
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
+    tracker.update_issue.assert_called_once_with(issue.identifier, status="In Progress")
+
+
 def test_stale_dispatch_aborts_after_direct_owner_claim(tmp_path):
     """A candidate selected before takeover cannot start after the lease."""
 
