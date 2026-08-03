@@ -10606,12 +10606,14 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     # Persist a dispatch fence before retiring scheduler authority.  A stale
     # candidate may already have passed selection, so the orchestrator's final
     # dispatch boundary also checks the durable owner lease granted below.
+    added_dispatch_fence = False
     try:
         with orch.project_store.project_write_lock(project_id):
             labels = {str(label).strip().lower() for label in issue.labels or []}
             if "human-only" not in labels:
                 tracker.add_label(issue.identifier, "human-only")
                 issue.labels = [*(issue.labels or []), "human-only"]
+                added_dispatch_fence = True
     except Exception as exc:
         logger.warning("Owner takeover fence failed for %s/%s: %s", project_id, identifier, exc)
         return JSONResponse(
@@ -10674,6 +10676,26 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 except Exception:
                     orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
                     raise
+            if added_dispatch_fence:
+                # The durable lease and In Progress state now fence both fresh
+                # and stale dispatches. Remove only the temporary label this
+                # request added; an operator's pre-existing human-only policy
+                # remains untouched.
+                try:
+                    tracker.remove_label(issue.identifier, "human-only")
+                    issue.labels = [
+                        label
+                        for label in issue.labels or []
+                        if str(label).strip().lower() != "human-only"
+                    ]
+                except Exception as exc:
+                    logger.warning(
+                        "Owner takeover retained temporary human-only fence for "
+                        "%s/%s: %s",
+                        project_id,
+                        identifier,
+                        exc,
+                    )
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "scheduler_owned", "message": str(exc)}},

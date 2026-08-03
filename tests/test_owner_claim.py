@@ -213,6 +213,8 @@ def test_owner_claim_api_marks_direct_work_and_release_is_authorized(tmp_path):
         assert payload["ownership_source"] == "direct_owner"
         assert payload["owner_login"] == "alice"
         tracker.update_issue.assert_called_once_with(issue.identifier, status="In Progress")
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
 
         observed = client.get(endpoint)
         assert observed.status_code == 200
@@ -261,6 +263,7 @@ def test_owner_claim_api_retires_scheduler_before_granting_direct_work(tmp_path)
 
     assert response.status_code == 200, response.text
     tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
+    tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
     assert running.authority_revoked is True
     assert running.authority_revocation_reason == "direct owner claimed task"
     orch._terminate_running.assert_awaited_once_with(
@@ -301,6 +304,7 @@ def test_owner_claim_api_keeps_resistant_scheduler_runtime_visible(tmp_path):
     assert orch.state.running[issue.id] is running
     assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
     tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
+    tracker.remove_label.assert_not_called()
     tracker.update_issue.assert_not_called()
 
 
@@ -356,6 +360,7 @@ def test_owner_claim_api_waits_for_claim_to_register_before_retirement(tmp_path)
     assert issue.id not in orch.state.running
     assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
     tracker.update_issue.assert_called_once_with(issue.identifier, status="In Progress")
+    tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
 
 
 def test_stale_dispatch_aborts_after_direct_owner_claim(tmp_path):
