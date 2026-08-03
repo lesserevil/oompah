@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:23:25.295470Z'
+updated_at: '2026-08-03T03:23:45.124294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,6 +92,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-716
     source_sha: fc79579d42968c99a1130275dd40b5cc84c89526
     completed_at: '2026-08-03T03:04:07.282323+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-716
+  head_sha: c98b7609898e6a69fb15e8e23f8ccd96a4055d7f
+  submitted_at: '2026-08-03T03:23:24.179647+00:00'
+  updated_at: '2026-08-03T03:23:24.179647+00:00'
 ---
 ## Summary
 
@@ -190,5 +198,20 @@ author: oompah
 created: 2026-08-03 03:23
 ---
 Completion: delivered c98b76098 and pushed branch OOMPAH-716. Strict read-only awk/sed inspection now returns recoverable validation with search_files/read_file guidance, while write-capable commands remain fatal. Focused suites (223 + 378), full make test (15085 passed, 7 skipped, 1 xfailed), terminal mutation scan, and make check-secrets completed successfully.
+---
+author: oompah
+created: 2026-08-03 03:23
+---
+Allow recoverable read-only awk and sed auditor inspection without consuming denial budget; preserve fatal mutation policy and add regression coverage.
+---
+author: oompah
+created: 2026-08-03 03:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 68
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 11s
+- Log: OOMPAH-716__20260803T030429Z.jsonl
 ---
 <!-- COMMENTS:END -->
