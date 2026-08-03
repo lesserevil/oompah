@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:06:52.952388Z'
+updated_at: '2026-08-03T19:07:19.992955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -323,5 +323,66 @@ author: oompah
 created: 2026-08-03 19:06
 ---
 Implementation: Updated the active rebase-sibling test fixture to include its durable identifier and parent epic. This matches the auto-filed helper shape required by the direct-maintenance classifier and retains its fail-closed title-plus-parent safety rule; no production behavior changed.
+---
+author: oompah
+created: 2026-08-03 19:07
+---
+Verification: Running pytest serially under /home/shedwards/.oompah/tmp/pytest/run.rkXeXX
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /home/shedwards/src/oompah/.venv/bin/python
+cachedir: /home/shedwards/.oompah/tmp/pytest/run.rkXeXX/pytest-cache
+rootdir: /home/shedwards/.oompah/worktrees/oompah/OOMPAH-731
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, playwright-0.8.0, base-url-2.1.0, anyio-4.12.1, xdist-3.8.0, timeout-2.4.0, Faker-40.23.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+timeout: 5.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 24 items
+
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_rebase_success_skips_task_notification PASSED [  4%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_rebase_fails_with_conflict_falls_through_to_task PASSED [  8%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_rebase_fails_with_network_error_still_notifies_task PASSED [ 12%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_rebase_raises_still_notifies_task PASSED [ 16%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_deferred_issue_reopened_for_conflict PASSED [ 20%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictRebaseFirst::test_orphan_recovery_cross_restart_dedup_skips_filing PASSED [ 25%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_normal_branch_resolves_directly PASSED [ 29%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_epic_branch_strips_prefix PASSED [ 33%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_true_orphan_returns_none PASSED [ 37%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_github_branch_resolved_via_index PASSED [ 41%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_github_epic_branch_resolved_via_index PASSED [ 45%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_no_project_id_skips_index PASSED [ 50%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_index_miss_falls_back_to_legacy_lookup PASSED [ 54%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_index_is_cached_across_calls PASSED [ 58%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_invalidate_clears_branch_index PASSED [ 62%]
+tests/test_yolo_handlers.py::TestResolveTaskForBranch::test_index_build_error_falls_back_to_legacy PASSED [ 66%]
+tests/test_yolo_handlers.py::TestEpicBranchCiFailUsesEpicNotOrphan::test_epic_branch_does_not_file_orphan_task PASSED [ 70%]
+tests/test_yolo_handlers.py::TestEpicBranchCiFailUsesEpicNotOrphan::test_epic_branch_parent_ci_fix_label_marks_mature_epic PASSED [ 75%]
+tests/test_yolo_handlers.py::TestEpicBranchCiFailUsesEpicNotOrphan::test_true_orphan_still_files_recovery_task PASSED [ 79%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictEpicBranch::test_mature_epic_branch_conflict_marks_epic_needs_rebase PASSED [ 83%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictEpicBranch::test_epic_branch_conflict_idempotent_when_rebase_sibling_open PASSED [ 87%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictEpicBranch::test_epic_branch_conflict_idempotent_when_child_read_misses_existing_rebase PASSED [ 91%]
+tests/test_yolo_handlers.py::TestYoloNotifyConflictEpicBranch::test_epic_branch_conflict_helper_marks_epic_rebasing PASSED [ 95%]
+tests/test_yolo_handlers.py::TestFileRebaseTaskPriority::test_rebase_task_is_p0_to_bypass_in_flight_cap PASSED [100%]
+
+============================= 24 passed in 15.80s ============================== passed (24); Running pytest serially under /home/shedwards/.oompah/tmp/pytest/run.goBRJB
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /home/shedwards/src/oompah/.venv/bin/python
+cachedir: /home/shedwards/.oompah/tmp/pytest/run.goBRJB/pytest-cache
+rootdir: /home/shedwards/.oompah/worktrees/oompah/OOMPAH-731
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, playwright-0.8.0, base-url-2.1.0, anyio-4.12.1, xdist-3.8.0, timeout-2.4.0, Faker-40.23.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+timeout: 5.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 4 items
+
+tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick PASSED [ 25%]
+tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_error_visible_in_snapshot_after_failure PASSED [ 50%]
+tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_error_cleared_after_subsequent_success PASSED [ 75%]
+tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_still_tracks_last_heal_at_even_when_sync_fails PASSED [100%]
+
+============================== 4 passed in 3.93s =============================== passed (4). The focused initial reproduction also confirmed the formerly reported repo-heal test passes.
 ---
 <!-- COMMENTS:END -->
