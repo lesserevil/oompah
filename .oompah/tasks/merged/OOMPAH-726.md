@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-726
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prune terminal nested-epic worktrees using recorded target-branch evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T21:56:41.075680Z'
+updated_at: '2026-08-03T22:24:04.754558Z'
 work_branch: OOMPAH-726
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/691
@@ -106,6 +106,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5cffe26ce32b: '2026-08-03T21:54:03.648159+00:00'
+    attempt-410e6d94d01d: '2026-08-03T22:24:00.138881+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-726
@@ -116,6 +117,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T21:54:03.648171+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-726
+    target_state: Merged
+    evidence_fingerprint: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+    audit_ids:
+    - audit-ce93ee0a4616
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T22:24:00.138896+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-726
@@ -129,6 +139,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T21:54:03.648189+00:00'
     applied_at: '2026-08-03T21:54:09.434317+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-726
+    audit_id: audit-ce93ee0a4616
+    attempt_id: attempt-410e6d94d01d
+    target_state: Merged
+    evidence_fingerprint: 43c499a2a057d0aa69179e03f9beaf50f4257449431f4260c1f02ef51418110f
+    status: Merged
+    audit_ids:
+    - audit-ce93ee0a4616
+    applied: false
+    created_at: '2026-08-03T22:24:00.138914+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -206,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-726
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -215,7 +236,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-410e6d94d01d
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -225,13 +246,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T21:56:30.947491+00:00'
       branch_key: OOMPAH-726
+      verdict: pass
+      completed_at: '2026-08-03T22:24:00.138703+00:00'
+      ended_at: '2026-08-03T22:24:00.138703+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:23:01.143691+00:00'
-    updated_at: '2026-08-03T21:56:30.947491+00:00'
+    updated_at: '2026-08-03T22:24:00.138703+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c37dbe21491b
@@ -560,5 +584,27 @@ author: oompah
 created: 2026-08-03 21:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 22:24
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 713e5d9c9c4e60c3852d618bb09de9251682f43d
+- landed_merge_commit: 2926bc3ac070229bdbe35621581a3b37bf57620d
+- pr: #691
+- target_ref: origin/main
+- tests_nested_epic: 7 passed
+- tests_projects: 110 passed
+- tests_orchestrator_handlers: 279 passed
+- tests_repo_hygiene: 27 passed
+- tests_terminal_lifecycle: 80 passed
+- prior_full_gate: make test 404.2s passed on 713e5d9c9
+- impl_files: oompah/projects.py, oompah/orchestrator.py
+- test_files: tests/test_projects.py, tests/test_orchestrator_handlers.py
+- coverage_areas: merge-landing, ff-landing, deleted-source, target-fetch-failure, unreachable-head, wrong-target, dirty, active-git-op, unregistered-path, missing-evidence, idempotence
 ---
 <!-- COMMENTS:END -->
