@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:33:02.044783Z'
+updated_at: '2026-08-03T23:38:53.705402Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -228,5 +228,31 @@ The approach ensures atomic DOM mutation: all stale UI is cleared in one operati
 - Auth health shows stale plane status
 
 Next: Test the implementation and verify no regressions.
+---
+author: oompah
+created: 2026-08-03 23:38
+---
+VERIFICATION: Test results confirm implementation.
+
+✓ All 71 WebSocket/full_sync tests pass
+✓ All 16 fault injection tests pass (including critical test_four_completion_snapshots_converge_to_zero_running_chips)
+✓ All 907 dashboard tests pass
+✓ No regressions in existing functionality
+
+Implementation successfully addresses all requirements:
+1. Full_sync payloads are now atomic replacements (not merges)
+2. Stale UI is cleared BEFORE new snapshot is applied
+3. No mixed-generation rendering possible
+4. All health panels, alerts, running chips cleared and rebuilt
+5. Idempotent operations - repeated snapshots don't duplicate
+
+Changes:
+- Added _clearAllAlertAndHealthUI() function to atomically clear all diagnostic UI
+- Modified _applyFullSyncMessage() to call clear before handleStateUpdate()
+- Clears: alerts, credential errors, quality gates, terminal audit, repo hygiene, auth health, running agents
+
+Commit: b35bb7318 (signed with oompah attribution)
+Branch: epic-OOMPAH-740--task-OOMPAH-744
+Status: Ready for integration
 ---
 <!-- COMMENTS:END -->
