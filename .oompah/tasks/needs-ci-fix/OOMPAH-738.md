@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-738
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:11:38.372427Z'
+updated_at: '2026-08-03T22:18:26.989171Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +225,71 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 20m 30s
 - Log: OOMPAH-738__20260803T215105Z.jsonl
+---
+author: oompah
+created: 2026-08-03 22:18
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-738`
+Target: `main`
+Head: `50c97cb36c80d9fac11706fc10c8b67035fb6378`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_websocket_authenticated_bootstrap.py::TestBackwardCompatibility::test_ws_bootstrap_structure_preserved
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-9rg1kr_5/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x72bb618b39c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_duplicate_detection.py::TestProposedDispatchFiltering::test_select_dispatchable_skips_proposed_before_scan_limit
+FAILED tests/test_orchestrator_duplicate_detection.py::TestDispatchResponsivenessLimits::test_select_dispatchable_respects_scan_limit
+FAILED tests/test_orchestrator_duplicate_detection.py::TestShouldDispatchRejectsDuplicateCandidate::test_issue_without_duplicate_candidate_label_allowed
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_repair_task_on_generated_epic_branch[Needs Rebase-merge-conflict]
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_valid_release_branch
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_repair_task_on_generated_epic_branch[Needs CI Fix-ci-fix]
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allow_source_label_bypasses_protection
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_skips_validation_without_project_id
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_skips_validation_without_project
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_no_target_branch
+FAILED tests/test_storage_cleanup.py::test_storage_cleanup_prunes_old_read_coordination_messages
+FAILED tests/test_task_cost_telemetry.py::TestOnWorkerExitWritesCostRecord::test_normal_exit_reaps_captured_workspace_processes_before_forgetting_entry
+= 12 failed, 15206 passed, 8 skipped, 1 xfailed, 46 warnings in 399.98s (0:06:39) =
+
+make: *** [Makefile:401: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
