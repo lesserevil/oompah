@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:39:41.776897Z'
+updated_at: '2026-08-03T16:40:09.313244Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-03 16:39
 ---
 Verification: Focused terminal coordinator, terminal-audit enforcement, API/ACP status interfaces, epic strategy/rebase, lifecycle, and terminal-audit contract suites passed (389 passed, 1 expected xfail; follow-up boundary checks 233 passed). The terminal mutation scan passes (7/7 allowlisted). make test was attempted twice but could not bootstrap its managed uv environment because astral-uv.uv failed with DBus InvalidArgs (kernel-thread transient scope error), before tests started.
+---
+author: oompah
+created: 2026-08-03 16:40
+---
+Completion: Delivered shared-epic lifecycle enforcement, Done-only maintenance/rebase completion, API/ACP conflict propagation, serialized recovery safeguards, and legacy Merged-to-Done reconciliation with focused regression coverage. The branch is ready for commit and push; the only unresolved verification item is the environment-level make test bootstrap failure documented above.
 ---
 <!-- COMMENTS:END -->
