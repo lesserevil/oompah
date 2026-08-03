@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:05:20.260558Z'
+updated_at: '2026-08-03T16:06:03.259495Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-08-03 16:05
 ---
 Understanding: I will trace terminal managed-worktree cleanup and its nested-epic/review-audit metadata paths, then add narrowly scoped target-branch landing evidence guards. I will preserve default-branch and task-style cleanup behavior, add regression coverage for fast-forward/merge/deletion/failure/idempotence cases, run focused tests and the configured gate, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-03 16:06
+---
+Discovery: ProjectStore._assert_terminal_worktree_safe_locked currently accepts only source-branch publication or origin/default ancestry; deleted nested-epic sources therefore fail closed even after a reviewed merge into the parent epic. Orchestrator cleanup routes terminal issues through cleanup_terminal_issue without target/evidence context, while Issue and terminal metadata already persist target_branch/review_number/review_head and merge audit data. I am tracing those exact contracts before changing the API.
 ---
 <!-- COMMENTS:END -->
