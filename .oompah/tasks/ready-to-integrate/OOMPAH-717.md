@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:43:11.319380Z'
+updated_at: '2026-08-03T13:43:23.739345Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,9 +99,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-717
-  head_sha: 76526b08a14ad5a43ed137c2bc844594e3a1f733
-  submitted_at: '2026-08-03T13:29:54.561971+00:00'
-  updated_at: '2026-08-03T13:29:54.561971+00:00'
+  head_sha: 0f835493c2387163aca3e446d1c15fcf97ee1f84
+  submitted_at: '2026-08-03T13:43:09.557422+00:00'
+  updated_at: '2026-08-03T13:43:09.557422+00:00'
 ---
 ## Summary
 
@@ -309,5 +309,20 @@ author: oompah
 created: 2026-08-03 13:43
 ---
 Completion: Pushed 0f835493c (OOMPAH-717: stabilize lifecycle sentinel test) to origin/OOMPAH-717. The branch is clean and matches origin. GitHub currently reports no PR or Actions run for this branch, so there is no original PR check to observe; submission will queue the new exact head for Oompah's full gate.
+---
+author: oompah
+created: 2026-08-03 13:43
+---
+Stabilized the lifecycle sentinel test by removing its free-port TOCTOU race; focused serial and parallel lifecycle suites pass.
+---
+author: oompah
+created: 2026-08-03 13:43
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 45
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 3s
+- Log: OOMPAH-717__20260803T133826Z.jsonl
 ---
 <!-- COMMENTS:END -->

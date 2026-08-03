@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:37:58.108695Z'
+updated_at: '2026-08-03T13:43:18.198554Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-08-03 13:37
 ---
 Verification: focused dependency/API/parallel suites pass (63 tests after final dashboard-summary assertion). Full project fallback via scripts/run-tests.sh parallel passed 15,094 tests, with 7 skipped, 1 expected xfail, and 43 warnings in 6:57. Direct make test could not start because its uv setup hit the host DBus transient-scope error before pytest.
+---
+author: oompah
+created: 2026-08-03 13:43
+---
+Completion: Delivered container-level cycle detection and safe repair fencing. The graph reports deterministic multi-epic paths, affected Ready rows, exact prerequisite SHAs, and an authorized repair selection; dependency mutations return actionable 409s; queue/dashboard summaries expose diagnostics; integration audits route only affected rows to Needs Human without importing sibling work; CAS cancellation preserves newer private heads and independent queues. Focused suites pass (78 tests), and the full fallback gate passes (15,094 passed, 7 skipped, 1 xfailed); direct make test setup remains unavailable because astral-uv cannot create its DBus transient scope in this environment.
 ---
 <!-- COMMENTS:END -->
