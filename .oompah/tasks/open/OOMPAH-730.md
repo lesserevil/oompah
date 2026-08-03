@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-730
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Execute and reconcile safe container-cycle repairs automatically
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T16:59:59.720852Z'
+updated_at: '2026-08-03T17:00:13.233177Z'
 work_branch: null
 target_branch: null
 review_url: null
