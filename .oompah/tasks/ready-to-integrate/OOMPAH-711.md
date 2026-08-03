@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T01:53:06.978122Z'
+updated_at: '2026-08-03T01:53:20.615993Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,9 +104,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-711
-  head_sha: 9578b2175bd61800bfd3b7d6dc2241b7c1d5fe06
-  submitted_at: '2026-08-03T01:07:53.813385+00:00'
-  updated_at: '2026-08-03T01:07:53.813385+00:00'
+  head_sha: ce9e9fe007850e75b9814b3e1e12a657d4ceb3db
+  submitted_at: '2026-08-03T01:53:15.222255+00:00'
+  updated_at: '2026-08-03T01:53:15.222255+00:00'
 ---
 ## Summary
 
@@ -325,5 +325,10 @@ author: oompah
 created: 2026-08-03 01:53
 ---
 Direct-owner rebase and verification complete at exact clean head ce9e9fe007850e75b9814b3e1e12a657d4ceb3db on current origin/main. Affected owner-claim, duplicate-dispatch, and release-selection suites pass 86/86; make check-secrets passes. Resubmitting this exact head for the serialized full branch gate.
+---
+author: oompah
+created: 2026-08-03 01:53
+---
+Rebased the atomic owner-takeover race fix onto current main and reverified all directly affected suites.
 ---
 <!-- COMMENTS:END -->
