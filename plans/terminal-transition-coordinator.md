@@ -384,6 +384,57 @@ A rejected result leaves the record unchanged and never applies a tracker status
 
 Unknown classifications raise `ValueError` — the switch fails closed for any new failure mode that has not been explicitly routed.
 
+### Commit-Before-Comment Ordering
+
+**Critical requirement (OOMPAH-734):** The durable verdict record **MUST be persisted and marked COMPLETED before any human-readable PASS/FAIL comment is posted** to the tracker.
+
+#### Sequence for all verdicts:
+
+1. **Atomically persist the record as COMPLETED** (update to storage):
+   - Record `verdict` (PASS, FAIL, NEEDS_HUMAN, ERROR)
+   - Record `failure_classification` (if applicable)
+   - Record `safe_evidence` snapshot
+   - Record `attempt_id` and timestamps
+   - Mark `request_state` = `COMPLETED`
+   - This write **survives provider timeout, policy denial, and process crash**
+
+2. **Compute the human-readable message** (no side effects):
+   - Classify the verdict and extract safe evidence
+   - Compose the tracker comment text
+   - Determine the target status (Done/Open/Needs CI Fix/etc.)
+
+3. **Apply tracker state** (idempotent writes, safe to retry):
+   - Update the task status (only if verdict is not ERROR)
+   - Post the human-readable result comment
+
+#### Recovery path for exit-before-comment:
+
+If the auditor process crashes, times out, or receives a policy denial **after step 1 but before step 3**:
+
+1. On restart or recovery, the coordinator loads the audit record and sees `COMPLETED` verdict
+2. The coordinator detects that no result comment has been posted (check tracker history)
+3. The coordinator re-applies steps 2–3 safely (idempotent):
+   - Recompute the same message from the persisted verdict
+   - Retry the tracker writes
+   - No verdict or classification changes; no duplicate audit records
+
+#### Auditor turn-ceiling boundary:
+
+When an auditor approaches or reaches its turn ceiling while deciding a PASS verdict:
+
+1. The auditor **must reserve the finalization call as non-starvable**:
+   - Final ordinary turn: complete the audit logic, gather evidence, decide PASS/FAIL
+   - Finalization call (outside the ordinary turn budget): invoke `submit_audit_result` with the verdict
+   - The finalization call must complete within a small fixed budget (e.g., 10 seconds)
+
+2. The coordinator persists the verdict atomically in step 1 above, **independently of whether the auditor's session later completes normally or times out**
+
+3. On service restart or after the auditor's session ends:
+   - Load persisted completed verdicts and detect missing comments
+   - Safely apply comments and tracker state without re-opening the verdict
+
+This ensures an auditor reaching its turn ceiling **cannot strand the task in In Validation** — the durable verdict is already committed and will be surfaced to the tracker on recovery.
+
 ### No fail-open paths
 
 - `ERROR` verdicts and unparseable payloads never apply a status.
@@ -391,6 +442,7 @@ Unknown classifications raise `ValueError` — the switch fails closed for any n
 - Retry ceilings never apply a status.
 - `NEEDS_HUMAN` results whose comment is not actionable are rejected — the coordinator will not move the task to `Needs Human` without an actionable explanation.
 - A tracker write failure for the status or the comment logs the failure but does not roll back the audit record — the persisted attempt is durable, so a retry can reapply the tracker state without reopening the verdict.
+- **Commit-before-comment enforcement**: Verdict records are persisted COMPLETED before any tracker comment; provider/timeout/process-crash failures after persistence do not corrupt the durable verdict.
 
 ## Testing Strategy
 

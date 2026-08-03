@@ -143,6 +143,88 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 3. After the normal retry backoff, the next scheduler tick calls `select_candidates` again, excluding candidates already used by this audit.
 4. If `select_candidates` returns no candidates, submit a `NO_AUDITOR` failure.
 
+### Fingerprint-Based Duplicate-Dispatch Prevention
+
+**Context (OOMPAH-734):** When an auditor completes with a PASS verdict and commits that result, the scheduler must not launch a second auditor for the same target and fingerprint. This is prevented through compare-and-set logic in the coordinator.
+
+#### Duplicate-dispatch guard in scheduler:
+
+Before dispatching a new audit attempt:
+
+1. Load the pending audit record from task metadata
+2. Check the audit chain for any **completed** record with:
+   - Same `target_state` (Done, Merged, or Archived)
+   - Same `evidence_fingerprint` (exact SHA-256 match)
+   - `request_state = COMPLETED` (not PENDING or IN_PROGRESS)
+3. If a completed match exists:
+   - **Skip dispatch** — the audit has already been decided for this evidence
+   - Log a deduplication event
+   - Return to scheduler (do not launch a second auditor)
+4. If no completed match exists, proceed to dispatch
+
+#### Evidence fingerprint stability:
+
+The fingerprint is a deterministic SHA-256 digest of:
+
+- Task/issue requirements text
+- Source and target git SHAs
+- Review/merge state at the time of request
+- Set of task contributors
+- Child audit digests (for hierarchical tasks)
+
+If evidence changes (new code commit, requirement update, reviewer addition), the fingerprint changes. A new fingerprint triggers a new audit, allowing re-evaluation with updated evidence. This is intentional and correct.
+
+#### Idempotency guarantee:
+
+The coordinator's compare-and-set check (`FINGERPRINT_MISMATCH` rejection) ensures:
+
+- A completed audit with fingerprint F **cannot be overwritten** by a result with fingerprint F'
+- A pending audit with fingerprint F **cannot be succeeded** by a result with fingerprint F'
+- This preserves audit history: audit decisions are durable and cannot be retroactively changed
+
+Combined with the dispatcher's duplicate-dispatch guard, this ensures:
+
+- After a PASS verdict is committed for (target, fingerprint), no second auditor is launched for the same pair
+- If evidence changes (new fingerprint), a new audit is independently launched
+- No race between dispatcher and coordinator can create duplicate work
+
+### Turn-Ceiling and Finalization Semantics
+
+**Context (OOMPAH-734):** An auditor reaching its configured turn ceiling while deciding a verdict must not strand the task in In Validation. The finalization call (submitting the verdict via `submit_audit_result`) must be guaranteed to complete, independent of the auditor's turn budget.
+
+#### Auditor Turn-Ceiling Boundary
+
+An auditor session has a configured turn ceiling (e.g., 100 turns). The auditor lifecycle reserves the **finalization call as non-starvable**:
+
+1. **Turns 1 to N-1 (ordinary work):** Auditor gathers evidence, runs checks, analyzes the work, and decides on a verdict. At turn N-1, the auditor has completed its logic and holds a decided verdict (PASS, FAIL, NEEDS_HUMAN, or ERROR).
+
+2. **Turn N or finalization call (outside ordinary budget):** The auditor invokes `submit_audit_result` with its decided verdict. This call:
+   - Does **not** consume the ordinary turn counter (allocated outside the turn budget)
+   - Must complete within a fixed finalization timeout (e.g., 10 seconds)
+   - Is **never skipped**, even if the auditor has only one turn remaining
+
+3. **Coordinator persistence (atomic, turn-independent):** On receiving the result:
+   - Coordinator persists the verdict record as COMPLETED (step 1 of commit-before-comment in terminal-transition-coordinator.md)
+   - This write survives provider timeout, policy denial, or process crash
+   - Even if the auditor's session crashes after this point, the durable verdict is committed
+
+#### Recovery Path for Exit-Before-Finalization
+
+If the auditor reaches its turn ceiling before calling `submit_audit_result` (rare, due to finalization reservation):
+
+1. Auditor exits with an incomplete attempt record (no verdict persisted)
+2. On the next scheduler tick, dispatcher detects the ended attempt after retry backoff
+3. Dispatcher calls `select_candidates` to rotate to the next auditor candidate
+4. New auditor is launched for the same audit, starting fresh with the same evidence
+
+#### Recovery Path for Exit-After-Finalization-Call-but-Before-Coordinator-Persistence
+
+This is mitigated by finalization timeout handling:
+
+1. If coordinator receives the call within finalization timeout, the verdict is persisted atomically
+2. Coordinator posts the human-readable result comment on recovery (see commit-before-comment recovery path)
+3. If the call times out before reaching the coordinator, the auditor exit is treated as a transient failure (see "On Transient Failure" below)
+
 ### Retry and Recovery Semantics
 
 #### On Normal Exit (Auditor Completes)

@@ -268,6 +268,39 @@ then rotates to the next independent candidate.
    immediately and the lane retries on the next tick.
 2. Check the orchestrator and agent logs for the crash reason.
 
+### Uncommitted Finalization Failures
+
+**Context (OOMPAH-734):** In rare cases, an auditor may reach its turn ceiling after deciding a verdict, or may crash/timeout after deciding but before confirming finalization. The coordinator persists the verdict separately from the human-readable comment, ensuring the durable result is never lost.
+
+**Symptoms:**
+
+- Dashboard shows "PASS — Done" in a recent comment, but the task is still in `In Validation`
+- Dashboard terminal-audit health banner shows "uncommitted audit finalization failures"
+- Task does not advance automatically but remains under review
+
+**Root cause:** Auditor reached its turn ceiling or crashed after deciding the verdict but before the coordinator confirmed finalization (posting the result comment and applying the tracker status). The durable verdict is persisted; only the human-facing comment is missing.
+
+**Recovery:**
+
+1. The coordinator automatically detects the missing comment on the next startup or recovery tick.
+2. Coordinator re-applies the durable verdict:
+   - Computes the same human-readable message from the persisted verdict
+   - Posts the result comment idempotently (no duplicate comments)
+   - Applies the terminal status (Done/Merged/Archived)
+3. Task advances normally without requiring operator intervention.
+
+**If recovery does not occur within one minute:**
+
+```bash
+# Force recovery via audit rearm (reapplies the persisted verdict)
+oompah task set-status TASK-123 Done \
+  --project PROJECT_ID \
+  --audit-retry \
+  --audit-retry-reason "Finalization recovery reapplying committed verdict"
+```
+
+The rearm is safe; it will recognize the already-committed verdict and reapply the same status/comment without creating duplicate work.
+
 ### Audit Exhausted After Workspace or Transport Failures
 
 Fix the reported infrastructure problem, then rearm the audit without moving
