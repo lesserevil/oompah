@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-729
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm terminal audit after evidence-only remediation on the same head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:17:01.034520Z'
+updated_at: '2026-08-03T17:17:34.855266Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 90ac75a0-c844-46f8-9983-b8135796a081
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1942
@@ -84,6 +84,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-729
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:25:05.503912+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-729
+  head_sha: e4b2865eaff689389c35305372785511457b9cd9
+  submitted_at: '2026-08-03T17:17:25.200083+00:00'
+  updated_at: '2026-08-03T17:17:25.200083+00:00'
 ---
 ## Summary
 
@@ -170,5 +178,10 @@ author: oompah
 created: 2026-08-03 17:17
 ---
 Verification: focused terminal coordinator/API/fingerprint/integration/CLI suites pass (393 tests), including same-head missing-evidence rearm followed by PASS to Done, non-owner/fingerprint/success-final rejection, coalescing, canonical integrated-SHA matching, and one-alert sweep recovery. The terminal mutation scan passes (6/6 allowlisted). Full direct pytest completed with 15,134 passed, 7 skipped, 1 xfailed, and one unrelated harness failure because the direct invocation did not set OOMPAH_PYTEST_RUN_ROOT for test_pytest_parallel.py; make test could not initialize its task-private uv scope due a host DBus kernel-thread error.
+---
+author: oompah
+created: 2026-08-03 17:17
+---
+Implemented authenticated evidence-only terminal-audit rearm for unchanged integrated heads, with canonical integrated-SHA fencing, idempotent coordinator/API/CLI flow, sweep recovery alerting, operator docs, and regression coverage.
 ---
 <!-- COMMENTS:END -->
