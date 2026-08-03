@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:02:36.219892Z'
+updated_at: '2026-08-03T21:02:50.919735Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,16 @@ Live race reproduced on 2026-08-03 while overriding EXOCOMP-159 after deploying 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 21:02
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 21:02
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
