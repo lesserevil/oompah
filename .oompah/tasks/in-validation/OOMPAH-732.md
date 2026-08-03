@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T19:33:13.537174Z'
+updated_at: '2026-08-03T19:34:39.034508Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -117,8 +117,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 2a43b5d3-d498-4126-817a-93a7d08768ed
 oompah.task_costs:
-  total_input_tokens: 50
-  total_output_tokens: 12246
+  total_input_tokens: 56
+  total_output_tokens: 12452
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -128,6 +128,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 40
       output_tokens: 10364
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 206
       cost_usd: 0.0
   runs:
   - profile: default
@@ -142,6 +146,12 @@ oompah.task_costs:
     output_tokens: 10364
     cost_usd: 0.0
     recorded_at: '2026-08-03T18:51:45.308947+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 206
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:34:36.890930+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-732__20260803T175332Z
@@ -441,5 +451,15 @@ Safe evidence:
 - new_tests: test_standalone_gate_does_not_hold_shared_queue_driver; test_benign_tracker_timestamp_change_keeps_exact_head_authority
 - branch_gate_duration_s: 415.7
 - worktree_status: clean; on merged SHA
+---
+author: oompah
+created: 2026-08-03 19:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 45, Tool calls: 32
+- Tokens: 6 in / 206 out [212 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 19s
+- Log: OOMPAH-732__20260803T192328Z.jsonl
 ---
 <!-- COMMENTS:END -->
