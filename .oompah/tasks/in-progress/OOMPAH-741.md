@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:02:31.493154Z'
+updated_at: '2026-08-03T23:06:49.304806Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 81b994b8-3626-428a-9515-b5d3354d5fe5
+oompah.agent_run_id: cb4044c3-159c-494e-95b6-71b06baf97d1
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
@@ -136,5 +136,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 14s
 - Log: OOMPAH-741__20260803T230037Z.jsonl
+---
+author: oompah
+created: 2026-08-03 23:06
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
