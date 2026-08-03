@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:33:23.873794Z'
+updated_at: '2026-08-03T16:43:29.189026Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-03 16:33
 ---
 Verification update: focused duplicate-preflight, focus, and prompt suites pass (226 passed). The corpus output was manually checked at 32,394 bytes with 203 peers and 100 selected rows, below the 96 KiB cap; required peers were all retained and generic/similarity candidates were bounded deterministically. I am proceeding with the complete Makefile gate and final security review.
+---
+author: oompah
+created: 2026-08-03 16:43
+---
+Verification: focused duplicate-preflight/focus/prompt plus ACP and prompt-injection suites pass (354 passed). Repository fallback full suite passes (15,130 passed, 7 skipped, 1 xfailed, 41 warnings); terminal-mutation scan passes (6/6 allowlisted); make check-secrets passes. Direct make test setup was attempted twice but blocked before pytest by host uv DBus transient-scope failure, and documented gate mode correctly rejected a runtime launcher from another checkout.
 ---
 <!-- COMMENTS:END -->
