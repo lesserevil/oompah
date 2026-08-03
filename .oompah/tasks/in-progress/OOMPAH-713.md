@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:03:06.340066Z'
+updated_at: '2026-08-03T01:09:28.191621Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-03 01:03
 ---
 Discovery: check_auditor_command() currently treats all shell separators, redirections, and shell metacharacters as the same fatal auditor policy denial. This rejects the OOMPAH-709 read-only pipelines and causes _record_auditor_policy_denial() to exhaust the three-denial retirement budget. I am tracing the structured failure/health paths to introduce a recoverable policy-validation classification while retaining fail-closed mutation checks.
+---
+author: oompah
+created: 2026-08-03 01:09
+---
+Implementation: Added recoverable AuditorCommandDenial metadata for unsupported read-only shell separators, skipped those denials in API/ACP/orchestrator fatal-budget callbacks, and kept mutation/shell-escape/file-redirection paths fail-closed. Fatal policy exhaustion now records FailureClassification.POLICY_INCOMPATIBILITY, with dedicated health counters/alerts and dashboard wording distinct from transport outages. Auditor prompts and both tool catalogs now prefer bounded read_file/search_files and separate run_command calls.
 ---
 <!-- COMMENTS:END -->
