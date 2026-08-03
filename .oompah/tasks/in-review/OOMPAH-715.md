@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:48:39.176098Z'
+updated_at: '2026-08-03T01:48:47.024359Z'
 work_branch: OOMPAH-715
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/672
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-08-03 01:48
 ---
 Branch quality gate passed for `27c62eca57fa115c3d22d2e4053181ae40fb1b8b` using `make test` in 417.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 01:48
+---
+Completion-audit guidance while the old service is deployed: use only approved read_file, list_files, search_files, and simple single read-only run_command calls. Do not use grep, shell pipes, redirection, command chaining, or whole-file reads. Exact head 27c62eca57fa115c3d22d2e4053181ae40fb1b8b passed the complete make test gate in 417.1s.
 ---
 <!-- COMMENTS:END -->
