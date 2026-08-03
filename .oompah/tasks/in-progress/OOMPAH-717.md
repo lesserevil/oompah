@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:28:39.436579Z'
+updated_at: '2026-08-03T13:29:01.534767Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-03 13:28
 ---
 Implementation: added generated-helper detection at submission and integration boundaries, including legacy tracked helper paths; fixed executor failure-step/stderr reporting; separated deterministic checkout/reset/merge failures from retryable epic CAS races; added durable bounded exponential backoff with due-time queue claims and fair independent-row progress; added retry diagnostics and dashboard visibility with repair guidance. Added focused regression coverage across executor, queue, orchestrator, ProjectStore, submission, and dashboard paths.
+---
+author: oompah
+created: 2026-08-03 13:29
+---
+Verification: focused executor/queue/orchestrator/ProjectStore/submission/dashboard suites passed, and the repository parallel gate completed with 15,097 passed, 7 skipped, 1 xfailed, and 45 warnings.  passed. The Makefile wrapper could not create its uv transient scope because the environment returned a DBus kernel-thread error; the same configured test runner completed successfully directly.
 ---
 <!-- COMMENTS:END -->
