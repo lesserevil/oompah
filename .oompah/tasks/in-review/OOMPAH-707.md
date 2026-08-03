@@ -13,11 +13,11 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-03T00:27:28.794117Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-03T00:27:35.784995Z'
+work_branch: OOMPAH-707
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/668
-review_number: null
+review_number: '668'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -108,6 +108,9 @@ oompah.integration:
   submitted_at: '2026-08-02T23:13:45.346868+00:00'
   updated_at: '2026-08-02T23:13:45.346868+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/668
+oompah.review_number: '668'
+oompah.work_branch: OOMPAH-707
+oompah.target_branch: main
 ---
 ## Summary
 
