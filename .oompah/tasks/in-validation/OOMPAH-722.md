@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T16:06:11.497187Z'
+updated_at: '2026-08-03T16:06:54.302088Z'
 work_branch: OOMPAH-722
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/682
@@ -194,7 +194,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-722
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,13 +219,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-03T16:06:07.156954+00:00'
+    - version: 1
+      attempt_id: attempt-3066c600abaa
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+      created_at: '2026-08-03T16:06:53.135829+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-03T16:06:53.135829+00:00'
+      branch_key: OOMPAH-722
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T15:48:22.871647+00:00'
-    updated_at: '2026-08-03T16:05:57.156990+00:00'
+    updated_at: '2026-08-03T16:06:53.135829+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d775420aab0c
@@ -259,6 +273,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-03T16:06:07.156954+00:00'
+  - version: 1
+    attempt_id: attempt-3066c600abaa
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+    created_at: '2026-08-03T16:06:53.135829+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-03T16:06:53.135829+00:00'
+    branch_key: OOMPAH-722
+    candidate_rotation_count: 1
 ---
 ## Summary
 
