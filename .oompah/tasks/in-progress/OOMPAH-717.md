@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:03:13.493842Z'
+updated_at: '2026-08-03T13:28:39.436579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-08-03 13:03
 ---
 Discovery: ProjectStore installs .oompah-no-hooks/prepare-commit-msg in each worktree and the executor filters that path from dirty checks. A submitted commit can therefore track the helper unnoticed; the executor later resets/merges into an epic worktree containing the same untracked helper. The checkout/reset/merge failure path currently chooses checkout stderr first and returns epic_head_race for every failure. I’m tracing submission validation and queue routing before patching.
+---
+author: oompah
+created: 2026-08-03 13:28
+---
+Implementation: added generated-helper detection at submission and integration boundaries, including legacy tracked helper paths; fixed executor failure-step/stderr reporting; separated deterministic checkout/reset/merge failures from retryable epic CAS races; added durable bounded exponential backoff with due-time queue claims and fair independent-row progress; added retry diagnostics and dashboard visibility with repair guidance. Added focused regression coverage across executor, queue, orchestrator, ProjectStore, submission, and dashboard paths.
 ---
 <!-- COMMENTS:END -->
