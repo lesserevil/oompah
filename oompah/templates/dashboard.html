@@ -5335,10 +5335,14 @@ function renderIntegrationSummary(record, queue) {
   const branch = source.task_branch ? ` · ${source.task_branch}` : '';
   const head = source.head_sha ? ` @ ${source.head_sha.slice(0, 8)}` : '';
   const reason = source.wait_reason || source.last_error || record?.last_error || '';
+  const attempts = Number.isFinite(Number(source.attempts)) ? ` · attempt ${source.attempts}` : '';
+  const retryAt = source.next_retry_at ? ` · next retry ${new Date(Number(source.next_retry_at) * 1000).toLocaleString()}` : '';
+  const action = source.repair_action ? ` · repair: ${source.repair_action}` : '';
   const detail = reason ? ` · ${reason}` : '';
   return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
-    title="${esc(`Integration ${state}${branch}${head}${detail}`)}">
-    Integration: ${esc(state)}${esc(head)}${reason ? ` · ${esc(reason)}` : ''}
+    role="status" aria-label="Integration ${esc(state)}${esc(attempts)}"
+    title="${esc(`Integration ${state}${branch}${head}${attempts}${retryAt}${detail}${action}`)}">
+    Integration: ${esc(state)}${esc(head)}${esc(attempts)}${retryAt ? ` · ${esc(retryAt)}` : ''}${reason ? ` · ${esc(reason)}` : ''}
   </div>`;
 }
 

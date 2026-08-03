@@ -606,6 +606,11 @@ class ServiceConfig:
     coordination_retention_seconds: int = 30 * 24 * 60 * 60
     restart_drain_timeout_seconds: int = 60 * 60
     quality_gate_timeout_seconds: int = 60 * 60
+    # Integration delivery retries are deliberately bounded and delayed so a
+    # deterministic failure cannot monopolize the queue.
+    integration_retry_max_attempts: int = 5
+    integration_retry_backoff_seconds: int = 5
+    integration_retry_max_backoff_seconds: int = 300
     # Full SHA of the lifecycle contract deployed by the operator. This is
     # intentionally server configuration, never candidate-branch input; set
     # it only after a lifecycle change has been separately reviewed/deployed.
@@ -798,6 +803,16 @@ class ServiceConfig:
         )
         self.quality_gate_timeout_seconds = max(
             int(self.quality_gate_timeout_seconds), 1
+        )
+        self.integration_retry_max_attempts = max(
+            int(self.integration_retry_max_attempts), 1
+        )
+        self.integration_retry_backoff_seconds = max(
+            int(self.integration_retry_backoff_seconds), 1
+        )
+        self.integration_retry_max_backoff_seconds = max(
+            int(self.integration_retry_max_backoff_seconds),
+            self.integration_retry_backoff_seconds,
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
@@ -1170,6 +1185,15 @@ class ServiceConfig:
             ),
             quality_gate_timeout_seconds=_env_int(
                 "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", None, 60 * 60
+            ),
+            integration_retry_max_attempts=_env_int(
+                "OOMPAH_INTEGRATION_RETRY_MAX_ATTEMPTS", None, 5
+            ),
+            integration_retry_backoff_seconds=_env_int(
+                "OOMPAH_INTEGRATION_RETRY_BACKOFF_SECONDS", None, 5
+            ),
+            integration_retry_max_backoff_seconds=_env_int(
+                "OOMPAH_INTEGRATION_RETRY_MAX_BACKOFF_SECONDS", None, 300
             ),
             quality_gate_safety_head=_env_str(
                 "OOMPAH_QUALITY_GATE_SAFETY_HEAD", None, ""

@@ -12,7 +12,7 @@ import time
 from typing import Mapping, Sequence
 
 
-INTEGRATION_QUEUE_SCHEMA_VERSION = 1
+INTEGRATION_QUEUE_SCHEMA_VERSION = 2
 _INITIALIZE_LOCK = threading.Lock()
 
 
@@ -33,6 +33,7 @@ class IntegrationQueueItem:
     updated_at: str
     last_error: str | None = None
     retry_forced: bool = False
+    next_retry_at: float | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS integration_queue (
     updated_at TEXT NOT NULL,
     last_error TEXT,
     retry_forced INTEGER NOT NULL DEFAULT 0,
+    next_retry_at REAL,
     PRIMARY KEY(project_id, task_id)
 );
 CREATE INDEX IF NOT EXISTS integration_epic_ready_idx
@@ -97,6 +99,12 @@ class IntegrationQueueStore:
                 self._conn.execute(
                     "ALTER TABLE integration_queue ADD COLUMN retry_forced INTEGER NOT NULL DEFAULT 0"
                 )
+            try:
+                self._conn.execute("SELECT next_retry_at FROM integration_queue LIMIT 0")
+            except sqlite3.OperationalError:
+                self._conn.execute(
+                    "ALTER TABLE integration_queue ADD COLUMN next_retry_at REAL"
+                )
             self._conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(INTEGRATION_QUEUE_SCHEMA_VERSION)),
@@ -114,6 +122,10 @@ class IntegrationQueueStore:
             retry_forced_val = int(row["retry_forced"] or 0)
         except (IndexError, TypeError):
             retry_forced_val = 0
+        try:
+            next_retry_at = row["next_retry_at"]
+        except (IndexError, KeyError):
+            next_retry_at = None
         
         return IntegrationQueueItem(
             project_id=row["project_id"],
@@ -131,6 +143,9 @@ class IntegrationQueueStore:
             updated_at=row["updated_at"],
             last_error=row["last_error"],
             retry_forced=bool(retry_forced_val),
+            next_retry_at=(
+                float(next_retry_at) if next_retry_at is not None else None
+            ),
         )
 
     def enqueue(
@@ -146,6 +161,8 @@ class IntegrationQueueStore:
         submitted_at: str | None = None,
         explicit_retry: bool = False,
         rearm_integrated: bool = False,
+        retry_at: float | None = None,
+        preserve_attempts: bool = False,
     ) -> IntegrationQueueItem:
         """Insert or refresh a submission; identical resubmits are idempotent.
 
@@ -195,14 +212,28 @@ class IntegrationQueueStore:
                 return self._from_row(existing)
             # Preserve that a human/durable retry reset an inactive row.
             retry_forced_val = 1 if retry_inactive else 0
+            attempts_value = (
+                int(existing["attempts"])
+                if existing is not None and preserve_attempts
+                else 0
+            )
+            next_retry_value = (
+                float(retry_at)
+                if retry_at is not None
+                else (
+                    existing["next_retry_at"]
+                    if existing is not None and preserve_attempts
+                    else None
+                )
+            )
             self._conn.execute(
                 """
                 INSERT INTO integration_queue(
                     project_id, epic_id, task_id, task_branch, head_sha,
                     base_sha, priority, submitted_at, state, attempts,
                     lease_owner, lease_expires_at, updated_at, last_error,
-                    retry_forced
-                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', 0, NULL, NULL, ?, NULL, ?)
+                    retry_forced, next_retry_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?, NULL, NULL, ?, NULL, ?, ?)
                 ON CONFLICT(project_id, task_id) DO UPDATE SET
                     epic_id = excluded.epic_id,
                     task_branch = excluded.task_branch,
@@ -211,12 +242,13 @@ class IntegrationQueueStore:
                     priority = excluded.priority,
                     submitted_at = excluded.submitted_at,
                     state = 'ready',
-                    attempts = 0,
+                    attempts = excluded.attempts,
                     lease_owner = NULL,
                     lease_expires_at = NULL,
                     updated_at = excluded.updated_at,
                     last_error = NULL,
-                    retry_forced = ?
+                    retry_forced = excluded.retry_forced,
+                    next_retry_at = excluded.next_retry_at
                 """,
                 (
                     values["project_id"],
@@ -227,9 +259,10 @@ class IntegrationQueueStore:
                     str(base_sha or "").strip() or None,
                     int(priority if priority is not None else 999),
                     submitted_at or now,
+                    attempts_value,
                     now,
                     retry_forced_val,
-                    retry_forced_val,
+                    next_retry_value,
                 ),
             )
             self._conn.commit()
@@ -289,6 +322,7 @@ class IntegrationQueueStore:
         satisfied: set[str],
         lease_seconds: int = 3600,
         now: float | None = None,
+        max_attempts: int | None = None,
     ) -> IntegrationQueueItem | None:
         """Claim the first deterministic dependency-ready item."""
 
@@ -311,14 +345,17 @@ class IntegrationQueueStore:
                     """
                     SELECT * FROM integration_queue
                     WHERE project_id = ? AND epic_id = ? AND state = 'ready'
+                      AND (next_retry_at IS NULL OR next_retry_at <= ?)
                     ORDER BY priority, submitted_at, task_id
                     """,
-                    (project_id, epic_id),
+                    (project_id, epic_id, timestamp),
                 ).fetchall()
                 selected = next(
                     (
                         row
                         for row in rows
+                        if max_attempts is None
+                        or int(row["attempts"]) < max(1, int(max_attempts))
                         if set(dependency_map.get(row["task_id"], ()))
                         <= satisfied
                     ),
@@ -334,7 +371,7 @@ class IntegrationQueueStore:
                     UPDATE integration_queue
                     SET state = 'integrating', lease_owner = ?,
                         lease_expires_at = ?, attempts = attempts + 1,
-                        updated_at = ?, retry_forced = 0
+                        updated_at = ?, retry_forced = 0, next_retry_at = NULL
                     WHERE project_id = ? AND task_id = ? AND state = 'ready'
                     """,
                     (
@@ -384,6 +421,7 @@ class IntegrationQueueStore:
         lease_owner: str,
         error: str,
         retryable: bool = False,
+        retry_at: float | None = None,
     ) -> bool:
         return self._finish(
             project_id,
@@ -391,6 +429,7 @@ class IntegrationQueueStore:
             lease_owner=lease_owner,
             state="ready" if retryable else "blocked",
             last_error=str(error),
+            next_retry_at=(float(retry_at) if retryable and retry_at is not None else None),
         )
 
     def cancel(
@@ -412,7 +451,8 @@ class IntegrationQueueStore:
                 """
                 UPDATE integration_queue
                 SET state = 'cancelled', lease_owner = NULL,
-                    lease_expires_at = NULL, updated_at = ?, last_error = ?
+                    lease_expires_at = NULL, updated_at = ?, last_error = ?,
+                    next_retry_at = NULL
                 WHERE project_id = ? AND task_id = ?
                   AND state IN ('ready', 'integrating', 'blocked')
                 """,
@@ -434,13 +474,14 @@ class IntegrationQueueStore:
         lease_owner: str,
         state: str,
         last_error: str | None,
+        next_retry_at: float | None = None,
     ) -> bool:
         with self._lock:
             result = self._conn.execute(
                 """
                 UPDATE integration_queue
                 SET state = ?, lease_owner = NULL, lease_expires_at = NULL,
-                    updated_at = ?, last_error = ?
+                    updated_at = ?, last_error = ?, next_retry_at = ?
                 WHERE project_id = ? AND task_id = ?
                   AND state = 'integrating' AND lease_owner = ?
                 """,
@@ -448,6 +489,7 @@ class IntegrationQueueStore:
                     state,
                     _now_iso(),
                     last_error,
+                    next_retry_at,
                     project_id,
                     task_id,
                     lease_owner,

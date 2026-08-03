@@ -165,6 +165,180 @@ def test_executor_rebases_tests_and_fast_forwards_epic(tmp_path):
     assert _git(epic, "rev-parse", "origin/epic-E-1") == result.integrated_sha
     assert gate_calls["expected_head_sha"] == result.rebased_task_sha
     assert gate_calls["generation"] == "integration-generation-1"
+    assert ".oompah-no-hooks/prepare-commit-msg" not in _git(
+        epic, "ls-tree", "-r", "--name-only", "HEAD"
+    )
+
+
+def test_executor_rejects_legacy_tracked_generated_helper_before_shared_mutation(
+    tmp_path,
+):
+    remote, epic, task, _task_head = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    helper = seed / ".oompah-no-hooks" / "prepare-commit-msg"
+    helper.parent.mkdir()
+    helper.write_text("#!/bin/sh\n", encoding="utf-8")
+    _git(seed, "add", str(helper.relative_to(seed)))
+    _git(seed, "commit", "-m", "legacy helper accidentally tracked")
+    poisoned_head = _git(seed, "rev-parse", "HEAD")
+    _git(seed, "push", "origin", "epic-E-1--task-T-1")
+    (epic / ".oompah-no-hooks" / "prepare-commit-msg").parent.mkdir()
+    (epic / ".oompah-no-hooks" / "prepare-commit-msg").write_text(
+        "#!/bin/sh\n", encoding="utf-8"
+    )
+    original_epic = _git(epic, "rev-parse", "HEAD")
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=poisoned_head,
+        quality_gate=mock.MagicMock(),
+        quality_command="true",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "generated_helper"
+    assert "prepare-commit-msg" in result.message
+    assert "git rm" in result.message
+    assert _git(epic, "rev-parse", "HEAD") == original_epic
+    assert not result.integrated
+
+
+def test_executor_reports_reset_error_not_successful_checkout_stderr(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    completed = subprocess.CompletedProcess([], 0, stdout="", stderr="checkout warning")
+    reset_failed = subprocess.CompletedProcess([], 128, stdout="", stderr="reset collision")
+
+    def fake_git(repo_path, *args, **_kwargs):
+        if args[0] == "reset" and str(repo_path) == str(epic):
+            return reset_failed
+        return completed
+
+    sha_values = {
+        (str(task), "origin/epic-E-1--task-T-1"): task_head,
+        (str(task), "HEAD"): task_head,
+        (str(epic), "origin/epic-E-1"): "b" * 40,
+        (str(epic), "HEAD"): "b" * 40,
+    }
+    with (
+        mock.patch("oompah.integration_executor._git", side_effect=fake_git),
+        mock.patch(
+            "oompah.integration_executor._current_branch",
+            side_effect=lambda path: (
+                "epic-E-1--task-T-1"
+                if str(path) == str(task)
+                else "epic-E-1"
+            ),
+        ),
+        mock.patch("oompah.integration_executor._sha", side_effect=lambda path, ref: sha_values.get((str(path), ref))),
+        mock.patch("oompah.integration_executor._dirty_worktree", return_value=None),
+        mock.patch("oompah.integration_executor.generated_worktree_helpers_in_revision", return_value=[]),
+    ):
+        result = execute_integration(
+            project_lock=nullcontext(),
+            epic_worktree=str(epic),
+            task_worktree=str(task),
+            epic_branch="epic-E-1",
+            task_branch="epic-E-1--task-T-1",
+            submitted_head_sha=task_head,
+            quality_gate=mock.MagicMock(),
+            quality_command="true",
+            repo_identity=str(remote),
+        )
+
+    assert result.status == "error"
+    assert "reset collision" in result.message
+    assert "checkout warning" not in result.message
+
+
+def test_executor_reports_merge_error_not_successful_checkout_stderr(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    completed = subprocess.CompletedProcess([], 0, stdout="", stderr="checkout warning")
+    merge_failed = subprocess.CompletedProcess([], 1, stdout="", stderr="not a fast-forward")
+
+    def fake_git(repo_path, *args, **_kwargs):
+        if args[0] == "merge":
+            return merge_failed
+        return completed
+
+    sha_values = {
+        (str(task), "origin/epic-E-1--task-T-1"): task_head,
+        (str(task), "HEAD"): task_head,
+        (str(epic), "origin/epic-E-1"): "b" * 40,
+        (str(epic), "HEAD"): "b" * 40,
+        (str(task), "HEAD"): task_head,
+    }
+    with (
+        mock.patch("oompah.integration_executor._git", side_effect=fake_git),
+        mock.patch(
+            "oompah.integration_executor._current_branch",
+            side_effect=lambda path: (
+                "epic-E-1--task-T-1"
+                if str(path) == str(task)
+                else "epic-E-1"
+            ),
+        ),
+        mock.patch("oompah.integration_executor._sha", side_effect=lambda path, ref: sha_values.get((str(path), ref))),
+        mock.patch("oompah.integration_executor._dirty_worktree", return_value=None),
+        mock.patch("oompah.integration_executor.generated_worktree_helpers_in_revision", return_value=[]),
+    ):
+        result = execute_integration(
+            project_lock=nullcontext(),
+            epic_worktree=str(epic),
+            task_worktree=str(task),
+            epic_branch="epic-E-1",
+            task_branch="epic-E-1--task-T-1",
+            submitted_head_sha=task_head,
+            quality_gate=mock.MagicMock(
+                run=mock.Mock(
+                    return_value=QualityGateResult(
+                        status="passed", head_sha="c" * 40, command="true"
+                    )
+                )
+            ),
+            quality_command="true",
+            repo_identity=str(remote),
+        )
+
+    assert result.status == "epic_merge_failure"
+    assert "not a fast-forward" in result.message
+    assert "checkout warning" not in result.message
+
+
+def test_executor_keeps_genuine_epic_compare_and_swap_race_retryable(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    seed = tmp_path / "seed"
+
+    class RacingGate:
+        def run(self, **kwargs):
+            _git(seed, "checkout", "epic-E-1")
+            (seed / "race.txt").write_text("remote raced\n", encoding="utf-8")
+            _git(seed, "add", "race.txt")
+            _git(seed, "commit", "-m", "advance epic during gate")
+            _git(seed, "push", "origin", "epic-E-1")
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=RacingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "epic_head_race"
+    assert "advanced" in result.message
 
 
 def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):

@@ -6665,6 +6665,14 @@ class Orchestrator:
                 automatic_retry = (
                     str(record.state or "").strip().lower() == "ready"
                 )
+                retry_at = None
+                if automatic_retry and getattr(record, "backoff_until", None):
+                    try:
+                        retry_at = datetime.fromisoformat(
+                            str(record.backoff_until)
+                        ).timestamp()
+                    except (TypeError, ValueError, OverflowError):
+                        retry_at = None
                 self.integration_queue.enqueue(
                     project_id=project.id,
                     epic_id=epic_id,
@@ -6675,6 +6683,8 @@ class Orchestrator:
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
                     explicit_retry=automatic_retry,
+                    retry_at=retry_at,
+                    preserve_attempts=automatic_retry,
                 )
             self._audit_blocked_integration_rows(project.id, tracker)
 
@@ -8492,17 +8502,105 @@ class Orchestrator:
         3. Real conflicts or hard failures: dispatch to human (NEEDS_REBASE status)
         """
 
+        def _record_failure_diagnostic(
+            *,
+            next_retry_at: float | None,
+            repair_action: str,
+        ) -> None:
+            source = f"integration_retry:{item.project_id}:{item.task_id}"
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+            next_retry = (
+                datetime.fromtimestamp(next_retry_at, tz=timezone.utc).isoformat()
+                if next_retry_at is not None
+                else None
+            )
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": source,
+                    "message": (
+                        f"Integration task {item.task_id} failed at "
+                        f"{result.failing_step}: {result.message}. "
+                        f"Next retry: {next_retry or 'not scheduled'}. "
+                        f"Repair action: {repair_action}"
+                    ),
+                    "task_id": item.task_id,
+                    "project_id": item.project_id,
+                    "failing_step": result.failing_step,
+                    "error": result.message,
+                    "next_retry_at": next_retry,
+                    "repair_action": repair_action,
+                    "attempts": item.attempts,
+                    "max_attempts": retry_budget,
+                }
+            )
+
         # An epic-head race is safe to retry from the rebased private head
         # that this executor already pushed. A task-branch push race means a
         # worker or operator changed the private branch concurrently; require
         # a fresh explicit submission instead of guessing which head wins.
-        retryable = result.status in {"epic_head_race", "interrupted"}
+        retry_candidate = result.status in {"epic_head_race", "interrupted"}
+        retry_budget = max(
+            int(getattr(self.config, "integration_retry_max_attempts", 5)),
+            1,
+        )
+        retryable = retry_candidate and item.attempts < retry_budget
+        retry_at: float | None = None
+        if retryable:
+            base_delay = max(
+                int(
+                    getattr(
+                        self.config,
+                        "integration_retry_backoff_seconds",
+                        5,
+                    )
+                ),
+                1,
+            )
+            max_delay = max(
+                int(
+                    getattr(
+                        self.config,
+                        "integration_retry_max_backoff_seconds",
+                        300,
+                    )
+                ),
+                base_delay,
+            )
+            retry_at = time.time() + min(
+                base_delay * (2 ** max(item.attempts - 1, 0)),
+                max_delay,
+            )
+
+        # Conflict-repair infrastructure failures have their own longer
+        # cooldown, but use the same durable queue gate so background sync
+        # cannot repeatedly revive a blocked row in a hot loop.
+        repair_failure_reason = (
+            classify_conflict_repair_failure(result.message)
+            if result.status == "conflict"
+            else None
+        )
+        conflict_backoff = bool(
+            result.status == "conflict"
+            and repair_failure_reason
+            and repair_failure_reason != "conflict"
+            and item.attempts < 4
+        )
+        if conflict_backoff:
+            conflict_delays = [300, 900, 2700]
+            retryable = True
+            retry_at = time.time() + conflict_delays[
+                min(max(item.attempts - 1, 0), len(conflict_delays) - 1)
+            ]
         self.integration_queue.fail(
             item.project_id,
             item.task_id,
             lease_owner=item.lease_owner or "",
             error=result.message,
             retryable=retryable,
+            retry_at=retry_at,
         )
         tracker = self._tracker_for_project(item.project_id)
         issue = tracker.fetch_issue_detail(item.task_id)
@@ -8511,12 +8609,13 @@ class Orchestrator:
         state = "ready" if retryable else "blocked"
         
         # Track repair failure classification for conflicts
-        repair_failure_reason: str | None = None
         backoff_until: str | None = None
         
         if result.status == "conflict":
             # Classify the failure to detect infrastructure vs real conflicts
-            repair_failure_reason = classify_conflict_repair_failure(result.message)
+            repair_failure_reason = repair_failure_reason or classify_conflict_repair_failure(
+                result.message
+            )
             
             # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
             if repair_failure_reason and repair_failure_reason != "conflict":
@@ -8562,6 +8661,19 @@ class Orchestrator:
                 repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
+        _record_failure_diagnostic(
+            next_retry_at=retry_at if retryable else None,
+            repair_action=(
+                "wait for the scheduled retry"
+                if retryable
+                else (
+                    "remove the generated helper with git rm, commit, push, "
+                    "and submit again"
+                    if result.status == "generated_helper"
+                    else "repair the reported failure, push a clean head, and submit again"
+                )
+            ),
+        )
         if retryable:
             if result.rebased_task_sha:
                 self.integration_queue.enqueue(
@@ -8574,6 +8686,8 @@ class Orchestrator:
                     priority=item.priority,
                     submitted_at=item.submitted_at,
                     explicit_retry=False,  # Automatic background retry
+                    retry_at=retry_at,
+                    preserve_attempts=True,
                 )
             logger.info(
                 "Retryable integration interruption for %s will retry automatically: %s",
@@ -8634,6 +8748,7 @@ class Orchestrator:
         # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
+            "generated_helper": NEEDS_REBASE,
             "needs_rebase": NEEDS_REBASE,
             "ci_failure": NEEDS_CI_FIX,
             "task_push_race": OPEN,
@@ -8641,6 +8756,7 @@ class Orchestrator:
             "missing_head": OPEN,
             "missing_epic": OPEN,
             "error": OPEN,
+            "epic_merge_failure": OPEN,
         }.get(result.status, OPEN)
         tracker.update_issue(item.task_id, status=repair_status)
         instruction = {
@@ -8649,6 +8765,12 @@ class Orchestrator:
                 f"Resolve it against `{self.project_store.epic_branch_name(item.epic_id)}`, "
                 "run the required tests, push the same private branch, and "
                 "`oompah task submit` it again."
+            ),
+            "generated_helper": (
+                f"The submitted head for `{item.task_branch}` tracks an "
+                "Oompah-generated worktree helper. Remove the reported helper "
+                "with `git rm`, commit and push the repaired branch, then "
+                "`oompah task submit` it again. The epic branch was not mutated."
             ),
             "needs_rebase": (
                 f"The combined-tree quality gate refused `{item.task_branch}` "
@@ -8673,6 +8795,13 @@ class Orchestrator:
             ),
         )
         tracker.add_comment(item.task_id, instruction, author="oompah")
+        if retry_candidate and not retryable:
+            logger.error(
+                "Integration retry budget exhausted for %s after %d attempts: %s",
+                item.task_id,
+                item.attempts,
+                result.message[:500],
+            )
         self.state.completed.discard(item.task_id)
         self.request_refresh()
 
@@ -9047,6 +9176,11 @@ class Orchestrator:
                 dependency_map=dependency_map,
                 satisfied=satisfied,
                 lease_seconds=self.config.quality_gate_timeout_seconds + 900,
+                max_attempts=getattr(
+                    self.config,
+                    "integration_retry_max_attempts",
+                    5,
+                ),
             )
             if item is None:
                 # Queue blocked? Check if it's due to stale epic ancestry
@@ -9123,6 +9257,12 @@ class Orchestrator:
                     result,
                 )
                 continue
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source")
+                != f"integration_retry:{item.project_id}:{item.task_id}"
+            ]
             issue_aliases: dict[str, Issue] = {}
             for issue in issues:
                 for alias in (issue.id, issue.identifier):
@@ -33230,6 +33370,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "default_first_dispatch": self.config.default_first_dispatch,
                 "parallel_epic_children_enabled": (
                     self.config.parallel_epic_children_enabled
+                ),
+                "integration_retry_max_attempts": getattr(
+                    self.config, "integration_retry_max_attempts", 5
+                ),
+                "integration_retry_backoff_seconds": getattr(
+                    self.config, "integration_retry_backoff_seconds", 5
                 ),
             },
             "integration_queue": [

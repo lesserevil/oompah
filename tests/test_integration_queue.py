@@ -104,6 +104,138 @@ def test_concurrent_claimers_only_receive_one_lease(tmp_path):
     assert len([item for item in claimed if item is not None]) == 1
 
 
+def test_backoff_skips_poisoned_row_and_advances_independent_epic(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    poisoned = store.enqueue(
+        project_id="p1",
+        epic_id="EPIC-POISON",
+        task_id="POISON",
+        task_branch="task/POISON",
+        head_sha="deadbeef",
+        priority=0,
+    )
+    independent = store.enqueue(
+        project_id="p1",
+        epic_id="EPIC-INDEPENDENT",
+        task_id="HEALTHY",
+        task_branch="task/HEALTHY",
+        head_sha="cafebabe",
+        priority=0,
+    )
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id=poisoned.epic_id,
+        lease_owner="worker-1",
+        dependency_map={"POISON": ()},
+        satisfied=set(),
+        now=10,
+    )
+    assert claimed is not None
+    assert store.fail(
+        "p1",
+        "POISON",
+        lease_owner="worker-1",
+        error="untracked helper collision",
+        retryable=True,
+        retry_at=100,
+    )
+
+    assert (
+        store.claim_next(
+            project_id="p1",
+            epic_id=poisoned.epic_id,
+            lease_owner="worker-2",
+            dependency_map={"POISON": ()},
+            satisfied=set(),
+            now=10,
+        )
+        is None
+    )
+    advanced = store.claim_next(
+        project_id="p1",
+        epic_id=independent.epic_id,
+        lease_owner="worker-3",
+        dependency_map={"HEALTHY": ()},
+        satisfied=set(),
+        now=10,
+    )
+    assert advanced is not None and advanced.task_id == "HEALTHY"
+
+
+def test_claim_attempt_budget_bounds_repeated_failures(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    _enqueue(store, "A")
+    for attempt, owner in ((1, "worker-1"), (2, "worker-2")):
+        claimed = store.claim_next(
+            project_id="p1",
+            epic_id="E-1",
+            lease_owner=owner,
+            dependency_map={"A": ()},
+            satisfied=set(),
+            now=attempt,
+            max_attempts=2,
+        )
+        assert claimed is not None and claimed.attempts == attempt
+        assert store.fail(
+            "p1",
+            "A",
+            lease_owner=owner,
+            error=f"failure {attempt}",
+            retryable=True,
+            retry_at=attempt,
+        )
+
+    assert (
+        store.claim_next(
+            project_id="p1",
+            epic_id="E-1",
+            lease_owner="worker-3",
+            dependency_map={"A": ()},
+            satisfied=set(),
+            now=3,
+            max_attempts=2,
+        )
+        is None
+    )
+    row = store.items(project_id="p1", epic_id="E-1")[0]
+    assert row.attempts == 2
+    assert row.state == "ready"
+
+
+def test_automatic_new_head_retry_preserves_attempts_and_backoff(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": ()},
+        satisfied=set(),
+        now=1,
+    )
+    assert claimed is not None
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="epic race",
+        retryable=True,
+        retry_at=100,
+    )
+    updated = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha="new-head",
+        preserve_attempts=True,
+        retry_at=100,
+    )
+    assert updated.attempts == 1
+    assert updated.next_retry_at == 100
+    assert updated.state == "ready"
+
+
 def test_cancel_invalidates_active_lease_and_rejects_late_finish(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     _enqueue(store, "A")
