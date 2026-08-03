@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Merged
+status: Done
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T16:23:03.759309Z'
+updated_at: '2026-08-03T20:05:44.417334Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null

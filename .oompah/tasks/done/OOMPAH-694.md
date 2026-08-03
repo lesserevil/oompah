@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-03T20:05:38.778091Z'
+updated_at: '2026-08-03T20:05:42.969682Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -140,8 +140,11 @@ oompah.terminal_audit:
     audit_ids:
     - audit-f686d73b61b1
     kind: result
-    applied: true
+    applied: false
     retired_at: '2026-08-02T16:21:57.979128+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-694
@@ -167,6 +170,22 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T16:21:57.979147+00:00'
     applied_at: '2026-08-02T16:22:03.158789+00:00'
+    retired_by_reconciliation: true
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-03T20:05:40.390966+00:00'
+  oompah.terminal_override_records: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-694 to Merged: parent epic
+      OOMPAH-691 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-7406cdc1d164
+    created_at: '2026-08-03T20:05:40.390966+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -208,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-694
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -236,7 +255,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:38.159221+00:00'
-    updated_at: '2026-08-02T16:21:57.978894+00:00'
+    updated_at: '2026-08-03T20:05:40.390966+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eb9af8ac86f4
@@ -664,5 +683,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 50s
 - Log: OOMPAH-694__20260802T161936Z.jsonl
+---
+author: oompah
+created: 2026-08-03 20:05
+---
+Lifecycle reconciliation restored OOMPAH-694 to audited Done: Cannot transition shared-epic child OOMPAH-694 to Merged: parent epic OOMPAH-691 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
