@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T21:05:54.663244Z'
+updated_at: '2026-08-03T21:07:45.308793Z'
 work_branch: OOMPAH-724
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/689
@@ -57,8 +57,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 1631
-  total_output_tokens: 4026
+  total_input_tokens: 1749
+  total_output_tokens: 7662
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -68,6 +68,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 15
       output_tokens: 2745
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 118
+      output_tokens: 3636
       cost_usd: 0.0
   runs:
   - profile: default
@@ -88,6 +92,12 @@ oompah.task_costs:
     output_tokens: 2745
     cost_usd: 0.0
     recorded_at: '2026-08-03T17:04:58.501626+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 118
+    output_tokens: 3636
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T21:07:42.983789+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-724__20260803T155909Z
@@ -484,5 +494,15 @@ Safe evidence:
 - accept_change: oompah/orchestrator.py:29698 _accept_worker_submission revokes retry authority after stamping accepted record
 - handler_change: oompah/orchestrator.py:29793 _handle_revoked_submission_exit preserves worktree, validates HEAD, reopens Open with recovery ref or sets READY_TO_INTEGRATE
 - exit_route: oompah/orchestrator.py:30587 routes accepted+revoked entries into _handle_revoked_submission_exit before quarantine
+---
+author: oompah
+created: 2026-08-03 21:07
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 103, Tool calls: 75
+- Tokens: 118 in / 3.6K out [3.8K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 0m 51s
+- Log: OOMPAH-724__20260803T200706Z.jsonl
 ---
 <!-- COMMENTS:END -->
