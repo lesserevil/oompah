@@ -2521,6 +2521,159 @@ class TestDirectEpicAuxiliaryCleanup:
             is_epic=False,
         )
 
+    def _publish_auxiliary_head(self, fixture):
+        old = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        (Path(fixture["auxiliary_path"]) / "published.txt").write_text(
+            "published\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            ["git", "add", "published.txt"],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "publish epic rebase"],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        published = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            [
+                "git",
+                "push",
+                "origin",
+                f"HEAD:refs/heads/{fixture['epic_branch']}",
+            ],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return old, published
+
+    def test_reconciles_clean_registered_epic_after_direct_publication(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        old, published = self._publish_auxiliary_head(fixture)
+
+        result = fixture["store"].reconcile_published_epic_worktree(
+            fixture["project"].id,
+            fixture["parent"],
+            published,
+            expected_old_sha=old,
+            maintenance_identifier=fixture["issue"],
+        )
+
+        assert result.status == "reconciled"
+        assert result.completed is True
+        assert subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == published
+        # The private checkout and its branch are durable evidence; the
+        # reconciliation only realigns the registered shared epic checkout.
+        assert os.path.isdir(fixture["auxiliary_path"])
+        assert subprocess.run(
+            [
+                "git",
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{fixture['derived_branch']}",
+            ],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == 0
+
+    @pytest.mark.parametrize("change_kind", ["dirty", "active", "recovery", "divergent"])
+    def test_reconciliation_preserves_unsafe_epic_checkout_states(
+        self, tmp_path, change_kind
+    ):
+        fixture = self._make_auxiliary(tmp_path)
+        old, published = self._publish_auxiliary_head(fixture)
+        epic_path = Path(fixture["epic_path"])
+
+        if change_kind == "dirty":
+            (epic_path / "keep-me.txt").write_text("do not erase\n", encoding="utf-8")
+        elif change_kind == "active":
+            git_dir = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=epic_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            (Path(git_dir) / "rebase-merge").mkdir()
+        elif change_kind == "recovery":
+            subprocess.run(
+                ["git", "update-ref", _worktree_recovery_ref(fixture["issue"]), old],
+                cwd=fixture["repo"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            (epic_path / "divergent.txt").write_text("unproven\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "divergent.txt"],
+                cwd=epic_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "unproven local divergence"],
+                cwd=epic_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        result = fixture["store"].reconcile_published_epic_worktree(
+            fixture["project"].id,
+            fixture["parent"],
+            published,
+            expected_old_sha=old,
+            maintenance_identifier=fixture["issue"],
+        )
+
+        expected_status = {
+            "dirty": "dirty",
+            "active": "active_operation",
+            "recovery": "recovery",
+            "divergent": "divergent",
+        }[change_kind]
+        assert result.status == expected_status
+        assert result.completed is False
+        if change_kind == "dirty":
+            assert (epic_path / "keep-me.txt").exists()
+        if change_kind == "divergent":
+            assert (epic_path / "divergent.txt").exists()
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", _worktree_recovery_ref(fixture["issue"])],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == (0 if change_kind == "recovery" else 1)
+
     def test_prunes_direct_epic_auxiliary_and_only_its_local_ref(self, tmp_path):
         fixture = self._make_auxiliary(tmp_path, unique=True)
         sibling = self._push_trusted_sibling(fixture)

@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from urllib.parse import urlsplit
 
@@ -33,6 +34,23 @@ DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
 
 class ProjectError(Exception):
     """Raised when project registration or worktree management fails."""
+
+
+@dataclass(frozen=True)
+class EpicWorktreeReconciliation:
+    """Result of reconciling a shared epic checkout after direct maintenance."""
+
+    status: str
+    old_sha: str | None = None
+    published_sha: str | None = None
+    current_sha: str | None = None
+    reason: str | None = None
+
+    @property
+    def completed(self) -> bool:
+        """Whether the published head is now proven in the registered checkout."""
+
+        return self.status in {"reconciled", "already_published"}
 
 
 _WORKTREE_RECOVERY_VERSION = 1
@@ -2339,6 +2357,264 @@ class ProjectStore:
         ``git worktree add`` and ``git push`` see the same name.
         """
         return f"epic-{_sanitize_identifier(epic_identifier)}"
+
+    def reconcile_published_epic_worktree(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        published_sha: str,
+        *,
+        expected_old_sha: str | None = None,
+        maintenance_identifier: str | None = None,
+    ) -> EpicWorktreeReconciliation:
+        """Reconcile the registered epic checkout to a proven published head.
+
+        Direct epic maintenance is allowed to rewrite the shared branch while
+        another registered view still names the pre-rebase commit.  This
+        method is the deliberately narrow bridge between those two facts.  It
+        only moves a clean, registered checkout when ``origin/<epic>`` is
+        observed at the requested exact SHA twice and the checkout is still at
+        the recorded old SHA (or already at the new SHA after a restart).
+
+        Every refusal is non-destructive.  In particular, dirty worktrees,
+        active Git operations, recovery checkpoints, unregistered paths,
+        divergent local heads, and concurrent remote movement never receive a
+        reset and remain available for operator recovery.
+        """
+
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        published = str(published_sha or "").strip().lower()
+        old = str(expected_old_sha or "").strip().lower() or None
+        if not re.fullmatch(r"[0-9a-f]{7,64}", published):
+            return EpicWorktreeReconciliation(
+                "publication_missing",
+                old_sha=old,
+                published_sha=published or None,
+                reason="published epic head is not a valid commit id",
+            )
+
+        branch = self.epic_branch_name(epic_identifier)
+        path = self.epic_worktree_path_for(project_id, epic_identifier)
+        with self.project_write_lock(project_id):
+            if not os.path.isdir(path):
+                return EpicWorktreeReconciliation(
+                    "missing_worktree",
+                    old_sha=old,
+                    published_sha=published,
+                    reason=f"registered epic worktree is missing: {path}",
+                )
+            try:
+                registered = self._registered_worktree_paths(project.repo_path)
+            except ProjectError as exc:
+                return EpicWorktreeReconciliation(
+                    "unregistered",
+                    old_sha=old,
+                    published_sha=published,
+                    reason=str(exc),
+                )
+            if os.path.realpath(path) not in registered:
+                return EpicWorktreeReconciliation(
+                    "unregistered",
+                    old_sha=old,
+                    published_sha=published,
+                    reason="epic checkout is not a registered Git worktree",
+                )
+
+            branch_result = subprocess.run(
+                ["git", "symbolic-ref", "--short", "HEAD"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            current_branch = branch_result.stdout.strip()
+            if branch_result.returncode != 0 or current_branch != branch:
+                return EpicWorktreeReconciliation(
+                    "wrong_branch",
+                    old_sha=old,
+                    published_sha=published,
+                    reason=(
+                        f"epic checkout is on {current_branch or 'detached HEAD'!r}; "
+                        f"expected {branch!r}"
+                    ),
+                )
+
+            operation = _git_operation_state(
+                path,
+                current_branch=current_branch,
+                branch_result_code=branch_result.returncode,
+            )
+            if operation:
+                return EpicWorktreeReconciliation(
+                    "active_operation",
+                    old_sha=old,
+                    published_sha=published,
+                    reason=f"active {operation.get('kind')} operation is present",
+                )
+
+            status = self._git_status_for_worktree(path)
+            if status.returncode != 0:
+                return EpicWorktreeReconciliation(
+                    "dirty",
+                    old_sha=old,
+                    published_sha=published,
+                    reason="could not inspect epic checkout cleanliness",
+                )
+            dirty = self._worktree_dirty_paths(status.stdout)
+            if dirty:
+                return EpicWorktreeReconciliation(
+                    "dirty",
+                    old_sha=old,
+                    published_sha=published,
+                    reason=f"epic checkout has uncommitted changes: {dirty[:1000]}",
+                )
+
+            recovery_ids = [maintenance_identifier, epic_identifier]
+            for recovery_id in dict.fromkeys(
+                str(item or "").strip() for item in recovery_ids if str(item or "").strip()
+            ):
+                if self._recovery_context_from_ref(project, recovery_id) is not None:
+                    return EpicWorktreeReconciliation(
+                        "recovery",
+                        old_sha=old,
+                        published_sha=published,
+                        reason=f"recovery evidence exists for {recovery_id}",
+                    )
+
+            current_result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            current = current_result.stdout.strip().lower()
+            if current_result.returncode != 0 or not current:
+                return EpicWorktreeReconciliation(
+                    "divergent",
+                    old_sha=old,
+                    published_sha=published,
+                    reason="could not prove the registered epic checkout head",
+                )
+            remote = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=path,
+                timeout=30,
+            )
+            remote_sha = remote.stdout.split()[0].strip().lower() if remote.stdout.strip() else ""
+            if remote.returncode != 0 or remote_sha != published:
+                return EpicWorktreeReconciliation(
+                    "publication_missing" if not remote_sha else "concurrent_update",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason=(
+                        remote.stderr.strip()[:500]
+                        if remote.returncode != 0
+                        else f"origin/{branch} is {remote_sha}, not {published}"
+                    ),
+                )
+            if current == published:
+                return EpicWorktreeReconciliation(
+                    "already_published",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                )
+            if old is None or current != old:
+                return EpicWorktreeReconciliation(
+                    "divergent",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason=(
+                        f"registered epic checkout is {current}; recorded old "
+                        f"head is {old or 'unavailable'}"
+                    ),
+                )
+
+            fetched = self._run_network_git(
+                project,
+                ["git", "fetch", "origin", branch],
+                cwd=path,
+                timeout=60,
+            )
+            if fetched.returncode != 0:
+                return EpicWorktreeReconciliation(
+                    "publication_missing",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason=fetched.stderr.strip()[:500],
+                )
+            remote_after = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=path,
+                timeout=30,
+            )
+            remote_after_sha = (
+                remote_after.stdout.split()[0].strip().lower()
+                if remote_after.stdout.strip()
+                else ""
+            )
+            if remote_after.returncode != 0 or remote_after_sha != published:
+                return EpicWorktreeReconciliation(
+                    "concurrent_update",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason=f"origin/{branch} moved while reconciling",
+                )
+
+            published_object = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{published}^{{commit}}"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if published_object.returncode != 0:
+                return EpicWorktreeReconciliation(
+                    "publication_missing",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason="published epic commit is not available locally",
+                )
+
+            reset = subprocess.run(
+                ["git", "reset", "--hard", published],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+                env=_recovery_git_env(),
+            )
+            if reset.returncode != 0:
+                return EpicWorktreeReconciliation(
+                    "error",
+                    old_sha=old,
+                    published_sha=published,
+                    current_sha=current,
+                    reason=reset.stderr.strip()[:500],
+                )
+            return EpicWorktreeReconciliation(
+                "reconciled",
+                old_sha=old,
+                published_sha=published,
+                current_sha=published,
+            )
 
     def epic_child_branch_name(
         self,

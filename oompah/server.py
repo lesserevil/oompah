@@ -69,7 +69,11 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
-from oompah.integration import IntegrationRecord, validate_submission_branch
+from oompah.integration import (
+    IntegrationRecord,
+    is_direct_epic_maintenance_issue,
+    validate_submission_branch,
+)
 from oompah.coordination import CoordinationStore
 from oompah.container_dependency_graph import (
     find_container_dependency_cycles,
@@ -4083,7 +4087,16 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         raise ValueError(
             "the worktree must be clean before task submission"
         )
-    base_sha = str(body.get("base_sha") or "").strip().lower() or None
+    existing = getattr(issue, "integration", None)
+    base_sha = (
+        str(body.get("base_sha") or "").strip().lower()
+        or (
+            str(getattr(existing, "base_sha", "") or "").strip().lower()
+            if existing is not None
+            else ""
+        )
+        or None
+    )
     if base_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", base_sha):
         raise ValueError("base_sha must be a hexadecimal git object id")
     raw_dependency_heads = body.get("dependency_heads")
@@ -4097,7 +4110,6 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         if isinstance(raw_dependency_heads, dict)
         else {}
     )
-    existing = getattr(issue, "integration", None)
     # An accepted ``ready`` / ``queued`` / ``integrating`` record for the same
     # generation is durable evidence we can reuse: the integration queue
     # already owns the row and no fresh timestamp is required. ``integrated``
@@ -4117,6 +4129,11 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         task_branch=task_branch,
         base_branch=(
             str(body.get("base_branch") or "").strip()
+            or (
+                str(getattr(existing, "base_branch", "") or "").strip()
+                if existing is not None
+                else ""
+            )
             or getattr(issue, "target_branch", None)
         ),
         base_sha=base_sha,
@@ -4255,6 +4272,12 @@ def _enqueue_worker_submission(
     maintains idempotent behavior.
     """
 
+    if is_direct_epic_maintenance_issue(issue):
+        # Direct rebase helpers publish the shared epic ref and are handed to
+        # terminal auditing by the submission path.  A queue row here would
+        # ask the ordinary child executor to merge the helper into the epic it
+        # just rewrote.
+        return
     if not getattr(orch.config, "parallel_epic_children_enabled", False):
         return
     epic_id = str(getattr(issue, "parent_id", None) or "").strip()
@@ -4392,6 +4415,8 @@ async def api_submit_issue(identifier: str, request: Request):
         # transition, so a callback selected before this request cannot write
         # stale lifecycle state after the accepted submission wins.
         record = _submission_record(issue, body)
+        direct_completion = None
+        direct_failure_message: str | None = None
         async with _submission_authority_lock(orch, issue.id):
             cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
             if callable(cancel_retry):
@@ -4402,26 +4427,70 @@ async def api_submit_issue(identifier: str, request: Request):
                     reason="task submitted for integration",
                 )
             await _clear_submission_assignment(tracker, issue)
-            record = await _persist_worker_submission(
-                tracker, issue, body, record=record
-            )
-            _enqueue_worker_submission(orch, project_id, issue, record)
-            _publish_submission_coordination(
-                orch, project_id, issue, record, body
-            )
+            if is_direct_epic_maintenance_issue(issue):
+                complete = getattr(
+                    orch,
+                    "complete_direct_epic_maintenance_submission",
+                    None,
+                )
+                if not callable(complete):
+                    raise ValueError(
+                        "direct epic maintenance completion service is unavailable"
+                    )
+                direct_completion = await complete(
+                    issue,
+                    record,
+                    project_id,
+                    summary=str(body.get("summary") or "").strip(),
+                )
+                if direct_completion is None:
+                    raise ValueError(
+                        "direct epic maintenance classification changed during submission"
+                    )
+                completed, message, completed_record = direct_completion
+                if not completed:
+                    direct_failure_message = message
+                elif completed_record is not None:
+                    record = completed_record
+            else:
+                record = await _persist_worker_submission(
+                    tracker, issue, body, record=record
+                )
+                _enqueue_worker_submission(orch, project_id, issue, record)
+            if direct_failure_message is None:
+                _publish_submission_coordination(
+                    orch, project_id, issue, record, body
+                )
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
             status_code=400,
         )
+    if direct_failure_message is not None:
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+        orch.request_refresh()
+        await broadcast_issues()
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "direct_epic_maintenance_blocked",
+                    "message": direct_failure_message,
+                }
+            },
+            status_code=409,
+        )
     _api_cache.invalidate("issues:all")
     _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
     orch.request_refresh()
     await broadcast_issues()
+    response_state = (
+        IN_VALIDATION if direct_completion is not None else READY_TO_INTEGRATE
+    )
     return JSONResponse(
         {
             "ok": True,
-            "state": READY_TO_INTEGRATE,
+            "state": response_state,
             "integration": record.to_dict(),
         },
         status_code=201,

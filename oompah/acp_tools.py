@@ -738,6 +738,7 @@ def _exec_oompah_task_command(
             issue = task_tracker.fetch_issue_detail(args.identifier)
             if issue is None:
                 return f"Error: Issue {args.identifier!r} not found"
+            existing = getattr(issue, "integration", None)
             try:
                 branch = validate_submission_branch(
                     issue,
@@ -772,7 +773,22 @@ def _exec_oompah_task_command(
                 state="ready",
                 task_branch=branch,
                 base_sha=(
-                    str(evidence.get("base_sha") or "").strip() or None
+                    str(evidence.get("base_sha") or "").strip()
+                    or (
+                        str(getattr(existing, "base_sha", "") or "").strip()
+                        if existing is not None
+                        else ""
+                    )
+                    or None
+                ),
+                base_branch=(
+                    str(evidence.get("base_branch") or "").strip()
+                    or (
+                        str(getattr(existing, "base_branch", "") or "").strip()
+                        if existing is not None
+                        else ""
+                    )
+                    or getattr(issue, "target_branch", None)
                 ),
                 head_sha=head_sha,
                 submitted_at=now,
