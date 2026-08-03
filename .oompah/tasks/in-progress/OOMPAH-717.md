@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:42:31.423397Z'
+updated_at: '2026-08-03T13:43:11.319380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 21384bd4-bc80-462b-b669-8252a3e55b73
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1538
@@ -304,5 +304,10 @@ author: oompah
 created: 2026-08-03 13:42
 ---
 Verification: scripts/run-tests.sh serial tests/test_makefile_restart_wait.py::TestMakefileStructure::test_process_global_gate_keeps_preexisting_sentinel_alive passed (1 passed). The full directly affected module passed in serial and parallel xdist modes (42 passed each). I did not rerun the full make test gate; it will be rerun for the new head.
+---
+author: oompah
+created: 2026-08-03 13:43
+---
+Completion: Pushed 0f835493c (OOMPAH-717: stabilize lifecycle sentinel test) to origin/OOMPAH-717. The branch is clean and matches origin. GitHub currently reports no PR or Actions run for this branch, so there is no original PR check to observe; submission will queue the new exact head for Oompah's full gate.
 ---
 <!-- COMMENTS:END -->
