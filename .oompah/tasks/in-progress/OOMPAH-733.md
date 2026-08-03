@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:25:46.435947Z'
+updated_at: '2026-08-03T19:26:08.923113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: f0a0e3e6-1ceb-4efc-9fe5-38e09092eb10
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1711
@@ -217,5 +217,15 @@ ERROR: oompah/orchestrator.py:12767:13: Orchestrator._supersede_wrong_epic_rebas
 Found 1 unauthorized terminal mutation(s).
 make: *** [Makefile:410: terminal-audit-scan] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 19:26
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-03 19:26
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
