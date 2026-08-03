@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:53:23.164703Z'
+updated_at: '2026-08-03T16:53:33.191302Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,6 +95,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-728
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:21:03.049403+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-728
+  head_sha: 2d682cacc8e9f18a6fc12de674b7ac91f37532e1
+  submitted_at: '2026-08-03T16:53:21.950339+00:00'
+  updated_at: '2026-08-03T16:53:21.950339+00:00'
 ---
 ## Summary
 
@@ -194,5 +202,20 @@ author: oompah
 created: 2026-08-03 16:53
 ---
 Completion: delivered and pushed commit 2d682cacc. Duplicate screening now prioritizes current-task structure (parent, children, siblings, dependencies/hard-start dependencies) and title/description similarity within deterministic task/byte bounds, preserves bounded descriptions/comments/status, emits actionable insufficiency diagnostics, and keeps the investigator self-sufficient with no CLI/network fallback. Added regression, budget, diagnostics, and prompt capability tests plus screening documentation.
+---
+author: oompah
+created: 2026-08-03 16:53
+---
+Retain structurally relevant peers in bounded duplicate-screening corpora with actionable insufficiency diagnostics and self-sufficient investigator prompts; tests and documentation added.
+---
+author: oompah
+created: 2026-08-03 16:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 117
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 31m 58s
+- Log: OOMPAH-728__20260803T162146Z.jsonl
 ---
 <!-- COMMENTS:END -->
