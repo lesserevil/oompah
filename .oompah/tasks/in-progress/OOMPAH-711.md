@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T01:07:58.219725Z'
+updated_at: '2026-08-03T01:49:04.698840Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -315,5 +315,10 @@ author: oompah
 created: 2026-08-03 01:07
 ---
 Repaired the owner-claim test fixtures exposed by the full gate and resubmitted exact clean head 9578b2175bd61800bfd3b7d6dc2241b7c1d5fe06. Focused suite 146 passed; event-loop regression passed ten retries; secret scan passed.
+---
+author: oompah
+created: 2026-08-03 01:49
+---
+Direct owner is refreshing the accepted owner-claim race fix onto current origin/main after OOMPAH-702 and OOMPAH-710 merged, then will rerun its focused owner/duplicate/release suites and resubmit the new exact head.
 ---
 <!-- COMMENTS:END -->
