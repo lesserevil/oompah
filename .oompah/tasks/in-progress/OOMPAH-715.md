@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:11:08.551110Z'
+updated_at: '2026-08-03T01:14:24.348223Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-03 01:11
 ---
 Understanding: The failure is a scheduling-sensitive async test race around the safety-net full-sync task. I will inspect the test's event observation and teardown, reproduce it with delayed scheduling/parallel workers, then add an explicit emission barrier and deterministic task cleanup while leaving orchestrator timing unchanged.
+---
+author: oompah
+created: 2026-08-03 01:14
+---
+Verification: The focused full-sync test passes, the complete test_event_driven_loop.py module passes 60/60 serially, and three concurrent pytest-xdist runs each pass 60/60. The delayed-scheduling barrier test has not produced pending-task warnings.
 ---
 <!-- COMMENTS:END -->
