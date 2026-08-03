@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T21:52:01.833933Z'
+updated_at: '2026-08-03T21:52:08.368727Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -39,8 +39,11 @@ oompah.terminal_audit:
     audit_ids:
     - audit-6e50495cb29c
     kind: result
-    applied: true
+    applied: false
     retired_at: '2026-08-03T21:46:16.644199+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-587
@@ -54,6 +57,9 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T21:46:16.644215+00:00'
     applied_at: '2026-08-03T21:46:25.063918+00:00'
+    retired_by_reconciliation: true
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-03T21:52:04.124835+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-587
@@ -66,6 +72,17 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-469ae076465e
     created_at: '2026-08-03T20:02:55.236934+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-587 to Merged: parent epic
+      OOMPAH-584 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-469ae076465e
+    created_at: '2026-08-03T21:52:04.124835+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -140,7 +157,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -186,7 +203,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T20:12:31.603557+00:00'
-    updated_at: '2026-08-03T21:46:16.643989+00:00'
+    updated_at: '2026-08-03T21:52:04.124835+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -494,5 +511,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 23m 17s
 - Log: OOMPAH-587__20260803T212508Z.jsonl
+---
+author: oompah
+created: 2026-08-03 21:52
+---
+Lifecycle reconciliation restored OOMPAH-587 to audited Done: Cannot transition shared-epic child OOMPAH-587 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
