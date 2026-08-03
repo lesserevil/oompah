@@ -16,6 +16,7 @@ creates a new attempt.
 from __future__ import annotations
 
 import copy
+import contextvars
 import hashlib
 import json
 import logging
@@ -75,10 +76,29 @@ _TERMINAL_STATUS_RANK = {
 _STATE_LOCK_GUARD = threading.Lock()
 _STATE_LOCKS: dict[str, threading.RLock] = {}
 
+# Context variable to pass loaded issues snapshot during recovery
+# so the lifecycle validator can access parent state without additional fetches
+_recovery_snapshot: contextvars.ContextVar[dict[str, Issue] | None] = contextvars.ContextVar(
+    "_recovery_snapshot", default=None
+)
+
 
 def _state_lock(path: str) -> threading.RLock:
     with _STATE_LOCK_GUARD:
         return _STATE_LOCKS.setdefault(os.path.abspath(path), threading.RLock())
+
+
+def get_recovery_snapshot() -> dict[str, Issue] | None:
+    """Get the current recovery snapshot if one is active.
+
+    During terminal audit recovery, the snapshot contains all loaded issues
+    indexed by their identifiers and IDs. The lifecycle validator uses this
+    to resolve parent issues locally without additional tracker fetches,
+    enabling durable parent evidence checks even when source branches are deleted.
+
+    Returns None when called outside of a recovery context.
+    """
+    return _recovery_snapshot.get()
 
 
 def _as_fingerprint(value: Any) -> EvidenceFingerprint:
@@ -867,20 +887,40 @@ class TerminalAuditEnforcement:
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, str(project_id)
             )
-            # Recover the durable terminal mutations before rebuilding the
-            # queue projection.  An override intent is authoritative even
-            # while the task is still In Validation: the process may have
-            # died between persisting the intent and writing its status.
-            with self.project_store.project_write_lock(str(project_id)):
-                for issue in all_issues:
-                    if reconcile_lifecycle:
-                        self._reconcile_incompatible_shared_epic_merged(
+
+            # Build a snapshot map so the lifecycle validator can resolve parents
+            # locally during recovery without additional tracker fetches.
+            # This ensures durable parent evidence (terminal MERGED/ARCHIVED state)
+            # can be checked even when source branches have been deleted.
+            snapshot: dict[str, Issue] = {}
+            for candidate in all_issues:
+                for alias in (
+                    getattr(candidate, "id", None),
+                    getattr(candidate, "identifier", None),
+                ):
+                    alias_text = str(alias or "").strip()
+                    if alias_text:
+                        snapshot[alias_text] = candidate
+
+            # Set the recovery snapshot context so the validator can access it
+            token = _recovery_snapshot.set(snapshot)
+            try:
+                # Recover the durable terminal mutations before rebuilding the
+                # queue projection.  An override intent is authoritative even
+                # while the task is still In Validation: the process may have
+                # died between persisting the intent and writing its status.
+                with self.project_store.project_write_lock(str(project_id)):
+                    for issue in all_issues:
+                        if reconcile_lifecycle:
+                            self._reconcile_incompatible_shared_epic_merged(
+                                store, tracker, issue, str(project_id)
+                            )
+                        self._recover_terminal_override(
                             store, tracker, issue, str(project_id)
                         )
-                    self._recover_terminal_override(
-                        store, tracker, issue, str(project_id)
-                    )
-                    self._recover_terminal_result(store, tracker, issue, str(project_id))
+                        self._recover_terminal_result(store, tracker, issue, str(project_id))
+            finally:
+                _recovery_snapshot.reset(token)
             for issue in issues:
                 current_fingerprint = self._authoritative_recovery_fingerprint(
                     issue,
@@ -2330,4 +2370,5 @@ __all__ = [
     "TerminalAuditEnforcement",
     "TerminalAuditEnforcementCoordinator",
     "TerminalAuditEnforcementState",
+    "get_recovery_snapshot",
 ]
