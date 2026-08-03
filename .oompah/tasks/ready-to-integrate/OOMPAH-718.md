@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-718
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:10:39.317543Z'
+updated_at: '2026-08-03T14:11:01.885388Z'
 work_branch: OOMPAH-718
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
@@ -63,7 +63,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 52f3feee-43e0-4d49-9655-966b5498dc21
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1671
@@ -95,9 +95,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-718
-  head_sha: c9734b0cf5e7ce375b31350ee9543627b5facc0a
-  submitted_at: '2026-08-03T13:44:08.534408+00:00'
-  updated_at: '2026-08-03T13:44:08.534408+00:00'
+  base_branch: main
+  head_sha: c47cae954103945b0f297c89fd6db2b4b78423ca
+  submitted_at: '2026-08-03T14:10:55.012766+00:00'
+  updated_at: '2026-08-03T14:10:55.012766+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/678
 oompah.review_number: '678'
 oompah.work_branch: OOMPAH-718
@@ -255,5 +256,15 @@ author: oompah
 created: 2026-08-03 14:10
 ---
 Verification: resolved rebase passed focused serial coverage: scripts/run-tests.sh serial tests/test_container_dependency_graph.py tests/test_server_dependencies.py tests/test_integration_queue.py tests/test_parallel_epic_children.py — 82 passed in 13.39s. This covers container-cycle detection, dependency rejection, queue repair/retry behavior, and parallel epic integration diagnostics.
+---
+author: oompah
+created: 2026-08-03 14:10
+---
+Completion: rebased OOMPAH-718 onto origin/main and force-pushed c47cae954 with lease. Review diff is clean and limited to the original container-cycle implementation and tests; the server conflict preserves both the current retry/failure diagnostics and the cycle-specific repair diagnostics. Branch is up to date with origin.
+---
+author: oompah
+created: 2026-08-03 14:11
+---
+Rebased onto main, resolved server queue-diagnostic conflict, verified focused suites, and force-pushed c47cae954.
 ---
 <!-- COMMENTS:END -->
