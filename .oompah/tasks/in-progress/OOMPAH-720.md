@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:26:43.629202Z'
+updated_at: '2026-08-03T14:27:27.482552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 56d96933-ed7d-4add-8c69-6b22a6631f44
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1729
@@ -178,5 +178,10 @@ created: 2026-08-03 14:26
 ---
 Verification: focused API/coordinator/rotation/enforcement/observability suites passed (289 tests across the focused runs), terminal mutation scan passed (6 identified, 6 allowlisted), and the full repository runner passed 15,100 tests with 7 skipped and 1 expected xfail. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-720'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-720' itself could not initialize its task venv because uv hit a DBus transient-scope error; its trusted-v​​env fallback also correctly rejected a different-checkout runtime.
+---
+author: oompah
+created: 2026-08-03 14:27
+---
+Completion: delivered and pushed 5643fa423. Owner overrides now use authoritative tracker evidence under task/project ownership locks, so candidate rotation and audit-only refreshes do not create false 409s; genuine evidence changes remain rejected. Added API/coordinator/race regressions for stale integrated snapshots, lifecycle-field stability, duplicate retirement, authority/alert cleanup, and exactly-once replay. Full repository runner: 15,100 passed, 7 skipped, 1 expected xfail; terminal mutation scan passed.
 ---
 <!-- COMMENTS:END -->
