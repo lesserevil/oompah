@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T15:35:46.140384Z'
+updated_at: '2026-08-03T15:58:56.471083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,24 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 1a62fd0c936174e14dccadb19cc13615e82e9470e1238ece815bcf6515b01ca9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 16525e8b-bb82-41f1-aa96-462b19a9250b
+  claim_owner: 2dcc53e1-cdcd-4522-a08d-de6ce4222a8c
+  claimed_at: '2026-08-03T15:58:44.538545+00:00'
+  claim_expires_at: '2026-08-03T16:28:44.538545+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 32c22f2a-2dc4-440f-a4f5-5925f2b0ab0b
 ---
 ## Summary
 
@@ -37,5 +55,15 @@ author: oompah
 created: 2026-08-03 15:32
 ---
 The live workaround has been implemented on OOMPAH-722 at commit 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2: the nonblocking tick test now stubs _recover_release_addendum_leases and returns a concrete empty dispatch timing map, matching its sibling isolation pattern. Focused verification passed 4/4 maintenance-lane tests, 277/277 orchestrator-handler tests, 31/31 auditor-contract tests, and 4/4 ACP output-bound tests. Keep this bug as the causal record until OOMPAH-722 passes its new exact-head full gate and merges; then archive it as resolved by that commit rather than dispatching duplicate implementation.
+---
+author: oompah
+created: 2026-08-03 15:58
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 15:58
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
