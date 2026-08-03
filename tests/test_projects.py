@@ -26,6 +26,7 @@ from oompah.projects import (
     _repo_name_from_url,
     _resolve_ref_namespace_conflict,
     _sanitize_identifier,
+    _worktree_recovery_ref,
     github_work_branch_name,
 )
 
@@ -2342,6 +2343,397 @@ class TestEpicRepairWorkspaceCleanup:
         assert skip_reason is None
         # Worktree was removed (normal path, not repair cleanup)
         assert not os.path.isdir(repair_wt)
+
+
+# ---------------------------------------------------------------------------
+# Direct shared-epic maintenance cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestDirectEpicAuxiliaryCleanup:
+    """Prune only the private checkout left by a direct epic task."""
+
+    @staticmethod
+    def _setup_bare_remote(tmp_path):
+        remote = tmp_path / "origin.git"
+        repo = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for args in (
+            ["config", "user.name", "Oompah Test"],
+            ["config", "user.email", "oompah@example.test"],
+            ["remote", "add", "origin", str(remote)],
+        ):
+            subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        (repo / "README.md").write_text("initial\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return remote, repo
+
+    def _make_auxiliary(self, tmp_path, *, unique=False):
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-direct-epic",
+            name="direct-epic",
+            repo_url=str(remote),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        parent = "EXOCOMP-130"
+        issue = "EXOCOMP-240"
+        epic_branch = store.epic_branch_name(parent)
+        derived_branch = store.epic_child_branch_name(parent, issue)
+        epic_path = store.epic_worktree_path_for(project.id, parent)
+        auxiliary_path = store.worktree_path_for(project.id, issue)
+
+        subprocess.run(
+            ["git", "branch", epic_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", epic_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", epic_path, epic_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "branch", derived_branch, epic_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", auxiliary_path, derived_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if unique:
+            (Path(auxiliary_path) / "maintenance.txt").write_text(
+                "rebased head\n",
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["git", "add", "maintenance.txt"],
+                cwd=auxiliary_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "rebase maintenance"],
+                cwd=auxiliary_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        return {
+            "remote": remote,
+            "repo": repo,
+            "store": store,
+            "project": project,
+            "parent": parent,
+            "issue": issue,
+            "epic_branch": epic_branch,
+            "derived_branch": derived_branch,
+            "epic_path": epic_path,
+            "auxiliary_path": auxiliary_path,
+        }
+
+    @staticmethod
+    def _push_trusted_sibling(fixture):
+        sibling = fixture["store"].epic_child_branch_name(
+            fixture["parent"],
+            "EXOCOMP-145",
+        )
+        subprocess.run(
+            ["git", "push", "origin", f"HEAD:refs/heads/{sibling}"],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "fetch", "origin", sibling],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return sibling
+
+    def _cleanup(self, fixture):
+        return fixture["store"].cleanup_terminal_issue(
+            fixture["project"].id,
+            fixture["issue"],
+            branch_name=fixture["epic_branch"],
+            is_epic=False,
+        )
+
+    def test_prunes_direct_epic_auxiliary_and_only_its_local_ref(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path, unique=True)
+        sibling = self._push_trusted_sibling(fixture)
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (True, None)
+        assert not os.path.exists(fixture["auxiliary_path"])
+        assert subprocess.run(
+            [
+                "git",
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{fixture['derived_branch']}",
+            ],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == 1
+        # The authoritative epic checkout/ref and the other private task ref
+        # remain available as durable evidence after local pruning.
+        assert os.path.isdir(fixture["epic_path"])
+        assert subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=fixture["epic_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == fixture["epic_branch"]
+        for branch in (fixture["epic_branch"], sibling):
+            assert subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=fixture["repo"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+        # A second maintenance pass is an idempotent no-op and does not
+        # attempt to remove the shared epic branch or emit a failure.
+        assert self._cleanup(fixture) == (False, "shared_epic_branch")
+
+    @pytest.mark.parametrize("change_kind", ["staged", "unstaged", "untracked"])
+    def test_preserves_dirty_auxiliary_worktree(self, tmp_path, change_kind):
+        fixture = self._make_auxiliary(tmp_path)
+        dirty = Path(fixture["auxiliary_path"]) / f"{change_kind}.txt"
+        dirty.write_text("keep me\n", encoding="utf-8")
+        if change_kind == "staged":
+            subprocess.run(
+                ["git", "add", dirty.name],
+                cwd=fixture["auxiliary_path"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert changed is False
+        assert skip_reason == "direct_epic_auxiliary_dirty"
+        assert dirty.exists()
+        assert os.path.isdir(fixture["auxiliary_path"])
+
+    def test_preserves_recovery_ref(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        recovery_ref = _worktree_recovery_ref(fixture["issue"])
+        subprocess.run(
+            ["git", "update-ref", recovery_ref, "HEAD"],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (False, "direct_epic_auxiliary_recovery")
+        assert os.path.isdir(fixture["auxiliary_path"])
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", recovery_ref],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == 0
+
+    def test_preserves_paused_rebase(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        git_dir = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=fixture["auxiliary_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        rebase_dir = Path(git_dir) / "rebase-merge"
+        rebase_dir.mkdir()
+        (rebase_dir / "head-name").write_text(
+            f"refs/heads/{fixture['derived_branch']}\n",
+            encoding="utf-8",
+        )
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (
+            False,
+            "direct_epic_auxiliary_active_operation",
+        )
+        assert os.path.isdir(fixture["auxiliary_path"])
+
+    def test_preserves_unique_unpublished_head_without_remote_evidence(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path, unique=True)
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (
+            False,
+            "direct_epic_auxiliary_unpublished",
+        )
+        assert os.path.isdir(fixture["auxiliary_path"])
+        assert subprocess.run(
+            [
+                "git",
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{fixture['derived_branch']}",
+            ],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == 0
+
+    def test_preserves_mismatched_issue_suffix(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        wrong_branch = fixture["store"].epic_child_branch_name(
+            fixture["parent"],
+            "EXOCOMP-999",
+        )
+        subprocess.run(
+            ["git", "worktree", "remove", fixture["auxiliary_path"], "--force"],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "branch", wrong_branch, fixture["epic_branch"]],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", fixture["auxiliary_path"], wrong_branch],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        with pytest.raises(ProjectError, match="expected branch"):
+            self._cleanup(fixture)
+        assert os.path.isdir(fixture["auxiliary_path"])
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{wrong_branch}"],
+            cwd=fixture["repo"],
+            check=False,
+        ).returncode == 0
+
+    def test_preserves_shared_private_checkout(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        auxiliary_realpath = os.path.realpath(fixture["auxiliary_path"])
+        with patch.object(
+            fixture["store"],
+            "_registered_worktree_branch_paths",
+            return_value={
+                fixture["derived_branch"]: {
+                    auxiliary_realpath,
+                    str(tmp_path / "another-task-worktree"),
+                }
+            },
+        ):
+            changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (
+            False,
+            "direct_epic_auxiliary_shared_checkout",
+        )
+        assert os.path.isdir(fixture["auxiliary_path"])
+
+    def test_preserves_unregistered_cross_project_checkout(self, tmp_path):
+        fixture = self._make_auxiliary(tmp_path)
+        subprocess.run(
+            ["git", "worktree", "remove", fixture["auxiliary_path"], "--force"],
+            cwd=fixture["repo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        # A different repository happens to occupy the managed-looking path.
+        # Registration in the project repository is required before inspection.
+        subprocess.run(
+            ["git", "init", "-b", fixture["derived_branch"], fixture["auxiliary_path"]],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        changed, skip_reason = self._cleanup(fixture)
+
+        assert (changed, skip_reason) == (
+            False,
+            "direct_epic_auxiliary_unregistered",
+        )
+        assert os.path.isdir(fixture["auxiliary_path"])
 
 
 # ---------------------------------------------------------------------------
