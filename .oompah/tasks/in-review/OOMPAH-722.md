@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:39:11.176759Z'
+updated_at: '2026-08-03T15:39:23.517897Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/682
 review_number: null
 review_head: null
 merged_at: null
@@ -106,6 +106,7 @@ oompah.integration:
   head_sha: 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2
   submitted_at: '2026-08-03T15:21:41.984887+00:00'
   updated_at: '2026-08-03T15:22:09.661629+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/682
 ---
 ## Summary
 
