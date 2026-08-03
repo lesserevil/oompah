@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-730
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Execute and reconcile safe container-cycle repairs automatically
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T18:15:03.003692Z'
+updated_at: '2026-08-03T18:15:14.197919Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/687
 review_number: null
 review_head: null
 merged_at: null
@@ -105,6 +105,7 @@ oompah.integration:
   head_sha: 6046b2340c539b2f770e8448648b2d1d729084fc
   submitted_at: '2026-08-03T17:54:55.844641+00:00'
   updated_at: '2026-08-03T17:54:55.844641+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/687
 ---
 ## Summary
 
