@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-736
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Align auditor command policy with project-required Makefile validation targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T20:32:14.997053Z'
+updated_at: '2026-08-03T20:42:49.075994Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -88,6 +88,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/692
 oompah.review_number: '692'
 oompah.work_branch: OOMPAH-736
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6ff4132fbba2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-736
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T20:42:40.561716+00:00'
+  - version: 1
+    audit_id: audit-d4c464f1ae79
+    project_id: proj-14849f1b
+    task_id: OOMPAH-736
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T20:42:40.561716+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -324,5 +363,15 @@ author: oompah
 created: 2026-08-03 20:31
 ---
 Branch quality gate passed for `460fd8b1bab1c36dfbcdb759db2e90a65bed05cb` using `make test` in 414.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 20:42
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 20:42
+---
+YOLO: merged PR #692.
 ---
 <!-- COMMENTS:END -->
