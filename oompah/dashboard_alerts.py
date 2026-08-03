@@ -15,10 +15,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from oompah.alert_safety import (
+    ALERT_ACTION_MAX_LENGTH,
+    ALERT_EXPLANATION_MAX_LENGTH,
+    ALERT_SOURCE_MAX_LENGTH,
+    ALERT_SUMMARY_MAX_LENGTH,
+    ALERT_TITLE_MAX_LENGTH,
+    bounded_text,
+    sanitize_alert,
+)
 from oompah.secrets import redact_sensitive_data
 
 CONTRACT_VERSION = 1
@@ -64,10 +72,7 @@ def _compact(value: Any, *, limit: int) -> str:
     """Return bounded, single-line text after secret redaction."""
 
     safe = redact_sensitive_data(_text(value))
-    text = re.sub(r"\s+", " ", str(safe)).strip()
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 1)].rstrip() + "…"
+    return bounded_text(safe, limit)
 
 
 def _severity(raw: Mapping[str, Any]) -> str:
@@ -162,7 +167,11 @@ def normalize_alert(raw_alert: Mapping[str, Any]) -> dict[str, Any]:
     schema depend on any one producer.
     """
 
-    safe_raw = redact_sensitive_data(dict(raw_alert))
+    # Apply the transcript-aware safety projection before deriving the
+    # dashboard fact.  This is intentionally repeated by callers at producer,
+    # snapshot, and API/WebSocket boundaries: cached data and rolling-upgrade
+    # payloads must not be able to reintroduce a raw subprocess transcript.
+    safe_raw = sanitize_alert(raw_alert)
     if not isinstance(safe_raw, dict):  # pragma: no cover - defensive boundary
         safe_raw = {}
     summary = _compact(
@@ -170,15 +179,15 @@ def normalize_alert(raw_alert: Mapping[str, Any]) -> dict[str, Any]:
         or safe_raw.get("title")
         or safe_raw.get("message")
         or safe_raw.get("source"),
-        limit=240,
+        limit=ALERT_SUMMARY_MAX_LENGTH,
     ) or "Oompah dashboard condition"
     detail = _compact(
         safe_raw.get("detail") or safe_raw.get("explanation"),
-        limit=2000,
+        limit=ALERT_EXPLANATION_MAX_LENGTH,
     )
     remediation = _compact(
         safe_raw.get("remediation") or safe_raw.get("action"),
-        limit=1200,
+        limit=ALERT_ACTION_MAX_LENGTH,
     )
     severity = _severity(safe_raw)
     recovery = _raw_recovery_state(safe_raw)
@@ -197,7 +206,9 @@ def normalize_alert(raw_alert: Mapping[str, Any]) -> dict[str, Any]:
             "identity": stable_id,
             "stable_identity": stable_id,
             "stable_id": stable_id,
-            "source": _compact(safe_raw.get("source"), limit=256) or stable_id,
+            "source": _compact(
+                safe_raw.get("source"), limit=ALERT_SOURCE_MAX_LENGTH
+            ) or stable_id,
             "action_required": action_required,
             "severity": severity,
             # ``level`` remains for older dashboard clients and API consumers.
@@ -212,7 +223,9 @@ def normalize_alert(raw_alert: Mapping[str, Any]) -> dict[str, Any]:
             "is_recovered": status == "recovered",
             "summary": summary,
             "compact_summary": summary,
-            "title": _compact(safe_raw.get("title"), limit=240) or summary,
+            "title": _compact(
+                safe_raw.get("title"), limit=ALERT_TITLE_MAX_LENGTH
+            ) or summary,
             # ``message``/``action`` are compatibility aliases.  New clients
             # should consume summary/remediation without parsing prose.
             "message": summary,
