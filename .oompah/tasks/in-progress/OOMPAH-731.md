@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:07:19.992955Z'
+updated_at: '2026-08-03T19:07:47.255442Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -384,5 +384,10 @@ tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_error
 tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_still_tracks_last_heal_at_even_when_sync_fails PASSED [100%]
 
 ============================== 4 passed in 3.93s =============================== passed (4). The focused initial reproduction also confirmed the formerly reported repo-heal test passes.
+---
+author: oompah
+created: 2026-08-03 19:07
+---
+Completion: Pushed CI repair commit 68d58d532 to the existing OOMPAH-731 branch. GitHub confirms there is no PR for this branch and no GitHub check runs on this commit; the failed gate was the local oompah branch-quality gate. The exact repaired head is ready for resubmission.
 ---
 <!-- COMMENTS:END -->
