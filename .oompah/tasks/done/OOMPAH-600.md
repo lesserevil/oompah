@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: Merged
+status: Done
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-08-02T18:26:21.134106Z'
+updated_at: '2026-08-03T20:03:48.827394Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
