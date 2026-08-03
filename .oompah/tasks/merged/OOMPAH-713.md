@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T02:20:34.219546Z'
+updated_at: '2026-08-03T02:23:41.012435Z'
 work_branch: OOMPAH-713
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/673
@@ -122,6 +122,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-44ba399a4290: '2026-08-03T02:20:04.706736+00:00'
+    attempt-b78a8f23c4bc: '2026-08-03T02:23:36.477914+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-713
@@ -132,6 +133,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T02:20:04.706746+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-713
+    target_state: Merged
+    evidence_fingerprint: 13d704910879f223de0b07d61ce68830eb3a0df352d0e37c95e1c52bd84531d0
+    audit_ids:
+    - audit-01088260c2be
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T02:23:36.477928+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-713
@@ -145,6 +155,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T02:20:04.706759+00:00'
     applied_at: '2026-08-03T02:20:08.716122+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-713
+    audit_id: audit-01088260c2be
+    attempt_id: attempt-b78a8f23c4bc
+    target_state: Merged
+    evidence_fingerprint: 13d704910879f223de0b07d61ce68830eb3a0df352d0e37c95e1c52bd84531d0
+    status: Merged
+    audit_ids:
+    - audit-01088260c2be
+    applied: false
+    created_at: '2026-08-03T02:23:36.477942+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -186,7 +207,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-713
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -195,7 +216,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b78a8f23c4bc
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -205,13 +226,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T02:20:27.088592+00:00'
       branch_key: OOMPAH-713
+      verdict: pass
+      completed_at: '2026-08-03T02:23:36.477799+00:00'
+      ended_at: '2026-08-03T02:23:36.477799+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T02:15:32.584140+00:00'
-    updated_at: '2026-08-03T02:20:27.088592+00:00'
+    updated_at: '2026-08-03T02:23:36.477799+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-44ba399a4290
@@ -413,5 +437,25 @@ author: oompah
 created: 2026-08-03 02:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 02:23
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: ac442ca4573e98fed6057b84c65b9113d1913ed7
+- merge_commit: 7e6974c3c
+- pr_number: 673
+- recoverable_reason_marker: auditor_read_only_shell_syntax
+- new_failure_classification: policy_incompatibility
+- new_health_field: policy_incompatibility_count
+- focused_authority_boundary_tests: 144 passed
+- focused_auditor_contract_tests: 15 passed
+- focused_terminal_audit_health_tests: 44 passed
+- focused_terminal_transition_coordinator_tests: 122 passed
+- live_denial_observed: recoverable Error with reason=auditor_read_only_shell_syntax during audit
 ---
 <!-- COMMENTS:END -->
