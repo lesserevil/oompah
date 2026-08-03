@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:08:12.234628Z'
+updated_at: '2026-08-03T17:17:01.034520Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-03 17:08
 ---
 Implementation: extended the existing owner audit-retry path with a strict evidence-addendum mode. It requires the current canonical fingerprint, successful named checks, and a completed missing_evidence audit; supersedes only that failed record, preserves attempts, writes a redacted actor/reason/addendum rearm ledger, restores In Validation, and coalesces concurrent retries. The PATCH API and task CLI expose the documented contract, integrated fingerprint computation now uses the exact landed SHA consistently, and the integration sweep emits one idempotent owner-rearm alert instead of repeating already-completed warnings.
+---
+author: oompah
+created: 2026-08-03 17:17
+---
+Verification: focused terminal coordinator/API/fingerprint/integration/CLI suites pass (393 tests), including same-head missing-evidence rearm followed by PASS to Done, non-owner/fingerprint/success-final rejection, coalescing, canonical integrated-SHA matching, and one-alert sweep recovery. The terminal mutation scan passes (6/6 allowlisted). Full direct pytest completed with 15,134 passed, 7 skipped, 1 xfailed, and one unrelated harness failure because the direct invocation did not set OOMPAH_PYTEST_RUN_ROOT for test_pytest_parallel.py; make test could not initialize its task-private uv scope due a host DBus kernel-thread error.
 ---
 <!-- COMMENTS:END -->
