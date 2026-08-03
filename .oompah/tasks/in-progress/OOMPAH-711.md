@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Open
+status: In Progress
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:07:38.260071Z'
+updated_at: '2026-08-03T00:07:52.673277Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,7 +54,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 961341b2-26f7-459e-9496-63f74f9de936
+oompah.agent_run_id: fda8afd8-3c4f-4aa5-9649-7dd729875339
 oompah.task_costs:
   total_input_tokens: 224251
   total_output_tokens: 2986
@@ -170,5 +170,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 25s
 - Log: OOMPAH-711__20260803T000710Z.jsonl
+---
+author: oompah
+created: 2026-08-03 00:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 00:07
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
