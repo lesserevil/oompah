@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:20:45.992717Z'
+updated_at: '2026-08-03T21:22:10.720614Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-08-03 21:20
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-03 21:22
+---
+Understanding: I will trace the PATCH terminal-override commit and all worker/auditor/provider-exit cleanup loops, identify the shared-map mutation boundary, then add a minimal snapshot/locking fix with regression tests for post-commit diagnostics and retry idempotency.
 ---
 <!-- COMMENTS:END -->
