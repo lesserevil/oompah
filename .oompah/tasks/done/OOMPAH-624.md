@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-08-02T18:28:23.896190Z'
+updated_at: '2026-08-03T20:04:40.688220Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
