@@ -2396,17 +2396,30 @@ class TestMaintenanceLaneNonBlocking:
         reliable under xdist CPU contention.  The ``asyncio.wait_for`` guard is
         only there to prevent the test from hanging forever in the regression
         case where ``_tick`` incorrectly awaits maintenance.
+
+        ``_recover_release_addendum_leases`` is stubbed for the same reason it
+        is stubbed in the sibling tests (OOMPAH-688 / OOMPAH-670): the real
+        implementation reads all ``.oompah/tasks/*.md`` files sequentially in
+        the tick thread pool.  Under four-way parallel xdist CI load that I/O
+        can exceed the 15s ``asyncio.wait_for`` budget here, causing a false
+        timeout that looks like "tick awaited maintenance" even though the code
+        is correct.
         """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Stub the awaited tracker I/O that reads all task files — can push
+        # total tick time past the 15s wait_for threshold under parallel CI
+        # load, producing a false "tick awaited maintenance" failure (same
+        # fix as OOMPAH-688 for the sibling sequencing tests).
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
 
         maintenance_started = threading.Event()
         maintenance_unblock = threading.Event()

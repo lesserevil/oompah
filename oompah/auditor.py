@@ -822,13 +822,116 @@ def submit_auditor_result(
     return json.dumps({"accepted": True, "result": _result_payload(result)})
 
 
+# Structured git subcommand capability table for safe read-only operations.
+# Each entry maps a git subcommand to its allowed options and operand patterns.
+#
+# This table enables systematic expansion of git inspection commands without
+# requiring one-off regex pattern fixes. Subcommands not in this table must use
+# the fallback regex pattern.
+_GIT_SUBCOMMAND_CAPABILITIES = {
+    # Read-only information queries (no state change)
+    "status": {"safe_flags": {"--porcelain", "-s"}, "needs_validation": False},
+    "diff": {"safe_flags": {"--cached", "--staged"}, "needs_validation": False},
+    "log": {"safe_flags": {"--oneline", "--format", "-p", "--name-only", "--stat"}, "needs_validation": False},
+    "show": {"safe_flags": {}, "needs_validation": False},
+    "rev-parse": {"safe_flags": {}, "needs_validation": False},
+    "ls-files": {"safe_flags": {}, "needs_validation": False},
+    "branch": {"safe_flags": {"-a", "--all", "-r", "--remotes", "-v", "--verbose"}, "needs_validation": False},
+    "describe": {"safe_flags": {}, "needs_validation": False},
+    "whatchanged": {"safe_flags": {}, "needs_validation": False},
+    "merge-base": {"safe_flags": {}, "needs_validation": False},
+    # Rev-list requires more careful validation of operands and flags
+    "rev-list": {
+        "safe_flags": {
+            "--left-right",      # Show left/right markers in asymmetric ranges
+            "--count",          # Count commits instead of listing them
+            "--reverse",        # Reverse the commit order
+            "--graph",          # Show ASCII graph
+            "--pretty",         # Control commit message format
+            "--abbrev-commit",  # Show abbreviated hashes
+            "--oneline",        # Short format
+            "--format",         # Custom format string
+            "--stat",           # Show file statistics
+            "--name-only",      # Show only changed filenames
+            "--name-status",    # Show changed filenames with status
+            "-p",               # Show diff
+        },
+        "needs_validation": True  # Rev-list needs operand validation
+    },
+}
+
+
+def _is_safe_git_rev_list_command(command: str) -> bool:
+    """Validate git rev-list as a safe read-only inspection command.
+    
+    Returns True if the command is a git rev-list with only read-only flags
+    and valid revision/range operands (no shell escapes or redirects).
+    """
+    tokens = _auditor_shell_tokens(command)
+    if not tokens or len(tokens) < 2:
+        return False
+    
+    # Check that the first token is "git" and second is "rev-list"
+    if tokens[0].lower() != "git" or tokens[1].lower() != "rev-list":
+        return False
+    
+    # Extract flags and operands
+    flags = set()
+    operands = []
+    i = 2
+    while i < len(tokens):
+        token = tokens[i]
+        # Flags start with - or --
+        if token.startswith("-"):
+            # Handle flags that take values (e.g., --format=<string>)
+            if "=" in token:
+                flag_part = token.split("=", 1)[0]
+                flags.add(flag_part.lower())
+            else:
+                flags.add(token.lower())
+            # If this flag takes a separate argument, consume it
+            if token.lower() in {"--format", "--pretty"} and "=" not in token:
+                i += 1
+                if i < len(tokens):
+                    i += 1
+                    continue
+        else:
+            # Non-flag tokens are operands (revision specs or ranges)
+            operands.append(token)
+        i += 1
+    
+    # Check that all flags are in the allowed set
+    allowed_flags = _GIT_SUBCOMMAND_CAPABILITIES.get("rev-list", {}).get("safe_flags", set())
+    for flag in flags:
+        # Allow flags to appear in various forms (--flag, -f, --flag=value)
+        base_flag = flag.rstrip("=")
+        if not any(base_flag == af or base_flag in af for af in allowed_flags):
+            return False
+    
+    # Validate operands are safe revision specs (no shell escapes)
+    for operand in operands:
+        # Valid revision specs look like:
+        # - commit hashes: abc123, abc123^, abc123~5
+        # - branch names: main, origin/main
+        # - ranges: main..develop, origin/main...origin/develop
+        # - refs: HEAD, @, etc.
+        # Invalid: paths with / leading to escapes, command substitutions, etc.
+        if not _AUDITOR_SAFE_PATH_TOKEN_RE.fullmatch(operand):
+            # Try more permissive patterns for revision specs
+            # Allow special characters used in git ranges and refs
+            if not re.match(r"^[A-Za-z0-9_./+@=,:\-^~*]+$", operand):
+                return False
+    
+    return True
+
+
 # Commands whose purpose is inspection or verification.  The allowlist is
 # intentionally conservative; a completion auditor can report that it could
 # not inspect something rather than receiving a shell with write authority.
 _AUDITOR_COMMAND_RE = re.compile(
     r"^(?:"
     r"(?:pwd|ls|find|head|tail|cat|file|stat|readlink|rg|grep|git\s+"
-    r"(?:status|diff|log|show|rev-parse|ls-files|branch|describe|whatchanged|merge-base))"
+    r"(?:status|diff|log|show|rev-parse|ls-files|branch|describe|whatchanged|merge-base|rev-list))"
     r"|(?:pytest|py\.test|python(?:\d+(?:\.\d+)?)?\s+-m\s+"
     r"(?:pytest|unittest|compileall))"
     r"|(?:make\s+(?:test|test-serial|check-secrets))"
@@ -941,7 +1044,7 @@ def _auditor_safe_input_paths(paths: list[str]) -> bool:
 
 
 def _is_read_only_inspection_command(command: str) -> bool:
-    """Recognize narrowly safe, unsupported awk/sed inspection commands."""
+    """Recognize narrowly safe, unsupported awk/sed/git inspection commands."""
 
     tokens = _auditor_shell_tokens(command)
     if not tokens:
@@ -960,6 +1063,11 @@ def _is_read_only_inspection_command(command: str) -> bool:
             _SED_PRINT_ONLY_SCRIPT_RE.fullmatch(tokens[2])
             and _auditor_safe_input_paths(tokens[3:])
         )
+    # Check for safe git rev-list inspection commands
+    if len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
+        # If the command passes validation, it's a supported command (not just read-only)
+        # so return False so it doesn't get the "recoverable" marker
+        return False
     return False
 
 
@@ -987,6 +1095,16 @@ def check_auditor_command(command: str) -> str | None:
             "Error: auditor capability policy permits only read-only repository "
             "inspection and configured test commands; command denied"
         )
+    
+    # Special validation for git rev-list: ensure only safe flags and operands are used
+    tokens = _auditor_shell_tokens(normalized)
+    if tokens and len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
+        # Check if this is a safe git rev-list command
+        if not _is_safe_git_rev_list_command(normalized):
+            # If rev-list was used but with unsupported flags, return recoverable error
+            # instead of fatal denial, as it's still a read-only operation
+            return _recoverable_read_only_denial()
+    
     if _AUDITOR_PATH_ESCAPE_RE.search(normalized):
         return (
             "Error: auditor capability policy denied a path outside the "
