@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:38:34.787535Z'
+updated_at: '2026-08-03T17:41:56.753769Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ author: oompah
 created: 2026-08-03 17:38
 ---
 Additional live reconciliation evidence: removing the obsolete EXOCOMP-149 -> EXOCOMP-171 edge broke the original 130 -> 134 -> 131 cycle and restored all rows, but the next scan revealed a residual 131 <-> 134 cycle because EXOCOMP-154 and EXOCOMP-156 also redundantly depended on delivered EXOCOMP-171. Removed those two exact edges after verifying 171 is an ancestor of authoritative parent 2d08fde7. The permanent algorithm must remove every dependency edge whose prerequisite SHA is proven delivered through the authoritative ancestor, then recompute SCCs until no cycle remains before restoring rows; stopping after the first edge can cause cancel/restore churn.
+---
+author: oompah
+created: 2026-08-03 17:41
+---
+Additional live failure and workaround: after CAS-publishing repaired epic refs, the integration queue rejected EXOCOMP-146 because its clean preserved epic worktree remained at the old local head. I verified the old heads were ancestors of the published refs and used fast-forward-only updates for epic-EXOCOMP-130 (72ade518 -> eaeeaf08), -131 (8f80aebf -> 3377d707), and -132 (4e013110 -> 24f84e94); -133 and -134 were already aligned. The permanent repair must reconcile clean ancestor worktrees to the CAS-published head before retrying restored rows, never reset a dirty/divergent recovery snapshot, and recompute the SCC after each obsolete-edge removal until acyclic.
 ---
 <!-- COMMENTS:END -->
