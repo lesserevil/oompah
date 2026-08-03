@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-737
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Keep health and graceful cutover responsive during terminal lifecycle reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T22:24:13.820197Z'
+updated_at: '2026-08-03T22:50:20.033360Z'
 work_branch: OOMPAH-737
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/693
@@ -125,6 +125,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-fe377e05acb9: '2026-08-03T22:06:15.729137+00:00'
+    attempt-fa515a0c3b69: '2026-08-03T22:50:16.542125+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-737
@@ -135,6 +136,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T22:06:15.729149+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-737
+    target_state: Merged
+    evidence_fingerprint: b25b3c554ad5dcabef0c9d82cde7fed09ac413add71f1bc8f60c3fb574c388d9
+    audit_ids:
+    - audit-0346802ed738
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T22:50:16.542140+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-737
@@ -148,6 +158,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T22:06:15.729168+00:00'
     applied_at: '2026-08-03T22:06:20.231913+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-737
+    audit_id: audit-0346802ed738
+    attempt_id: attempt-fa515a0c3b69
+    target_state: Merged
+    evidence_fingerprint: b25b3c554ad5dcabef0c9d82cde7fed09ac413add71f1bc8f60c3fb574c388d9
+    status: Merged
+    audit_ids:
+    - audit-0346802ed738
+    applied: false
+    created_at: '2026-08-03T22:50:16.542160+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -189,7 +210,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-737
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -217,7 +238,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fa515a0c3b69
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -228,13 +249,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T22:23:52.596915+00:00'
       branch_key: OOMPAH-737
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T22:50:16.541893+00:00'
+      ended_at: '2026-08-03T22:50:16.541893+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T21:21:04.199551+00:00'
-    updated_at: '2026-08-03T22:23:52.596915+00:00'
+    updated_at: '2026-08-03T22:50:16.541893+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fe377e05acb9
@@ -465,5 +489,28 @@ author: oompah
 created: 2026-08-03 22:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 22:50
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- commit_sha: 2fba254fa752e0fcb5bdcfe80b9ccb739b507339
+- merge_commit_sha: 3cdf7d41f3928c06545d1b58e88614226ede7ab3
+- pr_number: 693
+- files_changed: .env.example, oompah/config.py, oompah/orchestrator.py, oompah/terminal_audit_enforcement.py, scripts/canonical_cli_cutover.py, tests/test_config.py, tests/test_lifecycle_cli_sync_integration.py, tests/test_terminal_audit_enforcement.py
+- focused_test_totals: terminal_audit_enforcement=50 PASS, lifecycle_cli_sync_integration=27 PASS, config=117 PASS
+- acceptance_endpoint_responsive: test_lifecycle_progress_read_does_not_wait_for_slow_tracker_mutation PASS
+- acceptance_cutover_authoritative: test_candidate_resume_timeout_does_not_false_fail_cutover PASS
+- acceptance_durable_restart_safe: test_lifecycle_reconciliation_batches_are_durable_and_restart_safe PASS + test_lifecycle_reconciliation_finishes_after_status_write_metadata_failure PASS
+- acceptance_failure_isolation: test_lifecycle_reconciliation_isolates_tracker_failures_and_retries PASS
+- acceptance_deferred_startup: test_initialize_can_defer_lifecycle_reconciliation PASS
+- prior_full_gate: make test PASS 413.3s at 2fba254fa (recorded in task comments)
+- lifecycle_reconciliation_status_uses_separate_lock: confirmed: _lifecycle_state_lock vs _lifecycle_lock in terminal_audit_enforcement.py
+- cutover_commits_before_resume: confirmed: activation.commit() before resume request in canonical_cli_cutover.py
+- orchestrator_defers_reconciliation: confirmed: defer_lifecycle_reconciliation=True at orchestrator.py:1912, _run_terminal_lifecycle_reconciliation_batch at line 1963
 ---
 <!-- COMMENTS:END -->
