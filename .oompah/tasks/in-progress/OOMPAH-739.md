@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:39:48.540549Z'
+updated_at: '2026-08-03T22:40:34.666143Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8e7901e3-f508-40f8-9d7a-93b158f5c356
+oompah.agent_run_id: 29579e5c-32ec-419e-9ec2-22758dd874da
 oompah.task_costs:
   total_input_tokens: 48406
   total_output_tokens: 32379
@@ -236,5 +236,10 @@ author: oompah
 created: 2026-08-03 22:39
 ---
 YOLO: Merge conflict detected on MR #694. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-08-03 22:40
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
