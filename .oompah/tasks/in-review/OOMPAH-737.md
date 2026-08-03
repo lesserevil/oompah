@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-737
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Keep health and graceful cutover responsive during terminal lifecycle reconciliation
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T21:06:51.694888Z'
+updated_at: '2026-08-03T21:07:03.645348Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/693
 review_number: null
 review_head: null
 merged_at: null
@@ -101,6 +101,7 @@ oompah.integration:
   head_sha: 2fba254fa752e0fcb5bdcfe80b9ccb739b507339
   submitted_at: '2026-08-03T20:50:10.181276+00:00'
   updated_at: '2026-08-03T20:50:10.181276+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/693
 ---
 ## Summary
 
