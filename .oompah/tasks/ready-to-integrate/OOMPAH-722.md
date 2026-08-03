@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:21:34.656032Z'
+updated_at: '2026-08-03T15:21:45.658462Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,9 +83,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-722
-  head_sha: 7eb17e9743f101fe45c02f20c9000e6e67c7444f
-  submitted_at: '2026-08-03T15:06:11.182256+00:00'
-  updated_at: '2026-08-03T15:06:11.182256+00:00'
+  head_sha: 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2
+  submitted_at: '2026-08-03T15:21:41.984887+00:00'
+  updated_at: '2026-08-03T15:21:41.984887+00:00'
 ---
 ## Summary
 
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-08-03 15:21
 ---
 **Completion**: CI failure fixed. Added `_recover_release_addendum_leases = MagicMock(return_value=0)` to `test_tick_does_not_await_maintenance_heal` (and changed `_handle_dispatch_needed` to `AsyncMock(return_value={})`) to match the isolation pattern established by OOMPAH-688 for sibling tests. The OOMPAH-722 core feature (git rev-list read-only audit support) is unchanged. Branch pushed at 3eb3235e1.
+---
+author: oompah
+created: 2026-08-03 15:21
+---
+CI failure fixed: added _recover_release_addendum_leases stub to test_tick_does_not_await_maintenance_heal, matching the OOMPAH-688 isolation pattern already applied to all sibling TestMaintenanceLaneNonBlocking tests. The false 15s asyncio timeout under 4-worker xdist load no longer occurs. Core OOMPAH-722 feature (git rev-list read-only audit support) unchanged.
 ---
 <!-- COMMENTS:END -->
