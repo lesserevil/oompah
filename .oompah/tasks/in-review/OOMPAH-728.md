@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:09:23.242599Z'
+updated_at: '2026-08-03T17:09:39.190318Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/684
 review_number: null
 review_head: null
 merged_at: null
@@ -103,6 +103,7 @@ oompah.integration:
   head_sha: 2d682cacc8e9f18a6fc12de674b7ac91f37532e1
   submitted_at: '2026-08-03T16:53:21.950339+00:00'
   updated_at: '2026-08-03T16:53:21.950339+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/684
 ---
 ## Summary
 
