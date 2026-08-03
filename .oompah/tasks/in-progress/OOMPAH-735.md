@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:43:47.390935Z'
+updated_at: '2026-08-03T19:58:17.466752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -230,5 +230,10 @@ author: oompah
 created: 2026-08-03 19:43
 ---
 Understanding: The current OOMPAH-735 branch is empty (previous merge_conflict focus confirmed no implementation exists). The task requires end-to-end backend + frontend changes to reconcile integration_retry alerts against live recovery state. Plan: (1) Add structured 'action_required' and 'recovery_state' fields to the integration_retry alert schema (backend, oompah/orchestrator.py::_route_integration_failure). (2) Add a pure classifier _classify_integration_retry_recovery(alert, running, queue_items, revoked, now, freshness) that returns (recovery_state, action_required, level) so it can be unit-tested. (3) Add a reconciliation pass _reconcile_integration_retry_alerts() invoked from get_snapshot() so the state API and WS snapshots always reflect current recovery state without a page refresh. (4) Add config integration_recovery_freshness_seconds (default 300s). (5) Frontend (oompah/templates/dashboard.html): filter otherAlerts by action_required !== false so informational recovery activity is not surfaced in the global operator banner or inline agent warnings. Task-level integration diagnostics are unchanged. (6) Tests exercising each severity/actionability transition: fresh repair agent absent from banner, no repair/no retry actionable, scheduled retry informational, stale/exhausted/revoked re-arms warning, successful integration clears both actionable and informational alerts. Since I am the frontend specialist but the change fundamentally couples backend structured fields with frontend filtering, I will implement both — pure filter-only changes would be untestable without the backend fields.
+---
+author: oompah
+created: 2026-08-03 19:58
+---
+Discovery: root cause is in oompah/orchestrator.py::_route_integration_failure._record_failure_diagnostic (line 9203) which unconditionally appended a warning-level alert with source integration_retry:{project_id}:{task_id}. Success path at line ~9990 removed the alert only after integration completed. Alerts flow to the dashboard via Orchestrator.get_snapshot()['alerts'] (line 34741) which is consumed by handleStateUpdate() in oompah/templates/dashboard.html: alerts are split into cred/auth/other groups and the 'other' group is rendered both inline in agent-warnings and in the alerts-banner. Since dashboard filtering must key off an explicit signal (not message text), the fix requires structured backend fields (action_required + recovery_state) plus a reconciliation pass so the state API and WS snapshots publish current recovery classification without a page refresh.
 ---
 <!-- COMMENTS:END -->
