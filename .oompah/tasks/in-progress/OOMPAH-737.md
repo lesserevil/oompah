@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:19:32.871896Z'
+updated_at: '2026-08-03T20:26:51.413001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-08-03 20:19
 ---
 Discovery: TerminalAuditEnforcement.initialize() performs the full tracker scan/recovery/persist synchronously in _run_terminal_audit_enforcement, while merged-label maintenance also contains independent shared-epic child reconciliation. The server already exposes cached state and build identity; I’m tracing startup/resume ordering and cutover resolution to isolate the blocking path and preserve existing fencing/audit semantics.
+---
+author: oompah
+created: 2026-08-03 20:26
+---
+Implementation: Added versioned lifecycle reconciliation state with pending/completed/failed rows, persisted counters/cursor/errors, bounded batch processing, per-row locks, and non-blocking progress snapshots. Terminal-audit startup now defers legacy shared-epic repair; the orchestrator schedules coalesced background batches and exposes terminal_lifecycle_reconciliation in maintenance/state. Added OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE configuration. Cutover now treats a candidate health/state identity as authoritative and ignores a post-candidate resume transport failure.
 ---
 <!-- COMMENTS:END -->
