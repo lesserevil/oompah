@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:21:13.046026Z'
+updated_at: '2026-08-03T16:21:40.536278Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d58762af-0706-4f99-9358-776352d4b969
+oompah.agent_run_id: bf01667e-b8e8-43ec-b76b-e9106d99b356
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1698
@@ -149,5 +149,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 41s
 - Log: OOMPAH-728__20260803T162028Z.jsonl
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

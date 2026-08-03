@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T16:16:16.733970Z'
+updated_at: '2026-08-03T16:21:26.857163Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,22 @@ created: 2026-08-03 16:16
 4. **Current status:** Phase 1 implementation complete, all existing tests pass
 
 **Next:** Create comprehensive tests for EXOCOMP-172 reproduction and edge cases
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+**Verification (Phase 1 - Tests):**
+
+- All 471 submission/recovery/worker/integration tests pass
+- Created 3 comprehensive tests reproducing EXOCOMP-172 scenario
+- Fixed latent _verifier_reject_counts initialization bug
+
+**Test Coverage:**
+1. Late tracked changes after submission acceptance detected ✓
+2. Clean submissions proceed to integration ✓  
+3. Submission acceptance revokes worker authority ✓
+4. All existing submission/recovery tests remain green ✓
+
+**Next:** Run full test suite to ensure no regressions
 ---
 <!-- COMMENTS:END -->
