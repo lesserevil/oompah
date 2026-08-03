@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T15:58:56.471083Z'
+updated_at: '2026-08-03T15:59:34.627662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,17 +27,50 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 16525e8b-bb82-41f1-aa96-462b19a9250b
-  claim_owner: 2dcc53e1-cdcd-4522-a08d-de6ce4222a8c
-  claimed_at: '2026-08-03T15:58:44.538545+00:00'
-  claim_expires_at: '2026-08-03T16:28:44.538545+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
+    Matches: none\nEvidence: The corpus does not include OOMPAH-722\u2019s full description,\
+    \ status, or comments, so its active-duplicate status cannot be verified. OOMPAH-723\u2019\
+    s own comments reference it, but that is insufficient for confirmation.\nFocus\
+    \ handoff: duplicate_detector  \nDuplicate preflight verdict: inconclusive  \n\
+    Matches: none  \n\nEvidence: The corpus does not include OOMPAH-722\u2019s full\
+    \ description, status, or comments, so its active-duplicate status cannot be verified.\
+    \ OOMPAH-723\u2019s own comments reference it, but that is insufficient for confirmation."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-03T16:00:29.903997+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 32c22f2a-2dc4-440f-a4f5-5925f2b0ab0b
+oompah.task_costs:
+  total_input_tokens: 50959
+  total_output_tokens: 1011
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 50959
+      output_tokens: 1011
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 50959
+    output_tokens: 1011
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T15:59:29.901977+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-723__20260803T155859Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-723
+    source_sha: d510748342777dd4748070d83391ffb0eae40091
+    completed_at: '2026-08-03T15:59:29.932498+00:00'
 ---
 ## Summary
 
@@ -65,5 +98,15 @@ author: oompah
 created: 2026-08-03 15:58
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 15:59
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 51.0K in / 1.0K out [52.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 39s
+- Log: OOMPAH-723__20260803T155859Z.jsonl
 ---
 <!-- COMMENTS:END -->
