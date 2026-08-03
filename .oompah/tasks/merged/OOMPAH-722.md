@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T16:07:03.433212Z'
+updated_at: '2026-08-03T16:13:14.639438Z'
 work_branch: OOMPAH-722
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/682
@@ -130,6 +130,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d775420aab0c: '2026-08-03T15:58:07.402528+00:00'
+    attempt-3066c600abaa: '2026-08-03T16:13:10.113345+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-722
@@ -140,6 +141,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T15:58:07.402539+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-722
+    target_state: Merged
+    evidence_fingerprint: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+    audit_ids:
+    - audit-216604382e44
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T16:13:10.113360+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-722
@@ -153,6 +163,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T15:58:07.402555+00:00'
     applied_at: '2026-08-03T15:58:13.850299+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-722
+    audit_id: audit-216604382e44
+    attempt_id: attempt-3066c600abaa
+    target_state: Merged
+    evidence_fingerprint: 8065e2763bece672771a78d5d150a289bc068fb3f536a323f8734f8e8e8f9409
+    status: Merged
+    audit_ids:
+    - audit-216604382e44
+    applied: false
+    created_at: '2026-08-03T16:13:10.113377+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -194,7 +215,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-722
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -222,7 +243,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3066c600abaa
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -233,13 +254,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T16:06:53.135829+00:00'
       branch_key: OOMPAH-722
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T16:13:10.113196+00:00'
+      ended_at: '2026-08-03T16:13:10.113196+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T15:48:22.871647+00:00'
-    updated_at: '2026-08-03T16:06:53.135829+00:00'
+    updated_at: '2026-08-03T16:13:10.113196+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d775420aab0c
@@ -595,5 +619,24 @@ author: oompah
 created: 2026-08-03 16:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 16:13
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2
+- core_change_file: oompah/auditor.py
+- new_symbols: _GIT_SUBCOMMAND_CAPABILITIES, _is_safe_git_rev_list_command
+- auditor_contract_tests: 31 passed
+- authority_boundary_tests: 155 passed
+- terminal_audit_health_tests: 44 passed
+- exocomp_241_production_forms: 6/6 allowed
+- dangerous_syntax_tests: 5/5 denied
+- recoverable_variants_tests: 2/2 return recoverable errors
+- branch_quality_gate: passed 3eb3235e1 in 404.4s
 ---
 <!-- COMMENTS:END -->
