@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T02:46:48.071268Z'
+updated_at: '2026-08-03T02:46:51.579420Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/675
