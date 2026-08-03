@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-03T00:04:36.495429Z'
+updated_at: '2026-08-03T00:04:56.073324Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
     creation; no existing task covers provider-private oversized auditor output escaping
     the strict read-only authority boundary. OOMPAH-701 records the live reproduction
     and OOMPAH-710 is the dedicated follow-up.
-oompah.agent_run_id: 590ba94c-4338-4d32-aa04-424cc8bacc37
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 51468
   total_output_tokens: 4280
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-710
     source_sha: 3a231ee97337db95bb131abc0dd27ca12133c257
     completed_at: '2026-08-02T23:51:35.811481+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-710
+  head_sha: 205f413440767c5c2c94c641504f96f6a71c77bb
+  submitted_at: '2026-08-03T00:04:50.427138+00:00'
+  updated_at: '2026-08-03T00:04:50.427138+00:00'
 ---
 ## Summary
 
@@ -212,5 +220,10 @@ author: oompah
 created: 2026-08-03 00:04
 ---
 Direct owner implementation complete at exact pushed head 205f413440767c5c2c94c641504f96f6a71c77bb. Oompah now chunks read_file results before provider transport across Claude, Codex, and OpenCode; bounds search output; exposes offset/limit continuation through the approved tool; reconciles the terminal-audit running gauge after the last auditor exits; and verifies healthy third-candidate rotation after two transport failures. Post-rebase focused suite: 295 passed. Required make check-secrets passed.
+---
+author: oompah
+created: 2026-08-03 00:04
+---
+Bound oversized auditor tool results before provider transport, kept continuations inside the approved read-only tool channel, reconciled stale audit gauges, and added provider-rotation regressions.
 ---
 <!-- COMMENTS:END -->

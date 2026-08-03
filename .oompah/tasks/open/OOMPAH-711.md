@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Backlog
+status: Open
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -11,13 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-02T23:59:03.600915Z'
+updated_at: '2026-08-03T00:05:02.619594Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 202c56bf80474585cba587c717a0651c36dc9fd09908afc88a9cb21caf68b2d2
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: ebca466d-acdf-4938-974a-34d79f40d51c
+  claim_owner: 282fbdbd-517c-4b57-a6ee-f47cdefb1b24
+  claimed_at: '2026-08-03T00:05:00.935144+00:00'
+  claim_expires_at: '2026-08-03T00:35:00.935144+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
