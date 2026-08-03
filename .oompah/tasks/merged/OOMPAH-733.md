@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T21:30:53.504160Z'
+updated_at: '2026-08-03T21:38:54.462025Z'
 work_branch: OOMPAH-733
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/690
@@ -136,6 +136,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-c2bf77b6b948: '2026-08-03T21:25:09.318439+00:00'
+    attempt-1c37ea2ca513: '2026-08-03T21:38:48.860940+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-733
@@ -146,6 +147,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T21:25:09.318450+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-733
+    target_state: Merged
+    evidence_fingerprint: 47e4f3a97d0fa192466816fd5febe9211b953debe736a37bda4d881c8122f325
+    audit_ids:
+    - audit-8ee7a9a768c1
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T21:38:48.860957+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-733
@@ -159,6 +169,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T21:25:09.318467+00:00'
     applied_at: '2026-08-03T21:25:13.575844+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-733
+    audit_id: audit-8ee7a9a768c1
+    attempt_id: attempt-1c37ea2ca513
+    target_state: Merged
+    evidence_fingerprint: 47e4f3a97d0fa192466816fd5febe9211b953debe736a37bda4d881c8122f325
+    status: Merged
+    audit_ids:
+    - audit-8ee7a9a768c1
+    applied: false
+    created_at: '2026-08-03T21:38:48.860976+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -220,7 +241,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-733
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -229,7 +250,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1c37ea2ca513
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -239,13 +260,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T21:30:37.127047+00:00'
       branch_key: OOMPAH-733
+      verdict: pass
+      completed_at: '2026-08-03T21:38:48.860764+00:00'
+      ended_at: '2026-08-03T21:38:48.860764+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:54:41.430417+00:00'
-    updated_at: '2026-08-03T21:30:37.127047+00:00'
+    updated_at: '2026-08-03T21:38:48.860764+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c1220d7890e7
@@ -538,5 +562,23 @@ author: oompah
 created: 2026-08-03 21:30
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:38
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merged_pr: PR #690 merged to origin/main
+- merge_commit: 42da24c26 Merge pull request #690 from lesserevil/OOMPAH-733
+- gate_commit: daefb6fb2dc282879d20c84e4d18015c250a6635
+- gate_result: make test passed in 415.9s
+- worktree_head: daefb6fb2dc282879d20c84e4d18015c250a6635
+- ancestor_check: git merge-base --is-ancestor daefb6fb2 origin/main => exit 0
+- merge_ancestor_check: git merge-base --is-ancestor daefb6fb2 42da24c26 => exit 0
+- scanner_result: 8 identified, 8 explicitly allowlisted
+- focused_tests: TestEpicTargetResolution 8/8, test_terminal_audit_scanner 15/15, test_epic_strategy 233/233, test_epic_rebase_state 40/40, test_parallel_epic_children 33/33
 ---
 <!-- COMMENTS:END -->
