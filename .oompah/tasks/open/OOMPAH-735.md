@@ -1,17 +1,19 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:merge_conflict
+- needs:feature
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:23:25.973035Z'
+updated_at: '2026-08-03T19:23:48.367823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +201,10 @@ Evidence: git fetch origin && git rebase origin/main; git push --force-with-leas
 Remaining work/risks: OOMPAH-735 has no implementation or tests at all, so the described warning-recovery bug remains unresolved. Submitting this empty branch would incorrectly claim completion.
 
 Recommended next focus: feature, to implement the backend/state/dashboard behavior and required tests from the task description.
+---
+author: oompah
+created: 2026-08-03 19:23
+---
+Completion (merge-conflict focus): delivered a clean, current, force-pushed review branch with verified zero diff. Conflict-resolution work is complete; feature implementation remains and is being handed off rather than submitted as an empty fix.
 ---
 <!-- COMMENTS:END -->
