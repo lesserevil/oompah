@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:27:33.630897Z'
+updated_at: '2026-08-03T22:30:28.789860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,6 +84,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-739
     source_sha: 576a85bfccedf903b9be03adb1088f1c69227c68
     completed_at: '2026-08-03T21:27:35.924669+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-739
+  head_sha: fbfa32b13993fb061db18f0712f0864bf3719e23
+  submitted_at: '2026-08-03T22:30:25.103731+00:00'
+  updated_at: '2026-08-03T22:30:25.103731+00:00'
 ---
 ## Summary
 
@@ -172,5 +180,10 @@ Changes made:
 Key insight: During recovery, parent evidence can be checked from the loaded snapshot WITHOUT requiring forge ref verification. This separates 'cannot fetch deleted ref' (not an error) from 'parent has not landed' (actual problem).
 
 All existing tests pass (45 terminal enforcement + 233 epic strategy tests). Ready for verification against OOMPAH-584/587/588 scenario.
+---
+author: oompah
+created: 2026-08-03 22:30
+---
+Implemented fix for OOMPAH-725 regression: Verified nested-epic Merged children now preserved across restart even when historical source branches are deleted. Uses durable parent terminal state from recovery snapshot to confirm landing without requiring forge refs. All existing tests pass (45 terminal enforcement + 233 epic strategy + 165 orchestrator merged).
 ---
 <!-- COMMENTS:END -->
