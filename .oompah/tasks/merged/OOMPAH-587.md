@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T21:24:59.642424Z'
+updated_at: '2026-08-03T21:46:22.687583Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -29,9 +29,30 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-17be272b6055: '2026-07-31T04:54:32.668794+00:00'
     attempt-a5cb7b6465d7: '2026-07-31T05:11:38.088543+00:00'
+    attempt-0fda593aa3dd: '2026-08-03T21:46:16.644188+00:00'
   oompah.terminal_override_records: []
-  oompah.terminal_audit_retirements: []
-  oompah.terminal_audit_result_intents: []
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    target_state: Merged
+    evidence_fingerprint: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    audit_ids:
+    - audit-6e50495cb29c
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T21:46:16.644199+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-587
+    audit_id: audit-6e50495cb29c
+    attempt_id: attempt-0fda593aa3dd
+    target_state: Merged
+    evidence_fingerprint: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    status: Merged
+    audit_ids:
+    - audit-6e50495cb29c
+    applied: false
+    created_at: '2026-08-03T21:46:16.644215+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-587
@@ -118,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -144,7 +165,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0fda593aa3dd
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -155,13 +176,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T21:24:35.105497+00:00'
       branch_key: epic-OOMPAH-587
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T21:46:16.643989+00:00'
+      ended_at: '2026-08-03T21:46:16.643989+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T20:12:31.603557+00:00'
-    updated_at: '2026-08-03T21:24:35.105497+00:00'
+    updated_at: '2026-08-03T21:46:16.643989+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -430,5 +454,28 @@ author: oompah
 created: 2026-08-03 21:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:46
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- pr_number: 601
+- pr_merge_commit: 0bc2672559e2b59ce04d89d367a19ee97140dc5a
+- pr_merged_feature_head: 14f8890a6efcfebe52774b0cd6b43a692bb9c345
+- main_commits_since_pr601_merge: 330
+- parent_epic_pr_number: 603
+- parent_epic_merge_commit: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- main_commits_since_pr603_merge: 318
+- children_terminal: OOMPAH-596=Done,OOMPAH-597=Merged,OOMPAH-598=Done,OOMPAH-599=Done,OOMPAH-617=Done,OOMPAH-637=Done
+- children_terminal_count: 6
+- prior_blocker: parent_epic_OOMPAH-584_unverified_at_lifecycle_reconciliation_20260803
+- blocker_resolved: OOMPAH-584_merged_via_PR603_now_reachable_from_main
+- previous_done_audit_verdict: PASS
+- previous_merged_audit_verdict: PASS (lifecycle application deferred)
+- branch_gate_status: pass via make test 262 tests (prior verified head)
 ---
 <!-- COMMENTS:END -->
