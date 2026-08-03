@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-724
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Fence accepted submissions against post-handoff worktree mutation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T19:31:12.826512Z'
+updated_at: '2026-08-03T19:43:25.139565Z'
 work_branch: OOMPAH-724
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/689
@@ -120,6 +120,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/689
 oompah.review_number: '689'
 oompah.work_branch: OOMPAH-724
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d2e1f06b9b13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:43:14.892619+00:00'
+  - version: 1
+    audit_id: audit-416640aad5b6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:43:14.892619+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -350,5 +389,15 @@ author: oompah
 created: 2026-08-03 19:31
 ---
 Live delivery workaround: OOMPAH-732 is merged but not yet audited/deployed, so the current server still leaves standalone Ready tasks without a delivery path. Opened PR #689 for exact submitted head e0e1769757167c48853d850c484840f129aa56cf after confirming its recorded branch gate passed and project review capacity was free. Preserving max_in_flight_prs=1; later Ready tasks remain queued behind this review.
+---
+author: oompah
+created: 2026-08-03 19:43
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 19:43
+---
+YOLO: merged PR #689.
 ---
 <!-- COMMENTS:END -->
