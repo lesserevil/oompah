@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-716
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Do not exhaust auditor policy budget on read-only awk and sed inspection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:40:09.484623Z'
+updated_at: '2026-08-03T03:48:45.888557Z'
 work_branch: OOMPAH-716
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/676
@@ -104,6 +104,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/676
 oompah.review_number: '676'
 oompah.work_branch: OOMPAH-716
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-194b886d1e1a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-716
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2163a29ee77f41dbd2cfcbd03475c27199fb7bcf741cb58a814dc8942838b4f6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T03:48:41.231851+00:00'
+  - version: 1
+    audit_id: audit-54d13af03658
+    project_id: proj-14849f1b
+    task_id: OOMPAH-716
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2163a29ee77f41dbd2cfcbd03475c27199fb7bcf741cb58a814dc8942838b4f6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T03:48:41.231851+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -232,5 +271,10 @@ author: oompah
 created: 2026-08-03 03:39
 ---
 Branch quality gate passed for `688b1f4a3f310f641aaae348742759abc879e45b` using `make test` in 399.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 03:48
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
