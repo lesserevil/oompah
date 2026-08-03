@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T17:53:08.801088Z'
+updated_at: '2026-08-03T17:53:27.857415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: b1ab6e68-21d3-4ea3-9d67-81c0f9e018f0
 ---
 ## Summary
 
@@ -52,5 +53,15 @@ author: oompah
 created: 2026-08-03 17:52
 ---
 Root evidence from the live log: capacity deferral was initially legitimate at 1/1, but after review capacity cleared every standalone sweep fetched each exact remote head and then logged Cancelled superseded standalone delivery ... delivery authority was revoked before review lookup for OOMPAH-724/726/729. This repeated at 17:40, 17:43, and 17:46 with no competing worker or tracker transition, no alert, and zero open Oompah reviews. The permanent fix must make evidence-revision/authority refresh stable across the remote-head and PR-lookup boundary, or atomically replace the authority without cancelling the same current generation. Add a concurrent tracker refresh/comment/update regression proving benign revision reads cannot revoke an otherwise identical exact-head delivery.
+---
+author: oompah
+created: 2026-08-03 17:53
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 17:53
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
