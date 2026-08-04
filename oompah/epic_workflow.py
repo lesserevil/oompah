@@ -210,24 +210,35 @@ class EpicFactCollector:
                 # collector fails closed instead of proving source==target.
                 if source == target and revision is None:
                     source = identifier
-                direct.append(
-                    {
-                        "identifier": identifier,
-                        "status": canonicalize_status(child.state),
-                        "issue_type": child.issue_type,
-                        "parent_id": child.parent_id,
-                        "kind": "nested_epic"
-                        if nested
-                        else "maintenance"
-                        if maintenance
-                        else "normal",
-                        "maintenance": maintenance,
-                        "requires_landing": not maintenance,
-                        "landing_source": source,
-                        "landing_target": target,
-                        "revision": revision,
-                    }
-                )
+                status = canonicalize_status(child.state)
+                archived = status == ARCHIVED
+                # The decision for one epic consumes only its direct children.
+                # Descendants are still walked below to reject malformed graph
+                # cycles, but their readiness belongs to their immediate epic.
+                # Folding them into every ancestor creates duplicate blockers
+                # and makes a root decision depend on grandchildren that its
+                # nested child already owns.
+                if parent.identifier == root.identifier:
+                    direct.append(
+                        {
+                            "identifier": identifier,
+                            "status": status,
+                            "issue_type": child.issue_type,
+                            "parent_id": child.parent_id,
+                            "kind": "archived"
+                            if archived
+                            else "nested_epic"
+                            if nested
+                            else "maintenance"
+                            if maintenance
+                            else "normal",
+                            "maintenance": maintenance,
+                            "requires_landing": not maintenance and not archived,
+                            "landing_source": source,
+                            "landing_target": target,
+                            "revision": revision,
+                        }
+                    )
                 # Walk every node, not only declared epics.  A malformed
                 # task->epic->task cycle must be rejected before any rollup
                 # review can be created.
@@ -503,13 +514,23 @@ class EpicWorkflowController:
         self,
         tasks: Sequence[Issue],
         *,
-        lease_owner: str | None = None,
+        lease_owner: str,
         recovery_limit: int = 1000,
     ) -> tuple[int, EpicDecisionBatch, WorkflowReconcileResult]:
-        """Recover abandoned epic work before rebuilding current decisions."""
+        """Recover one known-dead worker's leases, then rebuild decisions.
+
+        The job store is shared by every workflow domain.  An unscoped
+        ``recover_abandoned`` call could therefore steal live review, audit,
+        or implementation work.  Startup must name the worker identity that
+        this process has exclusively replaced.
+        """
+
+        owner = _required_text(lease_owner, "lease_owner")
 
         recovered = self.store.recover_abandoned(
-            lease_owner=lease_owner,
+            lease_owner=owner,
+            project_id=self.collector.project_id,
+            actions=tuple(EPIC_ACTIONS),
             limit=recovery_limit,
         )
         batch, scheduled = self.reconcile(tasks)
