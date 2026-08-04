@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T03:53:32.288312Z'
+updated_at: '2026-08-04T04:05:44.662497Z'
 work_branch: OOMPAH-748
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/704
@@ -87,6 +87,31 @@ oompah.work_branch: OOMPAH-748
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-230841e35a23: '2026-08-04T04:05:35.828650+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-748
+    target_state: Done
+    evidence_fingerprint: cbdf5d3e7e836ed994ab9357f8e9b6dfbe622fa8b4c7c80f3cdca1ac213d4a9a
+    audit_ids:
+    - audit-0d33581cd593
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T04:05:35.828658+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-748
+    audit_id: audit-0d33581cd593
+    attempt_id: attempt-230841e35a23
+    target_state: Done
+    evidence_fingerprint: cbdf5d3e7e836ed994ab9357f8e9b6dfbe622fa8b4c7c80f3cdca1ac213d4a9a
+    status: In Validation
+    audit_ids:
+    - audit-0d33581cd593
+    applied: true
+    created_at: '2026-08-04T04:05:35.828670+00:00'
+    applied_at: '2026-08-04T04:05:42.654243+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -94,7 +119,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-748
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -103,7 +128,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-230841e35a23
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -113,13 +138,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T03:53:18.700327+00:00'
       branch_key: OOMPAH-748
+      verdict: pass
+      completed_at: '2026-08-04T04:05:35.828508+00:00'
+      ended_at: '2026-08-04T04:05:35.828508+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T03:52:39.834965+00:00'
-    updated_at: '2026-08-04T03:53:18.700327+00:00'
+    updated_at: '2026-08-04T04:05:35.828508+00:00'
   - version: 1
     audit_id: audit-27343d5cba2c
     project_id: proj-14849f1b
@@ -283,5 +311,24 @@ author: oompah
 created: 2026-08-04 03:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 04:05
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d4282363c07b6607b75cdc32957730f37330e741
+- merged_to_main_commit: 092c04e24122a78c0c32301fd04f515b99576b0a
+- pr_number: 704
+- orchestrator_diff: oompah/orchestrator.py +31/-4 in _epic_auto_close_check (target-relative gate)
+- new_test_file: tests/test_nested_epic_cycle_fix.py (+290 lines, 2 tests)
+- focused_tests: test_nested_epic_cycle_fix.py 2/2 PASS; test_epic_auto_close.py 25/25 PASS; test_epic_strategy.py 233/233 PASS
+- adjacent_tests: test_orchestrator_merged 165/165; test_merged_labels_scope 17/17; test_done_merged_archived_lifecycle 52/52; test_terminal_audit 28/28; test_terminal_audit_enforcement 50/50; test_terminal_transition_coordinator 129/129; test_independently_merged 12/12
+- safety: EpicTargetResolutionError falls back to project.default_branch (fails closed for nested epics)
+- acceptance_criteria: No state cycle (nested child no longer blocked on root->main); immediate-target landing unblocks parent via existing _label_merged_epics; root epic still gated on default_branch
+- worktree_status: Not currently on any branch; nothing to commit, working tree clean
 ---
 <!-- COMMENTS:END -->
