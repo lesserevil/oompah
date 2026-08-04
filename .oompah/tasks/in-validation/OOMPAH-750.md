@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:57:15.240441Z'
+updated_at: '2026-08-04T02:07:39.610880Z'
 work_branch: OOMPAH-750
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/699
@@ -106,6 +106,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/699
 oompah.review_number: '699'
 oompah.work_branch: OOMPAH-750
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0d7073a25979
+    project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:07:35.356255+00:00'
+  - version: 1
+    audit_id: audit-45e76dc650ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:07:35.356255+00:00'
+  attempt_history: []
 ---
 ## Summary
 

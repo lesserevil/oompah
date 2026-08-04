@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
-- needs:security
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:06:55.440286Z'
+updated_at: '2026-08-04T02:07:18.732846Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 658ae263-6b0a-4069-a73f-383da6f8b353
+oompah.agent_run_id: f7d639e0-380b-4df2-982d-85cb546e5197
 oompah.task_costs:
   total_input_tokens: 2536248
   total_output_tokens: 12916
@@ -240,5 +239,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 37s
 - Log: OOMPAH-751__20260804T015834Z.jsonl
+---
+author: oompah
+created: 2026-08-04 02:07
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 02:07
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
