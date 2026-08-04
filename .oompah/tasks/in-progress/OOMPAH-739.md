@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:25:36.506274Z'
+updated_at: '2026-08-04T00:34:04.101131Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -533,5 +533,10 @@ author: oompah
 created: 2026-08-04 00:25
 ---
 Understanding: the implementation is present on the preserved branch; I will audit its durable parent-landing verification and add the missing enforcement regressions for verified nested Merged children, one-time unlanded repair, OOMPAH-447 sibling fencing, and recovery snapshots before focused verification.
+---
+author: oompah
+created: 2026-08-04 00:34
+---
+Verification: added recovery/lifecycle regressions and restored direct-validator compatibility. Focused results: terminal enforcement + shared-epic compatibility 55 passed; epic strategy, terminal status, lifecycle, workspace recovery, and restart suites 355 passed; CI/review ownership, transition coordinator, and review auto-resolving suites 147 passed. The only initial failure was an existing direct-validator expectation for conflict text when evidence is unavailable; it now passes while recovery still defers unknown evidence without mutation.
 ---
 <!-- COMMENTS:END -->
