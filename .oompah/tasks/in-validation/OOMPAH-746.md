@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T03:54:07.753975Z'
+updated_at: '2026-08-04T04:02:58.605076Z'
 work_branch: OOMPAH-746
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/705
@@ -134,6 +134,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/705
 oompah.review_number: '705'
 oompah.work_branch: OOMPAH-746
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cd34f9ee2980
+    project_id: proj-14849f1b
+    task_id: OOMPAH-746
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d12eada73a917b2b224cf105aec888859901ebad08dfb4d8cedaa0616342924a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T04:02:49.497557+00:00'
+  - version: 1
+    audit_id: audit-eda06f0e4e58
+    project_id: proj-14849f1b
+    task_id: OOMPAH-746
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d12eada73a917b2b224cf105aec888859901ebad08dfb4d8cedaa0616342924a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T04:02:49.497557+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -416,5 +455,15 @@ author: oompah
 created: 2026-08-04 03:50
 ---
 Branch quality gate passed for `3ed0f959e02e00dc9aa4c5563daa469f2a907c09` using `make test` in 417.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 04:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 04:02
+---
+YOLO: merged PR #705.
 ---
 <!-- COMMENTS:END -->
