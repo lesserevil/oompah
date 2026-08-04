@@ -350,10 +350,11 @@ def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path
         tracker = MagicMock()
         tracker.fetch_comments.return_value = [
             {
+                "author": "oompah",
                 "text": (
                     "Focus handoff: docs\n"
                     "Documentation review is complete; implementation remains."
-                )
+                ),
             }
         ]
 
