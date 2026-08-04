@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T21:26:20.832822Z'
+updated_at: '2026-08-04T21:27:22.758313Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -224,5 +224,10 @@ author: oompah
 created: 2026-08-04 21:26
 ---
 Rollup repair: branch epic-OOMPAH-764 at 73f5aeb26 is an exact Git ancestor of parent branch epic-OOMPAH-763 at f1e7925b7, so the epic is landed rather than merely done-on-branch. Revalidating as Merged to restore truthful nested-epic evidence. OOMPAH-791 owns the systemic LandingFact/auto-close fix that prevents recurrence.
+---
+author: oompah
+created: 2026-08-04 21:27
+---
+The evidence-backed Merged transition was rejected because the current server could not resolve/verify parent OOMPAH-763, despite Git proving epic-OOMPAH-764 is already an ancestor of epic-OOMPAH-763. This is the parent/child proof-cycle defect covered by active OOMPAH-791; leave the truthful landed evidence recorded here and retry reconciliation after OOMPAH-791 is available.
 ---
 <!-- COMMENTS:END -->
