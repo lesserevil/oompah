@@ -198,6 +198,13 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
+from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.work_decision import PermittedAction
+from oompah.workflow_facts import FactDomain, WorkflowFactCollector
+from oompah.workflow_shadow import (
+    LegacyWorkflowProjection,
+    WorkflowShadowEvaluator,
+)
 
 
 _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
@@ -1254,6 +1261,13 @@ class Orchestrator:
         self.review_capacity_store = ReviewCapacityStore(
             os.path.join(_state_dir, "review_capacity.sqlite3")
         )
+        self.workflow_shadow = WorkflowShadowEvaluator(
+            mode=config.workflow_engine_mode,
+            max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
+        )
+        self._workflow_shadow_generation = 0
+        self._workflow_shadow_generation_lock = threading.Lock()
+        self._workflow_shadow_future: asyncio.Future[Any] | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         # Service state is shared by the dispatch loop, maintenance workers,
         # API callbacks, and terminal-audit enforcement. Keep each
@@ -3149,6 +3163,10 @@ class Orchestrator:
         self.state.max_concurrent_agents = config.max_concurrent_agents
         self._branch_quality_gate.timeout_seconds = (
             config.quality_gate_timeout_seconds
+        )
+        self.workflow_shadow.set_mode(config.workflow_engine_mode)
+        self.workflow_shadow.max_diagnostic_bytes = (
+            config.workflow_diagnostic_max_bytes
         )
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
@@ -5925,6 +5943,7 @@ class Orchestrator:
                 self._integration_future,
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
+                self._workflow_shadow_future,
             )
             if future is not None
         ]
@@ -5996,6 +6015,354 @@ class Orchestrator:
             cancel_futures=False,
         )
         self.review_capacity_store.close()
+
+    def _workflow_shadow_running_entry(
+        self,
+        issue: Issue,
+        *,
+        auditor: bool | None = None,
+    ) -> RunningEntry | None:
+        project_id = str(issue.project_id or "legacy")
+        for entry in self._running_values_snapshot():
+            entry_project = str(
+                getattr(getattr(entry, "issue", None), "project_id", None)
+                or "legacy"
+            )
+            if entry_project != project_id or entry.identifier != issue.identifier:
+                continue
+            if auditor is not None and bool(entry.is_auditor) is not auditor:
+                continue
+            return entry
+        return None
+
+    def _workflow_shadow_review(self, issue: Issue) -> ReviewRequest | None:
+        project_id = str(issue.project_id or "legacy")
+        branch = str(
+            issue.work_branch or issue.branch_name or issue.identifier or ""
+        )
+        return next(
+            (
+                review
+                for review in (getattr(self, "_reviews_cache", {}) or {}).get(
+                    project_id, ()
+                )
+                if str(getattr(review, "source_branch", "") or "") == branch
+            ),
+            None,
+        )
+
+    def _workflow_shadow_sources(self, issue: Issue) -> dict[FactDomain, Any]:
+        """Build read-only fact adapters over the current legacy runtime."""
+
+        def implementation_authority(current: Issue) -> dict[str, Any]:
+            running = self._workflow_shadow_running_entry(current, auditor=False)
+            if running is not None:
+                return {
+                    "owner_id": getattr(running, "run_id", None),
+                    "generation": getattr(running, "run_id", None)
+                    or getattr(current, "assignment_id", None),
+                    "ownership_source": "scheduler",
+                    "lease_expires_at": (
+                        datetime.now(timezone.utc) + timedelta(seconds=60)
+                    ).isoformat(),
+                }
+            claim = self._owner_claim_for_issue(current.id, current.project_id)
+            if claim is not None and claim.expires_at > time.time():
+                return {
+                    "owner_id": claim.owner_login,
+                    "generation": claim.claim_id,
+                    "ownership_source": "direct_owner",
+                    "lease_expires_at": datetime.fromtimestamp(
+                        claim.expires_at, tz=timezone.utc
+                    ).isoformat(),
+                }
+            return {"lease_expires_at": None}
+
+        def terminal_audit(current: Issue) -> dict[str, Any]:
+            running = self._workflow_shadow_running_entry(current, auditor=True)
+            if running is not None:
+                return {
+                    "phase": "active",
+                    "audit_id": getattr(running, "audit_id", None),
+                    "owner_id": getattr(running, "run_id", None),
+                    "lease_expires_at": (
+                        datetime.now(timezone.utc) + timedelta(seconds=60)
+                    ).isoformat(),
+                }
+            return {"phase": "queued"}
+
+        def review_ci(current: Issue) -> dict[str, Any] | None:
+            review = self._workflow_shadow_review(current)
+            if review is None:
+                return None
+            ci_status = getattr(review, "ci_status", None)
+            return {
+                "review_id": getattr(review, "id", None),
+                "state": getattr(review, "state", None),
+                "draft": bool(getattr(review, "draft", False)),
+                "ci": getattr(ci_status, "value", ci_status),
+                "conflict": bool(getattr(review, "has_conflicts", False)),
+                "mergeable": not bool(getattr(review, "has_conflicts", False)),
+                "head_sha": getattr(review, "head_sha", None),
+            }
+
+        def retry_budget(current: Issue) -> dict[str, Any]:
+            retry = self.state.retry_attempts.get(current.id)
+            if retry is None or retry.cancelled:
+                return {"attempts": 0, "retry_at": None}
+            due_ms = retry.due_at_epoch_ms or retry.due_at_ms
+            return {
+                "attempts": retry.attempt,
+                "retry_at": datetime.fromtimestamp(
+                    due_ms / 1000.0, tz=timezone.utc
+                ).isoformat(),
+                "generation": retry.authority_generation,
+            }
+
+        return {
+            FactDomain.TERMINAL_AUDIT: terminal_audit,
+            FactDomain.REVIEW_CI: review_ci,
+            FactDomain.IMPLEMENTATION_AUTHORITY: implementation_authority,
+            FactDomain.RETRY_BUDGET: retry_budget,
+            FactDomain.CONFIG: lambda _current: {
+                "coordination_policy_denied": False,
+                "workflow_engine_mode": self.config.workflow_engine_mode,
+            },
+        }
+
+    def _legacy_workflow_projections(
+        self, issue: Issue
+    ) -> tuple[LegacyWorkflowProjection, ...]:
+        """Project the legacy scheduler/watchdog/UI answers without mutation."""
+
+        status = canonicalize_status(issue.state)
+        projections = [LegacyWorkflowProjection("ui", status=status)]
+        running = self._workflow_shadow_running_entry(issue)
+        owner_claim = self._owner_claim_for_issue(issue.id, issue.project_id)
+        live_owner_claim = bool(
+            owner_claim is not None and owner_claim.expires_at > time.time()
+        )
+
+        if status in {OPEN, NEEDS_CI_FIX, NEEDS_REBASE}:
+            hard_blocked = any(
+                canonicalize_status(getattr(blocker, "state", None))
+                not in TERMINAL_STATUSES
+                for blocker in (issue.start_blocked_by or [])
+            )
+            projections.append(
+                LegacyWorkflowProjection(
+                    "dispatch",
+                    disposition=(
+                        TaskDisposition.BLOCKED
+                        if hard_blocked
+                        else TaskDisposition.RUNNABLE
+                    ),
+                    owner=(
+                        WorkflowOwner.REPAIR_WORKER
+                        if status in {NEEDS_CI_FIX, NEEDS_REBASE}
+                        else WorkflowOwner.DISPATCHER
+                    ),
+                    permitted_actions=(
+                        (PermittedAction.WAIT_DEPENDENCY,)
+                        if hard_blocked
+                        else (PermittedAction.CLAIM_REPAIR,)
+                        if status in {NEEDS_CI_FIX, NEEDS_REBASE}
+                        else (PermittedAction.CLAIM_IMPLEMENTATION,)
+                    ),
+                )
+            )
+        elif status == IN_PROGRESS:
+            owned = running is not None or live_owner_claim
+            disposition = (
+                TaskDisposition.OWNED
+                if owned
+                else TaskDisposition.RETRY_SCHEDULED
+            )
+            owner = (
+                WorkflowOwner.DIRECT_OWNER
+                if live_owner_claim
+                else WorkflowOwner.IMPLEMENTER
+                if running is not None
+                else WorkflowOwner.DISPATCHER
+            )
+            projections.extend(
+                (
+                    LegacyWorkflowProjection(
+                        "implementation", disposition=disposition, owner=owner
+                    ),
+                    LegacyWorkflowProjection(
+                        "watchdog", disposition=disposition
+                    ),
+                )
+            )
+        elif status == IN_VALIDATION:
+            audit_running = self._workflow_shadow_running_entry(
+                issue, auditor=True
+            )
+            projections.append(
+                LegacyWorkflowProjection(
+                    "audit",
+                    disposition=(
+                        TaskDisposition.OWNED
+                        if audit_running is not None
+                        else TaskDisposition.RETRY_SCHEDULED
+                    ),
+                    owner=WorkflowOwner.AUDITOR,
+                )
+            )
+        elif status == IN_REVIEW:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "review",
+                    disposition=(
+                        TaskDisposition.OWNED
+                        if self._workflow_shadow_review(issue) is not None
+                        else TaskDisposition.RETRY_SCHEDULED
+                    ),
+                    owner=WorkflowOwner.REVIEW_MONITOR,
+                )
+            )
+        elif status == READY_TO_INTEGRATE:
+            queue_item = self.integration_queue.get(
+                str(issue.project_id or "legacy"), issue.identifier
+            )
+            projections.append(
+                LegacyWorkflowProjection(
+                    "integration",
+                    disposition=(
+                        TaskDisposition.OWNED
+                        if queue_item is not None
+                        and queue_item.state == "integrating"
+                        and queue_item.lease_expires_at is not None
+                        and queue_item.lease_expires_at > time.time()
+                        else TaskDisposition.RETRY_SCHEDULED
+                    ),
+                    owner=WorkflowOwner.INTEGRATOR,
+                )
+            )
+        elif status == PROPOSED:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "intake",
+                    disposition=TaskDisposition.BLOCKED,
+                    owner=WorkflowOwner.INTAKE,
+                )
+            )
+        elif status == BACKLOG:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "prioritization",
+                    disposition=TaskDisposition.BLOCKED,
+                    owner=WorkflowOwner.PROJECT_OWNER,
+                )
+            )
+        elif status == NEEDS_ANSWER:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "requestor",
+                    disposition=TaskDisposition.ACTION_REQUIRED,
+                    owner=WorkflowOwner.REQUESTOR,
+                )
+            )
+        elif status == NEEDS_HUMAN:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "operator",
+                    disposition=TaskDisposition.ACTION_REQUIRED,
+                    owner=WorkflowOwner.OPERATOR,
+                )
+            )
+        elif status == DECOMPOSED:
+            projections.append(
+                LegacyWorkflowProjection("rollup", owner=WorkflowOwner.ROLLUP)
+            )
+        elif status == DUPLICATE_CANDIDATE:
+            projections.append(
+                LegacyWorkflowProjection(
+                    "duplicate_investigator",
+                    disposition=(
+                        TaskDisposition.OWNED
+                        if running is not None
+                        else TaskDisposition.RETRY_SCHEDULED
+                    ),
+                    owner=WorkflowOwner.DUPLICATE_INVESTIGATOR,
+                )
+            )
+        return tuple(projections)
+
+    def _run_workflow_shadow_sweep(self) -> dict[str, Any]:
+        """Boundedly compare fresh facts with every legacy consumer projection."""
+
+        if self.workflow_shadow.mode == "off":
+            return {"evaluated": 0, "changed": 0, "mode": "off"}
+        with self._workflow_shadow_generation_lock:
+            self._workflow_shadow_generation += 1
+            generation = self._workflow_shadow_generation
+        projects = list(self.project_store.list_all())
+        tracker_projects: list[tuple[str, TrackerProtocol]] = []
+        if projects:
+            tracker_projects.extend(
+                (str(project.id), self._tracker_for_project(project.id))
+                for project in projects
+            )
+        else:
+            tracker_projects.append(("legacy", self.tracker))
+        candidates: list[tuple[str, TrackerProtocol, Issue]] = []
+        for project_id, tracker in tracker_projects:
+            try:
+                issues = list(tracker.fetch_all_issues())
+            except Exception as exc:  # noqa: BLE001 - isolate shadow sources
+                logger.debug(
+                    "Workflow shadow scan skipped project %s: %s",
+                    project_id,
+                    type(exc).__name__,
+                )
+                continue
+            for issue in issues:
+                if canonicalize_status(issue.state) in TERMINAL_STATUSES:
+                    continue
+                scoped = (
+                    issue
+                    if issue.project_id
+                    else replace(issue, project_id=project_id)
+                )
+                candidates.append((project_id, tracker, scoped))
+        candidates.sort(key=lambda item: (item[0], item[2].identifier))
+        evaluated = 0
+        changed = 0
+        for project_id, tracker, issue in candidates[
+            : self.config.workflow_shadow_scan_limit
+        ]:
+            try:
+                collector = WorkflowFactCollector(
+                    project_id=project_id,
+                    tracker=tracker,
+                    sources=self._workflow_shadow_sources(issue),
+                )
+                facts = collector.collect(issue.identifier)
+                result = self.workflow_shadow.evaluate(
+                    issue,
+                    facts,
+                    self._legacy_workflow_projections(issue),
+                    snapshot_generation=generation,
+                )
+                evaluated += int(result.accepted)
+                changed += int(result.changed)
+            except Exception as exc:  # noqa: BLE001 - diagnostics cannot stop work
+                logger.debug(
+                    "Workflow shadow evaluation failed project=%s task=%s error=%s",
+                    project_id,
+                    issue.identifier,
+                    type(exc).__name__,
+                )
+        if changed:
+            self._notify_state_only()
+        return {
+            "evaluated": evaluated,
+            "changed": changed,
+            "mode": self.workflow_shadow.mode,
+            "snapshot_generation": generation,
+        }
 
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
@@ -6138,6 +6505,23 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
         watchdog_ms = (self._monotonic_clock() - _t_watchdog) * 1000
+
+        # Unified decisions soak beside the legacy workflow. This path is
+        # read-only and bounded; the future coalesces event bursts while one
+        # tracker/fact scan is active. Divergences update diagnostic state but
+        # never become global warning banners.
+        if (
+            self.workflow_shadow.mode != "off"
+            and (
+                self._workflow_shadow_future is None
+                or self._workflow_shadow_future.done()
+            )
+        ):
+            self._workflow_shadow_future = (
+                asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool, self._run_workflow_shadow_sweep
+                )
+            )
 
         # Ready private task heads are integrated outside the dispatch lane.
         # The shared-epic driver is independent of the standalone driver, so
@@ -38042,6 +38426,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "integration_ready_claim_timeout_seconds",
                     300,
                 ),
+                "workflow_engine_mode": self.config.workflow_engine_mode,
+                "workflow_shadow_scan_limit": (
+                    self.config.workflow_shadow_scan_limit
+                ),
             },
             "integration_queue": [
                 item.to_dict() for item in self.integration_queue.items()
@@ -38141,6 +38529,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
+            "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",

@@ -4073,6 +4073,55 @@ async def api_state():
         )
 
 
+@app.get(
+    "/api/v1/projects/{project_id}/tasks/{identifier}/workflow-diagnostic"
+)
+async def api_workflow_diagnostic(project_id: str, identifier: str):
+    """Return the redacted facts/decision/legacy comparison for one task."""
+
+    try:
+        orch = _get_orchestrator()
+    except Exception:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "Workflow diagnostics require the scheduler process.",
+                }
+            },
+            status_code=503,
+        )
+    shadow = getattr(orch, "workflow_shadow", None)
+    if shadow is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "Workflow diagnostics are not initialized.",
+                }
+            },
+            status_code=503,
+        )
+    diagnostic = shadow.diagnostic(project_id, identifier)
+    if diagnostic is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_evaluated",
+                    "message": "No workflow diagnostic exists for this task.",
+                },
+                "workflow_shadow": shadow.summary(),
+            },
+            status_code=404,
+        )
+    return JSONResponse(
+        {
+            "workflow_shadow": shadow.summary(),
+            "diagnostic": diagnostic,
+        }
+    )
+
+
 def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     """Build validated durable evidence for one worker submission."""
 
