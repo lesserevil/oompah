@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T23:57:51.131923Z'
+updated_at: '2026-08-04T23:58:00.571779Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-04 23:57
 ---
 Reclaimed direct ownership after the failed integration row was cancelled and tracker returned to In Progress without an active worker. Work is intentionally waiting only for OOMPAH-814 to land; then this clean product branch will be rebased and resubmitted. This prevents the in-flight task from becoming ownerless while the deterministic gate-fixture repair runs.
+---
+author: oompah
+created: 2026-08-04 23:58
+---
+Coordination correction: the server had begun a repair worker just before the direct claim, but OOMPAH-814 was not yet landed so an exact rebase could not succeed. The OOMPAH-814 edge is now hard-start (implementation truly requires its landed head), and the direct claim is released. Once 814 is Done, the server may naturally dispatch this rebase/resubmission; claim directly only if that handoff then fails.
 ---
 <!-- COMMENTS:END -->
