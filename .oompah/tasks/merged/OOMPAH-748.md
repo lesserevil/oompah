@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T04:19:27.263557Z'
+updated_at: '2026-08-04T04:19:34.120686Z'
 work_branch: OOMPAH-748
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/704
@@ -147,8 +147,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-27343d5cba2c
-    applied: false
+    applied: true
     created_at: '2026-08-04T04:19:24.281514+00:00'
+    applied_at: '2026-08-04T04:19:32.119337+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -482,5 +483,24 @@ author: oompah
 created: 2026-08-04 04:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 04:19
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d4282363c07b6607b75cdc32957730f37330e741
+- merged_to_main_commit: 092c04e24122a78c0c32301fd04f515b99576b0a
+- pr_number: 704
+- orchestrator_diff: oompah/orchestrator.py +35/-4 lines in _epic_auto_close_check (target-relative gate via _resolve_epic_target_branch)
+- new_test_file: tests/test_nested_epic_cycle_fix.py (+290 lines, 2 tests)
+- focused_tests: test_nested_epic_cycle_fix.py 2/2 PASS; test_epic_auto_close.py 25/25 PASS; test_epic_strategy.py nested 11/11 PASS
+- adjacent_tests: test_orchestrator_merged 165/165 PASS; test_merged_labels_scope 17/17 PASS; test_done_merged_archived_lifecycle 52/52 PASS; test_independently_merged 12/12 PASS
+- safety: EpicTargetResolutionError falls back to project.default_branch (fails closed for nested epics)
+- acceptance_criteria: No state cycle (nested child unblocked from parent→main requirement); immediate-target landing unblocks parent via _label_merged_epics; root epic still gated on default_branch
+- worktree_status: Not currently on any branch; nothing to commit, working tree clean
 ---
 <!-- COMMENTS:END -->
