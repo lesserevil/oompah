@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:10.953215Z'
-updated_at: '2026-08-04T18:23:03.045113Z'
+updated_at: '2026-08-04T18:23:11.516126Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,7 +49,17 @@ oompah.terminal_audit:
       and cannot execute the newly implemented durable integration path, so completion
       is recorded without asking the paused legacy integrator to mutate it.
     created_at: '2026-08-04T18:22:57.676219+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-788
+    target_state: Done
+    evidence_fingerprint: 34c819f1efc49af72f9fd56df1fa0d756cb34d19a0435f02ef0352bb0ac2c59b
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T18:23:08.940674+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -75,5 +85,12 @@ author: oompah
 created: 2026-08-04 18:22
 ---
 Added shared-decision durable integration workflow at 08f6a8c5a.
+---
+author: oompah
+created: 2026-08-04 18:23
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation was fully tested and published at exact head 08f6a8c5a on newly created parent branch epic-OOMPAH-768 while the operator intentionally paused scheduling. The running server is still revision a681ec2f and cannot execute the newly implemented durable integration path, so completion is recorded without asking the paused legacy integrator to mutate it.
 ---
 <!-- COMMENTS:END -->
