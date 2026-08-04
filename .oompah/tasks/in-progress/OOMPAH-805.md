@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:38:57.654416Z'
+updated_at: '2026-08-04T20:48:33.177674Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-08-04 20:38
 ---
 The OOMPAH-793 exact-head combined-tree gate exposed two additional load/order-sensitive failures while 15,733 tests passed: tests/test_granian_e2e.py::test_restart_http_and_ws_contract@oompah_process_global and tests/test_orchestrator_github_lifecycle.py::TestGitHubClaimProtocol::test_non_github_issue_skips_claim_protocol, plus closed-event-loop subprocess cleanup warnings. On the same ef5e8c30e head, both exact tests passed together once, then 10/10 repeated focused runs, and both complete modules passed with -n 4 (45 tests). Please include these fixtures in the deterministic full-gate isolation audit: remove wall-clock/process-lifecycle assumptions, guarantee subprocess/event-loop cleanup, and isolate any shared auth/tracker/environment state that can leak under the full parallel gate. This is the concrete bug behind the in-flight OOMPAH-793 workaround; preserve the existing two required tests as well.
+---
+author: oompah
+created: 2026-08-04 20:48
+---
+**IMPLEMENTATION**: Fixed both flaky tests by replacing time-based synchronization with event-based coordination. (1) Burst test: replaced 80ms fixed sleep with asyncio.Event-based tracking of _tick() calls - waits for tick completion instead of elapsed time. (2) Tick-metrics test: added background work cleanup (_drain_background_work) and stubbed fire-and-forget methods to prevent archived-audit side effects from leaking across test boundaries. Both tests now pass serially, with xdist -n 4, and all 74 tests in both modules pass. Ready for stress testing.
 ---
 <!-- COMMENTS:END -->
