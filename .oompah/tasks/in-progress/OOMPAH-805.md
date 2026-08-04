@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:48:33.177674Z'
+updated_at: '2026-08-04T20:49:08.771309Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-04 20:48
 ---
 **IMPLEMENTATION**: Fixed both flaky tests by replacing time-based synchronization with event-based coordination. (1) Burst test: replaced 80ms fixed sleep with asyncio.Event-based tracking of _tick() calls - waits for tick completion instead of elapsed time. (2) Tick-metrics test: added background work cleanup (_drain_background_work) and stubbed fire-and-forget methods to prevent archived-audit side effects from leaking across test boundaries. Both tests now pass serially, with xdist -n 4, and all 74 tests in both modules pass. Ready for stress testing.
+---
+author: oompah
+created: 2026-08-04 20:49
+---
+**VERIFICATION**: All tests pass. Test results: (1) Individual tests: burst test and tick-metrics test both pass. (2) Full suite: 60 tests in test_event_driven_loop.py pass, 14 tests in test_long_tick_regression.py pass. (3) Parallel execution: All 74 tests pass with -n 4 xdist workers. (4) No timing-dependent assertions remain - both tests now use explicit asyncio event synchronization. Changes: tests/test_event_driven_loop.py (1 test modified), tests/test_long_tick_regression.py (1 test modified). Branch: OOMPAH-805 (1 commit). Ready for full gate testing.
 ---
 <!-- COMMENTS:END -->
