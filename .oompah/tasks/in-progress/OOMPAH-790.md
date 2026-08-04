@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-790
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Build a stateful reference model and generative workflow harness
 parent: OOMPAH-767
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:16.097978Z'
-updated_at: '2026-08-04T14:06:45.869259Z'
+updated_at: '2026-08-04T17:42:59.552731Z'
 work_branch: null
 target_branch: null
 review_url: null
