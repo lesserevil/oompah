@@ -615,6 +615,9 @@ class GitHubProvider(SCMProvider):
         # Capacity acquisition needs to distinguish a confirmed empty forge
         # listing from the provider's historical empty-on-error fallback.
         self.last_open_reviews_fetch_ok = True
+        # Historical review lookup must likewise distinguish a confirmed 404
+        # from a transport/server failure that legacy callers receive as None.
+        self.last_review_fetch_ok = True
 
     def _headers(self) -> dict[str, str]:
         if not self._token_resolved:
@@ -1602,13 +1605,18 @@ class GitHubProvider(SCMProvider):
         )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
+        self.last_review_fetch_ok = False
         try:
             r = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
+            if r.status_code == 404:
+                self.last_review_fetch_ok = True
+                return None
             if r.status_code != 200:
                 return None
             pr = r.json()
         except (httpx.HTTPError, json.JSONDecodeError):
             return None
+        self.last_review_fetch_ok = True
 
         author = pr.get("user", {})
         author_login = author.get("login", "") if isinstance(author, dict) else str(author)
@@ -2024,6 +2032,7 @@ class GitLabProvider(SCMProvider):
         register_secret(access_token)
         self._token_resolved = bool(access_token)
         self.last_open_reviews_fetch_ok = True
+        self.last_review_fetch_ok = True
 
     def _headers(self) -> dict[str, str]:
         if not self._token_resolved:
@@ -2117,6 +2126,11 @@ class GitLabProvider(SCMProvider):
                 deletions=0,
                 needs_rebase=rebase_needed,
                 has_conflicts=has_conflicts,
+                head_sha=str(
+                    mr.get("sha")
+                    or (mr.get("diff_refs") or {}).get("head_sha")
+                    or ""
+                ),
             ))
         return results
 
@@ -2240,6 +2254,9 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            needs_rebase=bool(mr.get("has_conflicts", False))
+            or (mr.get("diverged_commits_count") or 0) > 0,
+            has_conflicts=bool(mr.get("has_conflicts", False)),
             head_sha=str(
                 mr.get("sha")
                 or (mr.get("diff_refs") or {}).get("head_sha")
@@ -2249,13 +2266,18 @@ class GitLabProvider(SCMProvider):
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         encoded = self._project_path(repo)
+        self.last_review_fetch_ok = False
         try:
             r = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if r.status_code == 404:
+                self.last_review_fetch_ok = True
+                return None
             if r.status_code != 200:
                 return None
             mr = r.json()
         except (httpx.HTTPError, json.JSONDecodeError):
             return None
+        self.last_review_fetch_ok = True
 
         author = mr.get("author", {})
         author_name = author.get("username", author.get("name", "")) if isinstance(author, dict) else str(author)
@@ -2281,6 +2303,9 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            needs_rebase=bool(mr.get("has_conflicts", False))
+            or (mr.get("diverged_commits_count") or 0) > 0,
+            has_conflicts=bool(mr.get("has_conflicts", False)),
             head_sha=str(
                 mr.get("sha")
                 or (mr.get("diff_refs") or {}).get("head_sha")

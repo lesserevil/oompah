@@ -72,6 +72,7 @@ IMPLEMENTATION_ACTION_JOBS = frozenset(
 REVIEW_ACTION_JOBS = frozenset(
     {
         "review_monitor",
+        "review_merge",
         "review_refresh",
         "review_ci_repair",
         "review_conflict_repair",
@@ -117,6 +118,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "review.ci_pending",
         "review.capacity_wait",
         "review.closed_unmerged",
+        "review.draft_wait",
         "review.head_changed",
         "review.landing_refresh",
         "review.merge_target_mismatch",
@@ -124,6 +126,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "review.monitoring",
         "review.provider_unavailable",
         "review.rebase_required",
+        "review.ready_to_merge",
         "review.source_deleted",
         "rollup.children_complete",
         "rollup.children_missing",
@@ -204,6 +207,7 @@ class PermittedAction(str, Enum):
     RESOLVE_OPERATOR_ACTION = "resolve_operator_action"
     CLAIM_REPAIR = "claim_repair"
     REFRESH_REVIEW = "refresh_review"
+    MERGE_REVIEW = "merge_review"
     ROUTE_CI_FIX = "route_ci_fix"
     ROUTE_REBASE = "route_rebase"
     CLAIM_AUDIT = "claim_audit"
@@ -706,13 +710,54 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             recommended_status=NEEDS_HUMAN,
         )
 
-    if state in {"missing", "not_found", "none"} or value.get("present") is False:
-        landed = tuple(
+    recorded_head = str(task_fact.get("review_head") or "").strip().lower()
+    current_head = str(task_fact.get("head_sha") or "").strip().lower()
+    observed_head = str(value.get("head_sha") or "").strip().lower()
+    expected_head = recorded_head or current_head
+    changed_head = ""
+    if recorded_head and current_head and recorded_head != current_head:
+        changed_head = current_head
+    if expected_head and observed_head and expected_head != observed_head:
+        changed_head = observed_head
+    if changed_head:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="review.head_changed",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "review.head_changed",
+                    expected_head,
+                    changed_head,
+                ),
+            ),
+            actions=(PermittedAction.ROUTE_REBASE,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=("review_head_reconciliation",),
+            recommended_status=READY_TO_INTEGRATE,
+        )
+
+    expected_source = str(
+        task_fact.get("work_branch")
+        or task_fact.get("branch_name")
+        or task.task_id
+    ).strip()
+
+    def exact_landings() -> tuple[Any, ...]:
+        return tuple(
             item
             for item in facts.landings
             if item.state is LandingState.LANDED
+            and item.durable
+            and (not expected_source or item.source == expected_source)
             and (not expected_target or item.target == expected_target)
+            and (not expected_head or item.revision == expected_head)
         )
+
+    if state in {"missing", "not_found", "none"} or value.get("present") is False:
+        landed = exact_landings()
         if landed:
             return _decision(
                 task,
@@ -759,33 +804,7 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         )
 
     if state in {"merged", "closed_merged"}:
-        recorded_head = str(task_fact.get("review_head") or "").strip().lower()
-        current_head = str(task_fact.get("head_sha") or "").strip().lower()
-        if recorded_head and current_head and recorded_head != current_head:
-            return _decision(
-                task,
-                facts,
-                disposition=TaskDisposition.RETRY_SCHEDULED,
-                reason_code="review.head_changed",
-                owner=WorkflowOwner.REVIEW_MONITOR,
-                prerequisites=(
-                    UnmetPrerequisite(
-                        "review.head_changed",
-                        recorded_head,
-                        current_head,
-                    ),
-                ),
-                actions=(PermittedAction.ROUTE_REBASE,),
-                alert=AlertSeverity.INFO,
-                durable_jobs=("review_head_reconciliation",),
-                recommended_status=READY_TO_INTEGRATE,
-            )
-        landed = tuple(
-            item
-            for item in facts.landings
-            if item.state is LandingState.LANDED
-            and (not expected_target or item.target == expected_target)
-        )
+        landed = exact_landings()
         if landed:
             return _decision(
                 task,
@@ -826,24 +845,15 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             recommended_status=OPEN,
         )
 
-    capacity = _mapping(value.get("capacity"))
-    if capacity and bool(capacity.get("at_capacity")):
+    if bool(value.get("draft")):
         return _decision(
             task,
             facts,
-            disposition=TaskDisposition.RETRY_SCHEDULED,
-            reason_code="review.capacity_wait",
+            disposition=TaskDisposition.OWNED,
+            reason_code="review.draft_wait",
             owner=WorkflowOwner.REVIEW_MONITOR,
-            prerequisites=(
-                UnmetPrerequisite(
-                    "review.capacity_wait",
-                    "review_capacity",
-                    str(capacity.get("limit") or ""),
-                ),
-            ),
             actions=(PermittedAction.REFRESH_REVIEW,),
-            alert=AlertSeverity.INFO,
-            durable_jobs=("review_capacity_recheck",),
+            durable_jobs=("review_monitor",),
         )
 
     ci = str(value.get("ci") or "unknown").strip().lower()
@@ -858,9 +868,13 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             durable_jobs=("review_ci_repair",),
             recommended_status=NEEDS_CI_FIX,
         )
-    if value.get("conflict") or value.get("mergeable") is False or str(
-        value.get("mergeable_state") or ""
-    ).strip().lower() in {"dirty", "behind"}:
+    if (
+        value.get("conflict")
+        or value.get("needs_rebase")
+        or value.get("mergeable") is False
+        or str(value.get("mergeable_state") or "").strip().lower()
+        in {"dirty", "behind"}
+    ):
         return _decision(
             task,
             facts,
@@ -880,6 +894,16 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             owner=WorkflowOwner.REVIEW_MONITOR,
             actions=(PermittedAction.REFRESH_REVIEW,),
             durable_jobs=("review_monitor",),
+        )
+    if ci in {"passed", "success", "successful"}:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="review.ready_to_merge",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            actions=(PermittedAction.MERGE_REVIEW,),
+            durable_jobs=("review_merge",),
         )
     return _decision(
         task,
