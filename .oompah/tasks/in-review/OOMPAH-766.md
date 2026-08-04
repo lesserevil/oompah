@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T15:30:56.235007Z'
+updated_at: '2026-08-04T16:47:59.275724Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Add a durable workflow-job ledger for execution ownership and recovery. Each job
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 16:47
+---
+Branch quality gate passed for `fd480f6bd8aeab2763b927bee841ffae52a345e1` using `make test` in 616.3s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
