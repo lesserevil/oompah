@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:30:50.106753Z'
+updated_at: '2026-08-04T21:31:46.141439Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -76,12 +76,14 @@ oompah.agent_run_id: bf81b218-612a-43b2-bd90-9f67d6220506
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-804
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T21:06:06.650837+00:00'
+  head_sha: 0baeb01f1a1ca4d2b75fd46807d2889ef83a9adf
+  submitted_at: '2026-08-04T21:31:39.922144+00:00'
+  updated_at: '2026-08-04T21:31:39.922144+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2234
@@ -210,5 +212,10 @@ author: oompah
 created: 2026-08-04 21:30
 ---
 Completion: OOMPAH-804 delivers the production runtime wiring for durable workflow domains. Key files changed: oompah/workflow_runtime.py (WorkflowRuntime composition root: project-scoped fact collectors, transition journals/services, integration and optional implementation/terminal controllers, shared WorkflowJobStore, DurableWorkflowWorker), oompah/bootstrap.py (build_workflow_runtime call, Services.workflow_runtime field), oompah/config.py (workflow_engine_mode/decision_limit/batch_size settings), oompah/orchestrator.py (start/stop/tick lifecycle wiring, health/projections APIs, enforce/shadow mode gates), oompah/workflow_jobs.py (synchronous=NORMAL for WAL mode performance), tests/test_workflow_runtime.py (4 tests: factory startup, lease recovery, enforce single-writer, shadow decision materialization). Acceptance criteria met: every migrated domain is constructed at startup, enforce mode has legacy writers disabled, restart recovers leases, UI projections derive from accepted decisions, and shadow mode materializes durable decisions without effects.
+---
+author: oompah
+created: 2026-08-04 21:31
+---
+Delivered OOMPAH-804: production runtime wiring for durable workflow domains. WorkflowRuntime composition root constructs project-scoped collectors, transition journals, integration/implementation/terminal controllers, and one durable worker from the shared job store. Orchestrator start/stop/tick lifecycle gates handle enforce (single-writer) and shadow (parallel decision materialization) modes. Added WAL+NORMAL synchronous mode to WorkflowJobStore for 26x faster batch reconciles. 262 workflow module tests pass including full crash-recovery, shadow-parity, enforce-mode single-writer, and UI projection parity cases.
 ---
 <!-- COMMENTS:END -->
