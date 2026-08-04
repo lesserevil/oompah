@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-773
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Define stable workflow reason codes and liveness SLOs
 parent: OOMPAH-764
@@ -12,14 +12,16 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:42.900744Z'
-updated_at: '2026-08-04T14:05:10.299869Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T14:21:45.900339Z'
+work_branch: epic-OOMPAH-764--task-OOMPAH-773
+target_branch: epic-OOMPAH-764
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.target_branch: epic-OOMPAH-764
+oompah.work_branch: epic-OOMPAH-764--task-OOMPAH-773
 ---
 ## Summary
 
