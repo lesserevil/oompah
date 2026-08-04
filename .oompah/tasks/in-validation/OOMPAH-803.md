@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:29:34.422036Z'
+updated_at: '2026-08-04T21:29:50.483668Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +27,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -73,7 +73,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a397df90d75d
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -84,13 +84,18 @@ oompah.terminal_audit:
       started_at: '2026-08-04T21:29:27.884164+00:00'
       branch_key: OOMPAH-803
       candidate_rotation_count: 2
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-04T21:29:44.081333+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-803 (tried: origin/OOMPAH-803)'
+      next_retry_at: '2026-08-04T21:30:24.081307+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:22:32.673831+00:00'
-    updated_at: '2026-08-04T21:29:27.884164+00:00'
+    updated_at: '2026-08-04T21:29:44.081333+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -132,7 +137,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-a397df90d75d
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -143,6 +148,11 @@ oompah.terminal_audit:
     started_at: '2026-08-04T21:29:27.884164+00:00'
     branch_key: OOMPAH-803
     candidate_rotation_count: 2
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-04T21:29:44.081333+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-803 (tried: origin/OOMPAH-803)'
+    next_retry_at: '2026-08-04T21:30:24.081307+00:00'
 ---
 ## Summary
 
@@ -208,5 +218,19 @@ author: oompah
 created: 2026-08-04 21:29
 ---
 Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-04 21:29
+---
+Run #3 [attempt=3, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
+---
+author: oompah
+created: 2026-08-04 21:29
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-803 (tried: origin/OOMPAH-803). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
