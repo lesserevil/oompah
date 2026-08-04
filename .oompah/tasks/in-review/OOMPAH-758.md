@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-758
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Atomically fence direct epic maintenance from ordinary integration enqueue
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:03:40.733980Z'
+updated_at: '2026-08-04T12:03:52.131510Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/709
 review_number: null
 review_head: null
 merged_at: null
@@ -83,6 +83,7 @@ oompah.integration:
   head_sha: 940b471c0b7fcec020b7b1f126e498903f4328af
   submitted_at: '2026-08-04T11:51:45.307913+00:00'
   updated_at: '2026-08-04T11:51:45.307913+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/709
 ---
 ## Summary
 
