@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-513
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Fail closed on task writes from a managed code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-07-28T16:24:14.007104Z'
+updated_at: '2026-08-04T16:24:57.911199Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -46,6 +46,28 @@ oompah.task_costs:
     output_tokens: 607
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:02:07.536292+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0342e550bca6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-513
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 496e9b108ae923b9c395f7ae515961784c0e3c82537d52faecc566300573aa20
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T16:24:52.729746+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -225,5 +247,10 @@ author: oompah
 created: 2026-07-28 16:02
 ---
 Verified fail-closed managed task writes in commit 6533e235e; 269 focused tests and the full 12,630-test suite pass, with mutation testing proving all 11 guard cases fail if the guard is disabled.
+---
+author: oompah
+created: 2026-08-04 16:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
