@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T01:12:28.236158Z'
+updated_at: '2026-08-04T01:14:08.427273Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 1522726
-  total_output_tokens: 66758
+  total_input_tokens: 1522797
+  total_output_tokens: 81324
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -58,8 +58,8 @@ oompah.task_costs:
       output_tokens: 8501
       cost_usd: 0.0
     unknown:
-      input_tokens: 226
-      output_tokens: 25878
+      input_tokens: 297
+      output_tokens: 40444
       cost_usd: 0.0
   runs:
   - profile: default
@@ -98,6 +98,12 @@ oompah.task_costs:
     output_tokens: 19608
     cost_usd: 0.0
     recorded_at: '2026-08-04T00:21:36.028292+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 71
+    output_tokens: 14566
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T01:14:04.907538+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-739__20260803T211724Z
@@ -687,5 +693,15 @@ Safe evidence:
 - recovery_snapshot_regression: test_recovery_snapshot_preserves_merged_child_with_merged_parent asserts child.state stays Merged, snapshot is not None during recovery, and get_recovery_snapshot() returns None after recovery ends
 - unlanded_parent_repair_regression: test_unlanded_parent_repair_runs_once_and_keeps_done_audit demotes child once then verifies second restart does not repeat status update
 - oompah_447_regression: test_later_open_shared_branch_review_does_not_reopen_historical_sibling asserts historical review 603 lands and find_pr_for_branch is not called for reused branch
+---
+author: oompah
+created: 2026-08-04 01:14
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 65
+- Tokens: 71 in / 14.6K out [14.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 12s
+- Log: OOMPAH-739__20260804T005106Z.jsonl
 ---
 <!-- COMMENTS:END -->
