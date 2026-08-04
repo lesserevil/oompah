@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-759
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Preserve focus-handoff authority across Open-to-In-Progress retry dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:29:35.232100Z'
+updated_at: '2026-08-04T12:38:50.640445Z'
 work_branch: OOMPAH-759
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/710
@@ -82,6 +82,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/710
 oompah.review_number: '710'
 oompah.work_branch: OOMPAH-759
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c00f0935bb4c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-759
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9a9fd7a84fc5d0ccc3609250873ae576d296fcddc5ec60d7de731ba8176ea64e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T12:38:40.560380+00:00'
+  - version: 1
+    audit_id: audit-dd5cb27447dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-759
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9a9fd7a84fc5d0ccc3609250873ae576d296fcddc5ec60d7de731ba8176ea64e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T12:38:40.560380+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -199,5 +238,15 @@ author: oompah
 created: 2026-08-04 12:29
 ---
 Branch quality gate passed for `1c5572c87ba76dd501dbe3911838fd9ec40a83a8` using `make test` in 450.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 12:38
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 12:38
+---
+YOLO: merged PR #710.
 ---
 <!-- COMMENTS:END -->
