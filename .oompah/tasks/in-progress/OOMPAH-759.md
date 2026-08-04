@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:16:45.794144Z'
+updated_at: '2026-08-04T12:18:17.276247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-08-04 12:16
 ---
 Verification: focused retry/dispatch/owner/submission/focus suites passed (168 tests), followed by a post-rebase retry + worker-submission + close-race run (72 tests). The Makefile terminal-audit scan also passed (8/8 mutations allowlisted), and git diff --check is clean. Coverage includes Open and already-In-Progress retries, Technical Writer -> Feature Developer handoff exactly once, authorized run-ID assignment, operator/submission/cancellation/terminal fences, branch/head/assignment drift diagnostics, rollback failure ownership, and valid/stale restart recovery.
+---
+author: oompah
+created: 2026-08-04 12:18
+---
+Completion: delivered and pushed commit 1c5572c87. Retry dispatch now preserves pre-write generation authority while durably owning its Open -> In Progress status/run-ID handoff across setup failures and restarts; real operator, submission, cancellation, terminal, branch, head, and assignment changes still fence launch. Aborted claims restore a dispatchable state or retain a live recovery timer. Focused race/restart/handoff suites and terminal/secret scans pass; branch is synchronized with origin.
 ---
 <!-- COMMENTS:END -->
