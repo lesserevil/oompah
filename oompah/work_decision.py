@@ -76,6 +76,8 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "integration.dependencies_blocked",
         "integration.gate_blocked",
         "integration.live_claim_precedes_history",
+        "integration.landing_proven",
+        "integration.landing_unproven",
         "integration.queued",
         "integration.required_base_missing",
         "integration.retry_scheduled",
@@ -792,6 +794,48 @@ def _integration_decision(
             ),
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
+        )
+    if value.get("state") == "integrated":
+        expected_revision = str(
+            value.get("integrated_sha") or value.get("head_sha") or ""
+        ).strip()
+        target = str(value.get("base_branch") or task.target_branch or "").strip()
+        landing = next(
+            (
+                item
+                for item in facts.landings
+                if (not expected_revision or item.revision == expected_revision)
+                and (not target or item.target == target)
+            ),
+            None,
+        )
+        if landing is not None and landing.state is LandingState.LANDED:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="integration.landing_proven",
+                owner=WorkflowOwner.INTEGRATOR,
+                actions=(PermittedAction.CLAIM_INTEGRATION,),
+                durable_jobs=("integration_terminal_stage",),
+                recommended_status=IN_VALIDATION,
+            )
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="integration.landing_unproven",
+            owner=WorkflowOwner.INTEGRATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "integration.landing_unproven",
+                    target or "integration_target",
+                    landing.state.value if landing is not None else None,
+                ),
+            ),
+            actions=(PermittedAction.RECONCILE_TARGET,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=("integration_landing_refresh",),
         )
     if value.get("mode") == "standalone" and value.get("state") == "ready":
         return _decision(
