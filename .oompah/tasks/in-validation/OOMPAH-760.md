@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: In Progress
+status: In Validation
 priority: 0
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:32:23.797043Z'
+updated_at: '2026-08-04T13:41:45.251676Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -159,6 +159,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/712
 oompah.review_number: '712'
 oompah.work_branch: OOMPAH-760
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-df01a780b92c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-760
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 22ae65b9a3cf0f751cc8a7effa562875310b86d9e5f22166abaa7242761152c4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-04T13:41:35.243674+00:00'
+  - version: 1
+    audit_id: audit-c4881d51538b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-760
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 22ae65b9a3cf0f751cc8a7effa562875310b86d9e5f22166abaa7242761152c4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-04T13:41:35.243674+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -375,5 +414,15 @@ author: oompah
 created: 2026-08-04 13:32
 ---
 Verification: rebased on origin/main, applied test-only fix, focused suites pass (332 passed in test_retry_authority_generation.py + test_task_handoff.py + test_focus.py + test_orchestrator_duplicate_detection.py + test_duplicate_preflight.py). Pushed c9c5e9b6c with --force-with-lease. CI on MR #712 (run 30914293810) has re-queued for Python 3.11/3.12/3.13.
+---
+author: oompah
+created: 2026-08-04 13:41
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 13:41
+---
+YOLO: merged PR #712.
 ---
 <!-- COMMENTS:END -->
