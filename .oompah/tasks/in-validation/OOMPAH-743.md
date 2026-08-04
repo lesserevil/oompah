@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-743
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:15:17.467272Z'
+updated_at: '2026-08-04T14:23:56.473709Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -50,15 +50,17 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-743
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 1
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-740--task-OOMPAH-743
   base_branch: epic-OOMPAH-740
   base_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
   head_sha: f745082a0eedbc0ff899222e7643ef590216000d
+  integrated_sha: f745082a0eedbc0ff899222e7643ef590216000d
   submitted_at: '2026-08-04T14:08:18.516002+00:00'
-  updated_at: '2026-08-04T14:15:15.790478+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-08-04T14:23:48.549069+00:00'
+  dependency_heads:
+    OOMPAH-741: d3cc87e7f273decdf492d48dfaba027cc815ef5a
 oompah.task_costs:
   total_input_tokens: 46297
   total_output_tokens: 288
@@ -85,6 +87,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-743
     source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
     completed_at: '2026-08-03T23:04:28.666659+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a8e558c8d124
+    project_id: proj-14849f1b
+    task_id: OOMPAH-743
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89a712220f294628005a2113ca2e2029cf04d72ac765dd88ede3041d47833a30
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T14:23:50.653982+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -245,5 +269,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 46s
 - Log: OOMPAH-743__20260804T135322Z.jsonl
+---
+author: oompah
+created: 2026-08-04 14:23
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
