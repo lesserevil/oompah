@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:57.339751Z'
-updated_at: '2026-08-04T15:31:11.428270Z'
+updated_at: '2026-08-04T15:40:26.121451Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Create a SQLite workflow-job ledger with migrations and typed repository. Persis
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 15:40
+---
+Implemented a domain-neutral SQLite workflow-job ledger with immutable project-scoped idempotency, exact project/task/generation/action filters, deterministic priority/availability/FIFO claims, opaque token-fenced leases, renew/checkpoint/complete/fail-retry operations, bounded expired/abandoned recovery, terminal supersede/cancel semantics, append-only events, and v1-to-v2 schema migration. Added 30 focused tests covering concurrent enqueue/claim, lease loss/reclaim, retry exhaustion, restart persistence, schema upgrade, bounded scans, and cross-project isolation. Verification: 195 focused/adjacent tests passed; ruff check/format, make terminal-audit-scan, staged secret scan, and diff check passed.
+---
+<!-- COMMENTS:END -->
