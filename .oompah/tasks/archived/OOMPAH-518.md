@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-518
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Keep graceful restart cleanup on the owning event loop
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-08-04T20:41:03.338774Z'
+updated_at: '2026-08-04T21:02:27.974447Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ merged_at: null
 oompah.work_branch: epic-OOMPAH-502
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-03b01d27c5bd: '2026-08-04T21:02:24.637331+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-518
+    target_state: Archived
+    evidence_fingerprint: faae74699a3dde07def4a824452d6fb5d2b2011d77a6ad90db4c04bc02d25107
+    audit_ids:
+    - audit-df90dfa0567d
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T21:02:24.637339+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-518
+    audit_id: audit-df90dfa0567d
+    attempt_id: attempt-03b01d27c5bd
+    target_state: Archived
+    evidence_fingerprint: faae74699a3dde07def4a824452d6fb5d2b2011d77a6ad90db4c04bc02d25107
+    status: Archived
+    audit_ids:
+    - audit-df90dfa0567d
+    applied: false
+    created_at: '2026-08-04T21:02:24.637350+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-518
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +59,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-03b01d27c5bd
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,13 +69,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T20:40:36.574070+00:00'
       branch_key: epic-OOMPAH-502
+      verdict: pass
+      completed_at: '2026-08-04T21:02:24.637202+00:00'
+      ended_at: '2026-08-04T21:02:24.637202+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:29:19.153104+00:00'
-    updated_at: '2026-08-04T20:40:36.574070+00:00'
+    updated_at: '2026-08-04T21:02:24.637202+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-03b01d27c5bd
