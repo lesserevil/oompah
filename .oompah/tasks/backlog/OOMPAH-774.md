@@ -6,12 +6,13 @@ priority: 1
 title: Build replayable fixtures for historical stuck-task incidents
 parent: OOMPAH-764
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-772
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:46.269128Z'
-updated_at: '2026-08-04T13:58:46.269128Z'
+updated_at: '2026-08-04T14:05:15.874374Z'
 work_branch: null
 target_branch: null
 review_url: null
