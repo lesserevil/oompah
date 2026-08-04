@@ -1376,9 +1376,15 @@ def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
         identifier="task-1",
         title="Task",
         project_id="project-1",
+        state=READY_TO_INTEGRATE,
         work_branch="work",
     )
     tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.return_value = [issue]
+    tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+        issue, "state", fields["status"]
+    ) if fields.get("status") is not None else None
     orch = Orchestrator.__new__(Orchestrator)
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._standalone_delivery_authorities = {}
@@ -1396,10 +1402,9 @@ def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
         ),
     )
 
-    tracker.update_issue.assert_called_once_with(
-        "task-1",
-        status="Needs Rebase",
-        **{"add-label": "needs-rebase"},
+    tracker.update_issue.assert_any_call("task-1", status="Needs Rebase")
+    tracker.update_issue.assert_any_call(
+        "task-1", **{"add-label": "needs-rebase"}
     )
     assert "rebase" in tracker.add_comment.call_args.args[1].lower()
 

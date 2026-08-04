@@ -177,7 +177,10 @@ async def test_late_tracked_changes_after_submission_acceptance_are_detected(tmp
     tracker_mock = MagicMock()
     current_issue = _issue(state=READY_TO_INTEGRATE)
     tracker_mock.fetch_issue_detail.return_value = current_issue
-    tracker_mock.update_issue.return_value = None
+    tracker_mock.fetch_issue_states_by_ids.return_value = [current_issue]
+    tracker_mock.update_issue.side_effect = lambda _identifier, **fields: setattr(
+        current_issue, "state", fields["status"]
+    ) if fields.get("status") is not None else None
     
     project_store_mock = MagicMock()
     project_store_mock.preserve_worktree_changes.return_value = {
@@ -289,10 +292,9 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     
-    # 2. Task should stay in Ready to Integrate (or be updated to it)
-    tracker_mock.update_issue.assert_called()
-    call_args = tracker_mock.update_issue.call_args
-    assert call_args[1]["status"] == READY_TO_INTEGRATE, "Clean submission should be Ready to Integrate"
+    # 2. The idempotent Ready state is recovered without a redundant write.
+    tracker_mock.update_issue.assert_not_called()
+    assert current_issue.state == READY_TO_INTEGRATE
     
     # 3. Should remain in completed state for integration queue
     assert issue.id in orch.state.completed

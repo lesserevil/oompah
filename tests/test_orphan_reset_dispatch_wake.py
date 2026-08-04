@@ -1,6 +1,6 @@
 """Regression tests for waking dispatch after orphan resets."""
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 from oompah.config import ServiceConfig
 from oompah.models import Issue
@@ -49,15 +49,34 @@ def test_posts_one_refresh_requested_after_orphan_reset(tmp_path):
         _make_issue("feat-orphan-2", project.id),
     ]
 
-    with patch.object(orchestrator, "_post_event") as post_event:
+    with (
+        patch.object(orchestrator, "_post_event") as post_event,
+        patch.object(orchestrator, "_transition_issue_status") as transition,
+    ):
         orchestrator._reset_orphaned_in_progress(orphans)
 
-    assert tracker.update_issue.call_args_list == [
-        call("feat-orphan-1", status="Open"),
-        call("feat-orphan-2", status="Open"),
+    assert transition.call_args_list == [
+        call(
+            orphans[0],
+            "Open",
+            project_id=project.id,
+            tracker=tracker,
+            authority=ANY,
+            reason_code="watchdog.orphaned_owner_released",
+        ),
+        call(
+            orphans[1],
+            "Open",
+            project_id=project.id,
+            tracker=tracker,
+            authority=ANY,
+            reason_code="watchdog.orphaned_owner_released",
+        ),
     ]
     post_event.assert_called_once()
-    assert post_event.call_args.args[0].event_type is DispatchEventType.REFRESH_REQUESTED
+    assert (
+        post_event.call_args.args[0].event_type is DispatchEventType.REFRESH_REQUESTED
+    )
 
 
 def test_does_not_post_refresh_when_no_orphans_are_found(tmp_path):
@@ -73,12 +92,17 @@ def test_does_not_post_refresh_when_no_orphans_are_found(tmp_path):
 def test_does_not_post_refresh_when_orphan_reset_fails(tmp_path):
     orchestrator, tracker, project = _make_orchestrator(tmp_path)
     orphan = _make_issue("feat-orphan", project.id)
-    tracker.update_issue.side_effect = RuntimeError("tracker unavailable")
-
-    with patch.object(orchestrator, "_post_event") as post_event:
+    with (
+        patch.object(orchestrator, "_post_event") as post_event,
+        patch.object(
+            orchestrator,
+            "_transition_issue_status",
+            side_effect=RuntimeError("tracker unavailable"),
+        ) as transition,
+    ):
         orchestrator._reset_orphaned_in_progress([orphan])
 
-    tracker.update_issue.assert_called_once_with("feat-orphan", status="Open")
+    transition.assert_called_once()
     post_event.assert_not_called()
 
 
@@ -87,8 +111,23 @@ def test_does_not_post_refresh_when_completed_orphan_is_preserved(tmp_path):
     completed = _make_issue("feat-completed", project.id)
     orchestrator.state.completed.add(completed.id)
 
-    with patch.object(orchestrator, "_post_event") as post_event:
+    outcome = MagicMock(applied_status="In Validation", observed_status="In Validation")
+    with (
+        patch.object(orchestrator, "_post_event") as post_event,
+        patch.object(
+            orchestrator,
+            "_transition_issue_status",
+            return_value=outcome,
+        ) as transition,
+    ):
         orchestrator._reset_orphaned_in_progress([completed])
 
-    tracker.update_issue.assert_called_once_with("feat-completed", status=DONE)
+    transition.assert_called_once_with(
+        completed,
+        DONE,
+        project_id=project.id,
+        tracker=tracker,
+        authority=ANY,
+        reason_code="watchdog.completed_orphan_reasserted",
+    )
     post_event.assert_not_called()

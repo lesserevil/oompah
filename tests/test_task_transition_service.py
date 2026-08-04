@@ -272,6 +272,26 @@ async def test_illegal_lifecycle_edge_is_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_terminal_request_may_enter_audit_via_validation_edge(tmp_path):
+    issue = _issue(state="In Progress")
+    tracker = FakeTracker(issue)
+    adapter = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=adapter)
+    intent = _intent(
+        issue,
+        requested_status="Done",
+        exact_head="a" * 40,
+        evidence_generation="generation-1",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert tracker.issue.state == "In Validation"
+    assert adapter.calls == 1
+
+
+@pytest.mark.asyncio
 async def test_in_progress_requires_an_implementation_generation(tmp_path):
     tracker = FakeTracker(_issue())
     service = _service(tmp_path, tracker)

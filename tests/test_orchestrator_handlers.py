@@ -4338,12 +4338,14 @@ class TestYoloOrphanBranchRecovery:
         )
 
         tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "closed"
-        existing.labels = []
-        existing.identifier = "trickle-real"
-        existing.id = "trickle-real"
+        existing = _make_issue(
+            "trickle-real", state="closed", project_id=project.id
+        )
         tracker.fetch_issue_detail.return_value = existing
+        tracker.fetch_issue_states_by_ids.return_value = [existing]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            existing, "state", fields["status"]
+        ) if fields.get("status") is not None else None
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_notify_conflict(project, provider, "org/repo", "30")
@@ -4352,7 +4354,9 @@ class TestYoloOrphanBranchRecovery:
         tracker.create_issue.assert_not_called()
         # add_comment + update_issue (reopen with merge-conflict label) hit
         tracker.add_comment.assert_called_once()
-        tracker.update_issue.assert_called_once()
+        tracker.update_issue.assert_any_call(
+            "trickle-real", status="Needs Rebase"
+        )
 
     # --- _yolo_retry_ci orphan branch ---
 
@@ -4423,19 +4427,23 @@ class TestYoloOrphanBranchRecovery:
         )
 
         tracker = MagicMock()
-        existing = MagicMock()
-        existing.state = "closed"
-        existing.labels = []
-        existing.identifier = "real-ci-branch"
-        existing.id = "real-ci-branch"
+        existing = _make_issue(
+            "real-ci-branch", state="closed", project_id=project.id
+        )
         tracker.fetch_issue_detail.return_value = existing
+        tracker.fetch_issue_states_by_ids.return_value = [existing]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            existing, "state", fields["status"]
+        ) if fields.get("status") is not None else None
         orch._project_trackers[project.id] = tracker
 
         orch._yolo_retry_ci(project, review)
 
         # Existing path: relabel + reopen, NO new task
         tracker.create_issue.assert_not_called()
-        tracker.update_issue.assert_called_once()
+        tracker.update_issue.assert_any_call(
+            "real-ci-branch", status="Needs CI Fix"
+        )
         tracker.add_comment.assert_called_once()
 
     # --- prune cleans up orphan-recovery bookkeeping when PR is gone ---
@@ -4856,13 +4864,20 @@ class TestNeedsHumanTransitions:
         orch._fire_telemetry_comment = MagicMock()
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        ) if fields.get("status") is not None else None
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
 
-        tracker.mark_needs_human.assert_called_once()
-        args = tracker.mark_needs_human.call_args.args
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1", status="Needs Human"
+        )
+        args = tracker.add_comment.call_args.args
         assert args[0] == "TASK-1"
         assert "Human action required" in args[1]
         assert "move it back to Open" in args[1]

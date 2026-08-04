@@ -482,6 +482,24 @@ def test_clear_integration_retry_alert_removes_both_severities(tmp_path):
 # --------------------------------------------------- record-time defaults
 
 
+def _bind_transition_tracker(tracker: MagicMock, issue: Issue) -> None:
+    """Expose integration metadata and status updates as fresh tracker reads."""
+
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.fetch_issue_states_by_ids.return_value = [issue]
+
+    def _set_metadata(_identifier: str, key: str, value) -> None:
+        if key == "oompah.integration":
+            issue.integration = value
+
+    def _update(_identifier: str, **fields) -> None:
+        if fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    tracker.set_metadata_field.side_effect = _set_metadata
+    tracker.update_issue.side_effect = _update
+
+
 def test_route_integration_failure_marks_retryable_as_info(tmp_path):
     """A scheduled retry starts as informational activity."""
     project = _make_project_record(epic_strategy="shared")
@@ -502,12 +520,13 @@ def test_route_integration_failure_marks_retryable_as_info(tmp_path):
         satisfied=set(),
     )
     tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = Issue(
+    issue = Issue(
         id="TASK-1",
         identifier="TASK-1",
         title="Task",
         state="Ready to Integrate",
     )
+    _bind_transition_tracker(tracker, issue)
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._route_integration_failure(
         claimed,
@@ -587,12 +606,13 @@ def test_route_integration_failure_conflict_starts_as_awaiting_repair(tmp_path):
         satisfied=set(),
     )
     tracker = MagicMock()
-    tracker.fetch_issue_detail.return_value = Issue(
+    issue = Issue(
         id="TASK-1",
         identifier="TASK-1",
         title="Task",
         state="Ready to Integrate",
     )
+    _bind_transition_tracker(tracker, issue)
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._route_integration_failure(
         claimed,

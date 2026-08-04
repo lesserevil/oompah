@@ -48,7 +48,6 @@ from oompah.tracker import TrackerProtocol
 from oompah.workflow_contract import (
     CANONICAL_STATUSES,
     TransitionRequirement,
-    is_valid_transition,
     transition_rule,
 )
 
@@ -492,8 +491,9 @@ class TransitionJournal:
         *,
         clock: Callable[[], float] = time.time,
     ) -> None:
-        self.path = os.path.abspath(path)
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        self.path = path if path == ":memory:" else os.path.abspath(path)
+        if self.path != ":memory:":
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         self._clock = clock
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=10)
@@ -893,8 +893,28 @@ class TaskTransitionService:
     async def _fetch(self, task_id: str) -> Issue | None:
         operation = self.tracker.fetch_issue_detail
         if inspect.iscoroutinefunction(operation):
-            return await operation(task_id)
-        return await asyncio.to_thread(operation, task_id)
+            issue = await operation(task_id)
+        else:
+            issue = await asyncio.to_thread(operation, task_id)
+        if issue is None or isinstance(issue, Issue):
+            return issue
+
+        # Some tracker adapters implement their authoritative point lookup via
+        # the batched state API.  Fall back to that protocol surface when the
+        # detail adapter returns an invalid sentinel, but never manufacture a
+        # snapshot: the transition still requires a fresh tracker read.
+        fallback = self.tracker.fetch_issue_states_by_ids
+        if inspect.iscoroutinefunction(fallback):
+            candidates = await fallback([task_id])
+        else:
+            candidates = await asyncio.to_thread(fallback, [task_id])
+        if isinstance(candidates, (list, tuple)):
+            for candidate in candidates:
+                if not isinstance(candidate, Issue):
+                    continue
+                if task_id in {str(candidate.id), str(candidate.identifier)}:
+                    return candidate
+        raise TypeError("tracker returned an invalid task detail snapshot")
 
     async def _try_fetch(self, task_id: str) -> tuple[Issue | None, Exception | None]:
         try:
@@ -1091,7 +1111,13 @@ class TaskTransitionService:
                     outcome,
                 )
                 return outcome
-            if not is_valid_transition(observed_status, intent.requested_status):
+            direct_rule = transition_rule(observed_status, intent.requested_status)
+            staging_rule = (
+                transition_rule(observed_status, IN_VALIDATION)
+                if intent.requested_status in TERMINAL_TARGETS
+                else None
+            )
+            if direct_rule is None and staging_rule is None:
                 outcome = self._outcome(
                     transition_id,
                     intent,
@@ -1108,8 +1134,20 @@ class TaskTransitionService:
                 )
                 return outcome
 
-            rule = transition_rule(observed_status, intent.requested_status)
-            requirements = rule.requirements if rule else frozenset()
+            # A terminal request is not a direct tracker edge: the terminal
+            # coordinator first stages the task in In Validation, then an
+            # auditor applies the requested target.  Accept callers whose
+            # current state has either the explicit terminal edge or the
+            # staging edge, and retain the evidence requirements from both.
+            # This lets legacy completion paths such as In Progress -> Done
+            # enter audit without permitting Open -> Merged, while preserving
+            # Merged's exact-head and containment requirements.
+            requirements = frozenset(
+                requirement
+                for rule in (direct_rule, staging_rule)
+                if rule is not None
+                for requirement in rule.requirements
+            )
             if (
                 TransitionRequirement.IMPLEMENTATION_GENERATION in requirements
                 and not intent.evidence_generation

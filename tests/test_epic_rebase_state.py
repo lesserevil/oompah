@@ -26,7 +26,8 @@ from oompah.config import ServiceConfig
 from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue
 from oompah.orchestrator import EpicTargetResolutionError, Orchestrator
-from oompah.statuses import DONE, IN_REVIEW, NEEDS_REBASE
+from oompah.statuses import DONE, IN_REVIEW, IN_VALIDATION, NEEDS_REBASE
+from oompah.task_transition_service import TerminalStageResult
 
 
 def _make_issue(
@@ -366,6 +367,14 @@ class TestEpicTargetResolution:
         wrong.target_branch = "main"
         tracker.fetch_issues_by_states.return_value = [wrong]
 
+        class _StagingAdapter:
+            async def stage(self, _intent, issue):
+                issue.state = IN_VALIDATION
+                tracker.update_issue(issue.identifier, status=IN_VALIDATION)
+                return TerminalStageResult(success=True, audit_id="audit-archive")
+
+        orch._task_transition_terminal_adapter = _StagingAdapter()
+
         assert orch._resolve_epic_target_branch(epic, project) == "epic-EPIC-PARENT"
         assert orch._find_active_epic_rebase_sibling(
             tracker,
@@ -373,7 +382,7 @@ class TestEpicTargetResolution:
             target_branch="epic-EPIC-PARENT",
         ) is None
         tracker.update_issue.assert_called_once_with(
-            "REBASE-WRONG", status="Archived"
+            "REBASE-WRONG", status=IN_VALIDATION
         )
         orch.project_store.remove_worktree.assert_not_called()
 
@@ -798,6 +807,13 @@ class TestDispatchProactiveRebaseAgents:
         ]
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+
+        def _update(_identifier, **fields):
+            if fields.get("status") is not None:
+                issue.state = str(fields["status"])
+
+        tracker.update_issue.side_effect = _update
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._fetch_epic_children = MagicMock(return_value=children)
         orch._should_dispatch_rebase_agent = MagicMock(return_value=True)
@@ -811,11 +827,9 @@ class TestDispatchProactiveRebaseAgents:
 
         assert filed == 1
         tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_any_call("TASK-18", status=NEEDS_REBASE)
         tracker.update_issue.assert_any_call(
-            "TASK-18",
-            status=NEEDS_REBASE,
-            priority="0",
-            **{"add-label": "merge-conflict"},
+            "TASK-18", priority="0", **{"add-label": "merge-conflict"}
         )
 
     def test_shared_nested_epic_does_not_synchronize_to_parent_epic_branch(

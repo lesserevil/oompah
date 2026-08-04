@@ -23,6 +23,7 @@ from oompah.statuses import (
 )
 from oompah.terminal_audit import TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
+from oompah.task_transition_service import TerminalStageResult
 
 
 def _make_config() -> ServiceConfig:
@@ -66,6 +67,69 @@ def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.co
     p.churn_magnet_top_n = churn_magnet_top_n
     p.epic_strategy = epic_strategy
     return p
+
+
+@pytest.fixture(autouse=True)
+def _stateful_transition_tracker_harness(monkeypatch):
+    """Give legacy lifecycle mocks the fresh reads required by fenced writes."""
+
+    original_sync = Orchestrator._transition_issue_status
+    original_async = Orchestrator._transition_issue_status_async
+
+    def prepare(orch, issue: Issue, tracker: MagicMock, requested_status: str) -> None:
+        detail = tracker.fetch_issue_detail
+        if detail.side_effect is None:
+            configured = detail.return_value
+            if not isinstance(configured, Issue):
+                detail.return_value = issue
+            elif issue.identifier not in {
+                str(configured.id),
+                str(configured.identifier),
+            }:
+                detail.side_effect = lambda identifier: (
+                    issue
+                    if identifier in {str(issue.id), str(issue.identifier)}
+                    else configured
+                    if identifier in {str(configured.id), str(configured.identifier)}
+                    else None
+                )
+        batch = tracker.fetch_issue_states_by_ids
+        if batch.side_effect is None and not isinstance(batch.return_value, list):
+            batch.return_value = [issue]
+        update = tracker.update_issue
+        if update.side_effect is None:
+            def apply(_identifier, **fields):
+                if fields.get("status") is not None:
+                    issue.state = str(fields["status"])
+            update.side_effect = apply
+
+        if requested_status in {DONE, MERGED, "Archived"}:
+            class _StagingAdapter:
+                async def stage(self, _intent, current):
+                    tracker.update_issue(current.identifier, status=IN_VALIDATION)
+                    return TerminalStageResult(
+                        success=True,
+                        audit_id="audit-lifecycle-harness",
+                    )
+
+            orch._task_transition_terminal_adapter = _StagingAdapter()
+
+    def sync(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return original_sync(orch, issue, requested_status, **kwargs)
+
+    async def async_transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        prepare(orch, issue, tracker, requested_status)
+        return await original_async(orch, issue, requested_status, **kwargs)
+
+    monkeypatch.setattr(Orchestrator, "_transition_issue_status", sync)
+    monkeypatch.setattr(
+        Orchestrator,
+        "_transition_issue_status_async",
+        async_transition,
+    )
 
 
 class TestLabelMergedIssues:
@@ -948,7 +1012,9 @@ class TestReconcileStaleInReviewTasks:
             "epic-EPIC-1",
             child,
         )
-        mock_tracker.update_issue.assert_called_once_with("TASK-1", status=DONE)
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=IN_VALIDATION
+        )
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.close_gate._count_commits_ahead")
@@ -1241,7 +1307,7 @@ class TestReconcileStaleInReviewTasks:
         def mock_get_branch_head_sha(project, branch):
             call_count[0] += 1
             # Return current (different) head - branch has advanced
-            return "71f8785" + str(call_count[0])
+            return "7" * 39 + str(call_count[0])
 
         orch._get_branch_head_sha = mock_get_branch_head_sha
 
@@ -1250,13 +1316,15 @@ class TestReconcileStaleInReviewTasks:
         # Verify that stale review was detected and cleared
         provider.find_pr_for_branch.assert_called_once_with("org/repo", "TASK-1")
 
-        # Verify metadata was cleared (3 set_metadata_field calls for review_url, review_number, review_head)
-        assert mock_tracker.set_metadata_field.call_count == 3
+        # Review metadata is cleared and a new exact-head integration record
+        # is persisted for the Ready to Integrate generation.
+        assert mock_tracker.set_metadata_field.call_count == 4
         calls = mock_tracker.set_metadata_field.call_args_list
         fields_cleared = {call[0][1] for call in calls}
         assert "oompah.review_url" in fields_cleared
         assert "oompah.review_number" in fields_cleared
         assert "oompah.review_head" in fields_cleared
+        assert "oompah.integration" in fields_cleared
 
         # Verify task was restored to READY_TO_INTEGRATE (not marked as Merged)
         mock_tracker.update_issue.assert_called_once_with(
@@ -1369,6 +1437,7 @@ class TestReconcileStaleInReviewTasks:
         issue.review_head = None
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = issue
         orch._project_trackers[project.id] = tracker
         orch._get_branch_head_sha = MagicMock(return_value=current_head)
 
@@ -1421,6 +1490,7 @@ class TestReconcileStaleInReviewTasks:
         issue.review_head = None
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = issue
         orch._project_trackers[project.id] = tracker
         orch._get_branch_head_sha = MagicMock(return_value="b" * 40)
         mock_count.return_value = (0, [], "")
@@ -1464,6 +1534,7 @@ class TestReconcileStaleInReviewTasks:
         issue.review_head = None
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = issue
         orch._project_trackers[project.id] = tracker
         orch._get_branch_head_sha = MagicMock(return_value=None)
         mock_count.return_value = (0, [], "fetch failed")
@@ -1471,8 +1542,11 @@ class TestReconcileStaleInReviewTasks:
         orch._reconcile_stale_in_review_tasks()
 
         orch.terminal_transition_coordinator.request_transition.assert_not_called()
-        tracker.mark_needs_human.assert_called_once()
-        assert "fetch failed" in tracker.mark_needs_human.call_args.args[1]
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1", status="Needs Human"
+        )
+        assert "fetch failed" in tracker.add_comment.call_args.args[1]
 
 
 class TestFetchAllMergedBranches:
@@ -1665,11 +1739,10 @@ class TestResetOrphanedInProgress:
         with patch.object(orch, "_fetch_epic_children", return_value=children):
             orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with(
-            "TRICKLE-1",
-            status=NEEDS_CI_FIX,
-            priority="0",
+        mock_tracker.update_issue.assert_any_call(
+            "TRICKLE-1", status=NEEDS_CI_FIX
         )
+        mock_tracker.update_issue.assert_any_call("TRICKLE-1", priority="0")
 
     def test_resets_ci_fix_orphan_to_needs_ci_fix_p0(self, tmp_path):
         project = _make_project()
@@ -1681,11 +1754,10 @@ class TestResetOrphanedInProgress:
         issue.project_id = project.id
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with(
-            "feat-1",
-            status="Needs CI Fix",
-            priority="0",
+        mock_tracker.update_issue.assert_any_call(
+            "feat-1", status="Needs CI Fix"
         )
+        mock_tracker.update_issue.assert_any_call("feat-1", priority="0")
 
     def test_resets_merge_conflict_orphan_to_needs_rebase_p0(self, tmp_path):
         project = _make_project()
@@ -1697,11 +1769,10 @@ class TestResetOrphanedInProgress:
         issue.project_id = project.id
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with(
-            "feat-1",
-            status="Needs Rebase",
-            priority="0",
+        mock_tracker.update_issue.assert_any_call(
+            "feat-1", status="Needs Rebase"
         )
+        mock_tracker.update_issue.assert_any_call("feat-1", priority="0")
 
     def test_skips_issue_with_running_agent(self, tmp_path):
         project = _make_project()
@@ -1741,7 +1812,9 @@ class TestResetOrphanedInProgress:
 
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-1", status=DONE)
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-1", status=IN_VALIDATION
+        )
         assert issue.id in orch.state.completed
 
     def test_completed_branch_ahead_orphan_is_marked_done_not_open(self, tmp_path):
@@ -1757,7 +1830,9 @@ class TestResetOrphanedInProgress:
 
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-1", status=DONE)
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-1", status=IN_VALIDATION
+        )
         assert issue.id in orch.state.completed
 
     def test_skips_open_issues(self, tmp_path):
@@ -2366,11 +2441,11 @@ class TestYoloRetryCi:
         orch._yolo_retry_ci(project, review)
 
         tracker.create_issue.assert_not_called()
-        tracker.update_issue.assert_called_once_with(
-            "trickle-rl5",
-            status=NEEDS_CI_FIX,
-            priority="0",
-            **{"add-label": "ci-fix"},
+        tracker.update_issue.assert_any_call(
+            "trickle-rl5", status=NEEDS_CI_FIX
+        )
+        tracker.update_issue.assert_any_call(
+            "trickle-rl5", priority="0", **{"add-label": "ci-fix"}
         )
         tracker.add_comment.assert_called_once()
         tracker.set_metadata_field.assert_any_call(
@@ -2480,11 +2555,13 @@ class TestYoloRetryCi:
         orch._yolo_retry_ci(project, review)
 
         # Existing relabel path fires: status=Needs CI Fix, priority=0, label=ci-fix
-        tracker.update_issue.assert_called_once()
-        update_kwargs = tracker.update_issue.call_args.kwargs
-        assert update_kwargs.get("status") == "Needs CI Fix"
-        assert update_kwargs.get("priority") == "0"
-        assert update_kwargs.get("add-label") == "ci-fix"
+        assert tracker.update_issue.call_count == 2
+        tracker.update_issue.assert_any_call(
+            "proj-task1", status="Needs CI Fix"
+        )
+        tracker.update_issue.assert_any_call(
+            "proj-task1", priority="0", **{"add-label": "ci-fix"}
+        )
         # Comment is added to the existing task
         tracker.add_comment.assert_called_once()
         # NO sibling task is created
@@ -2515,7 +2592,13 @@ class TestYoloRetryCi:
         orch._yolo_retry_ci(project, review)
 
         # Existing relabel path fires (epic-planner will pick it up)
-        tracker.update_issue.assert_called_once()
+        assert tracker.update_issue.call_count == 2
+        tracker.update_issue.assert_any_call(
+            "proj-empty-epic", status="Needs CI Fix"
+        )
+        tracker.update_issue.assert_any_call(
+            "proj-empty-epic", priority="0", **{"add-label": "ci-fix"}
+        )
         tracker.add_comment.assert_called_once()
         # NO sibling task is created
         tracker.create_issue.assert_not_called()
@@ -2547,11 +2630,11 @@ class TestYoloRetryCi:
 
         tracker.add_comment.assert_not_called()
         tracker.create_issue.assert_not_called()
-        tracker.update_issue.assert_called_once_with(
-            "trickle-rl5",
-            status=NEEDS_CI_FIX,
-            priority="0",
-            **{"add-label": "ci-fix"},
+        tracker.update_issue.assert_any_call(
+            "trickle-rl5", status=NEEDS_CI_FIX
+        )
+        tracker.update_issue.assert_any_call(
+            "trickle-rl5", priority="0", **{"add-label": "ci-fix"}
         )
 
 
@@ -3789,7 +3872,9 @@ class TestResetOrphanedInProgressSweep:
 
         orch._reset_orphaned_in_progress([])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-done", status=DONE)
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-done", status=IN_VALIDATION
+        )
         orch._done_issue_has_unmerged_review_work.assert_not_called()
         assert ip_issue.id in orch.state.completed
         assert ip_issue.id not in orch._orphan_reset_counts

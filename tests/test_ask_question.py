@@ -355,10 +355,15 @@ class TestOrchestratorAskQuestionExit:
             state_path=str(tmp_path / "state.json"),
         )
 
-        issue = _make_issue()
+        issue = _make_issue(state="In Progress")
         issue_id = issue.id
 
         mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = issue
+        mock_tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [issue]
+        mock_tracker.update_issue.side_effect = lambda _identifier, **fields: setattr(
+            issue, "state", fields["status"]
+        )
         orch.tracker = mock_tracker
 
         orch.state.running[issue_id] = RunningEntry(

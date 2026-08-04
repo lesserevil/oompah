@@ -198,6 +198,18 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
+from oompah.task_transition_service import (
+    CoordinatorTerminalAdapter,
+    TaskTransitionService,
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionJournal,
+    TransitionOutcome,
+    issue_authority_version,
+    issue_exact_head,
+)
+from oompah.tracker import TrackerError as _TransitionTrackerError
 
 
 _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
@@ -207,6 +219,27 @@ _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 # configured budget has been consumed.  The coordinator remains idempotent,
 # so a provider retry cannot apply the terminal transition twice.
 AUDITOR_FINALIZATION_TURN_RESERVE = 1
+
+
+class TaskTransitionNotApplied(_TransitionTrackerError):
+    """Raised when the durable transition service did not commit an intent."""
+
+    def __init__(self, outcome: TransitionOutcome):
+        self.outcome = outcome
+        super().__init__(
+            f"{outcome.task_id}: {outcome.requested_status} was not applied "
+            f"({outcome.disposition.value}: {outcome.reason_code})"
+        )
+
+
+_COMMITTED_TRANSITION_DISPOSITIONS = frozenset(
+    {
+        TransitionDisposition.APPLIED,
+        TransitionDisposition.ALREADY_APPLIED,
+        TransitionDisposition.RECOVERED,
+        TransitionDisposition.STAGED,
+    }
+)
 
 
 def auditor_turn_budget(ordinary_turns: int, *, auditor: bool) -> int:
@@ -327,9 +360,7 @@ _DUPLICATE_PREFLIGHT_VERDICT_RE = re.compile(
     r"(?im)^\s*duplicate preflight verdict:\s*"
     r"(no_duplicate|duplicate_candidate|inconclusive)\s*$"
 )
-_DUPLICATE_PREFLIGHT_MATCHES_RE = re.compile(
-    r"(?im)^\s*matches:\s*(.+?)\s*$"
-)
+_DUPLICATE_PREFLIGHT_MATCHES_RE = re.compile(r"(?im)^\s*matches:\s*(.+?)\s*$")
 _DUPLICATE_PREFLIGHT_HANDOFF_RE = re.compile(
     r"(?i)^focus handoff:\s*duplicate_detector\s*$"
 )
@@ -401,12 +432,8 @@ def _acp_session_is_read_only(focus: Any, running_entry: Any | None) -> bool:
     notably the subscription Codex CLI), where the action-policy catalog
     cannot constrain the subprocess sandbox.
     """
-    return (
-        str(getattr(focus, "name", "")).casefold() == AUDITOR_FOCUS_NAME
-        or bool(
-            running_entry
-            and getattr(running_entry, "duplicate_preflight", False)
-        )
+    return str(getattr(focus, "name", "")).casefold() == AUDITOR_FOCUS_NAME or bool(
+        running_entry and getattr(running_entry, "duplicate_preflight", False)
     )
 
 
@@ -452,7 +479,9 @@ def _agent_log_path(log_dir: str, issue_identifier: str, ts: str | None = None) 
     """Return a per-dispatch agent log path with a safe basename."""
     os.makedirs(log_dir, exist_ok=True)
     stamp = ts or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return os.path.join(log_dir, f"{_agent_log_issue_stem(issue_identifier)}__{stamp}.jsonl")
+    return os.path.join(
+        log_dir, f"{_agent_log_issue_stem(issue_identifier)}__{stamp}.jsonl"
+    )
 
 
 def _error_class_for_tracker_exc(exc: BaseException) -> str:
@@ -493,22 +522,20 @@ _GIT_TIMEOUT_ABSORPTION_S = 10.0
 
 def _state_key(state: str | None) -> str:
     """Normalize tracker status spelling for internal comparisons."""
-    return canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
+    return (
+        canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
+    )
 
 
 _WORKTREE_CLEANUP_STATES: tuple[str, ...] = (MERGED, ARCHIVED)
 _WORKTREE_CLEANUP_STATE_KEYS: frozenset[str] = frozenset(
     _state_key(state) for state in _WORKTREE_CLEANUP_STATES
 )
-_EPIC_REVIEW_REPAIR_STATUSES: frozenset[str] = frozenset(
-    {NEEDS_CI_FIX, NEEDS_REBASE}
-)
+_EPIC_REVIEW_REPAIR_STATUSES: frozenset[str] = frozenset({NEEDS_CI_FIX, NEEDS_REBASE})
 _EPIC_REVIEW_REPAIR_RUNNING_STATUSES: frozenset[str] = frozenset(
     {NEEDS_CI_FIX, NEEDS_REBASE, IN_PROGRESS}
 )
-_EPIC_REVIEW_REPAIR_LABELS: frozenset[str] = frozenset(
-    {"ci-fix", "merge-conflict"}
-)
+_EPIC_REVIEW_REPAIR_LABELS: frozenset[str] = frozenset({"ci-fix", "merge-conflict"})
 _EPIC_REVIEW_READY_CHILD_STATES: frozenset[str] = frozenset(
     {IN_REVIEW, DONE, MERGED, ARCHIVED}
 )
@@ -534,7 +561,9 @@ def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[st
     return keys
 
 
-def _dispatch_active_state_names(active_states: list[str] | tuple[str, ...]) -> list[str]:
+def _dispatch_active_state_names(
+    active_states: list[str] | tuple[str, ...],
+) -> list[str]:
     """Return configured dispatch-active states excluding pre-work intake states."""
     return [
         s
@@ -548,9 +577,13 @@ def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> s
     return {_state_key(s) for s in _dispatch_active_state_names(active_states)}
 
 
-def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str, ...]) -> bool:
+def _is_terminal_state(
+    state: str | None, terminal_states: list[str] | tuple[str, ...]
+) -> bool:
     """Return True when a tracker state is terminal in canonical oompah terms."""
-    return is_terminal_status(state) or _state_key(state) in _terminal_state_keys(terminal_states)
+    return is_terminal_status(state) or _state_key(state) in _terminal_state_keys(
+        terminal_states
+    )
 
 
 _TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
@@ -577,7 +610,9 @@ def _audit_observability_time(value: object) -> datetime | None:
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
 
 
-def _audit_record_time(record: Any, *, verdict: Verdict | None = None) -> datetime | None:
+def _audit_record_time(
+    record: Any, *, verdict: Verdict | None = None
+) -> datetime | None:
     """Return the newest trustworthy time for a record or selected verdict."""
 
     values: list[datetime] = []
@@ -648,7 +683,8 @@ def _retirement_metadata_proves_identity(
             raw_fingerprint = raw_row.get("evidence_fingerprint")
             if isinstance(raw_fingerprint, Mapping):
                 raw_fingerprint = raw_fingerprint.get(
-                    "digest", raw_fingerprint.get("sha256", raw_fingerprint.get("value"))
+                    "digest",
+                    raw_fingerprint.get("sha256", raw_fingerprint.get("value")),
                 )
             row_fingerprint = EvidenceFingerprint(str(raw_fingerprint))
         except (TypeError, ValueError):
@@ -678,7 +714,10 @@ def _legacy_override_proves_identity(
         return False
     record_time = _audit_record_time(record)
     for raw_override in raw_overrides:
-        if not isinstance(raw_override, Mapping) or raw_override.get("applied", True) is False:
+        if (
+            not isinstance(raw_override, Mapping)
+            or raw_override.get("applied", True) is False
+        ):
             continue
         try:
             override = OverrideRecord.from_dict(raw_override)
@@ -688,7 +727,8 @@ def _legacy_override_proves_identity(
             override.project_id != project_id
             or override.task_id != task_id
             or override.target_state != getattr(record, "target_state", None)
-            or override.evidence_fingerprint != getattr(record, "evidence_fingerprint", None)
+            or override.evidence_fingerprint
+            != getattr(record, "evidence_fingerprint", None)
         ):
             continue
         override_time = _audit_observability_time(override.created_at)
@@ -715,9 +755,11 @@ def _later_pass_proves_identity(record: Any, records: Iterable[Any]) -> bool:
     no_time = _audit_record_time(record, verdict=Verdict.FAIL)
     for candidate in records:
         if (
-            getattr(candidate, "project_id", None) != getattr(record, "project_id", None)
+            getattr(candidate, "project_id", None)
+            != getattr(record, "project_id", None)
             or getattr(candidate, "task_id", None) != getattr(record, "task_id", None)
-            or getattr(candidate, "target_state", None) != getattr(record, "target_state", None)
+            or getattr(candidate, "target_state", None)
+            != getattr(record, "target_state", None)
             or getattr(candidate, "evidence_fingerprint", None)
             != getattr(record, "evidence_fingerprint", None)
         ):
@@ -737,7 +779,10 @@ def _later_pass_proves_identity(record: Any, records: Iterable[Any]) -> bool:
                 for attempt in getattr(candidate, "attempts", ()) or ()
                 if getattr(attempt, "verdict", None) in (Verdict.PASS, Verdict.FAIL)
             ]
-            if last_terminal and getattr(last_terminal[-1], "verdict", None) == Verdict.PASS:
+            if (
+                last_terminal
+                and getattr(last_terminal[-1], "verdict", None) == Verdict.PASS
+            ):
                 return True
             continue
         pass_time = _audit_record_time(candidate, verdict=Verdict.PASS)
@@ -755,13 +800,13 @@ def _configured_in_progress_state(active_states: list[str]) -> str:
 # task turns (vs. failing mid-task). These are provider-level and warrant
 # failing over to the next dispatch candidate rather than a terminal exit.
 _ACP_LAUNCH_FAILURE_PHRASES: tuple[str, ...] = (
-    "argument list too long",          # E2BIG execing the CLI (oversized argv)
-    "failed to start claude",          # SDK CLIConnectionError on connect
+    "argument list too long",  # E2BIG execing the CLI (oversized argv)
+    "failed to start claude",  # SDK CLIConnectionError on connect
     "cliconnectionerror",
     "clinotfounderror",
     "cli path not resolved",
-    "not installed",                   # SDK/backend dependency missing
-    "extension not available",         # codex CLI extension missing
+    "not installed",  # SDK/backend dependency missing
+    "extension not available",  # codex CLI extension missing
     "failed to start a session",
     "failed to start",
 )
@@ -1254,6 +1299,15 @@ class Orchestrator:
         self.review_capacity_store = ReviewCapacityStore(
             os.path.join(_state_dir, "review_capacity.sqlite3")
         )
+        # Every orchestrator lifecycle write is journalled and compare-and-swap
+        # fenced through a project-scoped TaskTransitionService.  The journal
+        # is shared because its claims are already keyed by project and task;
+        # this also gives operators one durable recovery history per service.
+        self.task_transition_journal = TransitionJournal(
+            os.path.join(_state_dir, "task_transitions.sqlite3")
+        )
+        self._task_transition_services: dict[str, TaskTransitionService] = {}
+        self._task_transition_services_lock = threading.RLock()
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         # Service state is shared by the dispatch loop, maintenance workers,
         # API callbacks, and terminal-audit enforcement. Keep each
@@ -1315,6 +1369,9 @@ class Orchestrator:
             revoke_auditor_authority=self._revoke_auditor_authority,
             clear_audit_alert=self.clear_terminal_audit_alert,
             validate_terminal_transition=self._validate_terminal_transition,
+        )
+        self._task_transition_terminal_adapter = CoordinatorTerminalAdapter(
+            self.terminal_transition_coordinator
         )
         # Serializes the final implementation status claim with terminal-audit
         # staging for one task.  The terminal path installs its in-memory fence
@@ -1463,11 +1520,13 @@ class Orchestrator:
         # Populated by _maybe_heal_repos() so operators can see when the
         # maintenance lane last ran and whether it encountered errors.
         # Exposed via get_snapshot() under the "maintenance" key.
-        self._last_heal_at: float = 0.0           # monotonic; 0.0 = never run
-        self._heal_error_last: str | None = None   # most recent heal error, or None
-        self._last_cleanup_at: float = 0.0         # monotonic; 0.0 = never run
-        self._cleanup_count_last: int = 0          # worktrees removed in last run
-        self._cleanup_error_last: str | None = None  # most recent cleanup error, or None
+        self._last_heal_at: float = 0.0  # monotonic; 0.0 = never run
+        self._heal_error_last: str | None = None  # most recent heal error, or None
+        self._last_cleanup_at: float = 0.0  # monotonic; 0.0 = never run
+        self._cleanup_count_last: int = 0  # worktrees removed in last run
+        self._cleanup_error_last: str | None = (
+            None  # most recent cleanup error, or None
+        )
         # Running maintenance executor future so _tick() can fire-and-forget
         # without accumulating unbounded concurrent maintenance runs.
         self._maintenance_future: "asyncio.Future[None] | None" = None
@@ -1670,9 +1729,7 @@ class Orchestrator:
             safely_prunable_count_critical=(
                 config.repo_hygiene_safely_prunable_count_critical
             ),
-            cleanup_error_threshold=(
-                config.repo_hygiene_cleanup_error_threshold
-            ),
+            cleanup_error_threshold=(config.repo_hygiene_cleanup_error_threshold),
         )
         # ---- Bounded per-project refresh infrastructure (TASK-467.2) ----
         # Per-project semaphores for bounded concurrency. Created on-demand
@@ -1752,7 +1809,9 @@ class Orchestrator:
                 if age_ms <= ttl_ms:
                     logger.debug(
                         "Using stale cache for project %s operation %s (age=%.0fms)",
-                        project_id, operation, age_ms
+                        project_id,
+                        operation,
+                        age_ms,
                     )
                     return data
                 else:
@@ -1842,9 +1901,13 @@ class Orchestrator:
             error = f"timeout after {timeout_ms}ms"
             logger.warning(
                 "Project %s operation %s timed out after %.0fms, using stale cache",
-                project_id, operation, duration_ms
+                project_id,
+                operation,
+                duration_ms,
             )
-            self._record_refresh_metric(project_id, operation, duration_ms, False, error)
+            self._record_refresh_metric(
+                project_id, operation, duration_ms, False, error
+            )
             stale = self._get_stale_cache(project_id, operation)
             return stale if stale is not None else [], False
         except Exception as exc:
@@ -1852,9 +1915,14 @@ class Orchestrator:
             error = f"{type(exc).__name__}: {exc}"
             logger.warning(
                 "Project %s operation %s failed after %.0fms: %s, using stale cache",
-                project_id, operation, duration_ms, exc
+                project_id,
+                operation,
+                duration_ms,
+                exc,
             )
-            self._record_refresh_metric(project_id, operation, duration_ms, False, error)
+            self._record_refresh_metric(
+                project_id, operation, duration_ms, False, error
+            )
             stale = self._get_stale_cache(project_id, operation)
             return stale if stale is not None else [], False
 
@@ -2149,7 +2217,9 @@ class Orchestrator:
         ]
         existing_sources = {str(alert.get("source", "")) for alert in self._alerts}
         self._alerts.extend(
-            alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
+            alert
+            for alert in alerts
+            if str(alert.get("source", "")) not in existing_sources
         )
 
     def _reconcile_terminal_audit_observability_from_metadata(self) -> None:
@@ -2164,10 +2234,14 @@ class Orchestrator:
 
         metrics = self._terminal_audit_metrics
         key_provider = getattr(metrics, "lifecycle_keys", None)
-        keys = key_provider() if callable(key_provider) else tuple(
-            set(getattr(metrics, "_queued", {}))
-            | set(getattr(metrics, "_running", {}))
-            | set(getattr(metrics, "_no_candidate", {}))
+        keys = (
+            key_provider()
+            if callable(key_provider)
+            else tuple(
+                set(getattr(metrics, "_queued", {}))
+                | set(getattr(metrics, "_running", {}))
+                | set(getattr(metrics, "_no_candidate", {}))
+            )
         )
         for project_id, task_id, audit_id in keys:
             try:
@@ -2263,9 +2337,7 @@ class Orchestrator:
                 # The task is still nonterminal (including Needs Human), so
                 # the completed no-auditor decision remains actionable.
                 continue
-            self._forget_terminal_audit_alert_identity(
-                project_id, task_id, audit_id
-            )
+            self._forget_terminal_audit_alert_identity(project_id, task_id, audit_id)
 
     def _forget_terminal_audit_alert_identity(
         self, project_id: str, task_id: str, audit_id: str
@@ -2283,7 +2355,12 @@ class Orchestrator:
         self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
 
     def record_terminal_audit_no_candidate(
-        self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        reason: str = "no eligible candidate",
     ) -> None:
         """Record and surface an actionable no-independent-candidate outcome."""
 
@@ -2364,30 +2441,31 @@ class Orchestrator:
             scan_error_count=scan_error_count,
         )
         if finalization_failure_count:
-            health.finalization_failure_count += max(
-                0, int(finalization_failure_count)
-            )
+            health.finalization_failure_count += max(0, int(finalization_failure_count))
         self._audit_health = health
         # Update the raw metrics so callers reading _audit_metrics still work.
-        self._audit_metrics.update({
-            "pending_count": health.pending_count,
-            "in_progress_count": health.in_progress_count,
-            "launch_failure_count": health.launch_failure_count,
-            "transport_failure_count": health.transport_failure_count,
-            "policy_incompatibility_count": health.policy_incompatibility_count,
-            "finalization_failure_count": health.finalization_failure_count,
-            "retry_exhausted_count": health.retry_exhausted_count,
-            "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
-            "stale_in_validation_count": health.stale_in_validation_count,
-            "health_scan_complete": scan_complete,
-            "health_scan_error_count": scan_error_count,
-        })
+        self._audit_metrics.update(
+            {
+                "pending_count": health.pending_count,
+                "in_progress_count": health.in_progress_count,
+                "launch_failure_count": health.launch_failure_count,
+                "transport_failure_count": health.transport_failure_count,
+                "policy_incompatibility_count": health.policy_incompatibility_count,
+                "finalization_failure_count": health.finalization_failure_count,
+                "retry_exhausted_count": health.retry_exhausted_count,
+                "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
+                "stale_in_validation_count": health.stale_in_validation_count,
+                "health_scan_complete": scan_complete,
+                "health_scan_error_count": scan_error_count,
+            }
+        )
         # Remove stale health alerts and replace them from the current facts.
         # A partial scan preserves existing alerts rather than clearing them.
         if not scan_complete:
             return
         self._alerts = [
-            a for a in self._alerts
+            a
+            for a in self._alerts
             if not str(a.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
             and a.get("source") != "terminal_audit_health"
         ]
@@ -2561,8 +2639,7 @@ class Orchestrator:
 
         self._save_state(
             owner_claims={
-                key: claim.to_dict()
-                for key, claim in self.state.owner_claims.items()
+                key: claim.to_dict() for key, claim in self.state.owner_claims.items()
             }
         )
 
@@ -2579,7 +2656,9 @@ class Orchestrator:
             try:
                 claim = OwnerClaim.from_dict(raw)
             except (TypeError, ValueError) as exc:
-                logger.warning("Ignoring malformed persisted owner claim %r: %s", key, exc)
+                logger.warning(
+                    "Ignoring malformed persisted owner claim %r: %s", key, exc
+                )
                 continue
             restored[self._owner_claim_key(claim.project_id, claim.issue_id)] = claim
         with self._owner_claims_lock:
@@ -2672,20 +2751,16 @@ class Orchestrator:
                 project_id=project_id,
                 owner_login=owner_login,
                 claimed_at=claimed_at,
-                expires_at=(
-                    claimed_at + duration_hours * 60 * 60
-                ),
+                expires_at=(claimed_at + duration_hours * 60 * 60),
             )
             with self._owner_claims_lock:
-                self.state.owner_claims[
-                    self._owner_claim_key(project_id, issue_id)
-                ] = claim
+                self.state.owner_claims[self._owner_claim_key(project_id, issue_id)] = (
+                    claim
+                )
                 self._persist_owner_claims_locked()
             return claim
 
-    def release_owner_claim(
-        self, *, issue_id: str, project_id: str | None
-    ) -> bool:
+    def release_owner_claim(self, *, issue_id: str, project_id: str | None) -> bool:
         """Release a direct-owner lease under the project write lock."""
 
         project_lock = (
@@ -2856,7 +2931,11 @@ class Orchestrator:
         reopened = 0
 
         for issue_id, evidence in list(self._shared_absorption_evidence.items()):
-            if not evidence.branch or not evidence.base_sha or not evidence.changed_paths:
+            if (
+                not evidence.branch
+                or not evidence.base_sha
+                or not evidence.changed_paths
+            ):
                 # Incomplete evidence — drop it
                 del self._shared_absorption_evidence[issue_id]
                 continue
@@ -2877,7 +2956,9 @@ class Orchestrator:
             # which is not in _last_candidates by default).
             try:
                 tracker = (
-                    self._tracker_for_project(project_id) if project_id else self.tracker
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
                 )
                 current_issue = tracker.fetch_issue_detail(evidence.issue_identifier)
             except Exception as exc:
@@ -2894,7 +2975,9 @@ class Orchestrator:
                 continue
 
             # Terminal tasks: clear evidence, no action needed.
-            if _is_terminal_state(current_issue.state, self.config.tracker_terminal_states):
+            if _is_terminal_state(
+                current_issue.state, self.config.tracker_terminal_states
+            ):
                 logger.debug(
                     "shared_absorption: clearing evidence for terminal task %s",
                     evidence.issue_identifier,
@@ -2986,9 +3069,7 @@ class Orchestrator:
                     if diff_result.returncode != 0:
                         continue
                     commit_files = {
-                        f.strip()
-                        for f in diff_result.stdout.splitlines()
-                        if f.strip()
+                        f.strip() for f in diff_result.stdout.splitlines() if f.strip()
                     }
                     if commit_files & evidence_paths:
                         absorbing_commits.append((sha, subject))
@@ -3022,9 +3103,18 @@ class Orchestrator:
 
             try:
                 tracker = (
-                    self._tracker_for_project(project_id) if project_id else self.tracker
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
                 )
-                tracker.update_issue(evidence.issue_identifier, status=OPEN)
+                self._transition_issue_status(
+                    current_issue,
+                    OPEN,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code="watchdog.shared_absorption_reopen",
+                )
                 self._post_comment(
                     evidence.issue_identifier,
                     comment,
@@ -3147,9 +3237,7 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
-        self._branch_quality_gate.timeout_seconds = (
-            config.quality_gate_timeout_seconds
-        )
+        self._branch_quality_gate.timeout_seconds = config.quality_gate_timeout_seconds
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
@@ -3313,8 +3401,7 @@ class Orchestrator:
         # ``getattr`` keeps lightweight ``Orchestrator.__new__`` test doubles
         # and older embedders compatible while the transient field is new.
         return bool(
-            getattr(self, "_paused", False)
-            or getattr(self, "_quiesced", False)
+            getattr(self, "_paused", False) or getattr(self, "_quiesced", False)
         )
 
     def _persist_restart_issue(self, issue: Issue) -> None:
@@ -3613,9 +3700,7 @@ class Orchestrator:
             "restart_issues", []
         )
         existing_ids = {e["issue_id"] for e in existing_restart_issues}
-        new_issues = [
-            e for e in restart_issues if e["issue_id"] not in existing_ids
-        ]
+        new_issues = [e for e in restart_issues if e["issue_id"] not in existing_ids]
         merged_restart_issues = existing_restart_issues + new_issues
 
         if new_issues:
@@ -3642,16 +3727,15 @@ class Orchestrator:
         self._restart_requested = True
         self._stopping = True
         # Wake the dispatch loop if it's blocked on _dispatch_queue.get()
-        self._post_event(
-            DispatchEvent(event_type=DispatchEventType.SHUTDOWN)
-        )
+        self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
 
     @property
     def wants_restart(self) -> bool:
         return self._restart_requested
 
     def _new_tracker(
-        self, cwd: str | None = None,
+        self,
+        cwd: str | None = None,
     ) -> TrackerProtocol:
         """Construct a tracker adapter for the configured tracker.kind.
 
@@ -3666,14 +3750,11 @@ class Orchestrator:
         if factory is None:
             registered = sorted(ADAPTER_REGISTRY)
             raise TrackerError(
-                f"Unsupported tracker.kind: {kind!r}."
-                f" Registered adapters: {registered}"
+                f"Unsupported tracker.kind: {kind!r}. Registered adapters: {registered}"
             )
         extra: dict[str, object] = {}
         if kind in ("oompah_md", "oompah.md", "oompah"):
-            extra["allow_default_branch_task_writes"] = (
-                not self._has_managed_projects()
-            )
+            extra["allow_default_branch_task_writes"] = not self._has_managed_projects()
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
@@ -3753,9 +3834,7 @@ class Orchestrator:
             # State-branch projects may only write task state through the
             # configured state worktree; the flag is also a defensive marker
             # carried by the resulting tracker instance.
-            extra["allow_default_branch_task_writes"] = (
-                not state_branch_enabled
-            )
+            extra["allow_default_branch_task_writes"] = not state_branch_enabled
             # Pass forge credentials for authenticated Git network operations.
             # The tracker uses these in an ephemeral, redacted environment.
             if getattr(project, "access_token", None):
@@ -3959,7 +4038,9 @@ class Orchestrator:
             if getattr(entry, "authority_revoked", False):
                 return False
             generation = getattr(entry, "authority_generation", None)
-            return not generation or generation not in self._revoked_authority_generations
+            return (
+                not generation or generation not in self._revoked_authority_generations
+            )
 
     def _workspace_authority_check(self, issue: Issue, run_id: str | None):
         """Return a setup callback, preserving direct worker-test call sites."""
@@ -4038,7 +4119,9 @@ class Orchestrator:
                 self.request_terminal_transition(
                     current_issue=issue,
                     requested_target=TargetState.MERGED,
-                    trigger_identity=ContributorIdentity(trigger_identity, trigger_source),
+                    trigger_identity=ContributorIdentity(
+                        trigger_identity, trigger_source
+                    ),
                     project_id=project_id,
                     evidence_fingerprint=evidence_fingerprint,
                 )
@@ -4061,6 +4144,262 @@ class Orchestrator:
                 "refusing to use the unscoped legacy tracker"
             )
         return self.tracker
+
+    def _task_transition_service(
+        self,
+        project_id: str | None,
+        tracker: TrackerProtocol,
+    ) -> TaskTransitionService:
+        """Return the durable status writer for one tracker project."""
+
+        # A few embedders construct a deliberately minimal orchestrator with
+        # ``__new__``.  Keep that supported without weakening production:
+        # their transition history remains durable for the object's lifetime
+        # in an isolated SQLite database, while normal construction always
+        # installs the service-state-backed journal above.
+        if not hasattr(self, "_task_transition_services_lock"):
+            self._task_transition_services_lock = threading.RLock()
+            self._task_transition_services = {}
+            self.task_transition_journal = TransitionJournal(":memory:")
+            coordinator = getattr(self, "terminal_transition_coordinator", None)
+            self._task_transition_terminal_adapter = (
+                CoordinatorTerminalAdapter(coordinator)
+                if coordinator is not None
+                else None
+            )
+        service_project_id = str(project_id or "__legacy__")
+        with self._task_transition_services_lock:
+            service = self._task_transition_services.get(service_project_id)
+            if service is None:
+                service = TaskTransitionService(
+                    project_id=service_project_id,
+                    tracker=tracker,
+                    journal=self.task_transition_journal,
+                    terminal_adapter=(
+                        self._task_transition_terminal_adapter
+                        if project_id is not None
+                        else None
+                    ),
+                )
+                self._task_transition_services[service_project_id] = service
+            elif service.tracker is not tracker:
+                raise ProjectError(
+                    "Task transition service tracker changed for project "
+                    f"{service_project_id!r}"
+                )
+            return service
+
+    def _project_id_for_tracker(self, tracker: TrackerProtocol) -> str | None:
+        """Resolve the managed project owning a cached tracker instance."""
+
+        if tracker is getattr(self, "tracker", None):
+            return None
+        for project_id, candidate in getattr(self, "_project_trackers", {}).items():
+            if candidate is tracker:
+                return project_id
+        raise ProjectError("Tracker is not registered to an orchestrator project")
+
+    def _build_transition_intent(
+        self,
+        issue: Issue,
+        requested_status: str,
+        *,
+        project_id: str | None,
+        authority: TransitionAuthority,
+        reason_code: str,
+        originating_job: str | None,
+        evidence_generation: str | None,
+        exact_head: str | None,
+        idempotency_key: str | None,
+    ) -> TransitionIntent:
+        effective_project_id = str(project_id or issue.project_id or "__legacy__")
+        generation = evidence_generation or getattr(issue, "assignment_id", None)
+        head = exact_head or issue_exact_head(issue)
+        job = originating_job or f"orchestrator:{reason_code}"
+        return TransitionIntent(
+            project_id=effective_project_id,
+            task_id=issue.identifier,
+            expected_status=issue.state,
+            expected_version=issue_authority_version(issue),
+            requested_status=requested_status,
+            actor="oompah",
+            authority=authority,
+            reason_code=reason_code,
+            idempotency_key=(
+                idempotency_key or f"{job}:{issue.identifier}:{uuid.uuid4().hex}"
+            ),
+            originating_job=job,
+            evidence_generation=generation,
+            exact_head=head,
+        )
+
+    @staticmethod
+    def _require_committed_transition(
+        outcome: TransitionOutcome,
+    ) -> TransitionOutcome:
+        """Turn a non-commit outcome into the legacy call sites' error path."""
+
+        if outcome.disposition not in _COMMITTED_TRANSITION_DISPOSITIONS:
+            raise TaskTransitionNotApplied(outcome)
+        return outcome
+
+    async def _transition_issue_status_async(
+        self,
+        issue: Issue,
+        requested_status: str,
+        *,
+        project_id: str | None = None,
+        tracker: TrackerProtocol | None = None,
+        authority: TransitionAuthority = TransitionAuthority.ORCHESTRATOR,
+        reason_code: str,
+        originating_job: str | None = None,
+        evidence_generation: str | None = None,
+        exact_head: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> TransitionOutcome:
+        """Journal, fence, apply, and verify one async lifecycle decision."""
+
+        effective_project_id = project_id or issue.project_id
+        effective_tracker = tracker or self._tracker_for_issue(issue)
+        intent = self._build_transition_intent(
+            issue,
+            requested_status,
+            project_id=effective_project_id,
+            authority=authority,
+            reason_code=reason_code,
+            originating_job=originating_job,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+            idempotency_key=idempotency_key,
+        )
+        service = self._task_transition_service(
+            effective_project_id,
+            effective_tracker,
+        )
+        outcome = await service.execute(intent)
+        logger.info(
+            "Task transition outcome task=%s expected=%s requested=%s "
+            "disposition=%s reason=%s transition_id=%s",
+            issue.identifier,
+            issue.state,
+            requested_status,
+            outcome.disposition.value,
+            outcome.reason_code,
+            outcome.transition_id,
+        )
+        return self._require_committed_transition(outcome)
+
+    def _transition_issue_status(
+        self,
+        issue: Issue,
+        requested_status: str,
+        *,
+        project_id: str | None = None,
+        tracker: TrackerProtocol | None = None,
+        authority: TransitionAuthority = TransitionAuthority.ORCHESTRATOR,
+        reason_code: str,
+        originating_job: str | None = None,
+        evidence_generation: str | None = None,
+        exact_head: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> TransitionOutcome:
+        """Synchronous bridge for maintenance lanes and legacy callback hooks.
+
+        Some synchronous gate callbacks run on the scheduler event-loop
+        thread.  In that case execute the async service on a short-lived
+        helper thread instead of nesting an event loop.  Existing callbacks
+        were already blocking on tracker I/O, so this preserves their timing
+        while retaining the transition service's async API.
+        """
+
+        request = self._transition_issue_status_async(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            authority=authority,
+            reason_code=reason_code,
+            originating_job=originating_job,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+            idempotency_key=idempotency_key,
+        )
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(request)
+
+        with ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="task-transition",
+        ) as pool:
+            return pool.submit(asyncio.run, request).result()
+
+    def _transition_identifier_status(
+        self,
+        identifier: str,
+        requested_status: str,
+        *,
+        project_id: str | None,
+        tracker: TrackerProtocol,
+        authority: TransitionAuthority = TransitionAuthority.ORCHESTRATOR,
+        reason_code: str,
+        originating_job: str | None = None,
+        evidence_generation: str | None = None,
+        exact_head: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> TransitionOutcome:
+        """Fetch a fresh authority snapshot, then execute a fenced transition."""
+
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is None:
+            raise TrackerError(f"Task {identifier!r} does not exist")
+        if not issue.project_id:
+            issue.project_id = project_id
+        return self._transition_issue_status(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            authority=authority,
+            reason_code=reason_code,
+            originating_job=originating_job,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+            idempotency_key=idempotency_key,
+        )
+
+    async def _transition_identifier_status_async(
+        self,
+        identifier: str,
+        requested_status: str,
+        *,
+        project_id: str | None,
+        tracker: TrackerProtocol,
+        authority: TransitionAuthority = TransitionAuthority.ORCHESTRATOR,
+        reason_code: str,
+        originating_job: str | None = None,
+        evidence_generation: str | None = None,
+        exact_head: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> TransitionOutcome:
+        issue = await asyncio.to_thread(tracker.fetch_issue_detail, identifier)
+        if issue is None:
+            raise TrackerError(f"Task {identifier!r} does not exist")
+        if not issue.project_id:
+            issue.project_id = project_id
+        return await self._transition_issue_status_async(
+            issue,
+            requested_status,
+            project_id=project_id,
+            tracker=tracker,
+            authority=authority,
+            reason_code=reason_code,
+            originating_job=originating_job,
+            evidence_generation=evidence_generation,
+            exact_head=exact_head,
+            idempotency_key=idempotency_key,
+        )
 
     def _resolve_issue_project_id(
         self,
@@ -4231,9 +4570,15 @@ class Orchestrator:
         if projects:
             for project in projects:
                 try:
-                    queue_specs.append((project.id, self._tracker_for_project(project.id)))
+                    queue_specs.append(
+                        (project.id, self._tracker_for_project(project.id))
+                    )
                 except (ProjectError, TrackerError) as exc:
-                    logger.warning("Release-addendum recovery skipped project %s: %s", project.id, exc)
+                    logger.warning(
+                        "Release-addendum recovery skipped project %s: %s",
+                        project.id,
+                        exc,
+                    )
         else:
             queue_specs.append((None, self.tracker))
 
@@ -4246,7 +4591,9 @@ class Orchestrator:
                 recovered += len(queue.recover_expired_leases())
             except (TrackerError, ValueError) as exc:
                 logger.warning(
-                    "Release-addendum recovery failed project_id=%s: %s", project_id, exc
+                    "Release-addendum recovery failed project_id=%s: %s",
+                    project_id,
+                    exc,
                 )
         return recovered
 
@@ -4390,7 +4737,7 @@ class Orchestrator:
         issue: Issue,
     ) -> tuple[bool, str | None]:
         """Remove one terminal issue's owned worktree/branch when supported.
-        
+
         Returns (changed, skip_reason). skip_reason is None if the branch was
         removed or attempted, or a category string if skipped.
         """
@@ -4401,9 +4748,7 @@ class Orchestrator:
                 "branch_name": str(issue.work_branch or "").strip() or None,
                 "is_epic": _is_epic_issue(issue),
                 "issue_number": (
-                    str(issue.issue_number).strip()
-                    if issue.issue_number
-                    else None
+                    str(issue.issue_number).strip() if issue.issue_number else None
                 ),
             }
             cleanup_kwargs.update(
@@ -4606,7 +4951,9 @@ class Orchestrator:
                                 )
                             elif skip_reason:
                                 # Track categorized skip for aggregated summary
-                                skip_reasons[skip_reason] = skip_reasons.get(skip_reason, 0) + 1
+                                skip_reasons[skip_reason] = (
+                                    skip_reasons.get(skip_reason, 0) + 1
+                                )
                         except Exception as exc:
                             logger.warning(
                                 "Failed to clean worktree/branch "
@@ -4704,7 +5051,7 @@ class Orchestrator:
             except TrackerError as exc:
                 logger.warning("Terminal workspace cleanup failed: %s", exc)
         self._set_maintenance_cursor("worktree_cleanup", None)
-        
+
         # Emit structured summary of skipped branches (aggregated, not per-issue warnings)
         skipped_total = sum(skip_reasons.values())
         if skipped_total > 0:
@@ -4718,7 +5065,7 @@ class Orchestrator:
                 skip_summary,
                 skipped_total,
             )
-        
+
         self._maintenance_status["worktree_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "cleaned": cleaned,
@@ -4771,7 +5118,7 @@ class Orchestrator:
             logger.info(
                 "Recovered %d abandoned integration lease(s) at startup", abandoned
             )
-        
+
         self._maintenance_status["startup_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "worktree_cleanup_deferred": True,
@@ -4810,9 +5157,7 @@ class Orchestrator:
                 async with self.issue_transition_lock(str(issue_id)):
                     lookup_ids = list(
                         dict.fromkeys(
-                            str(value)
-                            for value in (issue_id, identifier)
-                            if value
+                            str(value) for value in (issue_id, identifier) if value
                         )
                     )
                     snapshots = await asyncio.to_thread(
@@ -4824,8 +5169,7 @@ class Orchestrator:
                             candidate
                             for candidate in snapshots
                             if str(getattr(candidate, "id", "")) in lookup_ids
-                            or str(getattr(candidate, "identifier", ""))
-                            in lookup_ids
+                            or str(getattr(candidate, "identifier", "")) in lookup_ids
                         ),
                         None,
                     )
@@ -4852,10 +5196,19 @@ class Orchestrator:
                         )
                         continue
 
-                    await asyncio.to_thread(
-                        tracker.update_issue,
-                        identifier,
-                        status=OPEN,
+                    if not current.project_id:
+                        current.project_id = project_id
+                    await self._transition_issue_status_async(
+                        current,
+                        OPEN,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.SYSTEM,
+                        reason_code="restart.interrupted_worker_recovered",
+                        evidence_generation=(
+                            entry.get("assignment_id")
+                            or getattr(current, "assignment_id", None)
+                        ),
                     )
                     logger.info(
                         "Marked %s as Open for re-dispatch after restart",
@@ -5119,6 +5472,7 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001
             self._heal_error_last = str(exc)
             logger.warning("Periodic repo self-heal failed: %s", exc)
+
     def _maybe_cleanup_worktrees(self) -> None:
         """Periodically remove terminal worktrees (merged/archived tasks only).
 
@@ -5158,7 +5512,9 @@ class Orchestrator:
                 self._cleanup_error_last = None
             except Exception as exc:  # noqa: BLE001
                 self._cleanup_error_last = str(exc)
-                logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
+                logger.warning(
+                    "Terminal worktree cleanup failed during maintenance: %s", exc
+                )
 
     @staticmethod
     def _repo_hygiene_timestamp(value: Any) -> float | None:
@@ -5405,14 +5761,11 @@ class Orchestrator:
             name = str(ref["name"])
             branch = name.removeprefix("origin/")
             issue = issue_by_branch.get(branch)
-            checked_out = (
-                not ref["remote"]
-                and branch in {
-                    str(record.get("branch"))
-                    for record in worktrees
-                    if record.get("branch")
-                }
-            )
+            checked_out = not ref["remote"] and branch in {
+                str(record.get("branch"))
+                for record in worktrees
+                if record.get("branch")
+            }
             configured_owner = any(
                 pattern and fnmatchcase(branch, str(pattern).strip())
                 for pattern in (project.branches or [])
@@ -5432,7 +5785,9 @@ class Orchestrator:
             else:
                 category = "safely_prunable"
 
-            inventory = health.branches_remote if ref["remote"] else health.branches_local
+            inventory = (
+                health.branches_remote if ref["remote"] else health.branches_local
+            )
             setattr(inventory, category, getattr(inventory, category) + 1)
 
             if category == "safely_prunable":
@@ -5446,7 +5801,11 @@ class Orchestrator:
                     else None
                 )
                 age_start = terminal_timestamp or float(ref["commit_timestamp"] or 0)
-                if age_start and now - age_start >= self._repo_hygiene_thresholds.safely_prunable_age_seconds:
+                if (
+                    age_start
+                    and now - age_start
+                    >= self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                ):
                     health.overdue_artifacts.append(
                         OverdueArtifact(
                             artifact_type="branch",
@@ -5563,9 +5922,7 @@ class Orchestrator:
         pressure = inspect_storage_pressure(
             pressure_paths,
             min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
-            min_free_percent=(
-                self.config.storage_cleanup_pressure_min_free_percent
-            ),
+            min_free_percent=(self.config.storage_cleanup_pressure_min_free_percent),
         )
         state = self._get_or_create_job_state("storage_cleanup")
         if pressure.pressured:
@@ -5598,9 +5955,7 @@ class Orchestrator:
             agent_log_root=log_root,
             protected_paths=protected_logs,
             min_age_seconds=self.config.storage_cleanup_min_age_seconds,
-            log_retention_seconds=(
-                self.config.storage_cleanup_log_retention_seconds
-            ),
+            log_retention_seconds=(self.config.storage_cleanup_log_retention_seconds),
             batch_limit=self.config.storage_cleanup_batch_size,
             byte_limit=self.config.storage_cleanup_max_bytes,
         )
@@ -5628,9 +5983,7 @@ class Orchestrator:
         pressure_after = inspect_storage_pressure(
             pressure_paths,
             min_free_bytes=self.config.storage_cleanup_pressure_min_free_bytes,
-            min_free_percent=(
-                self.config.storage_cleanup_pressure_min_free_percent
-            ),
+            min_free_percent=(self.config.storage_cleanup_pressure_min_free_percent),
         )
         self._maintenance_status["storage_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
@@ -5968,9 +6321,7 @@ class Orchestrator:
                 try:
                     await asyncio.wrap_future(bridge)
                 except Exception:  # noqa: BLE001 -- preserve restart progress
-                    logger.exception(
-                        "Background maintenance failed on its owning loop"
-                    )
+                    logger.exception("Background maintenance failed on its owning loop")
             else:
                 # This is the defensive path for a scheduler loop that exited
                 # before an older service version drained its executor
@@ -5996,6 +6347,7 @@ class Orchestrator:
             cancel_futures=False,
         )
         self.review_capacity_store.close()
+        self.task_transition_journal.close()
 
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
@@ -6051,12 +6403,9 @@ class Orchestrator:
         # A full task scan or a long maintenance operation must not defer the
         # bounded Ready reconciliation interval; the future itself coalesces
         # duplicate ticks while one sweep is active.
-        if (
-            self.config.parallel_epic_children_enabled
-            and (
-                self._standalone_delivery_future is None
-                or self._standalone_delivery_future.done()
-            )
+        if self.config.parallel_epic_children_enabled and (
+            self._standalone_delivery_future is None
+            or self._standalone_delivery_future.done()
         ):
             self._standalone_delivery_future = (
                 asyncio.get_running_loop().run_in_executor(
@@ -6068,9 +6417,7 @@ class Orchestrator:
         # Detect terminal -> non-terminal -> terminal transitions after the
         # process has started.  Keep this scan on the full-sync cadence so
         # ordinary event-driven ticks remain cheap.
-        terminal_audit_interval = max(
-            1.0, self.config.full_sync_interval_ms / 1000.0
-        )
+        terminal_audit_interval = max(1.0, self.config.full_sync_interval_ms / 1000.0)
         if (
             self._terminal_audit_started
             and self._monotonic_clock() - self._terminal_audit_last_scan
@@ -6142,12 +6489,8 @@ class Orchestrator:
         # Ready private task heads are integrated outside the dispatch lane.
         # The shared-epic driver is independent of the standalone driver, so
         # an exact-head standalone gate cannot hold shared queue claims.
-        if (
-            self.config.parallel_epic_children_enabled
-            and (
-                self._integration_future is None
-                or self._integration_future.done()
-            )
+        if self.config.parallel_epic_children_enabled and (
+            self._integration_future is None or self._integration_future.done()
         ):
             self._integration_future = asyncio.create_task(
                 self._process_integration_queues(),
@@ -6177,7 +6520,10 @@ class Orchestrator:
         # slow system.  Runs AFTER _handle_dispatch_needed so _last_candidates
         # is populated before the job reads it.  Ordering within the job is
         # preserved: staleness before rebase filing (oompah-zlz_2-82dr).
-        if self._epic_maintenance_future is None or self._epic_maintenance_future.done():
+        if (
+            self._epic_maintenance_future is None
+            or self._epic_maintenance_future.done()
+        ):
             self._epic_maintenance_future = asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._run_step5c_epic_maintenance
             )
@@ -6194,9 +6540,7 @@ class Orchestrator:
             "yolo_ms": round(yolo_ms, 3),
             "post_yolo_ms": round((t4b - t4) * 1000, 3),
             "tick_pool_queue_depth": self._tick_pool_queue_depth(),
-            "dispatch_events_coalesced": getattr(
-                self, "_dispatch_events_coalesced", 0
-            ),
+            "dispatch_events_coalesced": getattr(self, "_dispatch_events_coalesced", 0),
         }
 
         # Store per-substep telemetry for dashboard snapshots (TASK-465.1).
@@ -6303,7 +6647,9 @@ class Orchestrator:
             try:
                 handler(payload)
                 self._ipc.ack_command(cmd_id, ok=True)
-                logger.debug("OrchestratorIPC: executed command %r (id=%d)", cmd_type, cmd_id)
+                logger.debug(
+                    "OrchestratorIPC: executed command %r (id=%d)", cmd_type, cmd_id
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "OrchestratorIPC: command %r (id=%d) raised %s",
@@ -6340,7 +6686,9 @@ class Orchestrator:
         """
         identifier = payload.get("identifier")
         if not identifier:
-            logger.warning("OrchestratorIPC: dispatch_issue command missing 'identifier'")
+            logger.warning(
+                "OrchestratorIPC: dispatch_issue command missing 'identifier'"
+            )
             return
         # Find the issue across all projects and dispatch it.  This reuses
         # the existing force-dispatch endpoint logic (no eligibility checks).
@@ -6616,8 +6964,7 @@ class Orchestrator:
         from oompah.terminal_transition_coordinator import AuditResult
 
         infrastructure_exhausted = bool(record.attempts) and all(
-            attempt.failure_classification
-            == FailureClassification.INFRASTRUCTURE_ERROR
+            attempt.failure_classification == FailureClassification.INFRASTRUCTURE_ERROR
             for attempt in record.attempts
         )
         if infrastructure_exhausted:
@@ -6706,12 +7053,10 @@ class Orchestrator:
                     self._tick_pool, store.read, issue.identifier
                 )
                 record = AuditorDispatchLane.pending_record(document.pending_chain)
-                finalization_failure_count = (
-                    self._uncommitted_terminal_result_intents(
-                        document,
-                        issue.project_id,
-                        issue.identifier,
-                    )
+                finalization_failure_count = self._uncommitted_terminal_result_intents(
+                    document,
+                    issue.project_id,
+                    issue.identifier,
                 )
                 # Collect a health observation for this In Validation task regardless
                 # of whether it has a pending record.  The observation is used by
@@ -6755,20 +7100,22 @@ class Orchestrator:
                             running.audit_attempt_id,
                         )
                         active.discard(running.audit_attempt_id)
-                        recovery = lane.recover(
-                            record, active_attempt_ids=active
-                        )
+                        recovery = lane.recover(record, active_attempt_ids=active)
                 if recovery.record != record:
                     recovered_attempt = (
                         recovery.record.attempts[-1]
                         if recovery.record.attempts
                         else None
                     )
-                    recovered_persisted = await asyncio.get_running_loop().run_in_executor(
-                        self._tick_pool,
-                        lambda r=recovery.record, a=recovered_attempt: self._audit_update_record(
-                            store, issue, r, append_attempt=a
-                        ),
+                    recovered_persisted = (
+                        await asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda r=recovery.record, a=recovered_attempt: (
+                                self._audit_update_record(
+                                    store, issue, r, append_attempt=a
+                                )
+                            ),
+                        )
                     )
                     if not recovered_persisted:
                         # A result/override won after the scan snapshot was
@@ -6784,7 +7131,9 @@ class Orchestrator:
                 if self._audit_branch_busy(issue, branch_key):
                     continue
                 metadata = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool, self._tracker_for_issue(issue).get_metadata, issue.identifier
+                    self._tick_pool,
+                    self._tracker_for_issue(issue).get_metadata,
+                    issue.identifier,
                 )
                 contributors = _load_work_contributors(metadata or {})
                 plan, no_candidate = lane.plan(
@@ -6906,9 +7255,7 @@ class Orchestrator:
         # Audits are a priority lane. They run first and consume the same
         # ``state.running`` slots as ordinary workers, so a full worker pool
         # naturally prevents an audit from exceeding global concurrency.
-        audit_timings = await _timed_async(
-            "audit_lane", self._dispatch_audit_lane
-        )
+        audit_timings = await _timed_async("audit_lane", self._dispatch_audit_lane)
         timings.update(audit_timings)
         metrics["audits"] = dict(self._audit_metrics)
 
@@ -6944,9 +7291,7 @@ class Orchestrator:
         # 4. Intake decomposition proposals — process Proposed issues that are
         # too large for one task.  This does not dispatch agents.
         await _timed("epic_proposals", self._process_epic_proposals, candidates)
-        metrics["epic_proposals"] = getattr(
-            self, "_last_epic_proposal_metrics", {}
-        )
+        metrics["epic_proposals"] = getattr(self, "_last_epic_proposal_metrics", {})
         timings["epic_proposals"] = metrics["epic_proposals_ms"]
 
         # 5. Candidate selection — sort + filter pass via _select_dispatchable.
@@ -6955,7 +7300,9 @@ class Orchestrator:
         # final ordered list of issues that passed _should_dispatch; the
         # async loop below only yields once per actual dispatch — no sync
         # work between yields. See task oompah-zlz_2-nvr.
-        ready = await _timed("select_dispatchable", self._select_dispatchable, candidates)
+        ready = await _timed(
+            "select_dispatchable", self._select_dispatchable, candidates
+        )
         metrics["selection"] = getattr(self, "_last_selection_metrics", {})
         metrics["ready_count"] = len(ready)
         timings["candidate_selection"] = metrics["select_dispatchable_ms"]
@@ -6973,7 +7320,9 @@ class Orchestrator:
 
         # 7. Epic planning — plan open epics without children (or repair epics)
         _t_epic = time.monotonic()
-        epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
+        epics_to_plan = await _timed(
+            "plan_open_epics", self._plan_open_epics, candidates
+        )
         planned = 0
         for epic in epics_to_plan:
             if self._available_slots() <= 0:
@@ -7020,8 +7369,8 @@ class Orchestrator:
                 duplicate_preflight_claim=claim,
             )
             preflight_started += 1
-        timings["duplicate_preflight_dispatch"] = (
-            metrics.get("select_duplicate_preflight_ms", 0.0)
+        timings["duplicate_preflight_dispatch"] = metrics.get(
+            "select_duplicate_preflight_ms", 0.0
         )
         metrics["duplicate_preflight"] = {
             **getattr(self, "_last_duplicate_preflight_metrics", {}),
@@ -7115,9 +7464,7 @@ class Orchestrator:
                 # restart path below this loop.
                 if is_direct_epic_maintenance_issue(issue):
                     continue
-                automatic_retry = (
-                    str(record.state or "").strip().lower() == "ready"
-                )
+                automatic_retry = str(record.state or "").strip().lower() == "ready"
                 retry_at = None
                 if automatic_retry and getattr(record, "backoff_until", None):
                     try:
@@ -7282,10 +7629,7 @@ class Orchestrator:
         # No running worker — check for a scheduled bounded retry.
         if queue_item is not None and queue_item.state == "ready":
             next_retry_at = queue_item.next_retry_at
-            budget_ok = (
-                max_attempts is None
-                or int(queue_item.attempts) < max_attempts
-            )
+            budget_ok = max_attempts is None or int(queue_item.attempts) < max_attempts
             if not budget_ok:
                 return "retry_exhausted", True, "warning"
             if next_retry_at is None:
@@ -7377,15 +7721,11 @@ class Orchestrator:
             row = {
                 "focus_name": getattr(entry, "focus_name", None),
                 "last_event_at": last_event_at,
-                "authority_revoked": bool(
-                    getattr(entry, "authority_revoked", False)
-                ),
+                "authority_revoked": bool(getattr(entry, "authority_revoked", False)),
             }
             running_index[(project_id, identifier)] = row
 
-        updated_at_iso = datetime.fromtimestamp(
-            current, tz=timezone.utc
-        ).isoformat()
+        updated_at_iso = datetime.fromtimestamp(current, tz=timezone.utc).isoformat()
         for alert in self._alerts:
             source = str(alert.get("source") or "")
             if not source.startswith("integration_retry:"):
@@ -7410,9 +7750,7 @@ class Orchestrator:
                         running_row.get("last_event_at") if running_row else None
                     ),
                     running_authority_revoked=bool(
-                        running_row.get("authority_revoked")
-                        if running_row
-                        else False
+                        running_row.get("authority_revoked") if running_row else False
                     ),
                     queue_item=queue_item,
                     integration_state=integration_state,
@@ -7486,9 +7824,7 @@ class Orchestrator:
             )
             if item.state == "blocked"
         ]
-        blocked_sources = {
-            f"{delivery_prefix}{item.task_id}" for item in blocked
-        }
+        blocked_sources = {f"{delivery_prefix}{item.task_id}" for item in blocked}
         self._alerts = [
             alert
             for alert in self._alerts
@@ -7499,18 +7835,14 @@ class Orchestrator:
         ]
         if not blocked:
             self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source") != scan_source
+                alert for alert in self._alerts if alert.get("source") != scan_source
             ]
             return
         try:
             issues = tracker.fetch_all_issues()
         except Exception as exc:  # noqa: BLE001 - preserve an actionable alert
             self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source") != scan_source
+                alert for alert in self._alerts if alert.get("source") != scan_source
             ]
             self._alerts.append(
                 {
@@ -7524,9 +7856,7 @@ class Orchestrator:
             )
             return
         self._alerts = [
-            alert
-            for alert in self._alerts
-            if alert.get("source") != scan_source
+            alert for alert in self._alerts if alert.get("source") != scan_source
         ]
 
         by_alias: dict[str, Issue] = {}
@@ -7666,9 +7996,11 @@ class Orchestrator:
         for item in queue_items:
             if item.state not in {"ready", "integrating", "cancelled"}:
                 continue
-            if item.state == "cancelled" and "container dependency cycle" not in str(
-                item.last_error or ""
-            ).lower():
+            if (
+                item.state == "cancelled"
+                and "container dependency cycle"
+                not in str(item.last_error or "").lower()
+            ):
                 continue
             issue = aliases.get(item.task_id)
             identifier = str(
@@ -7678,7 +8010,9 @@ class Orchestrator:
             ).strip()
             if item.task_id not in affected and identifier not in affected:
                 continue
-            container = container_for_issue(issue, issues_by_alias, epic_ids) if issue else None
+            container = (
+                container_for_issue(issue, issues_by_alias, epic_ids) if issue else None
+            )
             container_id = str(
                 getattr(container, "identifier", None)
                 or getattr(container, "id", None)
@@ -7709,7 +8043,9 @@ class Orchestrator:
             declared_closure=tuple(sorted({sha for _task, sha in prerequisite_shas})),
             rows=tuple(sorted(rows, key=lambda row: row.task_id)),
         )
-        self._record_container_cycle_repair(key, {"plan": plan.to_dict(), "phase": "planned"})
+        self._record_container_cycle_repair(
+            key, {"plan": plan.to_dict(), "phase": "planned"}
+        )
         return plan
 
     def _record_container_cycle_repair(
@@ -7810,7 +8146,9 @@ class Orchestrator:
             current_head = str(
                 getattr(record, "head_sha", "") or getattr(issue, "head_sha", "") or ""
             ).strip()
-            if remote_head != row.head_sha or (current_head and current_head != row.head_sha):
+            if remote_head != row.head_sha or (
+                current_head and current_head != row.head_sha
+            ):
                 changed.append(row.task_id)
                 message = (
                     f"Container-cycle repair is complete for {row.container_id}, but "
@@ -7822,7 +8160,9 @@ class Orchestrator:
                 try:
                     self._mark_needs_human(tracker, row.task_id, message)
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("Could not route changed private head %s: %s", row.task_id, exc)
+                    logger.warning(
+                        "Could not route changed private head %s: %s", row.task_id, exc
+                    )
                 continue
             if issue is None:
                 changed.append(row.task_id)
@@ -7853,7 +8193,15 @@ class Orchestrator:
             # authority changed, the code above fails without reopening or
             # rewriting tracker metadata.  Tracker writes follow and are
             # idempotently repaired on the next scan if a process exits here.
-            tracker.update_issue(row.task_id, status=READY_TO_INTEGRATE)
+            self._transition_issue_status(
+                issue,
+                READY_TO_INTEGRATE,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="integration.container_cycle_restored",
+                exact_head=row.head_sha,
+            )
             tracker.set_metadata_field(
                 row.task_id,
                 "oompah.integration",
@@ -7877,9 +8225,7 @@ class Orchestrator:
                 or str(getattr(confirmed_record, "head_sha", "") or "").strip()
                 != row.head_sha
             ):
-                raise RuntimeError(
-                    f"tracker restore did not persist for {row.task_id}"
-                )
+                raise RuntimeError(f"tracker restore did not persist for {row.task_id}")
             restored.append(row.task_id)
         self._record_container_cycle_repair(
             plan.key,
@@ -7957,9 +8303,7 @@ class Orchestrator:
                 result,
                 executor,
             )
-            result.changed_rows = tuple(
-                sorted(set(result.changed_rows) | set(changed))
-            )
+            result.changed_rows = tuple(sorted(set(result.changed_rows) | set(changed)))
         except Exception as exc:  # noqa: BLE001 - queue/tracker is a durable boundary
             result.status = "partial"
             result.error = f"queue restoration failed: {exc}"
@@ -8025,9 +8369,10 @@ class Orchestrator:
         for cycle in cycles:
             fingerprint = self._container_cycle_repair_key(cycle)[:16]
             source = f"{source_prefix}{fingerprint}"
-            sha_text = ", ".join(
-                f"{task}={sha}" for task, sha in cycle.prerequisite_shas
-            ) or "none recorded"
+            sha_text = (
+                ", ".join(f"{task}={sha}" for task, sha in cycle.prerequisite_shas)
+                or "none recorded"
+            )
             affected_ready = ", ".join(cycle.affected_ready_tasks) or "none"
             target = (
                 f"common authoritative container {cycle.authoritative_container}"
@@ -8052,7 +8397,10 @@ class Orchestrator:
                 if item.state != "ready":
                     continue
                 issue = aliases.get(item.task_id)
-                if issue is None or canonicalize_status(issue.state) != READY_TO_INTEGRATE:
+                if (
+                    issue is None
+                    or canonicalize_status(issue.state) != READY_TO_INTEGRATE
+                ):
                     continue
                 item_identifier = str(
                     getattr(issue, "identifier", None)
@@ -8152,7 +8500,7 @@ class Orchestrator:
         issue: Issue | None,
     ) -> bool:
         """Return True if the item is currently in a conflict repair backoff period.
-        
+
         When a conflict repair worker encounters a recoverable infrastructure failure
         (auth, provider, timeout), the item is marked for backoff with a backoff_until
         timestamp. During the backoff period, the item should remain in 'ready' state
@@ -8327,14 +8675,11 @@ class Orchestrator:
             # candidate.  Surface them without manufacturing claims for rows
             # that were never selected.
             if provider is None or not repo_slug or not target_branch:
-                reason = (
-                    provider_error
-                    or (
-                        "repository slug could not be resolved; configure a "
-                        "supported project repo_url"
-                        if provider is None or not repo_slug
-                        else "project default_branch is not configured"
-                    )
+                reason = provider_error or (
+                    "repository slug could not be resolved; configure a "
+                    "supported project repo_url"
+                    if provider is None or not repo_slug
+                    else "project default_branch is not configured"
                 )
                 issue, _dependency_state = eligible[0]
                 self._arm_standalone_delivery_alert(
@@ -8491,9 +8836,9 @@ class Orchestrator:
                     )
                     continue
 
-                review_state = str(
-                    getattr(existing_pr, "state", "") or ""
-                ).strip().lower()
+                review_state = (
+                    str(getattr(existing_pr, "state", "") or "").strip().lower()
+                )
                 if existing_pr is not None and review_state == "open":
                     existing_review_id = str(
                         getattr(existing_pr, "id", "") or ""
@@ -8525,7 +8870,14 @@ class Orchestrator:
                         self._standalone_delivery_mutation(
                             authority,
                             tracker,
-                            lambda: tracker.update_issue(task_id, status=IN_REVIEW),
+                            lambda: self._transition_issue_status(
+                                issue,
+                                IN_REVIEW,
+                                project_id=project_id,
+                                tracker=tracker,
+                                authority=TransitionAuthority.INTEGRATOR,
+                                reason_code="review.existing_review_adopted",
+                            ),
                             next_state=IN_REVIEW,
                         )
                     except Exception as exc:  # noqa: BLE001
@@ -8551,9 +8903,7 @@ class Orchestrator:
                         review_id=getattr(existing_pr, "id", None),
                         source_branch=task_branch,
                     )
-                    review_number = str(
-                        getattr(existing_pr, "id", "") or ""
-                    ) or None
+                    review_number = str(getattr(existing_pr, "id", "") or "") or None
                     review_url = getattr(existing_pr, "url", None)
                     if not self._write_review_metadata(
                         tracker,
@@ -8676,9 +9026,7 @@ class Orchestrator:
                         project_id,
                         task_id,
                         head_sha=(
-                            authority.head_sha
-                            if authority is not None
-                            else None
+                            authority.head_sha if authority is not None else None
                         ),
                     )
                     if gate_result is not None and gate_result.status == "interrupted":
@@ -8812,9 +9160,7 @@ class Orchestrator:
                     )
                     continue
 
-                created_review_id = str(
-                    getattr(result, "id", "") or ""
-                ).strip()
+                created_review_id = str(getattr(result, "id", "") or "").strip()
                 if not created_review_id:
                     self._release_review_capacity(
                         project_id,
@@ -8851,7 +9197,14 @@ class Orchestrator:
                     self._standalone_delivery_mutation(
                         authority,
                         tracker,
-                        lambda: tracker.update_issue(task_id, status=IN_REVIEW),
+                        lambda: self._transition_issue_status(
+                            issue,
+                            IN_REVIEW,
+                            project_id=project_id,
+                            tracker=tracker,
+                            authority=TransitionAuthority.INTEGRATOR,
+                            reason_code="review.created_for_submission",
+                        ),
                         next_state=IN_REVIEW,
                     )
                     logger.info(
@@ -9088,9 +9441,7 @@ class Orchestrator:
             [],
         )
         unsatisfied = tuple(
-            dependency
-            for dependency in dependencies
-            if dependency not in satisfied
+            dependency for dependency in dependencies if dependency not in satisfied
         )
         revision = tuple(
             f"{dependency}:{canonicalize_status(index[dependency].state)}"
@@ -9172,10 +9523,7 @@ class Orchestrator:
             or not project_id
             or not branch
             or canonicalize_status(issue.state) != expected_state
-            or (
-                str(issue.parent_id or "").strip()
-                and not allows_parent
-            )
+            or (str(issue.parent_id or "").strip() and not allows_parent)
             or _is_epic_issue(issue)
         ):
             return None
@@ -9393,8 +9741,7 @@ class Orchestrator:
             if (
                 canonicalize_status(current.state) != authority.expected_state
                 or (
-                    str(current.parent_id or "").strip()
-                    and not authority.allows_parent
+                    str(current.parent_id or "").strip() and not authority.allows_parent
                 )
                 or _is_epic_issue(current)
                 or self._standalone_delivery_evidence_revision(current)
@@ -9541,7 +9888,9 @@ class Orchestrator:
             if str(getattr(entry, "identifier", "") or "") != str(task_id):
                 continue
             entry.authority_revoked = True
-            entry.authority_revocation_reason = "owner override acquired terminal authority"
+            entry.authority_revocation_reason = (
+                "owner override acquired terminal authority"
+            )
             entry.forced_exit_reason = "authority_revoked"
             entry.forced_exit_error = entry.authority_revocation_reason
             matching.append(issue_id)
@@ -9588,8 +9937,7 @@ class Orchestrator:
             if (
                 canonicalize_status(current.state) != READY_TO_INTEGRATE
                 or (
-                    str(current.parent_id or "").strip()
-                    and not authority.allows_parent
+                    str(current.parent_id or "").strip() and not authority.allows_parent
                 )
                 or _is_epic_issue(current)
                 or self._standalone_delivery_evidence_revision(current)
@@ -9659,9 +10007,7 @@ class Orchestrator:
             project = self.project_store.get(project_id)
             if project is not None and project.repo_path:
                 repo_path = project.repo_path
-                epic_ref = (
-                    f"origin/{self.project_store.epic_branch_name(epic_id)}"
-                )
+                epic_ref = f"origin/{self.project_store.epic_branch_name(epic_id)}"
                 default_ref = f"origin/{project.default_branch}"
                 try:
                     with self.project_store.project_write_lock(project_id):
@@ -9730,18 +10076,13 @@ class Orchestrator:
                 satisfied.update(aliases)
                 continue
             record = getattr(issue, "integration", None)
-            integrated_sha = str(
-                getattr(record, "integrated_sha", "") or ""
-            ).strip()
+            integrated_sha = str(getattr(record, "integrated_sha", "") or "").strip()
             parent_landed = dependency_parent_has_landed(
                 issue,
                 issues_by_alias,
             )
             if _reachable(integrated_sha) or (
-                (
-                    status in {MERGED, ARCHIVED}
-                    or (status == DONE and parent_landed)
-                )
+                (status in {MERGED, ARCHIVED} or (status == DONE and parent_landed))
                 and default_ref is not None
                 and _reachable(default_ref)
             ):
@@ -9766,9 +10107,7 @@ class Orchestrator:
         for item in queue_items:
             issue = tasks_by_alias.get(item.task_id)
             result[item.task_id] = (
-                effective_dependencies(issue, index)
-                if issue is not None
-                else ()
+                effective_dependencies(issue, index) if issue is not None else ()
             )
         return result
 
@@ -9902,9 +10241,7 @@ class Orchestrator:
                 message=f"could not recover integration worktrees: {exc}",
             )
         return execute_integration(
-            project_lock=self.project_store.project_write_lock(
-                item.project_id
-            ),
+            project_lock=self.project_store.project_write_lock(item.project_id),
             epic_worktree=epic_worktree,
             task_worktree=task_worktree,
             epic_branch=self.project_store.epic_branch_name(item.epic_id),
@@ -9938,7 +10275,7 @@ class Orchestrator:
         result: IntegrationExecutionResult,
     ) -> None:
         """Persist a recoverable repair state without deleting any branch.
-        
+
         Handles three categories of failures:
         1. Executor retryable (epic_head_race, interrupted): auto-retry immediately
         2. Conflict with infrastructure failure: backoff and retry after cooldown
@@ -9963,9 +10300,7 @@ class Orchestrator:
                 else None
             )
             recorded_at = datetime.now(timezone.utc).isoformat()
-            resolved_level = level or (
-                "warning" if action_required else "info"
-            )
+            resolved_level = level or ("warning" if action_required else "info")
             self._alerts.append(
                 {
                     "level": resolved_level,
@@ -10048,9 +10383,12 @@ class Orchestrator:
         if conflict_backoff:
             conflict_delays = [300, 900, 2700]
             retryable = True
-            retry_at = time.time() + conflict_delays[
-                min(max(item.attempts - 1, 0), len(conflict_delays) - 1)
-            ]
+            retry_at = (
+                time.time()
+                + conflict_delays[
+                    min(max(item.attempts - 1, 0), len(conflict_delays) - 1)
+                ]
+            )
         self.integration_queue.fail(
             item.project_id,
             item.task_id,
@@ -10064,16 +10402,17 @@ class Orchestrator:
         existing = getattr(issue, "integration", None) if issue else None
         head_sha = result.rebased_task_sha or item.head_sha
         state = "ready" if retryable else "blocked"
-        
+
         # Track repair failure classification for conflicts
         backoff_until: str | None = None
-        
+
         if result.status == "conflict":
             # Classify the failure to detect infrastructure vs real conflicts
-            repair_failure_reason = repair_failure_reason or classify_conflict_repair_failure(
-                result.message
+            repair_failure_reason = (
+                repair_failure_reason
+                or classify_conflict_repair_failure(result.message)
             )
-            
+
             # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
             if repair_failure_reason and repair_failure_reason != "conflict":
                 # Calculate exponential backoff: 5m, 15m, 45m, then needs_human
@@ -10084,7 +10423,7 @@ class Orchestrator:
                     repair_attempts = item.attempts
                     if repair_attempts >= 1:  # Attempts start at 1 on first try
                         repair_attempts -= 1
-                
+
                 max_repair_attempts = 4  # 3 backoff retries + needs_human
                 if repair_attempts < max_repair_attempts:
                     # Still have retries left
@@ -10092,13 +10431,15 @@ class Orchestrator:
                         backoff_seconds = backoff_delays[repair_attempts]
                     else:
                         backoff_seconds = backoff_delays[-1]
-                    backoff_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                    backoff_time = datetime.now(timezone.utc) + timedelta(
+                        seconds=backoff_seconds
+                    )
                     backoff_until = backoff_time.isoformat()
                     state = "ready"
                 else:
                     # Exhausted repair attempts, transition to needs_human
                     state = "needs_human"
-        
+
         tracker.set_metadata_field(
             item.task_id,
             "oompah.integration",
@@ -10135,7 +10476,12 @@ class Orchestrator:
         elif state == "needs_human":
             initial_recovery_state = "retry_exhausted"
             initial_action_required = True
-        elif result.status in {"conflict", "generated_helper", "needs_rebase", "ci_failure"}:
+        elif result.status in {
+            "conflict",
+            "generated_helper",
+            "needs_rebase",
+            "ci_failure",
+        }:
             # A repair worker will be dispatched shortly.  While that worker
             # is fresh the operator does not need to act; the reconciler
             # will re-arm the warning if no worker appears in the freshness
@@ -10196,7 +10542,7 @@ class Orchestrator:
                 result.message,
             )
             return
-        
+
         # Handle conflict with retryable infrastructure failure
         if result.status == "conflict" and backoff_until and state == "ready":
             instruction = (
@@ -10215,11 +10561,21 @@ class Orchestrator:
                 repair_failure_reason,
             )
             return
-        
+
         # Handle exhausted repairs (needs_human transition)
         if state == "needs_human":
             repair_status = NEEDS_REBASE
-            tracker.update_issue(item.task_id, status=repair_status)
+            if issue is None:
+                raise RuntimeError(f"integration task disappeared: {item.task_id}")
+            self._transition_issue_status(
+                issue,
+                repair_status,
+                project_id=item.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="integration.conflict_repair_exhausted",
+                exact_head=head_sha,
+            )
             instruction = (
                 f"**Conflict repair exhausted**: Integration found a rebase conflict on "
                 f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
@@ -10245,7 +10601,7 @@ class Orchestrator:
                 result.message[:500],
             )
             return
-        
+
         # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
@@ -10259,7 +10615,17 @@ class Orchestrator:
             "error": OPEN,
             "epic_merge_failure": OPEN,
         }.get(result.status, OPEN)
-        tracker.update_issue(item.task_id, status=repair_status)
+        if issue is None:
+            raise RuntimeError(f"integration task disappeared: {item.task_id}")
+        self._transition_issue_status(
+            issue,
+            repair_status,
+            project_id=item.project_id,
+            tracker=tracker,
+            authority=TransitionAuthority.INTEGRATOR,
+            reason_code=f"integration.{result.status}_repair",
+            exact_head=head_sha,
+        )
         instruction = {
             "conflict": (
                 f"Integration found a rebase conflict on `{item.task_branch}`. "
@@ -10410,19 +10776,19 @@ class Orchestrator:
 
         # Build ready set for topological filtering
         ready_task_ids = {item.task_id for item in ready_items}
-        
+
         # Find the first topologically eligible head (one whose nonterminal
         # dependencies don't block it in the ready queue).
         eligible_item = None
         for item in ready_items:
             dependencies = set(dependency_map.get(item.task_id, ()))
             unsatisfied = dependencies - satisfied
-            
+
             if not unsatisfied:
                 # This item has all deps satisfied, keep looking for one with
                 # unsatisfied deps that we can repair
                 continue
-            
+
             # Check if this item has nonterminal deps that would block it
             nonterminal_blocking = False
             for dep_id in unsatisfied:
@@ -10438,12 +10804,12 @@ class Orchestrator:
                         # Nonterminal dep in ready queue blocks this item
                         nonterminal_blocking = True
                         break
-            
+
             if not nonterminal_blocking:
                 # This item is eligible and has unsatisfied deps
                 eligible_item = item
                 break
-        
+
         if eligible_item is None:
             return False
 
@@ -10512,9 +10878,8 @@ class Orchestrator:
                 # landed, even when its old integration record lost the
                 # integrated SHA. A Done child of a nonterminal parent still
                 # requires its own integrated commit on the target branch.
-                repairable_from_target = (
-                    status in {MERGED, ARCHIVED}
-                    or (status == DONE and parent_landed)
+                repairable_from_target = status in {MERGED, ARCHIVED} or (
+                    status == DONE and parent_landed
                 )
                 if integrated_sha and status == DONE:
                     try:
@@ -10534,8 +10899,7 @@ class Orchestrator:
                             timeout=10,
                         )
                         repairable_from_target = (
-                            repairable_from_target
-                            or result.returncode == 0
+                            repairable_from_target or result.returncode == 0
                         )
                     except (OSError, subprocess.TimeoutExpired):
                         pass
@@ -10571,7 +10935,9 @@ class Orchestrator:
 
             try:
                 tracker = self._tracker_for_project(project_id)
-                allowed, reason = self._epic_synchronization_decision(epic, target_branch)
+                allowed, reason = self._epic_synchronization_decision(
+                    epic, target_branch
+                )
                 if not allowed:
                     current_labels = set(
                         str(label).strip().lower()
@@ -10583,9 +10949,7 @@ class Orchestrator:
                             epic.identifier,
                             **{"add-label": "rebase-requested"},
                         )
-                        epic.labels = list(epic.labels or []) + [
-                            "rebase-requested"
-                        ]
+                        epic.labels = list(epic.labels or []) + ["rebase-requested"]
                     allowed, reason = self._epic_synchronization_decision(
                         epic, target_branch
                     )
@@ -10760,9 +11124,7 @@ class Orchestrator:
             "claimed_count": claimed_count,
             "oldest_eligible_submitted_at": oldest_eligible_submitted_at,
             "oldest_eligible_age_seconds": (
-                round(oldest_age_seconds, 1)
-                if oldest_age_seconds is not None
-                else None
+                round(oldest_age_seconds, 1) if oldest_age_seconds is not None else None
             ),
             "claim_timeout_seconds": claim_timeout,
             "audit_batch_size": audit_progress.get("batch_size"),
@@ -10879,9 +11241,7 @@ class Orchestrator:
         # Keep historical integrated rows out of the live grouping query. They
         # are replayed in a bounded cursor-based lane after Ready work gets a
         # chance to acquire leases below.
-        all_items = self.integration_queue.items(
-            states=("ready", "integrating")
-        )
+        all_items = self.integration_queue.items(states=("ready", "integrating"))
         eligible_ready_count = 0
         oldest_eligible_submitted_at: str | None = None
         claimed_count = 0
@@ -10898,8 +11258,7 @@ class Orchestrator:
             # Never integrate while an epic repair agent owns the delivery
             # branch. Private child agents do not touch it and are safe.
             if any(
-                entry.identifier == epic_id
-                for entry in self._running_values_snapshot()
+                entry.identifier == epic_id for entry in self._running_values_snapshot()
             ):
                 continue
             tracker = self._tracker_for_project(project_id)
@@ -10980,7 +11339,7 @@ class Orchestrator:
                 continue
 
             claimed_count += 1
-            
+
             # Check if this item is in a conflict repair backoff period
             # (recoverable infrastructure failure). If so, release the lease
             # and skip it for now.
@@ -11002,7 +11361,7 @@ class Orchestrator:
                     item.task_id,
                 )
                 continue
-            
+
             result = await loop.run_in_executor(
                 self._tick_pool,
                 self._execute_integration_item,
@@ -11051,9 +11410,7 @@ class Orchestrator:
                 for alias in (issue.id, issue.identifier):
                     if str(alias or "").strip():
                         issue_aliases[str(alias).strip()] = issue
-            dependency_aliases = set(
-                dependency_map.get(item.task_id, ())
-            )
+            dependency_aliases = set(dependency_map.get(item.task_id, ()))
             dependency_heads: dict[str, str] = {}
             dependency_task_ids = set(dependency_aliases)
             for dependency_alias in dependency_aliases:
@@ -11073,9 +11430,7 @@ class Orchestrator:
                     dependency_task_id,
                 )
                 if dependency is not None and dependency.state == "integrated":
-                    dependency_heads[dependency.task_id] = str(
-                        dependency.head_sha
-                    )
+                    dependency_heads[dependency.task_id] = str(dependency.head_sha)
             tracker.set_metadata_field(
                 item.task_id,
                 "oompah.integration",
@@ -11112,8 +11467,7 @@ class Orchestrator:
                         ),
                         commit_sha=result.integrated_sha,
                         idempotency_key=(
-                            f"integrated:{result.integrated_sha}:"
-                            f"{peer['identifier']}"
+                            f"integrated:{result.integrated_sha}:{peer['identifier']}"
                         ),
                         system=True,
                     )
@@ -11141,9 +11495,7 @@ class Orchestrator:
             skip=staged_integrated_keys
         )
         self._record_integration_queue_progress(
-            queue_items=self.integration_queue.items(
-                states=("ready", "integrating")
-            ),
+            queue_items=self.integration_queue.items(states=("ready", "integrating")),
             eligible_ready_count=eligible_ready_count,
             oldest_eligible_submitted_at=oldest_eligible_submitted_at,
             claimed_count=claimed_count,
@@ -11413,6 +11765,7 @@ class Orchestrator:
             # Use bounded per-project refresh for each project
             async def _fetch_one(project) -> list[Issue]:
                 project_id = project.id
+
                 async def _coro():
                     try:
                         tracker = self._tracker_for_project(project_id)
@@ -11484,7 +11837,10 @@ class Orchestrator:
         # This also makes a test double that blocks behave like a real tracker
         # read rather than freezing the scheduler.
         legacy_fetch = self._fetch_all_candidates
-        if getattr(legacy_fetch, "__func__", None) is not Orchestrator._fetch_all_candidates:
+        if (
+            getattr(legacy_fetch, "__func__", None)
+            is not Orchestrator._fetch_all_candidates
+        ):
             return await asyncio.to_thread(legacy_fetch)
 
         projects = self.project_store.list_all()
@@ -11505,10 +11861,14 @@ class Orchestrator:
                     except TrackerNotConfiguredError:
                         return []
                     except TrackerStateBranchMissingError as exc:
-                        logger.warning("Fetch skipped for project %s: %s", project.name, exc)
+                        logger.warning(
+                            "Fetch skipped for project %s: %s", project.name, exc
+                        )
                         return []
                     except TrackerTimeoutError as exc:
-                        logger.warning("Fetch timed out for project %s: %s", project.name, exc)
+                        logger.warning(
+                            "Fetch timed out for project %s: %s", project.name, exc
+                        )
                         return []
                     except (TrackerError, ProjectError) as exc:
                         logger.error(
@@ -11538,9 +11898,7 @@ class Orchestrator:
                 # spawning an unbounded sequence of stuck subprocess reads.
                 return await asyncio.shield(future)
 
-            data, _ = await self._run_bounded_refresh(
-                project_id, "candidates", _coro
-            )
+            data, _ = await self._run_bounded_refresh(project_id, "candidates", _coro)
             return data
 
         results = await asyncio.gather(*(_fetch_one(project) for project in projects))
@@ -11592,6 +11950,7 @@ class Orchestrator:
         async def _fetch_all_projects() -> list[Issue]:
             async def _fetch_one(project) -> list[Issue]:
                 project_id = project.id
+
                 async def _coro() -> list[Issue]:
                     def _read() -> list[Issue]:
                         try:
@@ -11629,7 +11988,9 @@ class Orchestrator:
                                 "In Progress fetch failed for project %s: %s",
                                 project.name,
                                 exc,
-                                extra={"error_class": _error_class_for_tracker_exc(exc)},
+                                extra={
+                                    "error_class": _error_class_for_tracker_exc(exc)
+                                },
                             )
                             return []
 
@@ -11661,7 +12022,9 @@ class Orchestrator:
             return []
         except TrackerStateBranchFetchError as exc:
             # Transient network failure — local state valid, retry later.
-            logger.warning("Tracker In Progress fetch state-branch sync skipped: %s", exc)
+            logger.warning(
+                "Tracker In Progress fetch state-branch sync skipped: %s", exc
+            )
             return []
         except TrackerTimeoutError as exc:
             logger.warning("Tracker In Progress fetch timed out: %s", exc)
@@ -11682,7 +12045,11 @@ class Orchestrator:
 
     def _retry_issue_matches(self, issue: Issue, retry: RetryEntry) -> bool:
         """Return True when ``issue`` is the task owned by ``retry``."""
-        if retry.project_id and issue.project_id and issue.project_id != retry.project_id:
+        if (
+            retry.project_id
+            and issue.project_id
+            and issue.project_id != retry.project_id
+        ):
             return False
         issue_keys = {issue.id, issue.identifier}
         retry_keys = {retry.issue_id, retry.identifier}
@@ -11706,13 +12073,14 @@ class Orchestrator:
 
         for project_id in project_ids:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             issue: Issue | None = None
             for fetched in tracker.fetch_issue_states_by_ids([retry.issue_id]):
-                if fetched.id == retry.issue_id or fetched.identifier == retry.identifier:
+                if (
+                    fetched.id == retry.issue_id
+                    or fetched.identifier == retry.identifier
+                ):
                     issue = fetched
                     break
             if issue is None:
@@ -11816,8 +12184,7 @@ class Orchestrator:
             and record.claim_id == entry.duplicate_preflight_claim_id
             and record.detector_version == DUPLICATE_DETECTOR_VERSION
             and record.task_fingerprint == current_fingerprint
-            and record.task_fingerprint
-            == entry.duplicate_preflight_fingerprint
+            and record.task_fingerprint == entry.duplicate_preflight_fingerprint
             and record.claim_expires_at is not None
             and record.claim_expires_at > now
         )
@@ -11988,14 +12355,17 @@ class Orchestrator:
         expected_fingerprint: str | None = None,
     ) -> bool:
         """Apply an owner-authorized duplicate resolution.
-        
+
         Allows project owners to bypass inconclusive screening results by
         explicitly confirming "no active duplicate" or identifying a known
         duplicate. Resets retry_count to 0 and records the owner's decision
         with audit trail. Only owner-resolved verdicts bypass further retries.
         """
 
-        if verdict not in {ScreeningVerdict.NO_DUPLICATE, ScreeningVerdict.DUPLICATE_CANDIDATE}:
+        if verdict not in {
+            ScreeningVerdict.NO_DUPLICATE,
+            ScreeningVerdict.DUPLICATE_CANDIDATE,
+        }:
             logger.warning(
                 "Invalid verdict for owner resolution of %s: %s",
                 issue.identifier,
@@ -12095,16 +12465,22 @@ class Orchestrator:
                     issue.identifier,
                 )
                 return False
-            tracker.update_issue(
-                fresh.identifier,
-                status=(
+            self._transition_issue_status(
+                fresh,
+                (
                     OPEN
                     if verdict == ScreeningVerdict.NO_DUPLICATE
                     else DUPLICATE_CANDIDATE
                 ),
+                project_id=fresh.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.PROJECT_OWNER,
+                reason_code="duplicate.owner_resolution",
             )
             fresh.state = (
-                OPEN if verdict == ScreeningVerdict.NO_DUPLICATE else DUPLICATE_CANDIDATE
+                OPEN
+                if verdict == ScreeningVerdict.NO_DUPLICATE
+                else DUPLICATE_CANDIDATE
             )
             issue.duplicate_screening = resolved.to_dict()
             issue.state = fresh.state
@@ -12153,9 +12529,7 @@ class Orchestrator:
                     getattr(value, "id", None),
                 ]
             return {
-                str(raw).strip().casefold()
-                for raw in values
-                if str(raw or "").strip()
+                str(raw).strip().casefold() for raw in values if str(raw or "").strip()
             }
 
         def _task_key(task: object) -> str:
@@ -12259,12 +12633,16 @@ class Orchestrator:
         # on it as well, which is useful when sibling work is being screened
         # concurrently.
         _mark_references(getattr(issue, "blocked_by", None), "dependency")
-        _mark_references(getattr(issue, "start_blocked_by", None), "hard_start_dependency")
+        _mark_references(
+            getattr(issue, "start_blocked_by", None), "hard_start_dependency"
+        )
 
         def _words(value: object) -> set[str]:
             return {
                 word
-                for word in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", str(value or "").casefold())
+                for word in re.findall(
+                    r"[a-z0-9][a-z0-9_-]{2,}", str(value or "").casefold()
+                )
                 if word not in _DUPLICATE_CORPUS_STOP_WORDS
             }
 
@@ -12405,7 +12783,9 @@ class Orchestrator:
                 "title": _clip(getattr(task, "title", ""), 500),
                 "status": _clip(getattr(task, "state", ""), 120),
                 "issue_type": _clip(getattr(task, "issue_type", "task"), 80),
-                "description": _clip(getattr(task, "description", ""), description_limit),
+                "description": _clip(
+                    getattr(task, "description", ""), description_limit
+                ),
                 "comments": [
                     {
                         "author": _clip(comment.get("author"), 160),
@@ -12433,7 +12813,9 @@ class Orchestrator:
             )
 
         def _bounded_ids(keys: list[str]) -> list[str]:
-            return [_id_for_key(key) for key in keys[:_DUPLICATE_CORPUS_MAX_DIAGNOSTIC_IDS]]
+            return [
+                _id_for_key(key) for key in keys[:_DUPLICATE_CORPUS_MAX_DIAGNOSTIC_IDS]
+            ]
 
         rows: list[dict[str, Any]] = []
         selected_keys: set[str] = set()
@@ -12456,13 +12838,16 @@ class Orchestrator:
             selection: dict[str, Any] = {
                 "required_peer_count": max(len(required_keys) - 1, 0),
                 "required_peers_included": max(
-                    len(required_keys & selected) - (1 if current_key in selected else 0),
+                    len(required_keys & selected)
+                    - (1 if current_key in selected else 0),
                     0,
                 ),
                 "omitted_required_peer_count": len(omitted_required),
                 "omitted_required_peer_identifiers": _bounded_ids(omitted_required),
                 "similarity_candidate_count": len(similarity_scores),
-                "similarity_candidates_included": len(set(similarity_scores) & selected),
+                "similarity_candidates_included": len(
+                    set(similarity_scores) & selected
+                ),
                 "omitted_similarity_candidate_count": len(omitted_similarity),
             }
             if omitted_required:
@@ -12568,8 +12953,7 @@ class Orchestrator:
                     continue
                 renewed_record = replace(
                     record,
-                    claim_expires_at=now
-                    + timedelta(seconds=DEFAULT_CLAIM_TTL_SECONDS),
+                    claim_expires_at=now + timedelta(seconds=DEFAULT_CLAIM_TTL_SECONDS),
                 )
                 save_duplicate_screening_record(tracker, fresh, renewed_record)
                 entry.issue.duplicate_screening = renewed_record.to_dict()
@@ -12612,7 +12996,10 @@ class Orchestrator:
             assessment = self._duplicate_screening_assessment(issue)
             if assessment.state == ScreeningState.CHECKED:
                 # Also skip if this is owner-resolved (which is conclusive)
-                if assessment.record is not None and assessment.record.is_owner_resolved:
+                if (
+                    assessment.record is not None
+                    and assessment.record.is_owner_resolved
+                ):
                     metrics["skipped_checked"] += 1
                     continue
                 metrics["skipped_checked"] += 1
@@ -12999,12 +13386,9 @@ class Orchestrator:
             )
             if screening_record is not None and screening_record.claim_id:
                 continue
-            if (
-                issue_id in self.state.claimed
-                and (
-                    (claimed_issue.parent_id or "") == parent_id
-                    or audit_branch_key(claimed_issue) in epic_branch_keys
-                )
+            if issue_id in self.state.claimed and (
+                (claimed_issue.parent_id or "") == parent_id
+                or audit_branch_key(claimed_issue) in epic_branch_keys
             ):
                 in_flight_ids.add(issue_id)
         return len(in_flight_ids)
@@ -13091,7 +13475,9 @@ class Orchestrator:
                             continue
                         issue.project_id = resolved_id
                     status = canonicalize_status(issue.state)
-                    labels = {str(label).strip().lower() for label in issue.labels or []}
+                    labels = {
+                        str(label).strip().lower() for label in issue.labels or []
+                    }
                     if (
                         status in {MERGED, ARCHIVED}
                         or "merged" in labels
@@ -13099,8 +13485,8 @@ class Orchestrator:
                     ):
                         continue
                     is_declared_epic = (
-                        (issue.issue_type or "").strip().lower() == "epic"
-                    )
+                        issue.issue_type or ""
+                    ).strip().lower() == "epic"
                     issue_ids = {
                         str(value).strip()
                         for value in (issue.id, issue.identifier)
@@ -13159,8 +13545,7 @@ class Orchestrator:
             # Check if any children are In Validation — if so, block terminal
             # state rollup since In Validation children are nonterminal.
             child_in_validation = any(
-                canonicalize_status(child.state) == IN_VALIDATION
-                for child in children
+                canonicalize_status(child.state) == IN_VALIDATION for child in children
             )
 
             has_review_evidence = bool(
@@ -13188,8 +13573,7 @@ class Orchestrator:
                 )
 
             child_states = [
-                self._epic_child_effective_state(epic, child)
-                for child in children
+                self._epic_child_effective_state(epic, child) for child in children
             ]
 
             rolled = epic_rollup_state(child_states)
@@ -13278,8 +13662,15 @@ class Orchestrator:
                     # In Validation. Don't update epic.state locally since the
                     # coordinator manages it from here.
                 else:
-                    tracker.update_issue(epic.identifier, status=rolled)
-                    epic.state = rolled
+                    outcome = self._transition_issue_status(
+                        refreshed if isinstance(refreshed, Issue) else epic,
+                        rolled,
+                        project_id=epic.project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.SYSTEM,
+                        reason_code="rollup.children_reconciled",
+                    )
+                    epic.state = outcome.applied_status or outcome.observed_status
                 updated += 1
                 logger.info(
                     "Reconciled epic %s status to %s from %d child issue(s)",
@@ -13461,9 +13852,7 @@ class Orchestrator:
             )
         elif len(filtered) < len(targets):
             skipped = [
-                t.provider.name
-                for t in targets
-                if t.provider.name not in whitelist_set
+                t.provider.name for t in targets if t.provider.name not in whitelist_set
             ]
             logger.debug(
                 "Project %r provider whitelist filtered %d/%d candidates for issue %s "
@@ -13516,9 +13905,7 @@ class Orchestrator:
             self.config.tracker_active_states
         ):
             return False
-        if state_norm in {
-            _state_key(s) for s in self.config.tracker_terminal_states
-        }:
+        if state_norm in {_state_key(s) for s in self.config.tracker_terminal_states}:
             return False
         if issue.id in self.state.running:
             return False
@@ -13669,9 +14056,10 @@ class Orchestrator:
             epic_branch = self.project_store.epic_branch_name(target_epic).lower()
         except Exception:  # noqa: BLE001 - fallback only affects classification
             epic_branch = f"epic-{target_epic}".lower()
-        return is_direct_epic_maintenance_issue(issue) and epic_branch in (
-            issue.title or ""
-        ).strip().lower()
+        return (
+            is_direct_epic_maintenance_issue(issue)
+            and epic_branch in (issue.title or "").strip().lower()
+        )
 
     @staticmethod
     def _epic_rebase_helper_target(issue: Issue) -> str | None:
@@ -13698,18 +14086,12 @@ class Orchestrator:
         """
         if not self._is_epic_rebase_task(issue):
             return True, ""
-        parent_id = (
-            issue.parent_id.strip()
-            if isinstance(issue.parent_id, str)
-            else ""
-        )
+        parent_id = issue.parent_id.strip() if isinstance(issue.parent_id, str) else ""
         if not parent_id:
             return False, "epic_rebase_parent_missing"
         try:
             project = (
-                self.project_store.get(issue.project_id)
-                if issue.project_id
-                else None
+                self.project_store.get(issue.project_id) if issue.project_id else None
             )
         except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
             logger.warning(
@@ -13818,7 +14200,14 @@ class Orchestrator:
         }:
             return True
         try:
-            tracker.update_issue(identifier, status=ARCHIVED)
+            self._transition_issue_status(
+                current,
+                ARCHIVED,
+                project_id=current.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="maintenance.rebase_helper_superseded",
+            )
             tracker.add_comment(
                 identifier,
                 (
@@ -14389,11 +14778,21 @@ class Orchestrator:
             repair_label = (
                 "needs-rebase" if result.status == "needs_rebase" else "ci-fix"
             )
-            status_update = lambda: tracker.update_issue(
-                issue.identifier,
-                status=repair_status,
-                **{"add-label": repair_label},
-            )
+
+            def status_update() -> None:
+                self._transition_issue_status(
+                    issue,
+                    repair_status,
+                    project_id=issue.project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code="quality_gate.candidate_failed",
+                )
+                tracker.update_issue(
+                    issue.identifier,
+                    **{"add-label": repair_label},
+                )
+
             if authority is not None:
                 self._standalone_delivery_mutation(
                     authority,
@@ -15198,9 +15597,7 @@ class Orchestrator:
 
         found_candidate = False
         for candidate_branch in candidate_branches:
-            candidate_refs = self._resolve_git_branch_refs(
-                repo_path, candidate_branch
-            )
+            candidate_refs = self._resolve_git_branch_refs(repo_path, candidate_branch)
             if not candidate_refs:
                 if (
                     candidate_branch == recorded_branch
@@ -15277,10 +15674,9 @@ class Orchestrator:
         """Return True when an epic/rollup should be treated as review work."""
         if children is None:
             children = self._fetch_epic_children(issue)
-        return (
-            self._is_epic_rollup_parent(issue, children)
-            and self._epic_children_complete_for_review_work(children)
-        )
+        return self._is_epic_rollup_parent(
+            issue, children
+        ) and self._epic_children_complete_for_review_work(children)
 
     def _is_epic_review_repair_issue(
         self,
@@ -15301,9 +15697,8 @@ class Orchestrator:
         if dispatch_gate:
             if status not in _EPIC_REVIEW_REPAIR_STATUSES:
                 return False
-        elif (
-            status not in _EPIC_REVIEW_REPAIR_RUNNING_STATUSES
-            and labels.isdisjoint(_EPIC_REVIEW_REPAIR_LABELS)
+        elif status not in _EPIC_REVIEW_REPAIR_RUNNING_STATUSES and labels.isdisjoint(
+            _EPIC_REVIEW_REPAIR_LABELS
         ):
             return False
         return self._is_mature_epic_review_issue(issue, children)
@@ -15604,6 +15999,7 @@ class Orchestrator:
         snapshot = None
         try:
             from oompah.terminal_audit_enforcement import get_recovery_snapshot
+
             snapshot = get_recovery_snapshot()
         except (ImportError, Exception):
             pass
@@ -15664,11 +16060,15 @@ class Orchestrator:
                 slug = extract_repo_slug(repo_url) if provider is not None else ""
             except Exception:
                 provider, slug = None, ""
-        if provider is not None and slug and self._epic_branch_landed_on_target(
-            provider,
-            slug,
-            source_branch,
-            target_branch,
+        if (
+            provider is not None
+            and slug
+            and self._epic_branch_landed_on_target(
+                provider,
+                slug,
+                source_branch,
+                target_branch,
+            )
         ):
             return None
 
@@ -15697,13 +16097,16 @@ class Orchestrator:
         read-only view of already-integrated evidence, not a new implementation
         attempt.
         """
+
         def _assert_authority() -> None:
             if authority_check is not None and not authority_check():
                 raise DispatchAuthorityRevoked(
                     f"implementation authority revoked for {issue.identifier}"
                 )
 
-        def _finish_workspace(path: str, epic: Issue | None) -> tuple[str, Issue | None]:
+        def _finish_workspace(
+            path: str, epic: Issue | None
+        ) -> tuple[str, Issue | None]:
             # Recovery refs survive orchestrator restarts even when tracker
             # metadata was not written before a worker was terminated.
             if (
@@ -15729,9 +16132,7 @@ class Orchestrator:
             target_ready, target_reason = self._prepare_epic_rebase_helper_target(issue)
             if not target_ready:
                 parent_id = (
-                    issue.parent_id.strip()
-                    if isinstance(issue.parent_id, str)
-                    else ""
+                    issue.parent_id.strip() if isinstance(issue.parent_id, str) else ""
                 )
                 raise EpicTargetResolutionError(
                     issue.identifier,
@@ -15823,9 +16224,7 @@ class Orchestrator:
 
         if self._is_epic_review_repair_issue(issue):
             _assert_authority()
-            default_epic_branch = self.project_store.epic_branch_name(
-                issue.identifier
-            )
+            default_epic_branch = self.project_store.epic_branch_name(issue.identifier)
             explicit_branch = (
                 str(getattr(issue, "work_branch", "") or "").strip()
                 or str(getattr(issue, "branch_name", "") or "").strip()
@@ -15918,9 +16317,7 @@ class Orchestrator:
             # work_branch with the parent epic's branch so that subsequent
             # orchestrator passes see a consistent, correct branch name.
             epic_branch = self._epic_branch_for_issue(parent_epic)
-            current_child_branch = (
-                getattr(issue, "work_branch", None) or ""
-            ).strip()
+            current_child_branch = (getattr(issue, "work_branch", None) or "").strip()
             # ``branch_name`` is the value exposed to the prompt template.
             # It can retain the task identifier even after work_branch was
             # repaired and persisted by an earlier dispatch.  Always align
@@ -15937,7 +16334,9 @@ class Orchestrator:
                     self._authority_guarded_call(
                         authority_check,
                         tracker.set_metadata_field,
-                        issue.identifier, "oompah.work_branch", epic_branch
+                        issue.identifier,
+                        "oompah.work_branch",
+                        epic_branch,
                     )
                 except Exception as _exc:  # noqa: BLE001
                     logger.warning(
@@ -16003,10 +16402,16 @@ class Orchestrator:
         # so review reconciliation can resolve the task from a PR source
         # branch without guessing by task ID (TASK-461.3, AC#1 and AC#2).
         work_branch: str | None = None
-        if issue.tracker_kind == "github_issues" and issue.issue_number and issue.project_id:
+        if (
+            issue.tracker_kind == "github_issues"
+            and issue.issue_number
+            and issue.project_id
+        ):
             project_obj = self.project_store.get(issue.project_id)
             if project_obj is not None:
-                work_branch = github_work_branch_name(project_obj.name, issue.issue_number)
+                work_branch = github_work_branch_name(
+                    project_obj.name, issue.issue_number
+                )
                 issue.work_branch = work_branch
                 issue.branch_name = work_branch
                 try:
@@ -16014,7 +16419,9 @@ class Orchestrator:
                     self._authority_guarded_call(
                         authority_check,
                         tracker.set_metadata_field,
-                        issue.identifier, "oompah.work_branch", work_branch
+                        issue.identifier,
+                        "oompah.work_branch",
+                        work_branch,
                     )
                     if issue.target_branch:
                         self._authority_guarded_call(
@@ -16106,12 +16513,9 @@ class Orchestrator:
                     revisions.append(revision)
 
         previous_status = canonicalize_status(plan.previous_state or "")
-        default_fallback_allowed = (
-            plan.target_state == TargetState.MERGED
-            or (
-                plan.target_state == TargetState.ARCHIVED
-                and previous_status in {MERGED, ARCHIVED}
-            )
+        default_fallback_allowed = plan.target_state == TargetState.MERGED or (
+            plan.target_state == TargetState.ARCHIVED
+            and previous_status in {MERGED, ARCHIVED}
         )
         if default_fallback_allowed and not immutable_revisions:
             default_ref = f"origin/{project.default_branch}"
@@ -16161,9 +16565,8 @@ class Orchestrator:
         """
         for issue in candidates:
             if (
-                (issue.issue_type or "").strip().lower() != "epic"
-                and not self._issue_has_children(issue)
-            ):
+                issue.issue_type or ""
+            ).strip().lower() != "epic" and not self._issue_has_children(issue):
                 continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 self._clear_stuck_epic_alert(issue.identifier)
@@ -16202,7 +16605,8 @@ class Orchestrator:
 
         # Condition 1: every child in a terminal state.
         non_terminal_children = [
-            c for c in children
+            c
+            for c in children
             if not _is_terminal_state(c.state, self.config.tracker_terminal_states)
         ]
         if non_terminal_children:
@@ -16213,9 +16617,7 @@ class Orchestrator:
 
         # Conditions 2 + 3: per-child branch-merge check.
         merged_summaries: list[str] = []
-        unmerged_children: list[
-            tuple[Issue, ReviewRequest | None, str | None]
-        ] = []
+        unmerged_children: list[tuple[Issue, ReviewRequest | None, str | None]] = []
         project = self.project_store.get(epic.project_id) if epic.project_id else None
         target_branch = (project.default_branch or "main") if project else "main"
 
@@ -16330,7 +16732,7 @@ class Orchestrator:
             epic_branch = self._epic_branch_for_issue(epic)
         except Exception:
             return False
-        
+
         # Resolve the immediate target for this epic (parent branch for nested,
         # default branch for root)
         epic_target_branch = target_branch  # default: main
@@ -16345,7 +16747,7 @@ class Orchestrator:
                     epic.identifier,
                     target_branch,
                 )
-        
+
         try:
             epic_review = provider.find_pr_for_branch(slug, epic_branch)
         except Exception as exc:
@@ -16509,9 +16911,8 @@ class Orchestrator:
                 continue
 
             if (
-                (issue.issue_type or "").strip().lower() != "epic"
-                and not self._issue_has_children(issue)
-            ):
+                issue.issue_type or ""
+            ).strip().lower() != "epic" and not self._issue_has_children(issue):
                 continue
 
             project = self.project_store.get(project_id)
@@ -16558,7 +16959,9 @@ class Orchestrator:
                 # If rebase has been in-flight for too long, mark failed
                 if current_state == EpicRebaseState.REBASING and entry:
                     if time.time() - entry.updated_at > rebase_timeout_s:
-                        self._mark_rebase_failed(issue.identifier, project_id=project_id)
+                        self._mark_rebase_failed(
+                            issue.identifier, project_id=project_id
+                        )
                 continue
 
             if result.stale:
@@ -16590,7 +16993,9 @@ class Orchestrator:
                             issue.identifier,
                             rebase_timeout_s / 60.0,
                         )
-                        self._mark_rebase_failed(issue.identifier, project_id=project_id)
+                        self._mark_rebase_failed(
+                            issue.identifier, project_id=project_id
+                        )
             else:
                 self._clear_epic_stale_alert(issue.identifier)
                 if current_state == EpicRebaseState.REBASING:
@@ -16632,9 +17037,7 @@ class Orchestrator:
         target_branch = target_branch or project.default_branch or "main"
 
         # Drop existing alert for this epic (if any)
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
 
         rebase_state = self._get_epic_rebase_state(epic.identifier)
         if rebase_state != EpicRebaseState.FAILED:
@@ -16682,8 +17085,7 @@ class Orchestrator:
             }
         )
         logger.info(
-            "Armed failed-rebase alert for %s: %d commits behind, "
-            "%d overlapping files",
+            "Armed failed-rebase alert for %s: %d commits behind, %d overlapping files",
             epic.identifier,
             result.commits_behind,
             len(result.shared_files),
@@ -16693,9 +17095,7 @@ class Orchestrator:
         """Drop any ``epic_stale`` alert previously armed for this epic."""
         source = f"epic_stale:{epic_identifier}"
         before = len(self._alerts)
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
         if len(self._alerts) != before:
             logger.debug(
                 "Cleared epic_stale alert for %s",
@@ -16843,8 +17243,7 @@ class Orchestrator:
                 epic_branch=epic_branch,
             ):
                 logger.debug(
-                    "Skipping epic rollup %s on %s: no epic branch "
-                    "or worktree exists",
+                    "Skipping epic rollup %s on %s: no epic branch or worktree exists",
                     issue.identifier,
                     project.name,
                 )
@@ -16933,8 +17332,7 @@ class Orchestrator:
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
             if at_capacity:
                 logger.info(
-                    "Deferred epic PR for %s on %s: project review cap "
-                    "reached (%d/%d)",
+                    "Deferred epic PR for %s on %s: project review cap reached (%d/%d)",
                     issue.identifier,
                     project.name,
                     n_open,
@@ -16944,8 +17342,7 @@ class Orchestrator:
 
             if not self._ensure_review_target_branch_exists(project, target_branch):
                 logger.warning(
-                    "Deferred epic PR for %s on %s: target branch %s is not "
-                    "available",
+                    "Deferred epic PR for %s on %s: target branch %s is not available",
                     issue.identifier,
                     project.name,
                     target_branch,
@@ -16992,13 +17389,12 @@ class Orchestrator:
             # Re-check after all branch preparation and immediately before
             # contacting the forge. A child may have been added or reopened
             # since the first readiness check at the top of this loop.
-            pre_create_block_reason = (
-                self._fresh_epic_rollup_creation_block_reason(issue)
+            pre_create_block_reason = self._fresh_epic_rollup_creation_block_reason(
+                issue
             )
             if pre_create_block_reason:
                 logger.info(
-                    "Cancelled epic PR creation for %s after readiness "
-                    "refresh: %s",
+                    "Cancelled epic PR creation for %s after readiness refresh: %s",
                     issue.identifier,
                     pre_create_block_reason,
                 )
@@ -17045,7 +17441,9 @@ class Orchestrator:
                 project.default_branch,
             )
             if hub_link:
-                description = f"{hub_link}\n\n{description}".strip() if description else hub_link
+                description = (
+                    f"{hub_link}\n\n{description}".strip() if description else hub_link
+                )
             try:
                 result = provider.create_review(
                     slug,
@@ -17108,7 +17506,14 @@ class Orchestrator:
             # Persist review metadata on the epic task record (TASK-462.2).
             try:
                 tracker = self._tracker_for_project(project_id)
-                tracker.update_issue(issue.identifier, status=IN_REVIEW)
+                self._transition_issue_status(
+                    issue,
+                    IN_REVIEW,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="review.epic_review_created",
+                )
                 self._write_review_metadata(
                     tracker,
                     issue.identifier,
@@ -17231,7 +17636,14 @@ class Orchestrator:
         try:
             tracker = self._tracker_for_project(project_id)
             if canonicalize_status(issue.state) != IN_REVIEW:
-                tracker.update_issue(issue.identifier, status=IN_REVIEW)
+                self._transition_issue_status(
+                    issue,
+                    IN_REVIEW,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="review.epic_review_adopted",
+                )
             self._write_review_metadata(
                 tracker,
                 issue.identifier,
@@ -17343,8 +17755,15 @@ class Orchestrator:
                 if canonicalize_status(next_status) in TERMINAL_STATUSES:
                     self._request_epic_terminal_rollup(child, next_status)
                 else:
-                    tracker.update_issue(child.identifier, status=next_status)
-                child.state = next_status
+                    outcome = self._transition_issue_status(
+                        child,
+                        next_status,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.SYSTEM,
+                        reason_code="review.child_missing_branch_work",
+                    )
+                    child.state = outcome.applied_status or outcome.observed_status
                 moved += 1
                 logger.info(
                     "Moved Done child %s under epic %s to %s (%s)",
@@ -17484,7 +17903,7 @@ class Orchestrator:
 
         try:
             from oompah.integration import parse_canonical_landing_evidence
-            
+
             evidence = parse_canonical_landing_evidence(
                 integration_record.canonical_landing_evidence
             )
@@ -17616,12 +18035,12 @@ class Orchestrator:
             except (OSError, subprocess.TimeoutExpired):
                 return False
             lines = [
-                line.strip()
-                for line in equivalent.stdout.splitlines()
-                if line.strip()
+                line.strip() for line in equivalent.stdout.splitlines() if line.strip()
             ]
-            if equivalent.returncode == 0 and lines and all(
-                line.startswith("- ") for line in lines
+            if (
+                equivalent.returncode == 0
+                and lines
+                and all(line.startswith("- ") for line in lines)
             ):
                 return True
         return False
@@ -18088,7 +18507,9 @@ class Orchestrator:
         old_entry = self._epic_rebase_states.get(epic_identifier)
         retry_count = old_entry.retry_count if old_entry else 0
         # Increment retry count on FAILED transitions
-        if state == EpicRebaseState.FAILED and (old_entry is None or old_entry.state != "failed"):
+        if state == EpicRebaseState.FAILED and (
+            old_entry is None or old_entry.state != "failed"
+        ):
             retry_count += 1
         self._epic_rebase_states[epic_identifier] = EpicRebaseStateEntry(
             state=state.value,
@@ -18101,9 +18522,7 @@ class Orchestrator:
         # Sync labels on the task.
         try:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             # Fetch current labels so we can remove stale epic:* ones.
             issue = tracker.fetch_issue_detail(epic_identifier)
@@ -18136,9 +18555,7 @@ class Orchestrator:
             state.value,
         )
 
-    def _get_epic_rebase_state(
-        self, epic_identifier: str
-    ) -> EpicRebaseState | None:
+    def _get_epic_rebase_state(self, epic_identifier: str) -> EpicRebaseState | None:
         """Return the current rebase state for ``epic_identifier``, or None."""
         entry = self._epic_rebase_states.get(epic_identifier)
         if entry is None:
@@ -18158,9 +18575,7 @@ class Orchestrator:
         removed_entry = self._epic_rebase_states.pop(epic_identifier, None)
         try:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             issue = tracker.fetch_issue_detail(epic_identifier)
             if issue and issue.labels:
@@ -18207,9 +18622,7 @@ class Orchestrator:
             issue.identifier
             for issue in candidates
             if issue.issue_type == "epic"
-            and not _is_terminal_state(
-                issue.state, self.config.tracker_terminal_states
-            )
+            and not _is_terminal_state(issue.state, self.config.tracker_terminal_states)
         }
         stale = [
             epic_id
@@ -18256,7 +18669,7 @@ class Orchestrator:
             return True
         if state == EpicRebaseState.FAILED:
             if entry:
-                backoff_s = min(300 * (2 ** entry.retry_count), 3600)
+                backoff_s = min(300 * (2**entry.retry_count), 3600)
                 elapsed = time.time() - entry.updated_at
                 if elapsed < backoff_s:
                     logger.debug(
@@ -18368,9 +18781,7 @@ class Orchestrator:
                 target_branch = self._resolve_epic_target_branch(issue, project)
             except EpicTargetResolutionError:
                 continue
-            allowed, reason = self._epic_synchronization_decision(
-                issue, target_branch
-            )
+            allowed, reason = self._epic_synchronization_decision(issue, target_branch)
             if not allowed:
                 logger.info(
                     "Suppressing epic synchronization for %s: %s",
@@ -18441,9 +18852,7 @@ class Orchestrator:
                     )
                     continue
 
-                self._file_rebase_task(
-                    tracker, issue, epic_branch, target_branch
-                )
+                self._file_rebase_task(tracker, issue, epic_branch, target_branch)
                 self._set_epic_rebase_state(
                     issue.identifier,
                     EpicRebaseState.REBASING,
@@ -18506,7 +18915,10 @@ class Orchestrator:
         # completion all use this immutable evidence instead of reparsing an
         # old target or defaulting to main.
         raw_created_identifier = getattr(created, "identifier", None)
-        if not isinstance(raw_created_identifier, str) or not raw_created_identifier.strip():
+        if (
+            not isinstance(raw_created_identifier, str)
+            or not raw_created_identifier.strip()
+        ):
             raw_created_identifier = getattr(created, "id", None)
         created_identifier = (
             raw_created_identifier.strip()
@@ -18598,9 +19010,16 @@ class Orchestrator:
                 self.state.completed.discard(issue.id)
             return
 
+        self._transition_issue_status(
+            issue,
+            status,
+            project_id=issue.project_id,
+            tracker=tracker,
+            authority=TransitionAuthority.WATCHDOG,
+            reason_code="review.epic_repair_required",
+        )
         tracker.update_issue(
             issue.identifier,
-            status=status,
             priority="0",
             **{"add-label": label},
         )
@@ -18684,7 +19103,9 @@ class Orchestrator:
         # _plan_open_epics/_should_dispatch_epic. Once every child is complete
         # and the epic PR itself needs CI/rebase repair, the epic becomes the
         # dispatchable unit so the agent fixes the existing epic branch.
-        if (issue.issue_type or "").strip().lower() == "epic" and not epic_review_repair:
+        if (
+            issue.issue_type or ""
+        ).strip().lower() == "epic" and not epic_review_repair:
             return _reject("epic")
         if not duplicate_preflight:
             target_ready, target_reason = self._prepare_epic_rebase_helper_target(issue)
@@ -18699,16 +19120,28 @@ class Orchestrator:
         if canonicalize_status(issue.state) == PROPOSED:
             return _reject("proposed")
         # Never dispatch issues that are waiting for a human answer
-        if canonicalize_status(issue.state) == NEEDS_ANSWER or "asking_question" in issue.labels:
+        if (
+            canonicalize_status(issue.state) == NEEDS_ANSWER
+            or "asking_question" in issue.labels
+        ):
             return _reject("needs_answer")
         # Never dispatch issues reserved for human action (e.g. capability requests)
-        if canonicalize_status(issue.state) == NEEDS_HUMAN or "human-only" in issue.labels:
+        if (
+            canonicalize_status(issue.state) == NEEDS_HUMAN
+            or "human-only" in issue.labels
+        ):
             return _reject("needs_human")
         # Never dispatch issues that have been decomposed into children
-        if canonicalize_status(issue.state) == DECOMPOSED or "decomposed" in issue.labels:
+        if (
+            canonicalize_status(issue.state) == DECOMPOSED
+            or "decomposed" in issue.labels
+        ):
             return _reject("decomposed")
         # Never dispatch candidates flagged as duplicates of existing open issues
-        if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE or "duplicate-candidate" in issue.labels:
+        if (
+            canonicalize_status(issue.state) == DUPLICATE_CANDIDATE
+            or "duplicate-candidate" in issue.labels
+        ):
             return _reject("duplicate_candidate")
         if duplicate_preflight:
             if not self._requires_duplicate_preflight(issue):
@@ -18722,9 +19155,12 @@ class Orchestrator:
         # point at the project's protected source-only (default) branch
         # unless explicitly opted in via the ``backport:allow-source`` label.
         if issue.target_branch:
-            _project = self.project_store.get(issue.project_id) if issue.project_id else None
+            _project = (
+                self.project_store.get(issue.project_id) if issue.project_id else None
+            )
             if _project is not None:
                 from oompah.release_pick_validation import validate_release_pick_target
+
                 _tbv = validate_release_pick_target(issue, _project)
                 if not _tbv.valid:
                     logger.warning(
@@ -18738,9 +19174,7 @@ class Orchestrator:
             self.config.tracker_active_states
         ):
             return _reject(f"inactive_state={state_norm}")
-        if state_norm in {
-            _state_key(s) for s in self.config.tracker_terminal_states
-        }:
+        if state_norm in {_state_key(s) for s in self.config.tracker_terminal_states}:
             return _reject(f"terminal_state={state_norm}")
         if issue.id in self.state.running:
             return _reject("running")
@@ -18785,13 +19219,9 @@ class Orchestrator:
                 if not blocker_state and blocker.id:
                     blocker_state = self._resolve_blocker_state(blocker, issue)
                 if not self._blocker_satisfied(issue, blocker, blocker_state):
-                    return _reject(
-                        f"start_blocker={blocker.id} state={blocker_state}"
-                    )
+                    return _reject(f"start_blocker={blocker.id} state={blocker_state}")
                 if self._blocker_has_unmerged_pr(blocker):
-                    return _reject(
-                        f"start_blocker={blocker.id} unmerged_review"
-                    )
+                    return _reject(f"start_blocker={blocker.id} unmerged_review")
         # An auditor and an implementation worker must never share a
         # worktree concurrently.  Check this independently of the P0 and
         # shared-epic gates below because both ordinary tasks and P0 children
@@ -18911,10 +19341,9 @@ class Orchestrator:
             # for first dispatches and doesn't see retries (those
             # take override_profile and are handled elsewhere) — so
             # treating the candidate as a first dispatch is correct.
-            if (
-                not self._has_explicit_handoff_label(issue)
-                and self._is_safety_critical_issue(issue)
-            ):
+            if not self._has_explicit_handoff_label(
+                issue
+            ) and self._is_safety_critical_issue(issue):
                 acp_profile = self._find_acp_profile()
                 if acp_profile is not None and self._acp_profile_is_subscription(
                     acp_profile
@@ -19170,9 +19599,7 @@ class Orchestrator:
                     )
                     return _cached_reviews(project_id)
 
-            data, _ = await self._run_bounded_refresh(
-                project_id, "reviews", _coro
-            )
+            data, _ = await self._run_bounded_refresh(project_id, "reviews", _coro)
             return (project_id, data)
 
         # Run all project fetches concurrently with bounded concurrency
@@ -19305,9 +19732,7 @@ class Orchestrator:
                 if issue.id not in candidate_ids:
                     all_issues.append(issue)
         except Exception as exc:
-            logger.debug(
-                "Orphan check: failed to fetch In Progress tasks: %s", exc
-            )
+            logger.debug("Orphan check: failed to fetch In Progress tasks: %s", exc)
 
         reset_count = 0
         for issue in all_issues:
@@ -19362,10 +19787,19 @@ class Orchestrator:
                         # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
                         # for an issue already present in the completed set.
                         # The enforcement sweep still verifies audit metadata.
-                        tracker.update_issue(issue.identifier, status=DONE)
+                        outcome = self._transition_issue_status(
+                            issue,
+                            DONE,
+                            project_id=project_id,
+                            tracker=tracker,
+                            authority=TransitionAuthority.WATCHDOG,
+                            reason_code="watchdog.completed_orphan_reasserted",
+                        )
                         logger.info(
-                            "Preserved completed issue %s as Done during orphan reset",
+                            "Preserved completed issue %s during orphan reset "
+                            "(applied_status=%s)",
                             issue.identifier,
+                            outcome.applied_status or outcome.observed_status,
                         )
                         continue
                     labels = {str(label).lower() for label in (issue.labels or [])}
@@ -19377,7 +19811,16 @@ class Orchestrator:
                     elif "ci-fix" in labels:
                         status = NEEDS_CI_FIX
                         updates["priority"] = "0"
-                    tracker.update_issue(issue.identifier, status=status, **updates)
+                    self._transition_issue_status(
+                        issue,
+                        status,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.WATCHDOG,
+                        reason_code="watchdog.orphaned_owner_released",
+                    )
+                    if updates:
+                        tracker.update_issue(issue.identifier, **updates)
                 reset_count += 1
                 self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
@@ -19829,9 +20272,7 @@ class Orchestrator:
 
         if title.lower().startswith("rebase ") and issue.parent_id:
             try:
-                branches.append(
-                    self.project_store.epic_branch_name(issue.parent_id)
-                )
+                branches.append(self.project_store.epic_branch_name(issue.parent_id))
             except Exception:  # noqa: BLE001 - parsed title branch is enough
                 pass
 
@@ -19941,7 +20382,7 @@ class Orchestrator:
         # fail-closed signals; the epic rollup remains the only review path.
         if entry.issue is not None:
             parent_id = (entry.issue.parent_id or "").strip()
-            
+
             # Fail closed if parent_id is present OR if parent is resolvable.
             # This prevents bypass when parent_id is missing but parent epic
             # exists authoritatively (OOMPAH-641).
@@ -19954,10 +20395,12 @@ class Orchestrator:
                     expected_epic_branch = self._epic_branch_for_issue(parent_epic)
                 elif parent_id:
                     # Parent not resolved; use canonical epic branch name
-                    expected_epic_branch = self.project_store.epic_branch_name(parent_id)
+                    expected_epic_branch = self.project_store.epic_branch_name(
+                        parent_id
+                    )
                 else:
                     expected_epic_branch = None
-                
+
                 # Check and correct stale work_branch in-memory.
                 # Persistence is best-effort; in-memory correction is mandatory.
                 if expected_epic_branch:
@@ -19987,7 +20430,7 @@ class Orchestrator:
                                 entry.identifier,
                                 exc,
                             )
-                
+
                 logger.debug(
                     "Skip per-child review for %s: child has parent %s (epic=%s)",
                     entry.identifier,
@@ -20299,7 +20742,14 @@ class Orchestrator:
             return
         try:
             tracker = self._tracker_for_project(project_id)
-            tracker.update_issue(entry.identifier, status=IN_REVIEW)
+            self._transition_identifier_status(
+                entry.identifier,
+                IN_REVIEW,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.worker_handoff_created",
+            )
             review_id = getattr(review, "id", None)
             review_url = getattr(review, "url", None)
             review_source = getattr(review, "source_branch", None)
@@ -20429,7 +20879,14 @@ class Orchestrator:
                 # TERMINAL-AUDIT-ALLOW OOMPAH-483: compatibility write for a
                 # completed branch whose review is deferred solely by the
                 # project review-capacity limit.
-                tracker.update_issue(entry.identifier, status=DONE)
+                self._transition_identifier_status(
+                    entry.identifier,
+                    DONE,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.SYSTEM,
+                    reason_code="review.capacity_deferred_completion",
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed to mark %s Done after deferred review handoff: %s",
@@ -20481,7 +20938,14 @@ class Orchestrator:
             tracker = (
                 self._tracker_for_project(project_id) if project_id else self.tracker
             )
-            tracker.update_issue(entry.identifier, status=OPEN)
+            self._transition_identifier_status(
+                entry.identifier,
+                OPEN,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.SYSTEM,
+                reason_code="review.handoff_failed",
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to reopen %s after review handoff failure: %s",
@@ -20531,13 +20995,22 @@ class Orchestrator:
         sweeps = [
             ("label_merged_epics", self._label_merged_epics),
             ("reconcile_merged_epic_children", self._reconcile_merged_epic_children),
-            ("reconcile_historical_done_records", self._reconcile_historical_done_records),
-            ("reconcile_independently_merged_children", self._reconcile_independently_merged_children),
+            (
+                "reconcile_historical_done_records",
+                self._reconcile_historical_done_records,
+            ),
+            (
+                "reconcile_independently_merged_children",
+                self._reconcile_independently_merged_children,
+            ),
             ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
             ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),
-            ("reconcile_addendum_pr_outcomes", self._reconcile_addendum_pr_outcomes_sweep),
+            (
+                "reconcile_addendum_pr_outcomes",
+                self._reconcile_addendum_pr_outcomes_sweep,
+            ),
         ]
         for name, sweep in sweeps:
             if self._job_deadline_exceeded("merged_labels"):
@@ -20922,7 +21395,9 @@ class Orchestrator:
                 except Exception as exc:  # noqa: BLE001
                     logger.debug(
                         "Stalled-task watchdog: could not get tracker for "
-                        "project %s: %s", project.id, exc,
+                        "project %s: %s",
+                        project.id,
+                        exc,
                     )
         else:
             # Legacy single-project mode.
@@ -20958,9 +21433,17 @@ class Orchestrator:
             "issue": {
                 key: getattr(issue, key, None)
                 for key in (
-                    "identifier", "state", "issue_type", "work_branch", "branch_name",
-                    "target_branch", "review_number", "review_url", "review_head",
-                    "merged_at", "head_sha",
+                    "identifier",
+                    "state",
+                    "issue_type",
+                    "work_branch",
+                    "branch_name",
+                    "target_branch",
+                    "review_number",
+                    "review_url",
+                    "review_head",
+                    "merged_at",
+                    "head_sha",
                 )
                 if getattr(issue, key, None) not in (None, "")
             }
@@ -20993,9 +21476,9 @@ class Orchestrator:
             or getattr(issue, "branch_name", None)
             or getattr(issue, "identifier", "")
         ).strip()
-        canonical_ref = default_branch or str(
-            getattr(issue, "target_branch", None) or ""
-        ).strip()
+        canonical_ref = (
+            default_branch or str(getattr(issue, "target_branch", None) or "").strip()
+        )
         evidence["branch"] = {
             "branch": branch,
             "canonical_ref": canonical_ref,
@@ -21035,15 +21518,23 @@ class Orchestrator:
             if review is None:
                 review = next(
                     (
-                        item for item in cached_reviews
-                        if (review_number and str(getattr(item, "id", "")) == review_number)
-                        or (branch and str(getattr(item, "source_branch", "")) == branch)
+                        item
+                        for item in cached_reviews
+                        if (
+                            review_number
+                            and str(getattr(item, "id", "")) == review_number
+                        )
+                        or (
+                            branch and str(getattr(item, "source_branch", "")) == branch
+                        )
                     ),
                     None,
                 )
             if review is not None:
                 evidence["review"] = review
-            elif branch and branch in set(getattr(self, "_merged_branches", set()) or set()):
+            elif branch and branch in set(
+                getattr(self, "_merged_branches", set()) or set()
+            ):
                 evidence["review"] = {"state": "merged", "source_branch": branch}
 
             branch_head = provider.get_branch_head_sha(repo, branch) if branch else None
@@ -21311,8 +21802,13 @@ class Orchestrator:
 
                 if ci_status == "failed":
                     try:
-                        tracker.update_issue(
-                            issue.identifier, status=NEEDS_CI_FIX
+                        self._transition_issue_status(
+                            issue,
+                            NEEDS_CI_FIX,
+                            project_id=project_id,
+                            tracker=tracker,
+                            authority=TransitionAuthority.WATCHDOG,
+                            reason_code="review.ci_failed",
                         )
                         logger.info(
                             "Marked %s as Needs CI Fix (PR #%s ci_status=failed)",
@@ -21327,8 +21823,13 @@ class Orchestrator:
                         )
                 elif has_conflicts:
                     try:
-                        tracker.update_issue(
-                            issue.identifier, status=NEEDS_REBASE
+                        self._transition_issue_status(
+                            issue,
+                            NEEDS_REBASE,
+                            project_id=project_id,
+                            tracker=tracker,
+                            authority=TransitionAuthority.WATCHDOG,
+                            reason_code="review.conflict_detected",
                         )
                         logger.info(
                             "Marked %s as Needs Rebase (PR #%s has_conflicts=True)",
@@ -21492,7 +21993,15 @@ class Orchestrator:
                     new_status = NEEDS_REBASE
 
                 try:
-                    tracker.update_issue(issue.identifier, status=new_status)
+                    self._transition_issue_status(
+                        issue,
+                        new_status,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.WATCHDOG,
+                        reason_code="review.false_merged_repaired",
+                        exact_head=self._stored_review_head(issue),
+                    )
                     logger.warning(
                         "Repaired false Merged state for %s: open review #%s "
                         "branch=%s is %d commit(s) ahead of %s; set status=%s",
@@ -21540,8 +22049,7 @@ class Orchestrator:
 
         issue_type = str(issue.issue_type or "").strip().lower()
         shared_epic_branch = issue_type == "epic" or (
-            bool(str(issue.parent_id or "").strip())
-            and branch != identifier
+            bool(str(issue.parent_id or "").strip()) and branch != identifier
         )
         return not shared_epic_branch
 
@@ -21562,9 +22070,7 @@ class Orchestrator:
 
         if (issue.issue_type or "").strip().lower() == "epic":
             try:
-                candidates.append(
-                    self.project_store.epic_branch_name(issue.identifier)
-                )
+                candidates.append(self.project_store.epic_branch_name(issue.identifier))
             except Exception:  # noqa: BLE001 - fall back to the task identifier
                 pass
 
@@ -21683,9 +22189,7 @@ class Orchestrator:
                 # This handles the case where a nested epic's PR merged to the parent
                 # branch before the stale-review reconciliation runs (e.g., restart
                 # scenario where the PR merged but the epic still shows IN_REVIEW).
-                is_epic = (
-                    (issue.issue_type or "").strip().lower() == "epic"
-                )
+                is_epic = (issue.issue_type or "").strip().lower() == "epic"
                 if is_epic and provider and slug:
                     parent_id = (issue.parent_id or "").strip()
                     if parent_id:
@@ -21721,7 +22225,9 @@ class Orchestrator:
                                         logger.debug(
                                             "Failed to stage nested epic %s as Merged: %s",
                                             issue.identifier,
-                                            result.reason if result else "coordinator error",
+                                            result.reason
+                                            if result
+                                            else "coordinator error",
                                         )
                                     continue
                         except EpicTargetResolutionError:
@@ -21878,7 +22384,9 @@ class Orchestrator:
                 continue
 
             try:
-                provider = detect_provider(repo_url, access_token=getattr(project, "access_token", None))
+                provider = detect_provider(
+                    repo_url, access_token=getattr(project, "access_token", None)
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.debug(
                     "_reconcile_addendum_pr_outcomes_sweep: provider detection failed for %s: %s",
@@ -21907,9 +22415,8 @@ class Orchestrator:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
 
-                identifier = (
-                    getattr(source, "identifier", None)
-                    or getattr(source, "id", None)
+                identifier = getattr(source, "identifier", None) or getattr(
+                    source, "id", None
                 )
                 if not identifier:
                     continue
@@ -22185,12 +22692,21 @@ class Orchestrator:
         try:
             # TERMINAL-AUDIT-ALLOW OOMPAH-483: Git containment has proved this
             # shared child's work is present on the epic review branch.
-            tracker.update_issue(issue.identifier, status=DONE)
+            outcome = self._transition_issue_status(
+                issue,
+                DONE,
+                project_id=issue.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="review.shared_child_contained",
+                exact_head=issue_exact_head(issue),
+            )
             logger.info(
-                "Marked %s as Done during stale In Review reconciliation "
-                "(child branch %s merged into epic branch)",
+                "Advanced %s during stale In Review reconciliation "
+                "(child branch %s merged into epic branch, applied_status=%s)",
                 issue.identifier,
                 branch,
+                outcome.applied_status or outcome.observed_status,
             )
         except TrackerError as exc:
             logger.debug(
@@ -22377,15 +22893,51 @@ class Orchestrator:
                         exc,
                     )
 
-            # Restore to READY_TO_INTEGRATE so it can be automatically requeued
-            # (not OPEN, which requires manual intervention)
+            # Reconstruct accepted-submission evidence for the branch's
+            # current exact head.  Clearing an obsolete review without this
+            # record would put a nominally Ready task back into delivery with
+            # no generation that the transition service or integrator could
+            # fence.
+            current_head = ""
+            project = None
             try:
-                tracker.update_issue(
-                    issue.identifier, status=READY_TO_INTEGRATE
+                project = self.project_store.get(issue.project_id)
+            except Exception:  # noqa: BLE001 - handled by fail-closed path below
+                project = None
+            if project is not None:
+                current_head = str(
+                    self._get_branch_head_sha(project, branch) or ""
+                ).strip().lower()
+            if current_head:
+                integration = IntegrationRecord(
+                    state="ready",
+                    task_branch=branch,
+                    base_branch=target_branch,
+                    head_sha=current_head,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+                tracker.set_metadata_field(
+                    issue.identifier,
+                    "oompah.integration",
+                    integration.to_dict(),
+                )
+                issue.integration = integration
+
+            # Restore to READY_TO_INTEGRATE so it can be automatically requeued
+            # (not OPEN, which requires manual intervention).
+            try:
+                outcome = self._transition_issue_status(
+                    issue,
+                    READY_TO_INTEGRATE,
+                    project_id=issue.project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code="review.stale_head_requeued",
+                    exact_head=current_head or issue_exact_head(issue),
                 )
                 # Keep the fetched object coherent for overlapping/repeated
                 # maintenance passes that may still hold this instance.
-                issue.state = READY_TO_INTEGRATE
+                issue.state = outcome.applied_status or outcome.observed_status
                 logger.info(
                     "Restored %s to Ready to Integrate after clearing stale review",
                     issue.identifier,
@@ -22443,7 +22995,14 @@ class Orchestrator:
             ]
         )
         try:
-            tracker.update_issue(issue.identifier, status=OPEN)
+            self._transition_issue_status(
+                issue,
+                OPEN,
+                project_id=issue.project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="review.artifact_missing_reopened",
+            )
             tracker.add_comment(issue.identifier, "\n".join(lines), author="oompah")
             logger.warning(
                 "Reopened stale In Review task %s: branch %s has %d "
@@ -22566,7 +23125,9 @@ class Orchestrator:
                 if item is None:
                     continue
                 if not project.repo_url:
-                    logger.warning("release delivery %s has no repository URL", item.delivery_id)
+                    logger.warning(
+                        "release delivery %s has no repository URL", item.delivery_id
+                    )
                     continue
                 scm = detect_provider(
                     project.repo_url,
@@ -22594,6 +23155,7 @@ class Orchestrator:
                 # deferred to avoid a circular import at module load time.
                 try:
                     from oompah.server import _get_backlog_refresh_manager  # noqa: PLC0415
+
                     _get_backlog_refresh_manager().invalidate(
                         str(project.id), result.target_branch
                     )
@@ -22743,9 +23305,7 @@ class Orchestrator:
             "Do NOT create a branch or PR for this task itself._"
         )
 
-        management_tracker, _management_project_id = (
-            self._management_tracker_scope()
-        )
+        management_tracker, _management_project_id = self._management_tracker_scope()
         new_task = management_tracker.create_issue(
             title=title,
             issue_type="task",
@@ -22813,7 +23373,8 @@ class Orchestrator:
                     )
                     continue
                 in_review = [
-                    d for d in ledger.deliveries
+                    d
+                    for d in ledger.deliveries
                     if d.status is _AS.IN_REVIEW and d.pr_url
                 ]
                 if not in_review:
@@ -22842,6 +23403,7 @@ class Orchestrator:
                         # any merged/updated delivery status (OOMPAH-304).
                         try:
                             from oompah.server import _get_backlog_refresh_manager  # noqa: PLC0415
+
                             _get_backlog_refresh_manager().invalidate(
                                 str(project.id), delivery.target_branch
                             )
@@ -22911,7 +23473,8 @@ class Orchestrator:
                     continue
 
                 merged = [
-                    d for d in ledger.deliveries
+                    d
+                    for d in ledger.deliveries
                     if d.status is _AS.MERGED
                     and d.result_commits
                     and not self._has_live_release_ci_remediation(tracker, d)
@@ -23216,9 +23779,7 @@ class Orchestrator:
                         continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
-                is_declared_epic = (
-                    (issue.issue_type or "").strip().lower() == "epic"
-                )
+                is_declared_epic = (issue.issue_type or "").strip().lower() == "epic"
                 issue_ids = {
                     str(value).strip()
                     for value in (issue.id, issue.identifier)
@@ -23273,9 +23834,7 @@ class Orchestrator:
         reason: str,
     ) -> None:
         """Publish one durable instruction and one replace-in-place alert."""
-        source = self._historical_done_alert_source(
-            project_id, issue.identifier
-        )
+        source = self._historical_done_alert_source(project_id, issue.identifier)
         instruction = (
             "Historical Done reconciliation could not prove a safe terminal "
             f"outcome for {issue.identifier}: {reason}. Required: restore or "
@@ -23292,9 +23851,7 @@ class Orchestrator:
                 "message": instruction,
             }
         )
-        if self._tracker_comment_matches(
-            tracker, issue.identifier, instruction
-        ):
+        if self._tracker_comment_matches(tracker, issue.identifier, instruction):
             return
         try:
             tracker.add_comment(
@@ -23322,9 +23879,7 @@ class Orchestrator:
                 self.project_store,
                 project_id,
             ).read(issue.identifier)
-            current_fingerprint = compute_issue_evidence_fingerprint(
-                issue, project_id
-            )
+            current_fingerprint = compute_issue_evidence_fingerprint(issue, project_id)
         except Exception as exc:  # noqa: BLE001 - optional evidence source
             logger.debug(
                 "Historical terminal-audit evidence unavailable for %s: %s",
@@ -23398,10 +23953,11 @@ class Orchestrator:
                 f"{review.target_branch or 'an unknown branch'}, expected "
                 f"{expected_target}"
             )
-        expected_source = str(
-            issue.work_branch or issue.branch_name or ""
-        ).strip()
-        if expected_source and str(review.source_branch or "").strip() != expected_source:
+        expected_source = str(issue.work_branch or issue.branch_name or "").strip()
+        if (
+            expected_source
+            and str(review.source_branch or "").strip() != expected_source
+        ):
             return False, (
                 f"persisted review #{review_number} used source "
                 f"{review.source_branch or 'an unknown branch'}, expected "
@@ -23471,9 +24027,7 @@ class Orchestrator:
                 if canonicalize_status(issue.state) != DONE:
                     continue
 
-                labels = {
-                    str(label).strip().lower() for label in issue.labels or []
-                }
+                labels = {str(label).strip().lower() for label in issue.labels or []}
 
                 parent_id = str(issue.parent_id or "").strip()
                 parent = issue_by_alias.get(parent_id) if parent_id else None
@@ -23511,14 +24065,10 @@ class Orchestrator:
                         )
                     if not delivered and "human-only" in labels:
                         delivered, _review_reason = (
-                            self._historical_done_merged_review_evidence(
-                                issue, project
-                            )
+                            self._historical_done_merged_review_evidence(issue, project)
                         )
                     if delivered:
-                        if not self._stage_historical_done_merged(
-                            issue, project_id
-                        ):
+                        if not self._stage_historical_done_merged(issue, project_id):
                             self._arm_historical_done_alert(
                                 tracker,
                                 project_id,
@@ -23527,12 +24077,9 @@ class Orchestrator:
                             )
                         continue
 
-                    if (
-                        parent_state == ARCHIVED
-                        and (
-                            self._is_epic_rebase_task(issue, parent.identifier)
-                            or self._done_review_child_is_completed_maintenance(issue)
-                        )
+                    if parent_state == ARCHIVED and (
+                        self._is_epic_rebase_task(issue, parent.identifier)
+                        or self._done_review_child_is_completed_maintenance(issue)
                     ):
                         reason = (
                             f"Superseded maintenance helper after parent "
@@ -23582,9 +24129,7 @@ class Orchestrator:
                     review_reason = "current-fingerprint Merged audit passed"
                     if not delivered:
                         delivered, review_reason = (
-                            self._historical_done_merged_review_evidence(
-                                issue, project
-                            )
+                            self._historical_done_merged_review_evidence(issue, project)
                         )
                     if delivered and self._stage_historical_done_merged(
                         issue, project_id
@@ -23947,9 +24492,7 @@ class Orchestrator:
                 continue
             if child_status != DONE or landing_reason:
                 evidence_detail = (
-                    f" Git evidence: {landing_reason}."
-                    if landing_reason
-                    else ""
+                    f" Git evidence: {landing_reason}." if landing_reason else ""
                 )
                 instruction = (
                     f"The parent epic {epic.identifier} merged from "
@@ -23968,13 +24511,10 @@ class Orchestrator:
                     child.identifier,
                     epic.identifier,
                 )
-                if (
-                    child_status == NEEDS_HUMAN
-                    and self._tracker_comment_matches(
-                        child_tracker,
-                        child.identifier,
-                        instruction,
-                    )
+                if child_status == NEEDS_HUMAN and self._tracker_comment_matches(
+                    child_tracker,
+                    child.identifier,
+                    instruction,
                 ):
                     logger.debug(
                         "Epic child %s already has the current landing-evidence "
@@ -24050,11 +24590,7 @@ class Orchestrator:
         )
         record = getattr(child, "integration", None)
         recorded_branch = str(
-            (
-                record.task_branch
-                if record is not None
-                else None
-            )
+            (record.task_branch if record is not None else None)
             or child.work_branch
             or ""
         ).strip()
@@ -24176,9 +24712,7 @@ class Orchestrator:
             # flag high-risk PRs (oompah-zlz_2-rxwe.2).
             try:
                 _cm_store = _get_churn_store()
-                _cm_top_files = set(
-                    fp for fp, _ in _cm_store.get_top_files(project.id)
-                )
+                _cm_top_files = set(fp for fp, _ in _cm_store.get_top_files(project.id))
             except Exception:
                 _cm_top_files = set()
 
@@ -24244,13 +24778,10 @@ class Orchestrator:
                                         slug, review_id, "churn-magnet"
                                     )
                                     review.labels.append("churn-magnet")
-                                    _overlap = sorted(
-                                        set(pr_files) & _cm_top_files
-                                    )
+                                    _overlap = sorted(set(pr_files) & _cm_top_files)
                                     review.churn_magnet_files = _overlap
                                     logger.info(
-                                        "YOLO: churn-magnet PR %s #%s "
-                                        "(touches: %s)",
+                                        "YOLO: churn-magnet PR %s #%s (touches: %s)",
                                         project.name,
                                         review_id,
                                         ", ".join(_overlap[:5]),
@@ -25197,10 +25728,9 @@ class Orchestrator:
         # a process restart creates a fresh task even though an open
         # duplicate already exists in the tracker.
         try:
-            active_states = (
-                _dispatch_active_state_names(self.config.tracker_active_states)
-                + [status]
-            )
+            active_states = _dispatch_active_state_names(
+                self.config.tracker_active_states
+            ) + [status]
             existing = tracker.fetch_issues_by_labels([label], states=active_states)
             if not existing:
                 existing = tracker.fetch_issues_by_states([status])
@@ -25285,9 +25815,7 @@ class Orchestrator:
             source_branch,
         )
 
-    def _build_branch_index(
-        self, project_id: str, tracker
-    ) -> dict[str, str]:
+    def _build_branch_index(self, project_id: str, tracker) -> dict[str, str]:
         """Build a ``{work_branch: identifier}`` index for *project_id*.
 
         Fetches all open/in-review issues from *tracker* and collects those
@@ -25299,10 +25827,9 @@ class Orchestrator:
         ``work_branch`` set.
         """
         try:
-            states = (
-                _dispatch_active_state_names(self.config.tracker_active_states)
-                + [IN_REVIEW]
-            )
+            states = _dispatch_active_state_names(self.config.tracker_active_states) + [
+                IN_REVIEW
+            ]
             issues = tracker.fetch_issues_by_states(states)
         except Exception as exc:  # noqa: BLE001
             logger.debug(
@@ -25341,7 +25868,7 @@ class Orchestrator:
         # the one-to-one index can otherwise return an arbitrary child and
         # hide the rollup from the final merge gate.
         if project_id is not None and source_branch.startswith("epic-"):
-            epic_identifier = source_branch[len("epic-"):]
+            epic_identifier = source_branch[len("epic-") :]
             epic_issue = tracker.fetch_issue_detail(epic_identifier)
             if epic_issue is not None and _is_epic_issue(epic_issue):
                 if project_id is not None and not epic_issue.project_id:
@@ -25359,7 +25886,7 @@ class Orchestrator:
             # Try verbatim, then with epic- prefix stripped.
             lookup_key = source_branch
             if lookup_key not in branch_index and source_branch.startswith("epic-"):
-                lookup_key = source_branch[len("epic-"):]
+                lookup_key = source_branch[len("epic-") :]
 
             if lookup_key in branch_index:
                 identifier = branch_index[lookup_key]
@@ -25377,7 +25904,7 @@ class Orchestrator:
         # --- Native fallback path: branch name == identifier ---
         issue = tracker.fetch_issue_detail(source_branch)
         if issue is None and source_branch.startswith("epic-"):
-            issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
+            issue = tracker.fetch_issue_detail(source_branch[len("epic-") :])
         if issue is not None and project_id is not None and not issue.project_id:
             issue.project_id = project_id
         return issue
@@ -25515,7 +26042,7 @@ class Orchestrator:
             parent_epic = None
             if issue is not None:
                 parent_epic = self._resolve_parent_epic(issue)
-            
+
             if (
                 issue is not None
                 and (issue.parent_id or "").strip()
@@ -25531,7 +26058,7 @@ class Orchestrator:
                     issue.parent_id,
                 )
                 return False
-            
+
             if parent_epic is not None:
                 parent_epic_branch = self._epic_branch_for_issue(parent_epic)
                 if source_branch != parent_epic_branch:
@@ -25636,8 +26163,7 @@ class Orchestrator:
             else:
                 tracker.add_comment(
                     issue.identifier,
-                    comment
-                    + f" The task remains in {issue.state or current_status}.",
+                    comment + f" The task remains in {issue.state or current_status}.",
                     author="oompah",
                 )
         except Exception as exc:  # noqa: BLE001 - review closure already succeeded
@@ -25726,7 +26252,8 @@ class Orchestrator:
                         review_id,
                         _base_branch,
                         source_branch,
-                        ", ".join(churn_files[:5]) + (" ..." if len(churn_files) > 5 else ""),
+                        ", ".join(churn_files[:5])
+                        + (" ..." if len(churn_files) > 5 else ""),
                     )
                 elif churn_err:
                     logger.debug(
@@ -25852,7 +26379,9 @@ class Orchestrator:
                     )
                     self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                     return
-                last_filed = self._epic_rebase_filed_at.get(issue.identifier, float("-inf"))
+                last_filed = self._epic_rebase_filed_at.get(
+                    issue.identifier, float("-inf")
+                )
                 if time.monotonic() - last_filed < _EPIC_REBASE_REFILE_COOLDOWN_S:
                     # Recently filed a rebase task; the PR conflict is likely
                     # still settling after the rebase force-push. Don't pile on.
@@ -25889,7 +26418,8 @@ class Orchestrator:
             # but ensure we clear the completed set so it can be re-dispatched.
             state_lower = _state_key(issue.state)
             if (
-                state_lower in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_REBASE)}
+                state_lower
+                in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_REBASE)}
                 and "merge-conflict" in issue.labels
             ):
                 self.state.completed.discard(issue.id)
@@ -25901,9 +26431,16 @@ class Orchestrator:
             tracker.add_comment(issue.identifier, comment_text, author="oompah")
             terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
             if state_lower in terminal:
+                self._transition_issue_status(
+                    issue,
+                    NEEDS_REBASE,
+                    project_id=project.id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code="review.merge_conflict_reopened",
+                )
                 tracker.update_issue(
                     issue.identifier,
-                    status=NEEDS_REBASE,
                     priority="0",
                     **{"add-label": "merge-conflict"},
                 )
@@ -25915,14 +26452,21 @@ class Orchestrator:
                 # Issue is in a non-terminal, non-actionable state (e.g.
                 # "deferred", "wont_fix").  Reopen as P0 so the
                 # conflict-resolution agent can be dispatched.
+                self._transition_issue_status(
+                    issue,
+                    NEEDS_REBASE,
+                    project_id=project.id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WATCHDOG,
+                    reason_code="review.merge_conflict_detected",
+                )
                 tracker.update_issue(
                     issue.identifier,
-                    status=NEEDS_REBASE,
                     priority="0",
                     **{"add-label": "merge-conflict"},
                 )
                 logger.info(
-                "YOLO: reopened %s from %r to P0 Needs Rebase for conflict resolution",
+                    "YOLO: reopened %s from %r to P0 Needs Rebase for conflict resolution",
                     issue.identifier,
                     state_lower,
                 )
@@ -25986,9 +26530,7 @@ class Orchestrator:
                 exc,
             )
 
-    def _yolo_comment_enqueued(
-        self, tracker, project, review, review_id: str
-    ) -> None:
+    def _yolo_comment_enqueued(self, tracker, project, review, review_id: str) -> None:
         """Post a comment on a task when YOLO enqueues its PR.
 
         Best-effort: any failure is logged at DEBUG level so it never blocks
@@ -26016,9 +26558,7 @@ class Orchestrator:
                 exc,
             )
 
-    def _yolo_mark_task_merged(
-        self, tracker, project, review, review_id: str
-    ) -> None:
+    def _yolo_mark_task_merged(self, tracker, project, review, review_id: str) -> None:
         """Mark a task Merged and comment when YOLO directly merges its PR.
 
         Best-effort: any failure is logged at DEBUG level so it never
@@ -26190,13 +26730,25 @@ class Orchestrator:
             # a ci-fix label genuinely means "a fix is already in
             # flight" because the task itself can be dispatched.
             state_lower = _state_key(issue.state)
-            if state_lower in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)} and (
-                "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX
+            if state_lower in {
+                _state_key(OPEN),
+                _state_key(IN_PROGRESS),
+                _state_key(NEEDS_CI_FIX),
+            } and (
+                "ci-fix" in issue.labels
+                or canonicalize_status(issue.state) == NEEDS_CI_FIX
             ):
                 return
+            self._transition_issue_status(
+                issue,
+                NEEDS_CI_FIX,
+                project_id=project.id,
+                tracker=tracker,
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="review.ci_retry_required",
+            )
             tracker.update_issue(
                 issue.identifier,
-                status=NEEDS_CI_FIX,
                 priority="0",
                 **{"add-label": "ci-fix"},
             )
@@ -26326,9 +26878,7 @@ class Orchestrator:
 
         for project_id, proj_candidates in by_project.items():
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             try:
                 # Ask the tracker only for active issues. Filter the result too:
@@ -26346,7 +26896,10 @@ class Orchestrator:
                     )
                 ]
             except Exception:
-                logger.debug("Failed to fetch issue pool for duplicate detection on %s", project_id)
+                logger.debug(
+                    "Failed to fetch issue pool for duplicate detection on %s",
+                    project_id,
+                )
                 continue
 
             for candidate in proj_candidates:
@@ -26359,19 +26912,31 @@ class Orchestrator:
                 ).implementation_eligible:
                     continue
                 try:
-                    similar = find_similar_issues(candidate, all_pool, min_score=_MIN_SCORE_TO_FLAG)
+                    similar = find_similar_issues(
+                        candidate, all_pool, min_score=_MIN_SCORE_TO_FLAG
+                    )
                 except Exception as exc:
-                    logger.debug("Duplicate detection raised for %s: %s", candidate.identifier, exc)
+                    logger.debug(
+                        "Duplicate detection raised for %s: %s",
+                        candidate.identifier,
+                        exc,
+                    )
                     continue
 
                 for match_issue, score in similar:
                     if "duplicate-candidate" not in (candidate.labels or []):
                         try:
-                            tracker.update_issue(
-                                candidate.identifier,
-                                status=DUPLICATE_CANDIDATE,
+                            outcome = self._transition_issue_status(
+                                candidate,
+                                DUPLICATE_CANDIDATE,
+                                project_id=project_id,
+                                tracker=tracker,
+                                authority=TransitionAuthority.SYSTEM,
+                                reason_code="duplicate.similarity_detected",
                             )
-                            candidate.state = DUPLICATE_CANDIDATE
+                            candidate.state = (
+                                outcome.applied_status or outcome.observed_status
+                            )
                             self._post_comment(
                                 candidate.identifier,
                                 f"Potential duplicate detected (similarity={score:.2f}): "
@@ -26383,12 +26948,15 @@ class Orchestrator:
                             logger.info(
                                 "Duplicate detection: flagged %s as duplicate-candidate "
                                 "(score=%.2f, matches %s)",
-                                candidate.identifier, score, match_issue.identifier,
+                                candidate.identifier,
+                                score,
+                                match_issue.identifier,
                             )
                         except Exception as exc:
                             logger.debug(
                                 "Failed to label/comment duplicate candidate %s: %s",
-                                candidate.identifier, exc,
+                                candidate.identifier,
+                                exc,
                             )
                     break  # only flag the highest-scoring match
 
@@ -26445,7 +27013,11 @@ class Orchestrator:
         if not projects:
             try:
                 return self.tracker.fetch_issues_by_states([PROPOSED])
-            except (TrackerNotConfiguredError, TrackerTimeoutError, TrackerError) as exc:
+            except (
+                TrackerNotConfiguredError,
+                TrackerTimeoutError,
+                TrackerError,
+            ) as exc:
                 logger.debug("Failed to fetch legacy Proposed issues: %s", exc)
                 return []
 
@@ -26560,8 +27132,7 @@ class Orchestrator:
                 if not handoffs:
                     continue
                 labels = {
-                    str(label).strip().casefold()
-                    for label in (issue.labels or [])
+                    str(label).strip().casefold() for label in (issue.labels or [])
                 }
                 changed = False
                 for focus, next_focus in handoffs[-1:]:
@@ -26671,8 +27242,8 @@ class Orchestrator:
                 continue
 
             shared_epic_key: tuple[str, str] | None = None
-            serializes_shared_epic = (
-                issue.priority != 0 or self._is_epic_rebase_task(issue)
+            serializes_shared_epic = issue.priority != 0 or self._is_epic_rebase_task(
+                issue
             )
             if issue.parent_id and serializes_shared_epic:
                 shared_epic_key = (
@@ -26681,8 +27252,7 @@ class Orchestrator:
                 )
                 if shared_epic_key in reserved_shared_epics:
                     logger.debug(
-                        "Dispatch shared-epic batch suppress %s "
-                        "(epic=%s project=%s)",
+                        "Dispatch shared-epic batch suppress %s (epic=%s project=%s)",
                         issue.identifier,
                         issue.parent_id,
                         issue.project_id,
@@ -27217,7 +27787,8 @@ class Orchestrator:
                         # has already stamped the reserved one, so ordered_candidates
                         # will place it last — we exclude it from the remainder).
                         rest = [
-                            c for c in self._candidate_selector.ordered_candidates(role)
+                            c
+                            for c in self._candidate_selector.ordered_candidates(role)
                             if c != reserved
                         ]
                         ordered = [reserved] + rest
@@ -27321,9 +27892,7 @@ class Orchestrator:
         if require_openai_endpoint is None:
             require_openai_endpoint = provider_mode != "acp"
         if require_openai_endpoint:
-            endpoint_error = openai_base_url_error(
-                getattr(provider, "base_url", "")
-            )
+            endpoint_error = openai_base_url_error(getattr(provider, "base_url", ""))
             if endpoint_error is not None:
                 logger.warning(
                     "Preflight skip candidate %s (role=%s, provider=%s): invalid_base_url",
@@ -27830,12 +28399,14 @@ class Orchestrator:
                 "(non-ACP worker); comment will be available on next dispatch",
                 identifier,
             )
-            self._agent_comment_delivery_log.setdefault(issue_id, []).append({
-                "ts": time.time(),
-                "comment_id": comment_id,
-                "text_preview": text[:100],
-                "status": "fallback",
-            })
+            self._agent_comment_delivery_log.setdefault(issue_id, []).append(
+                {
+                    "ts": time.time(),
+                    "comment_id": comment_id,
+                    "text_preview": text[:100],
+                    "status": "fallback",
+                }
+            )
             return False
 
         # Idempotency check.
@@ -27863,12 +28434,14 @@ class Orchestrator:
             return False
 
         # Audit log.
-        self._agent_comment_delivery_log.setdefault(issue_id, []).append({
-            "ts": time.time(),
-            "comment_id": comment_id,
-            "text_preview": text[:100],
-            "status": "queued",
-        })
+        self._agent_comment_delivery_log.setdefault(issue_id, []).append(
+            {
+                "ts": time.time(),
+                "comment_id": comment_id,
+                "text_preview": text[:100],
+                "status": "queued",
+            }
+        )
         logger.info(
             "Queued mid-run comment for %s (comment_id=%s, queue_size=%d)",
             identifier,
@@ -28040,10 +28613,7 @@ class Orchestrator:
         )
         delivered = self.deliver_comment_to_running_agent(
             recipient,
-            (
-                f"Coordination message from {sender} "
-                f"({message.kind}):\n\n{message.text}"
-            ),
+            (f"Coordination message from {sender} ({message.kind}):\n\n{message.text}"),
             comment_id=f"coordination:{message.id}",
         )
         if delivered:
@@ -28094,8 +28664,7 @@ class Orchestrator:
                 kind="conflict-risk",
                 text=(
                     "Our current changed paths overlap. Coordinate interfaces "
-                    "before submission. Overlap checkpoint: "
-                    + ", ".join(sorted(paths))
+                    "before submission. Overlap checkpoint: " + ", ".join(sorted(paths))
                 ),
                 changed_paths=paths,
                 commit_sha=commit_sha,
@@ -28207,11 +28776,19 @@ class Orchestrator:
         author: str = "oompah",
     ) -> None:
         """Move a task to Needs Human with a final actionable comment."""
-        if hasattr(tracker, "mark_needs_human"):
-            tracker.mark_needs_human(identifier, comment, author=author)
-            return
-        tracker.update_issue(identifier, status=NEEDS_HUMAN)
         tracker.add_comment(identifier, comment, author=author)
+        issue = tracker.fetch_issue_detail(identifier)
+        if not isinstance(issue, Issue):
+            raise TrackerError(f"Task {identifier!r} has no readable detail snapshot")
+        project_id = issue.project_id or self._project_id_for_tracker(tracker)
+        self._transition_issue_status(
+            issue,
+            NEEDS_HUMAN,
+            project_id=project_id,
+            tracker=tracker,
+            authority=TransitionAuthority.WATCHDOG,
+            reason_code="watchdog.operator_action_required",
+        )
 
     @staticmethod
     def _tracker_comment_matches(tracker, identifier: str, expected: str) -> bool:
@@ -28238,10 +28815,7 @@ class Orchestrator:
             if isinstance(comment, dict):
                 text = comment.get("text") or comment.get("body") or ""
             else:
-                text = (
-                    getattr(comment, "text", "")
-                    or getattr(comment, "body", "")
-                )
+                text = getattr(comment, "text", "") or getattr(comment, "body", "")
             if " ".join(str(text or "").split()) == normalized_expected:
                 return True
         return False
@@ -29084,7 +29658,10 @@ class Orchestrator:
                 entry = candidate
                 break
             candidate_issue = getattr(candidate, "issue", None)
-            if str(getattr(candidate_issue, "identifier", "") or "").strip() == identifier:
+            if (
+                str(getattr(candidate_issue, "identifier", "") or "").strip()
+                == identifier
+            ):
                 entry = candidate
                 break
         if entry is None or getattr(entry, "is_auditor", False):
@@ -29141,7 +29718,7 @@ class Orchestrator:
             if normalized == completion_label.casefold():
                 return True
             if normalized.startswith("needs:"):
-                requested = normalized[len("needs:"):].strip()
+                requested = normalized[len("needs:") :].strip()
                 if requested:
                     entry.handoff_requested_focus = requested
                 return True
@@ -29179,7 +29756,9 @@ class Orchestrator:
             return False
 
         try:
-            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker = (
+                self._tracker_for_project(project_id) if project_id else self.tracker
+            )
             labels = {label.lower() for label in (current.labels or [])}
             completed_label = f"focus-complete:{entry.focus_name.lower()}"
             requested_focus = any(label.startswith("needs:") for label in labels)
@@ -29215,14 +29794,22 @@ class Orchestrator:
                 # findings. Remove it and dispatch the same focus again so it
                 # can write the required durable task handoff.
                 for label in list(current.labels or []):
-                    if (
-                        label.lower() == completed_label
-                        or label.lower().startswith("needs:")
+                    if label.lower() == completed_label or label.lower().startswith(
+                        "needs:"
                     ):
                         tracker.remove_label(entry.identifier, label)
-                tracker.update_issue(entry.identifier, status=OPEN)
+                self._transition_issue_status(
+                    current,
+                    OPEN,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WORKER,
+                    reason_code="handoff.evidence_missing",
+                    evidence_generation=entry.assignment_id,
+                )
                 current.labels = [
-                    label for label in (current.labels or [])
+                    label
+                    for label in (current.labels or [])
                     if label.lower() != completed_label
                     and not label.lower().startswith("needs:")
                 ]
@@ -29237,7 +29824,15 @@ class Orchestrator:
                     project_id=project_id,
                 )
                 return True
-            tracker.update_issue(entry.identifier, status=OPEN)
+            self._transition_issue_status(
+                current,
+                OPEN,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="handoff.focus_completed",
+                evidence_generation=entry.assignment_id,
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to hand off completed focus for %s: %s",
@@ -29491,7 +30086,10 @@ class Orchestrator:
                     return
 
         async def _release_preflight(reason: str) -> None:
-            if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
+            if (
+                duplicate_preflight_claim is None
+                or not duplicate_preflight_claim.claim_id
+            ):
                 return
             await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool,
@@ -29677,12 +30275,9 @@ class Orchestrator:
         if refreshed:
             cur_state = _state_key(refreshed[0].state)
             terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
-            implementation_blocked = (
-                implementation_dispatch
-                and (
-                    issue.id in self.state.completed
-                    or cur_state not in self._retryable_state_keys()
-                )
+            implementation_blocked = implementation_dispatch and (
+                issue.id in self.state.completed
+                or cur_state not in self._retryable_state_keys()
             )
             if cur_state in terminal or implementation_blocked:
                 logger.info(
@@ -29739,8 +30334,9 @@ class Orchestrator:
                         "dispatch aborted because claim or task fingerprint changed"
                     )
                     return
-            elif auditor_plan is None and not self._implementation_duplicate_screening_ready(
-                refreshed_issue
+            elif (
+                auditor_plan is None
+                and not self._implementation_duplicate_screening_ready(refreshed_issue)
             ):
                 logger.info(
                     "Aborting implementation dispatch of %s: duplicate "
@@ -29856,11 +30452,27 @@ class Orchestrator:
                     self._persist_retry_entries()
                 try:
                     retry_status_write_attempted = retry_entry is not None
-                    await asyncio.get_event_loop().run_in_executor(
-                        self._tick_pool,
-                        lambda: tracker.update_issue(
-                            issue.identifier, status=IN_PROGRESS
+                    transition_source = locked_state[0] if locked_state else issue
+                    if not transition_source.project_id:
+                        transition_source.project_id = issue.project_id
+                    dispatch_generation = (
+                        getattr(transition_source, "assignment_id", None)
+                        or getattr(retry_entry, "dispatch_assignment_id", None)
+                        or uuid.uuid4().hex
+                    )
+                    await self._transition_issue_status_async(
+                        transition_source,
+                        IN_PROGRESS,
+                        project_id=issue.project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.ORCHESTRATOR,
+                        reason_code="dispatch.implementation_claimed",
+                        originating_job=(
+                            f"dispatch:{getattr(retry_entry, 'authority_generation', '')}"
+                            if retry_entry is not None
+                            else None
                         ),
+                        evidence_generation=dispatch_generation,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -29986,7 +30598,9 @@ class Orchestrator:
                 state=(
                     issue.state
                     if duplicate_preflight
-                    else _configured_in_progress_state(self.config.tracker_active_states)
+                    else _configured_in_progress_state(
+                        self.config.tracker_active_states
+                    )
                 ),
             )
         )
@@ -30137,7 +30751,10 @@ class Orchestrator:
                     or self._retry_dispatching.get(issue.id) is not retry_entry
                     or retry_abort_dimensions
                 ):
-                    if retry_entry.cancelled and "cancelled" not in retry_abort_dimensions:
+                    if (
+                        retry_entry.cancelled
+                        and "cancelled" not in retry_abort_dimensions
+                    ):
                         retry_abort_dimensions = (*retry_abort_dimensions, "cancelled")
                     if (
                         self._retry_dispatching.get(issue.id) is not retry_entry
@@ -30213,34 +30830,39 @@ class Orchestrator:
             name=f"worker-{issue.identifier}",
         )
 
-        self._register_running_entry(issue.id, RunningEntry(
-            worker_task=worker_task,
-            identifier=issue.identifier,
-            issue=running_issue,
-            session=None,
-            retry_attempt=attempt or 0,
-            started_at=now,
-            agent_profile_name=profile_name,
-            natural_profile_name=natural_profile_name,
-            duplicate_preflight=duplicate_preflight,
-            duplicate_preflight_claim_id=(
-                duplicate_preflight_claim.claim_id
-                if duplicate_preflight_claim is not None
-                else None
+        self._register_running_entry(
+            issue.id,
+            RunningEntry(
+                worker_task=worker_task,
+                identifier=issue.identifier,
+                issue=running_issue,
+                session=None,
+                retry_attempt=attempt or 0,
+                started_at=now,
+                agent_profile_name=profile_name,
+                natural_profile_name=natural_profile_name,
+                duplicate_preflight=duplicate_preflight,
+                duplicate_preflight_claim_id=(
+                    duplicate_preflight_claim.claim_id
+                    if duplicate_preflight_claim is not None
+                    else None
+                ),
+                duplicate_preflight_fingerprint=(
+                    duplicate_preflight_claim.task_fingerprint
+                    if duplicate_preflight_claim is not None
+                    else None
+                ),
+                is_auditor=auditor_plan is not None,
+                audit_id=auditor_plan.audit_id if auditor_plan else None,
+                audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
+                branch_key=auditor_plan.branch_key
+                if auditor_plan
+                else audit_branch_key(issue),
+                assignment_id=assignment_id,
+                run_id=run_id,
+                authority_generation=authority_generation,
             ),
-            duplicate_preflight_fingerprint=(
-                duplicate_preflight_claim.task_fingerprint
-                if duplicate_preflight_claim is not None
-                else None
-            ),
-            is_auditor=auditor_plan is not None,
-            audit_id=auditor_plan.audit_id if auditor_plan else None,
-            audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
-            branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
-            assignment_id=assignment_id,
-            run_id=run_id,
-            authority_generation=authority_generation,
-        ))
+        )
 
         # Post dispatch comment in thread to avoid blocking event loop
         if auditor_plan is not None:
@@ -30305,7 +30927,9 @@ class Orchestrator:
             or issue.intake
         )
         if not externally_sourced:
-            return operator_policy(task_identifier=task_identifier, session_id=session_id)
+            return operator_policy(
+                task_identifier=task_identifier, session_id=session_id
+            )
         return external_task_policy(
             allowed_actions=frozenset(
                 {
@@ -30382,9 +31006,7 @@ class Orchestrator:
         entry.task_handoff_owner_id = owner_id
         entry.task_handoff_token = token
 
-        def _owner_is_live(
-            *, _issue_id=issue.id, _entry=entry, _token=token
-        ) -> bool:
+        def _owner_is_live(*, _issue_id=issue.id, _entry=entry, _token=token) -> bool:
             current = self.state.running.get(_issue_id)
             if not (
                 current is _entry
@@ -30455,9 +31077,7 @@ class Orchestrator:
         self._clear_reopen_count(issue_id)
         try:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             self._mark_needs_human(tracker, entry.identifier, message)
         except Exception as exc:
@@ -30509,9 +31129,7 @@ class Orchestrator:
         self._clear_reopen_count(issue_id)
         try:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
             self._mark_needs_human(tracker, entry.identifier, message)
         except Exception as exc:  # noqa: BLE001 - retain in-memory fence
@@ -30758,10 +31376,10 @@ class Orchestrator:
 
         # All candidates exhausted — no inner worker completed, so _on_worker_exit
         # was never called.  Call it here so the issue is properly unregistered.
-        reasons_str = "; ".join(skip_reasons) if skip_reasons else str(last_startup_error)
-        error_msg = (
-            f"All {len(targets)} dispatch candidates unavailable: {reasons_str}"
+        reasons_str = (
+            "; ".join(skip_reasons) if skip_reasons else str(last_startup_error)
         )
+        error_msg = f"All {len(targets)} dispatch candidates unavailable: {reasons_str}"
         logger.error(
             "All dispatch candidates failed for issue %s: %s",
             issue.identifier,
@@ -30802,7 +31420,9 @@ class Orchestrator:
         worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
-        ordinary_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        ordinary_turns = (
+            profile.max_turns if profile.max_turns else self.config.max_turns
+        )
         max_turns = auditor_turn_budget(ordinary_turns, auditor=forced_auditor)
 
         # Select focus first so its (optional) model/provider overrides
@@ -31132,15 +31752,20 @@ class Orchestrator:
                 return wp, rendered, attachments, audit_target
 
             loop = asyncio.get_event_loop()
-            workspace_path, prompt, attachment_paths, audit_target = await loop.run_in_executor(
-                self._tick_pool, _setup_worker
-            )
+            (
+                workspace_path,
+                prompt,
+                attachment_paths,
+                audit_target,
+            ) = await loop.run_in_executor(self._tick_pool, _setup_worker)
 
             if issue.id in self.state.running and not self._worker_authority_current(
                 issue, run_id
             ):
                 exit_reason = "authority_revoked"
-                error_msg = "implementation authority was withdrawn before provider launch"
+                error_msg = (
+                    "implementation authority was withdrawn before provider launch"
+                )
                 return
 
             # One-line summary of what made it into the prompt.
@@ -31162,8 +31787,7 @@ class Orchestrator:
                 running_entry.focus_name = focus.name
                 running_entry.focus_role = focus.role
             read_only_preflight = bool(
-                running_entry
-                and getattr(running_entry, "duplicate_preflight", False)
+                running_entry and getattr(running_entry, "duplicate_preflight", False)
             )
             task_tracker = self._tracker_for_issue(issue)
             action_policy = self._agent_action_policy(issue)
@@ -31242,7 +31866,9 @@ class Orchestrator:
                     self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
-                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                    for cancelled_audit_id in getattr(
+                        outcome, "cancelled_audit_ids", []
+                    ):
                         self.clear_terminal_audit_alert(
                             _pid, _issue.identifier, cancelled_audit_id
                         )
@@ -31264,6 +31890,7 @@ class Orchestrator:
                         run_id,
                         denial,
                     )
+
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -31292,9 +31919,9 @@ class Orchestrator:
                         "or tracker state. "
                     )
                     if read_only_preflight
-                    else
-                    "You are an autonomous coding agent. Use the provided tools to complete the task. "
-                ) + (
+                    else "You are an autonomous coding agent. Use the provided tools to complete the task. "
+                )
+                + (
                     "You MUST work independently. NEVER ask the human to explain how something works, "
                     "diagnose a problem, or tell you what approach to take — that is YOUR job. "
                     "The `ask_question` tool exists ONLY for genuine ambiguity where the issue could "
@@ -31542,7 +32169,9 @@ class Orchestrator:
         # next dispatch candidate (next model in the role's priority list)
         # instead of being booked as a terminal worker exit.
         startup_failover = False
-        ordinary_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        ordinary_turns = (
+            profile.max_turns if profile.max_turns else self.config.max_turns
+        )
         max_turns = auditor_turn_budget(ordinary_turns, auditor=forced_auditor)
 
         if forced_auditor:
@@ -31729,7 +32358,12 @@ class Orchestrator:
                 return wp, rendered, attachments, audit_target
 
             loop = asyncio.get_event_loop()
-            workspace_path, prompt, _attachment_paths, audit_target = await loop.run_in_executor(
+            (
+                workspace_path,
+                prompt,
+                _attachment_paths,
+                audit_target,
+            ) = await loop.run_in_executor(
                 self._tick_pool,
                 _setup_worker,
             )
@@ -31738,7 +32372,9 @@ class Orchestrator:
                 issue, run_id
             ):
                 exit_reason = "authority_revoked"
-                error_msg = "implementation authority was withdrawn before provider launch"
+                error_msg = (
+                    "implementation authority was withdrawn before provider launch"
+                )
                 return
 
             running_entry = self.state.running.get(issue.id)
@@ -31805,8 +32441,7 @@ class Orchestrator:
             if issue.id in self.state.running:
                 self.state.running[issue.id].task_handoff_token = handoff_token
             read_only_preflight = bool(
-                running_entry
-                and getattr(running_entry, "duplicate_preflight", False)
+                running_entry and getattr(running_entry, "duplicate_preflight", False)
             )
             read_only_session = _acp_session_is_read_only(focus, running_entry)
 
@@ -31836,7 +32471,9 @@ class Orchestrator:
                     self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
-                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                    for cancelled_audit_id in getattr(
+                        outcome, "cancelled_audit_ids", []
+                    ):
                         self.clear_terminal_audit_alert(
                             _pid, _issue.identifier, cancelled_audit_id
                         )
@@ -31857,6 +32494,7 @@ class Orchestrator:
                         run_id,
                         denial,
                     )
+
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 tool_liveness=(
@@ -31932,7 +32570,9 @@ class Orchestrator:
                                     timezone.utc,
                                 ).isoformat(),
                                 "kind": ev.event,
-                                "usage": redact_sensitive_data(ev.usage) if ev.usage else None,
+                                "usage": redact_sensitive_data(ev.usage)
+                                if ev.usage
+                                else None,
                                 "payload": redacted_payload,
                             },
                             default=str,
@@ -32170,7 +32810,9 @@ class Orchestrator:
                     error_msg = "lifecycle drain began before ACP provider launch"
                     return
                 provider_entry = self.state.running.get(issue.id)
-                if provider_entry is not None and self._is_current_run(issue.id, run_id):
+                if provider_entry is not None and self._is_current_run(
+                    issue.id, run_id
+                ):
                     provider_entry.provider_started = True
                 status = await session.run_task()
             finally:
@@ -32424,7 +33066,9 @@ class Orchestrator:
                 current_issue = issue
 
                 # Select focus tailored to this issue
-                cli_focus = self._duplicate_preflight_focus(issue) or select_focus(issue)
+                cli_focus = self._duplicate_preflight_focus(issue) or select_focus(
+                    issue
+                )
                 logger.info(
                     "Issue %s assigned focus: %s (%s)",
                     issue.identifier,
@@ -32466,7 +33110,9 @@ class Orchestrator:
                     cli_comments = []
                     tracker = None
                 try:
-                    cli_memories = tracker.fetch_memories() if tracker is not None else {}
+                    cli_memories = (
+                        tracker.fetch_memories() if tracker is not None else {}
+                    )
                 except Exception:
                     cli_memories = {}
                 cli_duplicate_task_corpus = None
@@ -32807,7 +33453,15 @@ class Orchestrator:
             tracker = (
                 self._tracker_for_project(project_id) if project_id else self.tracker
             )
-            tracker.update_issue(entry.identifier, status=OPEN)
+            self._transition_issue_status(
+                current_issue,
+                OPEN,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="worker.close_gate_refused",
+                evidence_generation=entry.assignment_id,
+            )
             logger.warning(
                 "close_gate: REFUSED close for %s — %d commit(s) ahead of %s, "
                 "open_prs=%d merged_prs=%d — task reopened",
@@ -32882,9 +33536,8 @@ class Orchestrator:
         if project_id:
             try:
                 import os as _os
-                wt = self.project_store.worktree_path_for(
-                    project_id, entry.identifier
-                )
+
+                wt = self.project_store.worktree_path_for(project_id, entry.identifier)
                 if wt and _os.path.isdir(wt):
                     worktree_path = wt
             except Exception as exc:
@@ -32903,13 +33556,15 @@ class Orchestrator:
         if not worktree_path and project_id:
             try:
                 import os as _os
+
                 work_branch = (
-                    getattr(current_issue, "work_branch", None) or
-                    getattr(current_issue, "branch_name", None) or ""
+                    getattr(current_issue, "work_branch", None)
+                    or getattr(current_issue, "branch_name", None)
+                    or ""
                 ).strip()
                 # Epic branches follow the "epic-<IDENTIFIER>" convention.
                 if work_branch.startswith("epic-"):
-                    epic_id = work_branch[len("epic-"):]
+                    epic_id = work_branch[len("epic-") :]
                     epic_wt = self.project_store.epic_worktree_path_for(
                         project_id, epic_id
                     )
@@ -32936,7 +33591,9 @@ class Orchestrator:
             entry_focus=entry.focus_name or "",
             entry_attempt=entry.retry_attempt or 0,
             access_token=getattr(project, "access_token", None) if project else None,
-            forge_kind=getattr(project, "forge_kind", "github") if project else "github",
+            forge_kind=getattr(project, "forge_kind", "github")
+            if project
+            else "github",
         )
 
         if result.allowed:
@@ -32956,7 +33613,9 @@ class Orchestrator:
         # REFUSED — post comment and reopen
         try:
             comment = build_unpushed_refusal_comment(
-                current_issue, result, base_branch,
+                current_issue,
+                result,
+                base_branch,
             )
             self._post_comment(
                 entry.identifier,
@@ -32972,11 +33631,17 @@ class Orchestrator:
 
         try:
             tracker = (
-                self._tracker_for_project(project_id)
-                if project_id
-                else self.tracker
+                self._tracker_for_project(project_id) if project_id else self.tracker
             )
-            tracker.update_issue(entry.identifier, status=IN_PROGRESS)
+            self._transition_issue_status(
+                current_issue,
+                IN_PROGRESS,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="worker.unpushed_gate_refused",
+                evidence_generation=entry.assignment_id,
+            )
             logger.warning(
                 "unpushed_gate: REFUSED completion for %s — "
                 "unpushed work detected (ahead=%d uncommitted=%s) — task re-opened",
@@ -33112,9 +33777,7 @@ class Orchestrator:
         workspace_path = entry.workspace_path
         if not workspace_path:
             try:
-                workspace_path = self.workspace_mgr.workspace_path_for(
-                    entry.identifier
-                )
+                workspace_path = self.workspace_mgr.workspace_path_for(entry.identifier)
             except Exception:
                 workspace_path = None
 
@@ -33157,15 +33820,12 @@ class Orchestrator:
                 or _git("rev-parse", f"origin/{base_branch}")
             ),
             head_sha=(
-                (existing.head_sha if existing else None)
-                or _git("rev-parse", "HEAD")
+                (existing.head_sha if existing else None) or _git("rev-parse", "HEAD")
             ),
             attempts=existing.attempts if existing else 0,
             submitted_at=(existing.submitted_at if existing else None) or now,
             updated_at=now,
-            dependency_heads=(
-                dict(existing.dependency_heads) if existing else {}
-            ),
+            dependency_heads=(dict(existing.dependency_heads) if existing else {}),
         )
 
     def _accept_worker_submission(
@@ -33176,9 +33836,7 @@ class Orchestrator:
     ) -> bool:
         """Validate and retain a worker submission without opening a review."""
 
-        tracker = (
-            self._tracker_for_project(project_id) if project_id else self.tracker
-        )
+        tracker = self._tracker_for_project(project_id) if project_id else self.tracker
         if not self._run_unpushed_gate(entry, current, project_id):
             self.state.completed.discard(entry.issue.id)
             return False
@@ -33205,7 +33863,15 @@ class Orchestrator:
                 "oompah.integration",
                 blocked.to_dict(),
             )
-            tracker.update_issue(current.identifier, status=OPEN)
+            self._transition_issue_status(
+                current,
+                OPEN,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="worker.completion_verifier_rejected",
+                evidence_generation=entry.assignment_id,
+            )
             retry_authority_issue = replace(
                 current,
                 state=OPEN,
@@ -33244,7 +33910,7 @@ class Orchestrator:
         self.state.completed.add(entry.issue.id)
         self._clear_reopen_count(entry.issue.id)
         self._verifier_reject_counts.pop(entry.issue.id, None)
-        
+
         # Fence accepted submission against post-handoff worktree mutation
         # (OOMPAH-724). Mark the entry so the revoked exit path knows this
         # was a submission acceptance, and revoke authority to stop further
@@ -33271,24 +33937,22 @@ class Orchestrator:
         record: IntegrationRecord,
     ) -> None:
         """Handle final validation when revoked submission worker exits.
-        
+
         After a worker's submission is accepted and authority revoked, we must:
         1. Preserve any late worktree changes via recovery checkpoint
         2. Validate that final worktree HEAD matches submitted HEAD
         3. If they match: enqueue for integration
         4. If they don't match: reopen task with recovery context for retry
-        
+
         This prevents the EXOCOMP-172 scenario where late formatters cause
         integration failures by ensuring late changes are captured and
         explicitly re-submitted rather than silently integrated.
         """
-        tracker = (
-            self._tracker_for_project(project_id) if project_id else self.tracker
-        )
+        tracker = self._tracker_for_project(project_id) if project_id else self.tracker
         workspace_path = entry.workspace_path
         late_changes_detected = False
         recovery_context = None
-        
+
         # Preserve any dirty changes to recovery checkpoint before validation.
         # This must happen even if HEAD matches — any generated files or
         # transient changes must be captured so they're not lost.
@@ -33325,7 +33989,7 @@ class Orchestrator:
                     exc,
                 )
                 # Don't fail hard — we'll still try to validate below
-        
+
         # Now validate that final worktree HEAD matches submitted HEAD
         final_head = None
         if workspace_path:
@@ -33341,7 +34005,7 @@ class Orchestrator:
                     final_head = result.stdout.strip()
             except (OSError, subprocess.TimeoutExpired):
                 pass
-        
+
         if final_head and record.head_sha and final_head != record.head_sha:
             late_changes_detected = True
             logger.warning(
@@ -33351,13 +34015,13 @@ class Orchestrator:
                 record.head_sha,
                 final_head,
             )
-        
+
         # Clean up the running entry
         self._remove_running_entry(issue_id, entry)
         self.state.claimed.discard(issue_id)
         self.state.claimed_issues.pop(issue_id, None)
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
-        
+
         if late_changes_detected and recovery_context:
             # Late changes detected — don't integrate the stale submission.
             # Instead, reopen the task with recovery context so the next
@@ -33368,9 +34032,14 @@ class Orchestrator:
                 current_issue = tracker.fetch_issue_detail(entry.identifier)
                 if current_issue:
                     # Reopen the task, removing it from completed state
-                    tracker.update_issue(
-                        current_issue.identifier,
-                        status=OPEN,
+                    await self._transition_issue_status_async(
+                        current_issue,
+                        OPEN,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.WORKER,
+                        reason_code="worker.late_mutation_detected",
+                        evidence_generation=entry.assignment_id,
                     )
                     recovery_ref = recovery_context.get("recovery_ref")
                     snapshot_head = recovery_context.get("snapshot_head")
@@ -33413,9 +34082,15 @@ class Orchestrator:
             try:
                 current_issue = tracker.fetch_issue_detail(entry.identifier)
                 if current_issue:
-                    tracker.update_issue(
-                        current_issue.identifier,
-                        status=READY_TO_INTEGRATE,
+                    await self._transition_issue_status_async(
+                        current_issue,
+                        READY_TO_INTEGRATE,
+                        project_id=project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.WORKER,
+                        reason_code="worker.submission_accepted",
+                        evidence_generation=entry.assignment_id,
+                        exact_head=record.head_sha,
                     )
                     logger.info(
                         "Enqueued clean accepted submission for integration "
@@ -33430,7 +34105,7 @@ class Orchestrator:
                     entry.identifier,
                     exc,
                 )
-        
+
         self._notify_observers()
 
     async def complete_direct_epic_maintenance_submission(
@@ -33491,7 +34166,15 @@ class Orchestrator:
                 "oompah.integration",
                 blocked.to_dict(),
             )
-            tracker.update_issue(current.identifier, status=NEEDS_REBASE)
+            await self._transition_issue_status_async(
+                current,
+                NEEDS_REBASE,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="integration.direct_epic_reconciliation_failed",
+                exact_head=published_sha,
+            )
             tracker.add_comment(current.identifier, message, author="oompah")
             self._clear_integration_delivery_alert(project_id, current.identifier)
             self.state.completed.discard(current.id)
@@ -33513,13 +34196,18 @@ class Orchestrator:
             # rebase of the child's work, allowing landing validators to accept
             # commits even when patch IDs differ due to conflict resolution.
             try:
-                old_base_sha = str(
-                    getattr(record, "base_sha", None)
-                    or reconciliation.old_sha or ""
-                ).strip().lower()
+                old_base_sha = (
+                    str(
+                        getattr(record, "base_sha", None)
+                        or reconciliation.old_sha
+                        or ""
+                    )
+                    .strip()
+                    .lower()
+                )
                 new_head_sha = str(published_sha or "").strip().lower()
                 created_at = datetime.now(timezone.utc).isoformat()
-                
+
                 if old_base_sha and new_head_sha and epic_branch:
                     # Fingerprint is computed from all parameters including both
                     # base and head (treating as a range even if not computed from
@@ -33554,15 +34242,12 @@ class Orchestrator:
                     current.identifier,
                     exc,
                 )
-            
+
             integrated = IntegrationRecord(
                 state="integrated",
                 task_branch=epic_branch,
                 base_branch=epic_branch,
-                base_sha=(
-                    getattr(record, "base_sha", None)
-                    or reconciliation.old_sha
-                ),
+                base_sha=(getattr(record, "base_sha", None) or reconciliation.old_sha),
                 head_sha=published_sha,
                 integrated_sha=published_sha,
                 attempts=getattr(record, "attempts", 0),
@@ -33583,7 +34268,7 @@ class Orchestrator:
         current.project_id = project_id
         current.work_branch = epic_branch
         current.branch_name = epic_branch
-        
+
         # Cancel any stale concurrent ordinary integration rows created by
         # background sync before this direct path acquired authority.  Direct
         # epic maintenance tasks must never enter the ordinary child queue.
@@ -33595,7 +34280,7 @@ class Orchestrator:
             reason="Cancelled stale ordinary row before direct epic completion",
             expected_head_sha=published_sha,
         )
-        
+
         try:
             transition = await self.request_terminal_transition(
                 current_issue=current,
@@ -33611,7 +34296,11 @@ class Orchestrator:
                 ),
             )
         except Exception as exc:  # noqa: BLE001 - retry terminal audit safely
-            return False, f"published epic head reconciled but audit staging failed: {exc}", integrated
+            return (
+                False,
+                f"published epic head reconciled but audit staging failed: {exc}",
+                integrated,
+            )
         if not transition.success and transition.reason != "already completed":
             return (
                 False,
@@ -33632,7 +34321,11 @@ class Orchestrator:
             current.identifier,
             published_sha,
         )
-        return True, "published epic head reconciled and handed to audited Done", integrated
+        return (
+            True,
+            "published epic head reconciled and handed to audited Done",
+            integrated,
+        )
 
     def _finish_epic_review_repair(
         self,
@@ -33671,9 +34364,17 @@ class Orchestrator:
         # it.
         if self._review_conflict_remains(entry, current, project_id):
             try:
+                self._transition_issue_status(
+                    current,
+                    NEEDS_REBASE,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WORKER,
+                    reason_code="review.repair_conflict_remains",
+                    evidence_generation=entry.assignment_id,
+                )
                 tracker.update_issue(
                     current.identifier,
-                    status=NEEDS_REBASE,
                     priority="0",
                     **{"add-label": "merge-conflict"},
                 )
@@ -33710,7 +34411,15 @@ class Orchestrator:
                     exc,
                 )
         try:
-            tracker.update_issue(current.identifier, status=IN_REVIEW)
+            self._transition_issue_status(
+                current,
+                IN_REVIEW,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="review.repair_completed",
+                evidence_generation=entry.assignment_id,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "Failed to return repaired epic %s to In Review: %s",
@@ -33827,17 +34536,13 @@ class Orchestrator:
             if verdict_match is None:
                 continue
             verdict = ScreeningVerdict(verdict_match.group(1).lower())
-            matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search(
-                "\n".join(lines[1:])
-            )
+            matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search("\n".join(lines[1:]))
             identifiers: list[str] = []
             if matches_line is not None:
                 raw_matches = matches_line.group(1).strip()
                 if raw_matches.casefold() not in {"none", "n/a", "no match"}:
                     identifiers = [
-                        value
-                        for value in re.split(r"[\s,]+", raw_matches)
-                        if value
+                        value for value in re.split(r"[\s,]+", raw_matches) if value
                     ]
             parsed.append((timestamp, verdict, identifiers, raw_text[:4000]))
 
@@ -33876,11 +34581,7 @@ class Orchestrator:
                 current.project_id = issue.project_id
             record = load_duplicate_screening_record(tracker, current)
             claim_id = entry.duplicate_preflight_claim_id
-            if (
-                record is None
-                or not claim_id
-                or record.claim_id != claim_id
-            ):
+            if record is None or not claim_id or record.claim_id != claim_id:
                 logger.info(
                     "Ignoring late duplicate preflight completion for %s: "
                     "claim %s is no longer current",
@@ -33932,10 +34633,7 @@ class Orchestrator:
                 issue.duplicate_screening = completed.to_dict()
                 return {"outcome": "checked", "terminal": False}
 
-            if (
-                verdict == ScreeningVerdict.DUPLICATE_CANDIDATE
-                and matched_identifiers
-            ):
+            if verdict == ScreeningVerdict.DUPLICATE_CANDIDATE and matched_identifiers:
                 verified_matches: list[str] = []
                 invalid_matches: list[str] = []
                 for identifier in matched_identifiers:
@@ -33951,9 +34649,13 @@ class Orchestrator:
                         continue
                     verified_matches.append(candidate.identifier)
                 if not invalid_matches and verified_matches:
-                    tracker.update_issue(
-                        entry.identifier,
-                        status=DUPLICATE_CANDIDATE,
+                    self._transition_issue_status(
+                        current,
+                        DUPLICATE_CANDIDATE,
+                        project_id=current.project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.SYSTEM,
+                        reason_code="duplicate.preflight_match_confirmed",
                     )
                     completed = complete_claim_record(
                         record,
@@ -34151,7 +34853,7 @@ class Orchestrator:
         error: str | None,
     ) -> bool:
         """Persist an auditor exit only if no structured result won the race.
-        
+
         Transient crashes/timeouts are classified as infrastructure errors.
         A normal or max-turn exit without a structured coordinator result is
         a finalization failure, while exhausted command-policy denials retain
@@ -34214,9 +34916,7 @@ class Orchestrator:
                 reason=error or reason,
                 retry_after=timestamp(
                     datetime.now(timezone.utc)
-                    + timedelta(
-                        milliseconds=self._backoff_delay(rotation + 1)
-                    )
+                    + timedelta(milliseconds=self._backoff_delay(rotation + 1))
                 ),
                 failure_classification=failure_classification,
             )
@@ -34225,7 +34925,8 @@ class Orchestrator:
                 entry.issue,
                 updated,
                 append_attempt=updated.attempts[-1]
-                if updated.attempts and updated.attempts[-1].attempt_id == entry.audit_attempt_id
+                if updated.attempts
+                and updated.attempts[-1].attempt_id == entry.audit_attempt_id
                 else None,
             )
             return True
@@ -34307,10 +35008,13 @@ class Orchestrator:
         workspace_path = getattr(entry, "workspace_path", None)
         captured_processes = self._managed_processes(entry)
         if captured_processes:
-            cleanup_timeout_s = max(
-                self.config.worker_termination_timeout_ms,
-                0,
-            ) / 1000
+            cleanup_timeout_s = (
+                max(
+                    self.config.worker_termination_timeout_ms,
+                    0,
+                )
+                / 1000
+            )
             survivors = await asyncio.get_running_loop().run_in_executor(
                 self._tick_pool,
                 lambda: terminate_captured_processes(
@@ -34355,6 +35059,7 @@ class Orchestrator:
         # failures when formatters or other tools run after submission acceptance.
         accepted_record = getattr(entry, "accepted_submission_record", None)
         if accepted_record and revoked:
+            project_id = entry.issue.project_id if entry.issue else None
             await self._handle_revoked_submission_exit(
                 entry,
                 issue_id,
@@ -34502,10 +35207,12 @@ class Orchestrator:
                     project_id=project_id,
                 )
             self._audit_metrics["in_progress_count"] = sum(
-            1 for item in self._running_values_snapshot() if item.is_auditor
+                1 for item in self._running_values_snapshot() if item.is_auditor
             )
             self.event_bus.emit(
-                EventType.AGENT_COMPLETED if reason == "normal" else EventType.AGENT_FAILED,
+                EventType.AGENT_COMPLETED
+                if reason == "normal"
+                else EventType.AGENT_FAILED,
                 {
                     "issue_id": issue_id,
                     "identifier": entry.identifier,
@@ -34545,9 +35252,14 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
-                tracker.update_issue(
+                await self._transition_identifier_status_async(
                     entry.identifier,
-                    status=NEEDS_ANSWER,
+                    NEEDS_ANSWER,
+                    project_id=project_id,
+                    tracker=tracker,
+                    authority=TransitionAuthority.WORKER,
+                    reason_code="worker.question_asked",
+                    evidence_generation=entry.assignment_id,
                 )
             except Exception as exc:
                 logger.warning(
@@ -34602,30 +35314,29 @@ class Orchestrator:
                     else self.tracker
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
-                if self._handoff_completed_focus(
-                    entry, current, project_id
-                ):
+                if self._handoff_completed_focus(entry, current, project_id):
                     # The worker-exit event below wakes dispatch immediately.
                     # Completed-focus markers prevent the selector from
                     # returning the task to a focus that already finished.
                     pass
                 elif (
-                    current
-                    and canonicalize_status(current.state) == READY_TO_INTEGRATE
+                    current and canonicalize_status(current.state) == READY_TO_INTEGRATE
                 ):
                     if is_direct_epic_maintenance_issue(current):
                         # Direct epic rebase helpers publish the parent ref and
                         # are completed through audited Done.  They must not
                         # enter the ordinary child integration queue.
-                        direct_result = await self.complete_direct_epic_maintenance_submission(
-                            current,
-                            current.integration
-                            or self._capture_worker_submission_record(
-                                entry,
+                        direct_result = (
+                            await self.complete_direct_epic_maintenance_submission(
                                 current,
+                                current.integration
+                                or self._capture_worker_submission_record(
+                                    entry,
+                                    current,
+                                    project_id,
+                                ),
                                 project_id,
-                            ),
-                            project_id,
+                            )
                         )
                         if direct_result is not None and not direct_result[0]:
                             self.state.completed.discard(issue_id)
@@ -34635,10 +35346,7 @@ class Orchestrator:
                             current,
                             project_id,
                         )
-                elif (
-                    current
-                    and canonicalize_status(current.state) == IN_VALIDATION
-                ):
+                elif current and canonicalize_status(current.state) == IN_VALIDATION:
                     # A successful terminal handoff stages the task in the
                     # audit lane before the worker exits.  That is a completed
                     # implementation handoff, not an incomplete session.  In
@@ -34681,9 +35389,17 @@ class Orchestrator:
                         or canonicalize_status(current.state) == NEEDS_REBASE
                     ):
                         if self._review_conflict_remains(entry, current, project_id):
+                            await self._transition_issue_status_async(
+                                current,
+                                NEEDS_REBASE,
+                                project_id=project_id,
+                                tracker=tracker,
+                                authority=TransitionAuthority.WORKER,
+                                reason_code="review.resolver_conflict_remains",
+                                evidence_generation=entry.assignment_id,
+                            )
                             tracker.update_issue(
                                 current.identifier,
-                                status=NEEDS_REBASE,
                                 priority="0",
                                 **{"add-label": "merge-conflict"},
                             )
@@ -34775,8 +35491,7 @@ class Orchestrator:
                             project = self.project_store.get(project_id)
                             if project:
                                 landing_gate_branch = (
-                                    entry.issue.branch_name
-                                    or entry.issue.identifier
+                                    entry.issue.branch_name or entry.issue.identifier
                                 )
                                 from oompah.landing_gate import (
                                     build_telemetry_event,
@@ -34826,18 +35541,17 @@ class Orchestrator:
                                     # Shared-epic child with uncommitted changes:
                                     # capture evidence so the reconciler can detect
                                     # a later absorbing commit (OOMPAH-219).
-                                    if lg_effective_branch and (
-                                        entry.issue.parent_id or ""
-                                    ).strip():
+                                    if (
+                                        lg_effective_branch
+                                        and (entry.issue.parent_id or "").strip()
+                                    ):
                                         _epic_for_capture = self._resolve_parent_epic(
                                             entry.issue
                                         )
                                         if _epic_for_capture is not None:
-                                            _wt_path = (
-                                                self.project_store.epic_worktree_path_for(
-                                                    project_id or "",
-                                                    _epic_for_capture.identifier,
-                                                )
+                                            _wt_path = self.project_store.epic_worktree_path_for(
+                                                project_id or "",
+                                                _epic_for_capture.identifier,
                                             )
                                             self._capture_shared_absorption_evidence(
                                                 issue_id=issue_id,
@@ -34932,7 +35646,15 @@ class Orchestrator:
                                 )
                             else:
                                 # No higher profile available — retry with same profile
-                                tracker.update_issue(entry.identifier, status=OPEN)
+                                await self._transition_issue_status_async(
+                                    current,
+                                    OPEN,
+                                    project_id=project_id,
+                                    tracker=tracker,
+                                    authority=TransitionAuthority.WORKER,
+                                    reason_code="worker.incomplete_retry",
+                                    evidence_generation=entry.assignment_id,
+                                )
                                 logger.info(
                                     "Agent completed without closing %s — reset to open (%d/%d)",
                                     entry.identifier,
@@ -35663,8 +36385,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 invalid_children.append(f"child {index} has no description")
         if invalid_children:
             raise ValueError(
-                "Planner returned invalid decomposition: "
-                + "; ".join(invalid_children)
+                "Planner returned invalid decomposition: " + "; ".join(invalid_children)
             )
 
         created: list[Issue] = []
@@ -35711,9 +36432,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         # Move the original issue to the decomposed status.
         try:
-            tracker.update_issue(
-                parent_issue.identifier,
-                status=DECOMPOSED,
+            await self._transition_issue_status_async(
+                parent_issue,
+                DECOMPOSED,
+                project_id=project_id,
+                tracker=tracker,
+                authority=TransitionAuthority.WORKER,
+                reason_code="worker.decomposition_completed",
+                evidence_generation=getattr(parent_issue, "assignment_id", None),
             )
         except Exception:
             pass
@@ -35730,7 +36456,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         return text or None
 
     @staticmethod
-    def _retry_issue_head(issue: Issue, workspace_path: str | None = None) -> str | None:
+    def _retry_issue_head(
+        issue: Issue, workspace_path: str | None = None
+    ) -> str | None:
         """Return the strongest safe head evidence available for *issue*.
 
         Submission metadata is authoritative when present.  A worker's
@@ -35775,7 +36503,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             str(failed_status or _state_key(issue.state)),
             str(attempt if attempt is not None else ""),
             str(assignment_id or ""),
-            str(work_branch or getattr(issue, "work_branch", None) or getattr(issue, "branch_name", None) or ""),
+            str(
+                work_branch
+                or getattr(issue, "work_branch", None)
+                or getattr(issue, "branch_name", None)
+                or ""
+            ),
             str(head_sha or self._retry_issue_head(issue) or ""),
             str(failed_updated_at or self._retry_issue_revision(issue) or ""),
         )
@@ -35839,9 +36572,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if retry.dispatch_assignment_id is not None:
             expected_assignments.add(str(retry.dispatch_assignment_id).strip())
         if (
-            (retry.authority_generation or retry.assignment_id is not None)
-            and current_assignment not in expected_assignments
-        ):
+            retry.authority_generation or retry.assignment_id is not None
+        ) and current_assignment not in expected_assignments:
             mismatches.append("assignment")
         current_attempt = getattr(issue, "attempt", None) or getattr(
             issue, "retry_attempt", None
@@ -35859,15 +36591,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # ownership boundaries.
         current_branch = self._retry_issue_branch(issue)
         if (
-            (retry.authority_generation or retry.work_branch is not None)
-            and current_branch != str(retry.work_branch or "").strip()
-        ):
+            retry.authority_generation or retry.work_branch is not None
+        ) and current_branch != str(retry.work_branch or "").strip():
             mismatches.append("branch")
         current_head = self._retry_issue_head(issue, retry.workspace_path)
         if (
-            (retry.authority_generation or retry.head_sha is not None)
-            and current_head != retry.head_sha
-        ):
+            retry.authority_generation or retry.head_sha is not None
+        ) and current_head != retry.head_sha:
             mismatches.append("head")
 
         if retry.authority_generation:
@@ -35912,9 +36642,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             and post_write_issue.id != pre_write_issue.id
         ):
             mismatches.append("task")
-        if (
-            getattr(post_write_issue, "project_id", None)
-            != getattr(pre_write_issue, "project_id", None)
+        if getattr(post_write_issue, "project_id", None) != getattr(
+            pre_write_issue, "project_id", None
         ):
             mismatches.append("project")
         expected_assignment = (
@@ -35958,8 +36687,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """
         with self._retry_authority_lock:
             still_owned = (
-                not retry.cancelled
-                and self._retry_dispatching.get(issue.id) is retry
+                not retry.cancelled and self._retry_dispatching.get(issue.id) is retry
             )
         if not still_owned:
             return
@@ -35996,20 +36724,36 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             if current is not None and not current.project_id:
                 current.project_id = issue.project_id
+            rollback_mismatches = (
+                self._retry_post_write_mismatches(
+                    issue,
+                    current,
+                    retry,
+                    intended_active_state,
+                    retry.dispatch_assignment_id,
+                )
+                if current is not None
+                else ("task",)
+            )
             if (
                 current is not None
                 and status_write_attempted
                 and _state_key(current.state) == _state_key(intended_active_state)
+                and not rollback_mismatches
                 and issue.id not in self.state.completed
                 and issue.id not in self.state.running
             ):
                 try:
-                    await asyncio.get_event_loop().run_in_executor(
-                        self._tick_pool,
-                        lambda: tracker.update_issue(
-                            issue.identifier,
-                            status=restore_status,
-                        ),
+                    await self._transition_issue_status_async(
+                        current,
+                        restore_status,
+                        project_id=issue.project_id,
+                        tracker=tracker,
+                        authority=TransitionAuthority.ORCHESTRATOR,
+                        reason_code="retry.dispatch_aborted_restored",
+                        originating_job=f"retry:{retry.authority_generation or issue.id}",
+                        evidence_generation=retry.assignment_id,
+                        exact_head=retry.head_sha,
                     )
                     current = replace(current, state=restore_status)
                     restored = True
@@ -36030,9 +36774,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         issue.identifier,
                         exc,
                     )
-            elif (
-                current is not None
-                and _state_key(current.state) == _state_key(restore_status)
+            elif current is not None and _state_key(current.state) == _state_key(
+                restore_status
             ):
                 # The write either did not commit or an external owner already
                 # restored the dispatchable source state.  Clear the durable
@@ -36044,8 +36787,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         with self._retry_authority_lock:
             still_owned = (
-                not retry.cancelled
-                and self._retry_dispatching.get(issue.id) is retry
+                not retry.cancelled and self._retry_dispatching.get(issue.id) is retry
             )
         if not still_owned:
             return
@@ -36404,9 +37146,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             running_items = self._running_items_snapshot()
             for running_id, running_entry in running_items:
                 running_issue = getattr(running_entry, "issue", None)
-                if issue_id and running_id != issue_id and getattr(
-                    running_issue, "id", None
-                ) != issue_id:
+                if (
+                    issue_id
+                    and running_id != issue_id
+                    and getattr(running_issue, "id", None) != issue_id
+                ):
                     continue
                 if identifier and identifier not in {
                     running_id,
@@ -36524,29 +37268,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             or getattr(context_retry, "agent_profile_name", None)
             or escalated_profile
         )
-        model_role = (
-            getattr(context_entry, "model_role", None)
-            or getattr(context_retry, "model_role", None)
+        model_role = getattr(context_entry, "model_role", None) or getattr(
+            context_retry, "model_role", None
         )
         if not model_role and agent_profile_name:
             profile = self._get_profile_by_name(agent_profile_name)
             if profile is not None:
                 model_role = profile.model_role
-        provider_id = (
-            getattr(context_entry, "provider_id", None)
-            or getattr(context_retry, "provider_id", None)
+        provider_id = getattr(context_entry, "provider_id", None) or getattr(
+            context_retry, "provider_id", None
         )
-        provider_name = (
-            getattr(context_entry, "provider_name", None)
-            or getattr(context_retry, "provider_name", None)
+        provider_name = getattr(context_entry, "provider_name", None) or getattr(
+            context_retry, "provider_name", None
         )
-        model_name = (
-            getattr(context_entry, "model_name", None)
-            or getattr(context_retry, "model_name", None)
+        model_name = getattr(context_entry, "model_name", None) or getattr(
+            context_retry, "model_name", None
         )
-        candidate_key = (
-            getattr(context_entry, "candidate_key", None)
-            or getattr(context_retry, "candidate_key", None)
+        candidate_key = getattr(context_entry, "candidate_key", None) or getattr(
+            context_retry, "candidate_key", None
         )
 
         failed_issue = authority_issue or getattr(context_entry, "issue", None)
@@ -36572,31 +37311,27 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 state=IN_PROGRESS,
                 project_id=project_id,
             )
-        failed_status = (
-            getattr(context_retry, "failed_status", None)
-            or _state_key(failed_issue.state)
+        failed_status = getattr(context_retry, "failed_status", None) or _state_key(
+            failed_issue.state
         )
-        failed_updated_at = (
-            getattr(context_retry, "failed_updated_at", None)
-            or self._retry_issue_revision(failed_issue)
-        )
+        failed_updated_at = getattr(
+            context_retry, "failed_updated_at", None
+        ) or self._retry_issue_revision(failed_issue)
         failed_attempt = (
             getattr(context_entry, "retry_attempt", None)
             if context_entry is not None
             else getattr(context_retry, "failed_attempt", None)
         )
-        assignment_id = (
-            getattr(context_entry, "assignment_id", None)
-            or getattr(context_retry, "assignment_id", None)
+        assignment_id = getattr(context_entry, "assignment_id", None) or getattr(
+            context_retry, "assignment_id", None
         )
         work_branch = (
             getattr(failed_issue, "work_branch", None)
             or getattr(failed_issue, "branch_name", None)
             or getattr(context_retry, "work_branch", None)
         )
-        workspace_path = (
-            getattr(context_entry, "workspace_path", None)
-            or getattr(context_retry, "workspace_path", None)
+        workspace_path = getattr(context_entry, "workspace_path", None) or getattr(
+            context_retry, "workspace_path", None
         )
         if not workspace_path:
             try:
@@ -36786,12 +37521,25 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 # Preserve the legacy orphan reset only for entries that do
                 # not carry generation evidence.  Reopening a changed task is
                 # precisely the stale-authority bug this generation fence fixes.
-                if not retry.authority_generation and issue_id not in self.state.running:
+                if (
+                    not retry.authority_generation
+                    and issue_id not in self.state.running
+                ):
                     try:
                         orphan = self._fetch_issue_across_trackers(retry.identifier)
-                        if orphan is not None and _state_key(orphan.state) == "in_progress":
+                        if (
+                            orphan is not None
+                            and _state_key(orphan.state) == "in_progress"
+                        ):
                             orphan_tracker = self._tracker_for_issue(orphan)
-                            orphan_tracker.update_issue(retry.identifier, status=OPEN)
+                            await self._transition_issue_status_async(
+                                orphan,
+                                OPEN,
+                                project_id=orphan.project_id,
+                                tracker=orphan_tracker,
+                                authority=TransitionAuthority.WATCHDOG,
+                                reason_code="retry.legacy_orphan_released",
+                            )
                             logger.info(
                                 "Retry claim released: reset stale In Progress issue %s to Open",
                                 retry.identifier,
@@ -36884,9 +37632,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         try:
             snapshot_many = getattr(monitor, "snapshots", None)
             snapshots = (
-                snapshot_many()
-                if snapshot_many is not None
-                else [monitor.snapshot()]
+                snapshot_many() if snapshot_many is not None else [monitor.snapshot()]
             )
             snapshots = [snapshot for snapshot in snapshots if snapshot is not None]
         except Exception as exc:  # pragma: no cover - defensive observer path
@@ -37064,9 +37810,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             state_norm = _state_key(issue.state)
             running_entry = self.state.running.get(issue_id)
-            if running_entry and getattr(
-                running_entry, "duplicate_preflight", False
-            ):
+            if running_entry and getattr(running_entry, "duplicate_preflight", False):
                 # Duplicate screening intentionally leaves the tracker task
                 # Open. Load tracker metadata explicitly because forge state
                 # snapshots do not all include Oompah's state-branch metadata.
@@ -37126,9 +37870,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     issue,
                     issue.project_id
                     or (
-                        running_entry.issue.project_id
-                        if running_entry.issue
-                        else None
+                        running_entry.issue.project_id if running_entry.issue else None
                     ),
                 ):
                     terminated = await self._terminate_running(
@@ -37186,8 +37928,20 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             if project_id
                             else self.tracker
                         )
-                        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
-                        issue.state = IN_PROGRESS
+                        outcome = await self._transition_issue_status_async(
+                            issue,
+                            IN_PROGRESS,
+                            project_id=project_id,
+                            tracker=tracker,
+                            authority=TransitionAuthority.ORCHESTRATOR,
+                            reason_code="review.active_repair_restored",
+                            evidence_generation=(
+                                running_entry.assignment_id
+                                or running_entry.run_id
+                                or f"reconcile:{issue.id}"
+                            ),
+                        )
+                        issue.state = outcome.applied_status or outcome.observed_status
                     except Exception as exc:  # noqa: BLE001 - keep the repair alive
                         logger.warning(
                             "Failed to restore in-progress state for epic repair %s: %s",
@@ -37274,8 +38028,6 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 suggestion.suggested_name,
                 suggestion.suggested_role,
             )
-
-
 
     def _auto_archive(self) -> None:
         """Archive closed issues older than _ARCHIVE_DAYS days.
@@ -37364,7 +38116,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             f"auto-archive (closed {(now - issue.closed_at).days} days ago)"
                         )
                         if request_archived_audit(
-                            issue, tracker, pid or "legacy", disposition_reason,
+                            issue,
+                            tracker,
+                            pid or "legacy",
+                            disposition_reason,
                             project_store=self.project_store,
                             trigger_source="auto_archive",
                         ):
@@ -37402,7 +38157,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         issue_keys = {str(value) for value in (issue.id, issue.identifier) if value}
 
         def _same_project(candidate_project_id: str | None) -> bool:
-            return not project_id or not candidate_project_id or candidate_project_id == project_id
+            return (
+                not project_id
+                or not candidate_project_id
+                or candidate_project_id == project_id
+            )
 
         for running_id, entry in self._running_items_snapshot():
             entry_issue = getattr(entry, "issue", None)
@@ -37463,9 +38222,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # durable tracker transition before removing the runtime entry so
             # termination cannot turn a valid handoff into an implementation
             # retry.
-            if (
-                getattr(entry, "handoff_pending", False)
-                and not getattr(entry, "handoff_finalized", False)
+            if getattr(entry, "handoff_pending", False) and not getattr(
+                entry, "handoff_finalized", False
             ):
                 try:
                     project_id = entry.issue.project_id if entry.issue else None
@@ -37531,10 +38289,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         self.config.worker_termination_timeout_ms,
                         entry.identifier,
                     )
-                if (
-                    session_stop_task in waitables
-                    and session_stop_task not in done
-                ):
+                if session_stop_task in waitables and session_stop_task not in done:
                     logger.warning(
                         "CLI agent session did not stop within %dms; forcing shutdown "
                         "issue_identifier=%s",
@@ -37619,14 +38374,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # recovery ref.
             project_id = entry.issue.project_id if entry.issue else None
             project_store = getattr(self, "project_store", None)
-            recovery_preserver = getattr(
-                type(project_store), "preserve_worktree_changes", None
-            ) if project_store is not None else None
-            if (
-                project_id
-                and entry.workspace_path
-                and recovery_preserver is not None
-            ):
+            recovery_preserver = (
+                getattr(type(project_store), "preserve_worktree_changes", None)
+                if project_store is not None
+                else None
+            )
+            if project_id and entry.workspace_path and recovery_preserver is not None:
                 # A replacement generation may have claimed the issue while
                 # process cleanup was yielding.  It owns the worktree now;
                 # the old termination path must not snapshot or later remove
@@ -37857,8 +38610,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         elif any(row["status"] == "interrupted" for row in outcomes):
             status = "interrupted_for_retry"
         elif any(
-            row["status"]
-            in {"failed", "timed_out", "error", "infrastructure_error"}
+            row["status"] in {"failed", "timed_out", "error", "infrastructure_error"}
             for row in outcomes
         ):
             status = "failed"
@@ -37873,7 +38625,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         for entry in self._running_values_snapshot():
             if not hasattr(entry, "is_auditor"):
                 continue
-            if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
+            if not getattr(entry, "is_auditor", False) or not getattr(
+                entry, "audit_id", None
+            ):
                 continue
             issue = getattr(entry, "issue", None)
             project_id = str(getattr(issue, "project_id", "") or "legacy")
@@ -37938,9 +38692,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "audit_id": entry.audit_id,
                 "audit_attempt_id": entry.audit_attempt_id,
                 "retiring": bool(getattr(entry, "retirement_pending", False)),
-                "authority_revoked": bool(
-                    getattr(entry, "authority_revoked", False)
-                ),
+                "authority_revoked": bool(getattr(entry, "authority_revoked", False)),
                 "managed_process_count": len(
                     getattr(entry, "managed_processes", {}) or {}
                 ),
@@ -38141,14 +38893,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
-            "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            "terminal_audit_health": getattr(
+                self, "_audit_health", TerminalAuditHealth()
+            ).to_dict(),
             "health": {
-                "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
-                "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+                "status": "degraded"
+                if getattr(self, "_audit_health", TerminalAuditHealth()).degraded
+                else "healthy",
+                "terminal_audit": getattr(
+                    self, "_audit_health", TerminalAuditHealth()
+                ).to_dict(),
                 "quality_gates": quality_gate_state,
             },
             "auth_health": auth_health_snapshot(),
-            "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),
+            "alerts": list(self._alerts)
+            + self._credential_error_alerts()
+            + auth_health_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),
@@ -38156,9 +38916,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     getattr(self, "_last_dispatch_metrics", {}) or {}
                 ),
                 "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
-                "maintenance": dict(
-                    getattr(self, "_maintenance_status", {}) or {}
-                ),
+                "maintenance": dict(getattr(self, "_maintenance_status", {}) or {}),
                 "terminal_audit": terminal_audit_metrics,
                 # Per-project, per-operation refresh timing and timeout counts.
                 # Operators can use this to identify which project or operation
@@ -38177,11 +38935,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     ).items()
                 },
                 "tracker_reads": self._tracker_read_stats_snapshot(),
-                "ipc": (
-                    self._ipc.diagnostics()
-                    if self._ipc is not None
-                    else None
-                ),
+                "ipc": (self._ipc.diagnostics() if self._ipc is not None else None),
             },
             "epic_rebase_states": {
                 epic_id: {
@@ -38191,8 +38945,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "target_branch": entry.target_branch,
                     "target_parent_id": entry.target_parent_id,
                     "target_resolution": entry.target_resolution or None,
-                    "reason": entry.reason or (
-                        "main_advanced" if entry.state == EpicRebaseState.STALE.value else None
+                    "reason": entry.reason
+                    or (
+                        "main_advanced"
+                        if entry.state == EpicRebaseState.STALE.value
+                        else None
                     ),
                     "action_scheduled": entry.state == EpicRebaseState.REBASING.value,
                 }
@@ -38207,9 +38964,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # operators can diagnose skipped, running, failed, and completed
             # jobs without reading logs.
             "maintenance": {
-                "last_heal_at": self._last_heal_at if self._last_heal_at != 0.0 else None,
+                "last_heal_at": self._last_heal_at
+                if self._last_heal_at != 0.0
+                else None,
                 "heal_error": self._heal_error_last,
-                "last_cleanup_at": self._last_cleanup_at if self._last_cleanup_at != 0.0 else None,
+                "last_cleanup_at": self._last_cleanup_at
+                if self._last_cleanup_at != 0.0
+                else None,
                 "cleanup_count": self._cleanup_count_last,
                 "cleanup_error": self._cleanup_error_last,
                 # Keep the derived hygiene payload alongside the legacy
@@ -38379,9 +39140,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
             if retry.identifier == issue_identifier:
                 due_source_ms = retry.due_at_epoch_ms or retry.due_at_ms
-                due_dt = datetime.fromtimestamp(
-                    due_source_ms / 1000.0, tz=timezone.utc
-                )
+                due_dt = datetime.fromtimestamp(due_source_ms / 1000.0, tz=timezone.utc)
                 return {
                     "issue_identifier": retry.identifier,
                     "issue_id": issue_id,
@@ -38416,7 +39175,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             try:
                 self._ipc.publish_state(snapshot)
             except Exception as exc:  # noqa: BLE001
-                logger.debug("OrchestratorIPC.publish_state failed (non-fatal): %s", exc)
+                logger.debug(
+                    "OrchestratorIPC.publish_state failed (non-fatal): %s", exc
+                )
         # EventBus (authoritative)
         self.event_bus.emit(EventType.ORCHESTRATOR_TICK, {"snapshot": snapshot})
         # Legacy observer lists (backward compat)

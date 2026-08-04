@@ -80,6 +80,15 @@ def _issue(state: str = "open", **overrides) -> Issue:
     return Issue(**defaults)
 
 
+def _bind_status_tracker(mock_tracker: MagicMock, issue: Issue) -> None:
+    mock_tracker.fetch_issue_detail.side_effect = lambda _identifier: issue
+
+    def update(_identifier, *, status):
+        issue.state = status
+
+    mock_tracker.update_issue.side_effect = update
+
+
 class TestDispatchRecheckSkipsClosedIssue:
     """_dispatch must re-fetch the issue's state right before writing
     status=in_progress and bail if it's terminal — otherwise a UI close
@@ -93,6 +102,7 @@ class TestDispatchRecheckSkipsClosedIssue:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
 
         with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
             event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
@@ -115,17 +125,20 @@ class TestDispatchRecheckSkipsClosedIssue:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
         # Avoid actually constructing a session.
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
-            patch.object(orch, "_run_worker", new=MagicMock(
-                return_value=asyncio.sleep(0))),
+            patch.object(
+                orch, "_run_worker", new=MagicMock(return_value=asyncio.sleep(0))
+            ),
         ):
             event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
 
         # update_issue should have been called with the canonical in-progress status.
         in_progress_calls = [
-            c for c in mock_tracker.update_issue.call_args_list
+            c
+            for c in mock_tracker.update_issue.call_args_list
             if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1, (
@@ -148,6 +161,7 @@ class TestDispatchRecheckSkipsClosedIssue:
             [before_audit],
             [after_audit],
         ]
+        _bind_status_tracker(mock_tracker, before_audit)
         orch._run_worker = AsyncMock()
 
         with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
@@ -155,10 +169,10 @@ class TestDispatchRecheckSkipsClosedIssue:
                 orch._dispatch(stale, attempt=1, override_profile="standard")
             )
 
-        assert any(
-            call.kwargs.get("status") == "In Progress"
-            for call in mock_tracker.update_issue.call_args_list
-        )
+        # The transition service observes that the task is already in the
+        # requested state and does not manufacture a redundant write before
+        # the audit wins the later post-transition read.
+        mock_tracker.update_issue.assert_not_called()
         orch._run_worker.assert_not_awaited()
         assert stale.id not in orch.state.running
         assert stale.id not in orch.state.claimed
@@ -189,8 +203,8 @@ class TestDispatchRecheckSkipsClosedIssue:
         import oompah.server as server_module
 
         orch = _make_orchestrator(tmp_path)
-        stale = _issue(state="In Progress", project_id="proj-1")
-        tracker_state = {"status": "In Progress"}
+        stale = _issue(state="Open", project_id="proj-1")
+        tracker_state = {"status": "Open"}
         update_started = threading.Event()
         release_update = threading.Event()
         mock_tracker = MagicMock()
@@ -218,6 +232,9 @@ class TestDispatchRecheckSkipsClosedIssue:
             )
 
         mock_tracker.fetch_issue_states_by_ids.side_effect = _fetch
+        mock_tracker.fetch_issue_detail.side_effect = lambda _identifier: _issue(
+            state=tracker_state["status"], project_id="proj-1"
+        )
         mock_tracker.update_issue.side_effect = _update
         orch.terminal_transition_coordinator.request_transition = AsyncMock(
             side_effect=_stage
@@ -225,9 +242,7 @@ class TestDispatchRecheckSkipsClosedIssue:
         orch._run_worker = AsyncMock()
 
         async def _run_race():
-            with patch.object(
-                orch, "_tracker_for_issue", return_value=mock_tracker
-            ):
+            with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
                 dispatch = asyncio.create_task(
                     orch._dispatch(
                         stale,
@@ -273,8 +288,9 @@ class TestDispatchRecheckSkipsClosedIssue:
         ]
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
-            patch.object(orch, "_run_worker", new=MagicMock(
-                return_value=asyncio.sleep(0))),
+            patch.object(
+                orch, "_run_worker", new=MagicMock(return_value=asyncio.sleep(0))
+            ),
         ):
             event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
 
@@ -295,16 +311,19 @@ class TestDispatchRecheckSkipsClosedIssue:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.side_effect = RuntimeError("boom")
+        _bind_status_tracker(mock_tracker, stale)
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
-            patch.object(orch, "_run_worker", new=MagicMock(
-                return_value=asyncio.sleep(0))),
+            patch.object(
+                orch, "_run_worker", new=MagicMock(return_value=asyncio.sleep(0))
+            ),
         ):
             event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
 
         in_progress_calls = [
-            c for c in mock_tracker.update_issue.call_args_list
+            c
+            for c in mock_tracker.update_issue.call_args_list
             if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1
@@ -327,8 +346,10 @@ class TestUiCloseCancelsPendingRetry:
         class FakeTimer:
             def __init__(self):
                 self._cancelled = False
+
             def cancelled(self):
                 return self._cancelled
+
             def cancel(self):
                 self._cancelled = True
                 cancel_called["flag"] = True
@@ -392,6 +413,7 @@ class TestAuditOwnershipFence:
 # timer fired while paused and bypassed the dispatch loop's paused check.
 # ---------------------------------------------------------------------------
 
+
 class TestPauseCancelsPendingRetries:
     def test_pause_cancels_all_retry_timers(self, tmp_path, event_loop):
         orch = _make_orchestrator(tmp_path)
@@ -402,16 +424,20 @@ class TestPauseCancelsPendingRetries:
             def __init__(self, key: str):
                 self._k = key
                 self._cancelled = False
+
             def cancelled(self):
                 return self._cancelled
+
             def cancel(self):
                 self._cancelled = True
                 cancelled[self._k] = True
 
         for k in ("a", "b"):
             orch.state.retry_attempts[k] = RetryEntry(
-                issue_id=k, identifier=f"id-{k}",
-                attempt=1, due_at_ms=0.0,
+                issue_id=k,
+                identifier=f"id-{k}",
+                attempt=1,
+                due_at_ms=0.0,
                 timer_handle=FakeTimer(k),
                 error="something",
             )
@@ -457,6 +483,7 @@ class TestDispatchRejectsWhilePaused:
 # skip the protocol and keep the current single-process dispatch lock behavior.
 # ---------------------------------------------------------------------------
 
+
 def _github_issue(state: str = "open", **overrides) -> Issue:
     """Return a minimal GitHub-backed Issue."""
     defaults = dict(
@@ -485,6 +512,7 @@ class TestGitHubClaimRunIdProtocol:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
         # Simulate a different run_id winning the race: get_metadata returns
         # a run_id that doesn't match what we wrote.
         mock_tracker.get_metadata.return_value = {
@@ -525,11 +553,12 @@ class TestGitHubClaimRunIdProtocol:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
         mock_tracker.set_metadata_field.side_effect = _set_meta
         # Return the same run_id we wrote → we own the claim.
-        mock_tracker.get_metadata.side_effect = (
-            lambda _id: {"oompah.agent_run_id": captured.get("run_id", "")}
-        )
+        mock_tracker.get_metadata.side_effect = lambda _id: {
+            "oompah.agent_run_id": captured.get("run_id", "")
+        }
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
@@ -541,7 +570,8 @@ class TestGitHubClaimRunIdProtocol:
 
         # update_issue(status=In Progress) must have been called.
         in_progress_calls = [
-            c for c in mock_tracker.update_issue.call_args_list
+            c
+            for c in mock_tracker.update_issue.call_args_list
             if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1, (
@@ -552,7 +582,9 @@ class TestGitHubClaimRunIdProtocol:
             "RunningEntry must be created when claim succeeds"
         )
 
-    def test_issue_without_tracker_kind_skips_run_id_protocol(self, tmp_path, event_loop):
+    def test_issue_without_tracker_kind_skips_run_id_protocol(
+        self, tmp_path, event_loop
+    ):
         """Issues without tracker kind must NOT call set_metadata_field."""
         orch = _make_orchestrator(tmp_path)
         # Issue with no tracker_kind.
@@ -561,6 +593,7 @@ class TestGitHubClaimRunIdProtocol:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
 
         with (
             patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
@@ -587,6 +620,7 @@ class TestGitHubClaimRunIdProtocol:
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+        _bind_status_tracker(mock_tracker, fresh)
         mock_tracker.set_metadata_field.side_effect = RuntimeError("network error")
 
         with (
@@ -599,7 +633,8 @@ class TestGitHubClaimRunIdProtocol:
 
         # Despite the failure, dispatch must have proceeded.
         in_progress_calls = [
-            c for c in mock_tracker.update_issue.call_args_list
+            c
+            for c in mock_tracker.update_issue.call_args_list
             if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1, (
@@ -681,6 +716,7 @@ class TestSnapshotIncludesTrackerKind:
 #    with GitHub identifiers like ``owner/repo#123``.
 # ---------------------------------------------------------------------------
 
+
 class TestGitHubManualCloseRace:
     """GitHub-backed retry cancellation and dispatch abort on manual close.
 
@@ -709,8 +745,10 @@ class TestGitHubManualCloseRace:
         class FakeTimer:
             def __init__(self):
                 self._cancelled = False
+
             def cancelled(self):
                 return self._cancelled
+
             def cancel(self):
                 self._cancelled = True
                 cancel_called["flag"] = True
@@ -771,8 +809,10 @@ class TestGitHubManualCloseRace:
         class FakeTimer:
             def __init__(self):
                 self._cancelled = False
+
             def cancelled(self):
                 return self._cancelled
+
             def cancel(self):
                 self._cancelled = True
                 cancel_called["flag"] = True
@@ -861,8 +901,10 @@ class TestGitHubManualCloseRace:
         class FakeTimer:
             def __init__(self):
                 self._cancelled = False
+
             def cancelled(self):
                 return self._cancelled
+
             def cancel(self):
                 self._cancelled = True
                 cancel_called["flag"] = True
@@ -888,7 +930,7 @@ class TestGitHubManualCloseRace:
                 "/api/v1/issues/dummy",
                 json={
                     "issue_key": gh_id,
-                    "status": "Open",   # non-terminal but not in-progress
+                    "status": "Open",  # non-terminal but not in-progress
                     "project_id": "proj-gh",
                 },
             )

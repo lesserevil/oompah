@@ -545,7 +545,15 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
         PROPOSED: frozenset({BACKLOG, DUPLICATE_CANDIDATE, ARCHIVED}),
         BACKLOG: frozenset({OPEN, DUPLICATE_CANDIDATE, ARCHIVED}),
         OPEN: frozenset(
-            {IN_PROGRESS, DUPLICATE_CANDIDATE, DECOMPOSED, NEEDS_HUMAN, ARCHIVED}
+            {
+                IN_PROGRESS,
+                DUPLICATE_CANDIDATE,
+                DECOMPOSED,
+                NEEDS_CI_FIX,
+                NEEDS_REBASE,
+                NEEDS_HUMAN,
+                ARCHIVED,
+            }
         ),
         IN_PROGRESS: frozenset(
             {
@@ -584,6 +592,7 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
         ),
         IN_REVIEW: frozenset(
             {
+                OPEN,
                 IN_PROGRESS,
                 NEEDS_CI_FIX,
                 NEEDS_REBASE,
@@ -624,8 +633,14 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
         DUPLICATE_CANDIDATE: frozenset(
             {PROPOSED, BACKLOG, OPEN, NEEDS_HUMAN, ARCHIVED}
         ),
-        DONE: frozenset({OPEN, IN_VALIDATION, MERGED, ARCHIVED}),
-        MERGED: frozenset({ARCHIVED}),
+        DONE: frozenset(
+            {OPEN, NEEDS_CI_FIX, NEEDS_REBASE, IN_REVIEW, IN_VALIDATION, MERGED, ARCHIVED}
+        ),
+        # ``Merged`` is normally final, but the review reconciler may prove
+        # that the recorded terminal state is false (for example an open PR
+        # remains ahead of its target).  These are evidence-backed repair
+        # edges, not ordinary lifecycle regression.
+        MERGED: frozenset({OPEN, NEEDS_CI_FIX, NEEDS_REBASE, IN_REVIEW, ARCHIVED}),
         ARCHIVED: frozenset(),
     }
 )
