@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T14:58:24.128936Z'
+updated_at: '2026-08-04T15:00:12.560998Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -310,5 +310,10 @@ author: oompah
 created: 2026-08-04 14:58
 ---
 VERIFICATION:\n\n- New test file tests/test_dashboard_full_sync_atomic_replacement.py adds 8 focused source-contract + Node-runtime tests covering:\n  * The atomic clear runs before handleStateUpdate/renderBoard inside the same synchronous frame\n  * Every current template ID (alert-center*, diagnostic-facts*, terminal/quality/repo-hygiene/auth panels, running-agents) is targeted\n  * Bounded diagnostics — ring buffer clamped, loop-guarded record path, no re-emission cascade\n  * Shared stable identity/ordering (dedupeAlertFacts) used by both incremental and full paths\n  * Runtime stub simulates a stale board and asserts every list container empties + alert-center attributes reset (data-alert-signature dropped, data-alert-count reset)\n  * State-render fault path: DOM stays clean, delivery watermark still committed, single console.warn, ring buffer records the phase\n  * Two identical snapshots produce the same signature — no duplicated announcement, no doubled alert-item DOM\n\n- Focused suites: 8/8 new + 67/67 dashboard alert/health/websocket_liveness + 75/75 ws_full_sync/ws_fault_injection/orchestrator_full_sync/websocket_authenticated_bootstrap + 107/107 board/tracker reconciliation and integration recovery = 257 tests passing.
+---
+author: oompah
+created: 2026-08-04 15:00
+---
+COMPLETION: Delivered atomic alert/health UI replacement on top of the rebased head (origin/main + OOMPAH-741/742/743). Amended prior OOMPAH-744 commit into adb19e571 pushed to origin/epic-OOMPAH-740--task-OOMPAH-744.\n\nChanges:\n- oompah/templates/dashboard.html: retargeted _clearAllAlertAndHealthUI() to current template IDs (alert-center* / diagnostic-facts* / terminal-audit / quality-gate / repo-hygiene / auth-health / running-agents); added bounded _recordPresentationReplacementFailure(); phased clear/state/board try-catch in _applyFullSyncMessage().\n- tests/test_dashboard_full_sync_atomic_replacement.py: 8 new source-contract + Node-runtime tests.\n\nAcceptance criteria covered:\n- Post-resync browser DOM matches the authoritative snapshot (list containers innerHTML='', signature dropped) ✓\n- No stale failure remains alongside recovered state (verified via transport-failure-to-zero and state-render-throws runtime tests) ✓\n- Normal gap recovery remains non-alerting (the diagnostics helper never re-emits into the alert stream) ✓\n- Focused websocket / state reconciliation / dashboard tests pass (257 focused tests). Full make test is the orchestrator's branch gate.
 ---
 <!-- COMMENTS:END -->
