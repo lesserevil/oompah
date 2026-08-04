@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T21:33:02.887948Z'
+updated_at: '2026-08-04T21:39:34.944336Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -62,13 +62,17 @@ oompah.integration:
   submitted_at: '2026-08-04T21:32:56.564220+00:00'
   updated_at: '2026-08-04T21:32:56.564220+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 556
+  total_input_tokens: 13
+  total_output_tokens: 607
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 556
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 3
+      output_tokens: 51
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +81,12 @@ oompah.task_costs:
     output_tokens: 556
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:25:44.402970+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 51
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:39:32.456001+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-791__20260804T202331Z
@@ -188,5 +198,15 @@ author: oompah
 created: 2026-08-04 21:33
 ---
 Migrated epic and nested-epic rollup to LandingFact-driven jobs. Added EpicFactCollector/EpicWorkflowController with acyclic containment validation, target-relative epic workflow facts, shared decisions routing epic gates without parent-status cycles, durable patch-equivalence evidence through GitLandingCollector, and immediate-parent landing enforcement. Real-Git coverage for multi-level nested rollups, deleted source refs, and patch-equivalent rebases. Fixed pre-existing test timeout on 402-job SQLite throughput test. All 762 focused-suite tests pass.
+---
+author: oompah
+created: 2026-08-04 21:39
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 91, Tool calls: 53
+- Tokens: 3 in / 51 out [54 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 41m 14s
+- Log: OOMPAH-791__20260804T205839Z.jsonl
 ---
 <!-- COMMENTS:END -->
