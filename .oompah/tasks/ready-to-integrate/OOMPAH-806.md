@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:38:16.257073Z'
+updated_at: '2026-08-04T22:38:41.617195Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -48,16 +48,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6b73c3bc-4bc9-4940-ab3e-f6ec69fb26ff
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-806
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-806
   base_branch: epic-OOMPAH-763
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-04T22:28:44.184318+00:00'
+  head_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
+  submitted_at: '2026-08-04T22:38:33.232494+00:00'
+  updated_at: '2026-08-04T22:38:33.232494+00:00'
 oompah.task_costs:
   total_input_tokens: 48134
   total_output_tokens: 5473
@@ -338,5 +340,10 @@ author: oompah
 created: 2026-08-04 22:38
 ---
 Repaired the failed exact-head submission by reconciling the root epic with merged OOMPAH-805 reliability fixes and the combined-tree fixture stabilization, then patch-equivalently rebasing OOMPAH-806 to 30dc2b2075a48c6c542da55a46ad0285f492d527. The three prior suite-only failures passed together for 25 consecutive iterations; the combined changed-file and fixture slice passed 496/496. The prior blocked queue row was cancelled by the deployed watchdog race this task fixes, so this head is being freshly submitted.
+---
+author: oompah
+created: 2026-08-04 22:38
+---
+Rebased the authoritative-gate watchdog fix onto the reconciled root at exact head 30dc2b2075a48c6c542da55a46ad0285f492d527. Prior gate-only failures pass 25x stress and 496 combined focused tests.
 ---
 <!-- COMMENTS:END -->
