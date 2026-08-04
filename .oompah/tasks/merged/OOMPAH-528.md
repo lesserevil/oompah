@@ -17,7 +17,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:58:17.152536Z'
+updated_at: '2026-08-04T23:58:23.126502Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -95,8 +95,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-a45d3bca4588
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:58:13.596707+00:00'
+    applied_at: '2026-08-04T23:58:21.755230+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -528,5 +529,26 @@ author: oompah
 created: 2026-08-04 23:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:58
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 70771b4e9f27cf454bd628c71d2ef957585fe033
+- merge_pr_number: #568
+- merge_source_branch: epic-OOMPAH-528
+- merge_date: 2026-07-28 17:02:45 -0500
+- current_main_head: e1b0f4846054bacac48e667295e2c00733d86d8c
+- merge_ancestor_of_main: true
+- merge_ancestor_of_origin_main: true
+- core_module_present: oompah/duplicate_screening.py
+- operator_doc_present: docs/duplicate-screening.md
+- unit_tests_present: tests/test_duplicate_screening.py, tests/test_duplicate_preflight.py, tests/test_dashboard_duplicate_screening.py
+- post_merge_maintenance_commits: OOMPAH-706 (0b78028a6), OOMPAH-682 (71f87859f, d11354931), OOMPAH-658 (6e27fb150, beaf3eb25)
+- prior_archived_audit_verdict: PASS on 2026-08-04 by opus
 ---
 <!-- COMMENTS:END -->
