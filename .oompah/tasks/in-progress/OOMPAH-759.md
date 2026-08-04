@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:56:27.727110Z'
+updated_at: '2026-08-04T11:59:21.025842Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-04 11:56
 ---
 Understanding: the retry dispatcher must treat its own Open -> In Progress write as authorized, while preserving generation and external-authority fences. I am reviewing the preserved checkpoint, then will ensure every post-write pre-start abort restores a dispatchable prior state (or retains a live owner), add dimension-specific diagnostics, cover handoff/race/restart paths, and run focused Makefile-based checks before push and submission.
+---
+author: oompah
+created: 2026-08-04 11:59
+---
+Discovery: the preserved checkpoint correctly identifies the core fault: final retry validation compared the post-write In Progress status to the captured Open generation. The fix needs a two-snapshot CAS—pre-write generation/status authority, then post-write intended-active status plus unchanged task/project/assignment/branch/head. Audit also found pre-start exits after the status write (shared claim/terminal/read failures) must explicitly transfer or recover ownership; merely rearming the original Open generation can later self-cancel against In Progress and strand the task.
 ---
 <!-- COMMENTS:END -->
