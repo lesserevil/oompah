@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T15:36:28.471441Z'
+updated_at: '2026-08-04T15:37:12.389612Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 47c85803-5064-41c7-807f-cf6c5044bf48
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
@@ -324,5 +324,10 @@ author: oompah
 created: 2026-08-04 15:36
 ---
 Integration found a rebase conflict on `epic-OOMPAH-740--task-OOMPAH-745`. Resolve it against `epic-OOMPAH-740`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-08-04 15:37
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
