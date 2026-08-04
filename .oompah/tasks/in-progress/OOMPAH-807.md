@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T23:50:25.386844Z'
+updated_at: '2026-08-04T23:53:41.642933Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: a4884efc-7acb-465b-9568-22430c7d1458
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-807
 oompah.integration:
   version: 2
@@ -224,5 +224,10 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-04 23:53
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
