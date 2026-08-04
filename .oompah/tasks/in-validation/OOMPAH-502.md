@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-502
 type: epic
-status: Merged
+status: In Validation
 priority: 1
 title: Reduce agent wall-clock latency without weakening delivery gates
 parent: null
@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-07-28T18:00:02.502972Z'
+updated_at: '2026-08-04T18:27:54.665921Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -32,6 +32,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/564
 oompah.review_number: '564'
 oompah.work_branch: epic-OOMPAH-502
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c0f003ce43f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-502
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2afbf9fb2274a9812f0087a197c5ffea8d69ccf6f70b2c6cc7b20cf37b6f072d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:27:48.153699+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -67,5 +89,10 @@ author: oompah
 created: 2026-07-28 17:58
 ---
 YOLO: merged PR #564.
+---
+author: oompah
+created: 2026-08-04 18:27
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
