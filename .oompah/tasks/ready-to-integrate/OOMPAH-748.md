@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-748
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Break nested-epic rollup cycle between Done child epics and parent landing
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T01:10:52.038346Z'
+updated_at: '2026-08-04T01:11:16.511358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,6 +67,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-748
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:43:18.203330+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-748
+  head_sha: d4282363c07b6607b75cdc32957730f37330e741
+  submitted_at: '2026-08-04T01:11:11.607916+00:00'
+  updated_at: '2026-08-04T01:11:11.607916+00:00'
 ---
 ## Summary
 
@@ -154,5 +162,10 @@ The fix correctly implements target-relative validation:
 ✓ Lifecycle cycle between child and parent is broken
 
 Code is ready for review and integration.
+---
+author: oompah
+created: 2026-08-04 01:11
+---
+Implemented target-relative validation for nested epics in _epic_auto_close_check. Nested epics can now auto-close when landed on immediate parent branch, without requiring root to land on main. This breaks the rollup cycle while preserving safety constraints. All tests pass; branch pushed to origin/OOMPAH-748.
 ---
 <!-- COMMENTS:END -->
