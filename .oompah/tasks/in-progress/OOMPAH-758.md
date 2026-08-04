@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:30:51.338267Z'
+updated_at: '2026-08-04T11:49:58.140431Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,26 @@ Need to fix:
 2. Add atomic cancel of stale concurrent ordinary rows before direct completion
 3. Clear alerts and ensure atomicity under ownership lock
 4. Add tests for the exact race window
+---
+author: oompah
+created: 2026-08-04 11:49
+---
+IMPLEMENTATION: Fixed atomic fencing of direct epic maintenance from ordinary integration queue.
+
+Changes made:
+1. _sync_ready_integration_submissions() in orchestrator.py: Added check to skip direct epic maintenance tasks. These tasks are recovered in the direct-specific restart path, not the ordinary queue sync.
+
+2. complete_direct_epic_maintenance_submission() in orchestrator.py: Added atomic cancellation of stale concurrent ordinary integration rows before staging Done. This ensures atomicity: after reconciliation succeeds but before terminal transition, any concurrent queue row created by background sync is cancelled.
+
+3. Added test: test_direct_epic_submission_avoids_ordinary_queue_enqueue() to verify direct epic tasks don't enter the ordinary queue.
+
+These fixes ensure:
+- Direct epic maintenance tasks have exactly one Done-only lifecycle
+- Zero ordinary integration rows for proven direct helpers
+- No queue executor attempts to create/reset the authoritative epic worktree
+- Late/stale rows are cancelled atomically before Done staging
+- Idempotent reconciliation of already-published exact heads
+
+All existing tests pass: test_worker_submission.py (14), test_integration_queue.py (20), test_epic_strategy.py (234).
 ---
 <!-- COMMENTS:END -->
