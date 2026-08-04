@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T22:09:10.297027Z'
+updated_at: '2026-08-04T22:09:20.776218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -411,5 +411,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 17m 47s
 - Log: OOMPAH-803__20260804T215131Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:09
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
 ---
 <!-- COMMENTS:END -->
