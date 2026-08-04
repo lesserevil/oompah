@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:05:37.554505Z'
+updated_at: '2026-08-04T11:05:50.538828Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -32,3 +32,11 @@ Task-specific recovery for OOMPAH-741 while OOMPAH-754 fixes automatic stale-anc
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 11:05
+---
+Agent dispatched (profile: standard)
+---
+<!-- COMMENTS:END -->
