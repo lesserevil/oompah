@@ -5,7 +5,15 @@ status: Backlog
 priority: 1
 title: Build a unified, durable, live workflow engine
 parent: null
-children: []
+children:
+- OOMPAH-764
+- OOMPAH-765
+- OOMPAH-766
+- OOMPAH-767
+- OOMPAH-768
+- OOMPAH-769
+- OOMPAH-770
+- OOMPAH-771
 blocked_by: []
 start_blocked_by: []
 labels:
@@ -13,7 +21,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-04T13:54:42.220415Z'
+updated_at: '2026-08-04T13:56:05.755363Z'
 work_branch: null
 target_branch: null
 review_url: null
