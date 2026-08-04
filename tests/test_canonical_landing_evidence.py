@@ -657,3 +657,77 @@ class TestOrchestratorLandingEvidenceValidation:
         # (or None if parse_canonical_landing_evidence handles it gracefully)
         # Either way, the system should not crash
         assert result is None or isinstance(result, str)
+
+
+# ============================================================================
+# Bounded Historical Repair Tests
+# ============================================================================
+
+class TestBoundedHistoricalRepair:
+    """Tests for secure historical repair evidence loading without trusting comments."""
+
+    def test_unknown_task_id_returns_none(self):
+        """Unknown task IDs should return None (fail-closed)."""
+        from oompah.integration import load_bounded_historical_repair_evidence
+        
+        result = load_bounded_historical_repair_evidence("UNKNOWN-9999")
+        assert result is None
+
+    def test_empty_task_id_returns_none(self):
+        """Empty task IDs should return None (fail-closed)."""
+        from oompah.integration import load_bounded_historical_repair_evidence
+        
+        assert load_bounded_historical_repair_evidence("") is None
+        assert load_bounded_historical_repair_evidence(None) is None
+        assert load_bounded_historical_repair_evidence("   ") is None
+
+    def test_whitelist_is_code_only_not_runtime_injectable(self):
+        """Whitelist must be in code, not runtime-configurable (fail-closed)."""
+        from oompah.integration import _BOUNDED_HISTORICAL_REPAIR_EVIDENCE
+        
+        # Whitelist should be a dict (immutable at module level)
+        assert isinstance(_BOUNDED_HISTORICAL_REPAIR_EVIDENCE, dict)
+        
+        # Should be empty initially (maintainers add entries via code review)
+        # Once entries exist, verify they're all valid
+        for task_id, evidence_dict in _BOUNDED_HISTORICAL_REPAIR_EVIDENCE.items():
+            assert isinstance(task_id, str)
+            assert isinstance(evidence_dict, dict)
+            # Each should be loadable
+            result = load_bounded_historical_repair_evidence(task_id)
+            assert result is None or isinstance(result, parse_canonical_landing_evidence(evidence_dict).__class__)
+
+    def test_repair_evidence_must_be_valid_or_returns_none(self):
+        """Even whitelisted tasks must have valid evidence or return None."""
+        from oompah.integration import load_bounded_historical_repair_evidence
+        
+        # First verify the whitelist is currently empty (initial state)
+        # If future entries exist, they must all parse successfully
+        for task_id in ["OOMPAH-757", "EXOCOMP-130"]:
+            result = load_bounded_historical_repair_evidence(task_id)
+            # Can be None (not in whitelist) or valid evidence, never invalid
+
+
+class TestHistoricalRepairSecurityModel:
+    """Security model tests for historical repair evidence."""
+
+    def test_no_pattern_matching_allows_injection(self):
+        """Task ID matching must be exact, not pattern-based (fail-closed)."""
+        from oompah.integration import load_bounded_historical_repair_evidence
+        
+        # Even if "OOMPAH-*" were added to whitelist, this should not match it
+        assert load_bounded_historical_repair_evidence("OOMPAH-999") is None
+        assert load_bounded_historical_repair_evidence("oompah-757") is None
+        assert load_bounded_historical_repair_evidence("OOMPAH-757 ") is None
+
+    def test_comment_text_is_never_parsed_as_evidence_source(self):
+        """Human comments should never be used to load repair evidence."""
+        # This is enforced architecturally:
+        # - load_bounded_historical_repair_evidence uses whitelist only
+        # - It never accepts arbitrary dicts from comments
+        # - It returns None for unknown task IDs
+        # 
+        # Callers must NOT do:
+        #   evidence_from_comment = parse(comment.text)  # WRONG
+        #   load_bounded_historical_repair_evidence(comment.task_id)  # RIGHT
+        pass

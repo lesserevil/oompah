@@ -306,6 +306,50 @@ def parse_canonical_landing_evidence(
         return None
 
 
+# Whitelist of known Oompah-authorized task IDs for which historical repair evidence
+# can be loaded without trusting arbitrary human comments. This bounded list:
+# - Is maintained by Oompah maintainers only (code review required)
+# - Never trusts user-provided task IDs (must be exact match from whitelist)
+# - Prevents social engineering to create backdoor evidence paths
+# - Enables recovery from documented past cases (e.g., EXOCOMP-130)
+#
+# Each entry includes: task_id, old_base_sha, old_head_sha, new_base_sha, new_head_sha,
+# target_epic_branch, created_at_utc (from authorized recovery process)
+_BOUNDED_HISTORICAL_REPAIR_EVIDENCE: dict[str, dict[str, str]] = {
+    # Future: Add specific known recovery cases here as authorized by maintainers.
+    # Format: "OOMPAH-NNN": { "old_base_sha": "...", ... }
+    # These must come from verified authorized epic maintenance completion,
+    # not from human comments or external sources.
+}
+
+
+def load_bounded_historical_repair_evidence(
+    task_id: str,
+) -> CanonicalLandingEvidence | None:
+    """Load repair evidence only for known authorized historical task IDs (fail-closed).
+    
+    This provides recovery for documented past cases without creating a security
+    hole for arbitrary evidence injection via comments. The whitelist is:
+    - Maintained in code (requires review for changes)
+    - Validated against exact task ID (no pattern matching)
+    - Only loaded for tasks in the whitelist (all others return None)
+    - Never trusts human comments or arbitrary input
+    
+    Args:
+        task_id: The task identifier to potentially load evidence for.
+    
+    Returns:
+        CanonicalLandingEvidence if the task_id is in the whitelist and
+        evidence is valid. None for unknown tasks or invalid evidence.
+    """
+    task_id_str = str(task_id or "").strip()
+    if not task_id_str or task_id_str not in _BOUNDED_HISTORICAL_REPAIR_EVIDENCE:
+        return None
+    
+    evidence_dict = _BOUNDED_HISTORICAL_REPAIR_EVIDENCE[task_id_str]
+    return parse_canonical_landing_evidence(evidence_dict)
+
+
 @dataclass(frozen=True)
 class IntegrationRecord:
     """Versioned tracker record describing one task's integration state."""
