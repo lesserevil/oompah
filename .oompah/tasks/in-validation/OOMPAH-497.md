@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-497
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Assign canonical ownership for overlapping Release Delivery UI tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-07-28T17:10:48.036029Z'
+updated_at: '2026-08-04T17:26:46.127828Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -46,6 +46,28 @@ oompah.task_costs:
     output_tokens: 17238
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:25:07.500911+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2da954a8db6d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-497
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d4f16d42c71537f6461e60a49f42121e81888930f4686972fe159197fc8df6c5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:26:39.965464+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -274,5 +296,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 0s
 - Log: OOMPAH-497__20260728T161609Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:26
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
