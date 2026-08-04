@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:22:32.717004Z'
+updated_at: '2026-08-04T03:24:18.308440Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-08-04 03:22
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-08-04 03:24
+---
+Understanding: This branch has 1 commit (713f79080) for bounded integrated audit replay. Rebasing onto origin/main which has advanced with commits from OOMPAH-731, 734, 735, 747, 750, 751, 752 – many overlap files (orchestrator.py etc). Starting rebase now.
 ---
 <!-- COMMENTS:END -->
