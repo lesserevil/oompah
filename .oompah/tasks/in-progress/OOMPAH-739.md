@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:34:04.101131Z'
+updated_at: '2026-08-04T00:40:41.591464Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -538,5 +538,15 @@ author: oompah
 created: 2026-08-04 00:34
 ---
 Verification: added recovery/lifecycle regressions and restored direct-validator compatibility. Focused results: terminal enforcement + shared-epic compatibility 55 passed; epic strategy, terminal status, lifecycle, workspace recovery, and restart suites 355 passed; CI/review ownership, transition coordinator, and review auto-resolving suites 147 passed. The only initial failure was an existing direct-validator expectation for conflict text when evidence is unavailable; it now passes while recovery still defers unknown evidence without mutation.
+---
+author: oompah
+created: 2026-08-04 00:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 64
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 28s
+- Log: OOMPAH-739__20260804T002519Z.jsonl
 ---
 <!-- COMMENTS:END -->
