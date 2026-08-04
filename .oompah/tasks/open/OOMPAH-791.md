@@ -12,8 +12,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:23:06.318660Z'
-work_branch: null
+updated_at: '2026-08-04T20:23:27.635307Z'
+work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
 review_number: null
@@ -38,6 +38,15 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: ddc8845e-c594-4cd3-b909-15b857f238ad
+oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-768--task-OOMPAH-791
+  base_branch: epic-OOMPAH-768
+  base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
+  updated_at: '2026-08-04T20:23:22.563577+00:00'
 ---
 ## Summary
 
@@ -49,3 +58,16 @@ Migrate epic readiness, child landing verification, rollup review creation, nest
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:23
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 20:23
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
