@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T00:09:28.655596Z'
+updated_at: '2026-08-04T15:36:28.471441Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -72,12 +72,38 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
+  base_branch: epic-OOMPAH-740
+  base_sha: b51047023a5a9d5a36d119260222fb57168cbf41
   head_sha: 2361ecf83000d89fdf37ff9d088954231c18db4c
   submitted_at: '2026-08-04T00:08:33.005683+00:00'
-  updated_at: '2026-08-04T00:08:33.005683+00:00'
+  updated_at: '2026-08-04T15:36:21.947813+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: warning: skipped previously
+    applied commit b9030acc4
+
+    hint: use --reapply-cherry-picks to include skipped commits
+
+    hint: Disable this message with "git config set advice.skippedCherryPicks false"
+
+    Rebasing (1/3)
+
+    error: could not apply 4da252e6a... OOMPAH-743: Bound dashboard alert failure
+    transcripts
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 4da252e6a... # OOMPAH-743: Bound dashboard alert failure transcripts'
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1156
@@ -293,5 +319,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 26m 27s
 - Log: OOMPAH-745__20260803T234321Z.jsonl
+---
+author: oompah
+created: 2026-08-04 15:36
+---
+Integration found a rebase conflict on `epic-OOMPAH-740--task-OOMPAH-745`. Resolve it against `epic-OOMPAH-740`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
