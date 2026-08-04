@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:51:46.015583Z'
+updated_at: '2026-08-04T20:52:00.658013Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -166,5 +166,15 @@ author: oompah
 created: 2026-08-04 20:51
 ---
 Delivered durable review and CI reconciliation with unified decisions, LandingFact completion proof, restart-safe observation and repair jobs, transition-service boundaries, and UI reason parity.
+---
+author: oompah
+created: 2026-08-04 20:52
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 164
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 27s
+- Log: OOMPAH-782__20260804T202850Z.jsonl
 ---
 <!-- COMMENTS:END -->
