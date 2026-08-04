@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-04T22:02:44.887986Z'
+updated_at: '2026-08-04T22:03:28.394422Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-809
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 45s
 - Log: OOMPAH-809__20260804T215419Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:03
+---
+Additional live evidence at 22:02 UTC: the most recent scheduler tick took 562,919 ms. audit_scan/audit_dispatch alone consumed 303,441 ms, reconcile consumed 108,265 ms, and integration-queue maintenance has not run since 21:45:48. OOMPAH-781/782/791 were unblocked when OOMPAH-793 became Done at 22:02, but their ready rows remained attempts=0/unleased because the shared scheduler lane had not reached integration maintenance. The repair must bound audit work so integration/durable workflow jobs also receive a bounded service interval; lane reservation only at agent launch is insufficient.
 ---
 <!-- COMMENTS:END -->
