@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:46:13.265163Z'
+updated_at: '2026-08-04T01:46:23.326515Z'
 work_branch: null
 target_branch: null
 review_url: null
