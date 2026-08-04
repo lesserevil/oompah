@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:27:48.177750Z'
+updated_at: '2026-08-04T20:38:12.149812Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-04 20:27
 ---
 Discovery: durable workflow_jobs/workflow_scheduler/workflow_worker infrastructure is present, while terminal-audit enforcement still owns a periodic monolithic scan and direct auditor launch. The cutover seam is the orchestrator enforcement/dispatch path; durable audit jobs will own phase/recovery and TerminalTransitionCoordinator will remain the sole result/status applicator.
+---
+author: oompah
+created: 2026-08-04 20:38
+---
+Implementation: added terminal_audit_workflow durable adapter over WorkflowJobStore, phase-aware failure/recovery and phase telemetry in the ledger, wired enforcement/dispatch/retry/finalization into Orchestrator, and carried only non-secret workflow job identity on RunningEntry. Finalization is checkpointed before coordinator side effects; output/comments are excluded from checkpoints. Focused suites: 176 passed.
 ---
 <!-- COMMENTS:END -->
