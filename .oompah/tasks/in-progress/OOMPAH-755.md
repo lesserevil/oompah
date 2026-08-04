@@ -12,8 +12,8 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:05:50.538828Z'
-work_branch: null
+updated_at: '2026-08-04T11:06:02.971107Z'
+work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
 review_number: null
@@ -21,6 +21,15 @@ review_head: null
 merged_at: null
 oompah.target_branch: main
 oompah.agent_run_id: a42183e9-a872-493f-9ffe-efd11dd66915
+oompah.work_branch: epic-OOMPAH-740
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-740
+  base_branch: epic-OOMPAH-740
+  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
+  updated_at: '2026-08-04T11:05:58.720427+00:00'
 ---
 ## Summary
 
@@ -38,5 +47,10 @@ author: oompah
 created: 2026-08-04 11:05
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-04 11:06
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
