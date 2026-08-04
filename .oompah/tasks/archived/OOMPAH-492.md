@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:27.511520Z'
-updated_at: '2026-08-04T18:02:11.812677Z'
+updated_at: '2026-08-04T18:02:19.437933Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -66,8 +66,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-19b7fc30a962
-    applied: false
+    applied: true
     created_at: '2026-08-04T18:02:07.533229+00:00'
+    applied_at: '2026-08-04T18:02:17.168968+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -260,5 +261,22 @@ author: oompah
 created: 2026-08-04 17:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 18:02
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: e8e03d7d1d6c4cdfa2bd047bb538c784dfcb2a87
+- commit_title: OOMPAH-492: Isolate worker-exit and epic-rebase tests from live tracker
+- origin_main_head: a681ec2fc005f339063b3b8e2a139b8ae0b3c379
+- commit_on_origin_main: true
+- files_changed: tests/test_acp_billing.py, tests/test_epic_rebase_state.py, tests/test_event_driven_loop.py
+- diff_summary: 187 insertions, 22 deletions across 3 files
+- isolation_patterns_present: _inject_isolation_mocks, _inject_worker_exit_isolation, _fail_on_git_push, _no_git_push, project_id=proj-1 in test_persists_on_clear
+- auto_archive_reason: Aged Merged auto-archive (closed 7 days ago)
 ---
 <!-- COMMENTS:END -->
