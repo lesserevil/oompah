@@ -3398,8 +3398,17 @@ class TestModelProviderFreeCheck:
         assert p.is_model_explicitly_free(None) is False  # type: ignore
 
 
+@pytest.mark.timeout(20)
 class TestBudgetGateFreeTierBypass:
     """Tests for the budget cap's zero-cost-model bypass in _should_dispatch."""
+
+    @pytest.fixture(autouse=True)
+    def _close_owned_orchestrators(self):
+        """Do not leak durable stores or executor pools across xdist tests."""
+        self._owned_orchestrators: list[Orchestrator] = []
+        yield
+        for orch in reversed(self._owned_orchestrators):
+            asyncio.run(orch._drain_background_work())
 
     def _make_orchestrator(self, tmp_path):
         from oompah.config import ServiceConfig
@@ -3428,11 +3437,13 @@ class TestBudgetGateFreeTierBypass:
         provider_store._providers = {prov.id: prov}
         project_store = MagicMock()
         project_store.list_all.return_value = []
-        return Orchestrator(
+        orch = Orchestrator(
             config=cfg, workflow_path="WORKFLOW.md",
             provider_store=provider_store, project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        self._owned_orchestrators.append(orch)
+        return orch
 
     def _force_over_budget(self, orch):
         orch.state.agent_totals.estimated_cost = 999.0
