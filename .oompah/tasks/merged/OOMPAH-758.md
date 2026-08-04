@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:40:20.359121Z'
+updated_at: '2026-08-04T12:40:25.499201Z'
 work_branch: OOMPAH-758
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/709
@@ -143,8 +143,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-ea12b4d7896e
-    applied: false
+    applied: true
     created_at: '2026-08-04T12:40:17.307224+00:00'
+    applied_at: '2026-08-04T12:40:24.413000+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -464,5 +465,23 @@ author: oompah
 created: 2026-08-04 12:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 12:40
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 940b471c0b7fcec020b7b1f126e498903f4328af
+- merge_commit: 645392b02039d61bbcb4bfb76cba5bee8fe0785d
+- main_head: 645392b02039d61bbcb4bfb76cba5bee8fe0785d
+- sync_guard_line: oompah/orchestrator.py:7102
+- cancel_call_line: oompah/orchestrator.py:32957
+- regression_test: tests/test_worker_submission.py::test_direct_epic_submission_avoids_ordinary_queue_enqueue
+- focused_test_results: test_worker_submission=14 passed
+- branch_gate: make test 449.1s passed for 940b471c0
+- ancestor_check: 940b471c0 is-ancestor of main
 ---
 <!-- COMMENTS:END -->
