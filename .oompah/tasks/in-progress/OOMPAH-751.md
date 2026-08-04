@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:28:34.769917Z'
+updated_at: '2026-08-04T02:31:14.060662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +264,10 @@ author: oompah
 created: 2026-08-04 02:28
 ---
 Implementation: Added a targeted try/except PermissionError inside the coordination-send branch of api_task_handoff (oompah/server.py). The branch is specifically wrapped (not the entire endpoint) so PermissionError raised from a different action path — if one is ever added — still routes through the generic handler and receives its full failure/scope classification. Behavior on advisory denial: (1) HTTP 403 with structured 'coordination_forbidden' code, (2) non-disclosing message that does not echo recipient or sender identifiers, (3) NO record_task_handoff_failure call (preserves worker exit reconciliation), (4) NO record_worker_401 call (preserves auth-health), (5) record_worker_403_policy for operator visibility (same signal used by cross-task peer view denials), (6) capability remains fully valid for own-task comment and submit. The permit's __aexit__ only releases the operation refcount, and Orchestrator.coordination_send authorizes before CoordinationStore.append, so denied sends create no durable message row.
+---
+author: oompah
+created: 2026-08-04 02:31
+---
+Verification: 7 new regression tests in tests/test_task_handoff.py::TestCoordinationSendRaces cover the docs-specified matrix: (1) stale peer send returns structured 403 + preserves capability for comment/submit, (2) arbitrary/cross-project/never-authorized recipients are indistinguishable, (3) expired token still 401s at auth (fix does not weaken scope), (4) advisory denial survives worker-exit reconciliation without moving to Needs Human, (5) authorized send with idempotency_key returns the same message on retry. All 7 pass. Focused broader run: 120 tests across test_task_handoff.py, test_coordination.py, test_server_coordination.py, test_auth_health.py — all pass. Extended coverage on adjacent suites (task_cli, task_cli_actor, terminal_status_interfaces, server_auth, acp_codex_backend): 352 tests, all pass. git diff --check and make check-secrets both clean.
 ---
 <!-- COMMENTS:END -->
