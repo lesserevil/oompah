@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:24:51.874567Z'
+updated_at: '2026-08-04T11:25:05.952565Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,3 +57,16 @@ Required tests: exact OOMPAH-757 Technical Writer handoff Open -> scheduled retr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 11:25
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 11:25
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
