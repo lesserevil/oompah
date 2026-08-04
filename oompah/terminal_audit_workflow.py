@@ -53,6 +53,10 @@ class AuditWorkflowPhase(str, Enum):
     COMPLETED = "completed"
 
 
+class AuditWorkflowIdentityError(RuntimeError):
+    """A callback or recovery attempt did not own the exact audit lease."""
+
+
 @dataclass(frozen=True, slots=True)
 class AuditWorkflowDecision:
     """A redacted durable disposition for one terminal audit."""
@@ -73,7 +77,8 @@ class AuditWorkflowDecision:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} is required")
         if len(self.evidence_fingerprint) != 64 or any(
-            character not in "0123456789abcdef" for character in self.evidence_fingerprint
+            character not in "0123456789abcdef"
+            for character in self.evidence_fingerprint
         ):
             raise ValueError("evidence_fingerprint must be a lowercase SHA-256 digest")
         object.__setattr__(self, "phase", AuditWorkflowPhase(self.phase))
@@ -173,7 +178,9 @@ class TerminalAuditWorkflow:
         )
 
     @classmethod
-    def spec(cls, record: TerminalAuditRecord, *, max_attempts: int = 3) -> WorkflowJobSpec:
+    def spec(
+        cls, record: TerminalAuditRecord, *, max_attempts: int = 3
+    ) -> WorkflowJobSpec:
         """Build immutable work for one exact audit request."""
 
         if record.request_state not in (RequestState.PENDING, RequestState.IN_PROGRESS):
@@ -265,6 +272,9 @@ class TerminalAuditWorkflow:
         verdict: str | None = None,
         failure_classification: str | None = None,
         result_idempotency: str | None = None,
+        workflow_job_id: str | None = None,
+        job_attempt: int | None = None,
+        result_payload: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "version": TERMINAL_AUDIT_WORKFLOW_VERSION,
@@ -274,9 +284,17 @@ class TerminalAuditWorkflow:
         }
         if attempt_id:
             payload["attempt_id"] = _safe_text(attempt_id, "attempt_id")
+        if workflow_job_id:
+            payload["workflow_job_id"] = _safe_text(workflow_job_id, "workflow_job_id")
+        if job_attempt is not None:
+            if isinstance(job_attempt, bool) or int(job_attempt) < 1:
+                raise ValueError("job_attempt must be a positive integer")
+            payload["job_attempt"] = int(job_attempt)
         if candidate is not None:
             payload["candidate"] = {
-                "provider_id": _safe_text(getattr(candidate, "provider_id", ""), "provider_id"),
+                "provider_id": _safe_text(
+                    getattr(candidate, "provider_id", ""), "provider_id"
+                ),
                 "model": _safe_text(getattr(candidate, "model", ""), "model"),
             }
         for key, value in (
@@ -287,10 +305,147 @@ class TerminalAuditWorkflow:
         ):
             if value is not None:
                 payload[key] = _safe_text(value, key)
+        if result_payload is not None:
+            payload["result"] = dict(result_payload)
         encoded = _canonical(payload).encode()
         if len(encoded) > _MAX_CHECKPOINT_BYTES:
             raise ValueError("terminal-audit checkpoint exceeds the durable size bound")
         return payload
+
+    @staticmethod
+    def _result_payload(result: Any) -> dict[str, Any]:
+        """Reduce one typed result to a bounded, replayable decision.
+
+        Provider output and tool transcripts never enter the workflow DB.
+        Only the coordinator inputs needed to replay the exact typed result
+        are retained; free text is redacted and bounded.
+        """
+
+        attempt_id = _required_text(getattr(result, "attempt_id", None), "attempt_id")
+        target = getattr(getattr(result, "target_state", None), "value", None)
+        verdict = getattr(getattr(result, "verdict", None), "value", None)
+        fingerprint = getattr(
+            getattr(result, "evidence_fingerprint", None), "digest", None
+        )
+        raw_safe_evidence = getattr(result, "safe_evidence", None) or {}
+        raw_questions = tuple(getattr(result, "questions", ()) or ())
+        raw_instructions = tuple(getattr(result, "instructions", ()) or ())
+        raw_auditor = getattr(result, "auditor", None)
+        identity_payload = {
+            "audit_id": getattr(result, "audit_id", None),
+            "target_state": target,
+            "evidence_fingerprint": fingerprint,
+            "attempt_id": attempt_id,
+            "verdict": verdict,
+            "failure_classification": getattr(
+                getattr(result, "failure_classification", None), "value", None
+            ),
+            "message": str(getattr(result, "message", "") or ""),
+            "safe_evidence": {
+                str(key): str(value) for key, value in raw_safe_evidence.items()
+            },
+            "questions": [str(value) for value in raw_questions],
+            "instructions": [str(value) for value in raw_instructions],
+            "auditor": (
+                {
+                    "identity": getattr(raw_auditor, "identity", None),
+                    "source": getattr(raw_auditor, "source", None),
+                }
+                if raw_auditor is not None
+                else None
+            ),
+        }
+        payload: dict[str, Any] = {
+            "audit_id": _safe_text(getattr(result, "audit_id", None), "audit_id"),
+            "target_state": _safe_text(target, "target_state"),
+            "evidence_fingerprint": _safe_text(fingerprint, "evidence_fingerprint"),
+            "attempt_id": _safe_text(attempt_id, "attempt_id"),
+            "verdict": _safe_text(verdict, "verdict"),
+            "result_digest": hashlib.sha256(
+                _canonical(identity_payload).encode()
+            ).hexdigest(),
+            "message": _SENSITIVE_RE.sub(
+                "[REDACTED]", str(getattr(result, "message", "") or "")
+            )[:_MAX_CHECKPOINT_TEXT],
+        }
+        classification = getattr(result, "failure_classification", None)
+        if classification is not None:
+            payload["failure_classification"] = _safe_text(
+                getattr(classification, "value", classification),
+                "failure_classification",
+            )
+        for field_name in ("questions", "instructions"):
+            values = raw_questions if field_name == "questions" else raw_instructions
+            payload[field_name] = [
+                _SENSITIVE_RE.sub("[REDACTED]", str(value))[:192]
+                for value in tuple(values)[:3]
+            ]
+        payload["safe_evidence"] = {
+            _SENSITIVE_RE.sub("[REDACTED]", str(key))[:64]: _SENSITIVE_RE.sub(
+                "[REDACTED]", str(value)
+            )[:128]
+            for key, value in list(raw_safe_evidence.items())[:4]
+        }
+        auditor = raw_auditor
+        if auditor is not None:
+            payload["auditor"] = {
+                "identity": _SENSITIVE_RE.sub(
+                    "[REDACTED]",
+                    _required_text(
+                        getattr(auditor, "identity", None), "auditor.identity"
+                    ),
+                )[:256],
+                "source": (
+                    _SENSITIVE_RE.sub(
+                        "[REDACTED]", str(getattr(auditor, "source", None))
+                    )[:128]
+                    if getattr(auditor, "source", None)
+                    else None
+                ),
+            }
+        return payload
+
+    def _validate_owned_identity(
+        self,
+        job: WorkflowJob,
+        record: TerminalAuditRecord,
+        *,
+        attempt_id: str,
+        lease_token: str | None = None,
+        allowed_phases: tuple[AuditWorkflowPhase, ...] = (AuditWorkflowPhase.RUNNING,),
+    ) -> Mapping[str, Any]:
+        """Validate every durable identity before accepting a callback."""
+
+        checkpoint = job.checkpoint or {}
+        expected = {
+            "workflow_job_id": job.job_id,
+            "audit_id": record.audit_id,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+            "attempt_id": attempt_id,
+        }
+        if job.state is not WorkflowJobState.RUNNING:
+            raise AuditWorkflowIdentityError("terminal-audit job is not running")
+        if job.action != TERMINAL_AUDIT_JOB_ACTION:
+            raise AuditWorkflowIdentityError("terminal-audit action identity changed")
+        if job.generation != self.generation(record):
+            raise AuditWorkflowIdentityError("terminal-audit generation changed")
+        if job.expected_evidence_revision != record.evidence_fingerprint.digest:
+            raise AuditWorkflowIdentityError("terminal-audit evidence revision changed")
+        if job.phase not in {phase.value for phase in allowed_phases}:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit phase no longer accepts results"
+            )
+        for key, value in expected.items():
+            if str(checkpoint.get(key) or "") != str(value):
+                raise AuditWorkflowIdentityError(
+                    f"terminal-audit checkpoint {key} does not match"
+                )
+        if int(checkpoint.get("job_attempt") or 0) != job.attempts:
+            raise AuditWorkflowIdentityError("terminal-audit job attempt changed")
+        if lease_token is not None and job.lease_token != lease_token:
+            raise AuditWorkflowIdentityError("terminal-audit lease token changed")
+        return checkpoint
 
     def start(
         self,
@@ -303,7 +458,10 @@ class TerminalAuditWorkflow:
 
         existing = self.ensure(record)
         if existing.state is WorkflowJobState.RUNNING:
-            return existing
+            # A running row belongs to the exact lease which launched it.
+            # Returning that token to a later plan would let a new attempt
+            # inherit arbitrary in-flight ownership.
+            return None
         claimed = self.store.claim_next(
             lease_owner=self.lease_owner,
             lease_seconds=self.lease_seconds,
@@ -320,7 +478,11 @@ class TerminalAuditWorkflow:
             claimed.lease_token,
             phase=AuditWorkflowPhase.RUNNING.value,
             checkpoint=self._checkpoint_payload(
-                record, attempt_id=attempt_id, candidate=candidate
+                record,
+                attempt_id=attempt_id,
+                candidate=candidate,
+                workflow_job_id=claimed.job_id,
+                job_attempt=claimed.attempts,
             ),
             now=self.clock(),
         )
@@ -330,24 +492,40 @@ class TerminalAuditWorkflow:
         job: WorkflowJob,
         record: TerminalAuditRecord,
         *,
-        verdict: str,
-        failure_classification: str | None = None,
-        result_idempotency: str | None = None,
+        result: Any,
+        attempt_id: str,
+        lease_token: str,
     ) -> WorkflowJob:
         """Reserve the result boundary before tracker comments or status writes."""
 
-        if job.lease_token is None:
-            raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
+        self._validate_owned_identity(
+            job,
+            record,
+            attempt_id=attempt_id,
+            lease_token=lease_token,
+        )
+        result_payload = self._result_payload(result)
+        if result_payload["audit_id"] != record.audit_id:
+            raise AuditWorkflowIdentityError("result audit identity changed")
+        if result_payload["target_state"] != record.target_state.value:
+            raise AuditWorkflowIdentityError("result target identity changed")
+        if result_payload["evidence_fingerprint"] != record.evidence_fingerprint.digest:
+            raise AuditWorkflowIdentityError("result evidence identity changed")
+        if result_payload["attempt_id"] != attempt_id:
+            raise AuditWorkflowIdentityError("result attempt identity changed")
         return self.store.checkpoint(
             job.job_id,
-            job.lease_token,
+            lease_token,
             phase=AuditWorkflowPhase.FINALIZING.value,
             checkpoint=self._checkpoint_payload(
                 record,
-                attempt_id=(job.checkpoint or {}).get("attempt_id"),
-                verdict=verdict,
-                failure_classification=failure_classification,
-                result_idempotency=result_idempotency,
+                attempt_id=attempt_id,
+                verdict=str(result_payload["verdict"]),
+                failure_classification=result_payload.get("failure_classification"),
+                result_idempotency=attempt_id,
+                workflow_job_id=job.job_id,
+                job_attempt=job.attempts,
+                result_payload=result_payload,
             ),
             now=self.clock(),
         )
@@ -360,7 +538,152 @@ class TerminalAuditWorkflow:
     ) -> WorkflowJob:
         if job.lease_token is None:
             raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
-        return self.store.complete(job.job_id, job.lease_token, result_transition=result, now=self.clock())
+        return self.store.complete(
+            job.job_id, job.lease_token, result_transition=result, now=self.clock()
+        )
+
+    def cancel(self, job: WorkflowJob, *, reason: str) -> WorkflowJob:
+        if job.lease_token is None:
+            raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
+        return self.store.cancel_owned(
+            job.job_id,
+            job.lease_token,
+            reason=_safe_text(reason, "reason"),
+            now=self.clock(),
+        )
+
+    def finalizing_jobs(
+        self, *, project_id: str | None = None, limit: int = 1000
+    ) -> tuple[WorkflowJob, ...]:
+        """Return bounded result checkpoints which still need acknowledgement."""
+
+        return tuple(
+            job
+            for job in self.store.list_jobs(
+                project_id=project_id,
+                states=(WorkflowJobState.RUNNING,),
+                limit=limit,
+            )
+            if job.action == TERMINAL_AUDIT_JOB_ACTION
+            and job.phase == AuditWorkflowPhase.FINALIZING.value
+        )
+
+    def reclaim_finalizing(
+        self,
+        job: WorkflowJob,
+        record: TerminalAuditRecord,
+        *,
+        active_attempt_ids: set[str],
+    ) -> WorkflowJob | None:
+        """Take over one exact abandoned finalization after restart."""
+
+        checkpoint = job.checkpoint or {}
+        attempt_id = _required_text(checkpoint.get("attempt_id"), "attempt_id")
+        retry_at = checkpoint.get("finalization_retry_at")
+        if retry_at is not None and float(retry_at) > self.clock():
+            return None
+        self._validate_owned_identity(
+            job,
+            record,
+            attempt_id=attempt_id,
+            allowed_phases=(AuditWorkflowPhase.FINALIZING,),
+        )
+        if attempt_id in active_attempt_ids:
+            return None
+        if job.lease_token is None:
+            raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
+        return self.store.reclaim_abandoned(
+            job.job_id,
+            job.lease_token,
+            lease_owner=self.lease_owner,
+            lease_seconds=self.lease_seconds,
+            expected_phase=AuditWorkflowPhase.FINALIZING.value,
+            now=self.clock(),
+        )
+
+    def defer_finalizing(self, job: WorkflowJob) -> WorkflowJob:
+        """Back off a coordinator transport failure without losing its result."""
+
+        if job.lease_token is None:
+            raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
+        checkpoint = dict(job.to_dict().get("checkpoint") or {})
+        failures = int(checkpoint.get("finalization_failures") or 0) + 1
+        checkpoint["finalization_failures"] = failures
+        checkpoint["finalization_retry_at"] = self.clock() + max(
+            self.retry_delay_seconds,
+            1.0,
+        )
+        if len(_canonical(checkpoint).encode()) > _MAX_CHECKPOINT_BYTES:
+            raise ValueError("terminal-audit checkpoint exceeds the durable size bound")
+        return self.store.checkpoint(
+            job.job_id,
+            job.lease_token,
+            phase=AuditWorkflowPhase.FINALIZING.value,
+            checkpoint=checkpoint,
+            now=self.clock(),
+        )
+
+    def requeue_unreplayable_finalizing(
+        self,
+        job: WorkflowJob,
+        *,
+        active_attempt_ids: set[str],
+    ) -> WorkflowJob | None:
+        """Bound recovery for a pre-cutover finalizing checkpoint.
+
+        Older rows did not retain the complete typed result and therefore
+        cannot be safely replayed.  They still carry the exact audit,
+        evidence and attempt identities; rotate only that lease and schedule
+        one fresh auditor attempt instead of leaving the row permanently
+        finalizing or recovering every job owned by the process.
+        """
+
+        checkpoint = job.checkpoint or {}
+        attempt_id = _required_text(checkpoint.get("attempt_id"), "attempt_id")
+        if attempt_id in active_attempt_ids:
+            return None
+        if (
+            job.action != TERMINAL_AUDIT_JOB_ACTION
+            or job.state is not WorkflowJobState.RUNNING
+            or job.phase != AuditWorkflowPhase.FINALIZING.value
+            or checkpoint.get("evidence_fingerprint") != job.expected_evidence_revision
+            or job.lease_token is None
+        ):
+            raise AuditWorkflowIdentityError(
+                "legacy finalizing checkpoint identity does not match"
+            )
+        reclaimed = self.store.reclaim_abandoned(
+            job.job_id,
+            job.lease_token,
+            lease_owner=self.lease_owner,
+            lease_seconds=self.lease_seconds,
+            expected_phase=AuditWorkflowPhase.FINALIZING.value,
+            now=self.clock(),
+        )
+        return self.retry(
+            reclaimed,
+            category=WorkflowFailureCategory.ABANDONED,
+            reason="pre-cutover finalizing result requires a fresh exact attempt",
+        )
+
+    @staticmethod
+    def finalizing_result_payload(job: WorkflowJob) -> Mapping[str, Any]:
+        checkpoint = job.checkpoint or {}
+        result = checkpoint.get("result")
+        if not isinstance(result, Mapping):
+            raise AuditWorkflowIdentityError("finalizing result checkpoint is missing")
+        for key in (
+            "audit_id",
+            "target_state",
+            "evidence_fingerprint",
+            "attempt_id",
+            "verdict",
+        ):
+            if not str(result.get(key) or "").strip():
+                raise AuditWorkflowIdentityError(
+                    f"finalizing result checkpoint lacks {key}"
+                )
+        return result
 
     def retry(
         self,
@@ -412,7 +735,9 @@ class TerminalAuditWorkflow:
             "action_code": _safe_text(action_code, "action_code"),
         }
         if len(_canonical(checkpoint).encode()) > _MAX_CHECKPOINT_BYTES:
-            raise ValueError("terminal-audit action checkpoint exceeds the durable size bound")
+            raise ValueError(
+                "terminal-audit action checkpoint exceeds the durable size bound"
+            )
         checkpointed = self.store.checkpoint(
             job.job_id,
             job.lease_token,
@@ -447,19 +772,23 @@ class TerminalAuditWorkflow:
             WorkflowJobState.CANCELLED,
         }:
             return job
-        if job.state is not WorkflowJobState.RUNNING:
-            claimed = self.store.claim_next(
-                lease_owner=self.lease_owner,
-                lease_seconds=self.lease_seconds,
-                project_id=record.project_id,
-                task_id=record.task_id,
-                generation=self.generation(record),
-                actions=(TERMINAL_AUDIT_JOB_ACTION,),
-                now=self.clock(),
-            )
-            if claimed is None:
-                return self.ensure(record)
-            job = claimed
+        if job.state is WorkflowJobState.RUNNING:
+            # Candidate selection lost to an already-launched exact attempt.
+            # It does not own that lease and cannot turn live work into an
+            # operator action.
+            return job
+        claimed = self.store.claim_next(
+            lease_owner=self.lease_owner,
+            lease_seconds=self.lease_seconds,
+            project_id=record.project_id,
+            task_id=record.task_id,
+            generation=self.generation(record),
+            actions=(TERMINAL_AUDIT_JOB_ACTION,),
+            now=self.clock(),
+        )
+        if claimed is None:
+            return self.ensure(record)
+        job = claimed
         return self.action_required(
             job,
             record=record,
@@ -480,11 +809,28 @@ class TerminalAuditWorkflow:
             attempt_id = (job.checkpoint or {}).get("attempt_id")
             if active_attempt_ids is None or attempt_id in active_attempt_ids:
                 return self._decision_from_job(record, job)
-            self.store.recover_abandoned(
-                lease_owner=job.lease_owner,
-                phase=AuditWorkflowPhase.QUEUED.value,
+            if job.phase == AuditWorkflowPhase.FINALIZING.value:
+                # A typed result is already durable.  The replay lane takes
+                # over this exact lease and applies it; never reset it into a
+                # fresh provider attempt.
+                return self._decision_from_job(record, job)
+            if job.lease_token is None:
+                raise WorkflowJobLeaseLost(
+                    f"terminal-audit job has no lease: {job.job_id}"
+                )
+            self.store.reclaim_abandoned(
+                job.job_id,
+                job.lease_token,
+                lease_owner=self.lease_owner,
+                lease_seconds=self.lease_seconds,
+                expected_phase=AuditWorkflowPhase.RUNNING.value,
                 now=self.clock(),
-                limit=100,
+            )
+            current = self.store.get(job.job_id)
+            self.retry(
+                current,
+                category=WorkflowFailureCategory.ABANDONED,
+                reason="exact auditor attempt was abandoned during restart",
             )
             job = self.store.get(job.job_id)
         return self._decision_from_job(record, job)
