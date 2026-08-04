@@ -213,10 +213,15 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
-from oompah.workflow_contract import TaskDisposition, WorkflowOwner
+from oompah.workflow_contract import (
+    LIFECYCLE_FINAL_STATUSES,
+    TaskDisposition,
+    WorkflowOwner,
+)
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, WorkflowFactCollector
 from oompah.workflow_jobs import WorkflowJobStore
+from oompah.workflow_controller import UniversalTotalityLivenessController
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
     WorkflowShadowEvaluator,
@@ -1352,9 +1357,15 @@ class Orchestrator:
             mode=config.workflow_engine_mode,
             max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
         )
+        self.workflow_controller = UniversalTotalityLivenessController(
+            store=self.workflow_job_store,
+            decision_limit=config.workflow_shadow_scan_limit,
+            facts_provider=self._collect_universal_workflow_facts,
+        )
         self._workflow_shadow_generation = 0
         self._workflow_shadow_generation_lock = threading.Lock()
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
+        self._workflow_controller_future: asyncio.Future[Any] | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         # Service state is shared by the dispatch loop, maintenance workers,
         # API callbacks, and terminal-audit enforcement. Keep each
@@ -6438,6 +6449,11 @@ class Orchestrator:
         )
         await self._recover_restart_issues()
         await self._restore_persisted_retries()
+        if self.config.workflow_engine_mode == "enforce":
+            recovered = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool, self.workflow_controller.recover_startup
+            )
+            logger.info("Universal workflow controller startup recovery: %s", recovered)
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
             "Orchestrator starting event-driven loop "
@@ -6572,6 +6588,7 @@ class Orchestrator:
                 self._standalone_delivery_future,
                 self._terminal_lifecycle_future,
                 self._workflow_shadow_future,
+                self._workflow_controller_future,
             )
             if future is not None
         ]
@@ -6763,6 +6780,18 @@ class Orchestrator:
                 "workflow_engine_mode": self.config.workflow_engine_mode,
             },
         }
+
+    def _collect_universal_workflow_facts(self, task: Issue):
+        """Collect one project-scoped facts snapshot for the enforcing controller."""
+
+        project_id = str(task.project_id or "legacy")
+        tracker = self._tracker_for_project(project_id) if task.project_id else self.tracker
+        collector = WorkflowFactCollector(
+            project_id=project_id,
+            tracker=tracker,
+            sources=self._workflow_shadow_sources(task),
+        )
+        return collector.collect(task.identifier)
 
     def _legacy_workflow_projections(
         self, issue: Issue
@@ -6998,6 +7027,65 @@ class Orchestrator:
             "snapshot_generation": generation,
         }
 
+    def _run_workflow_controller_sweep(self) -> dict[str, Any]:
+        """Run the universal totality/liveness pass in enforce mode.
+
+        The controller owns only facts, decisions, and durable recovery jobs.
+        Legacy tracker status writers remain responsible for their domain until
+        their individual cutovers replace them with leased workflow workers.
+        """
+
+        if self.config.workflow_engine_mode != "enforce":
+            return {"evaluated": 0, "mode": self.config.workflow_engine_mode}
+        projects = list(self.project_store.list_all())
+        tracker_projects: list[tuple[str, TrackerProtocol]] = []
+        if projects:
+            tracker_projects.extend(
+                (str(project.id), self._tracker_for_project(project.id))
+                for project in projects
+            )
+        else:
+            tracker_projects.append(("legacy", self.tracker))
+        candidates: list[Issue] = []
+        for project_id, tracker in tracker_projects:
+            try:
+                issues = list(tracker.fetch_all_issues())
+            except Exception as exc:  # noqa: BLE001 - one project cannot stall the pass
+                logger.debug(
+                    "Universal workflow scan skipped project %s: %s",
+                    project_id,
+                    type(exc).__name__,
+                )
+                continue
+            for issue in issues:
+                if canonicalize_status(issue.state) in LIFECYCLE_FINAL_STATUSES:
+                    continue
+                candidates.append(
+                    issue if issue.project_id else replace(issue, project_id=project_id)
+                )
+        candidates.sort(key=lambda item: (str(item.project_id or ""), item.identifier))
+        try:
+            result = self.workflow_controller.full_sync(
+                candidates, facts=self._collect_universal_workflow_facts
+            )
+        except Exception as exc:  # noqa: BLE001 - next safety pass retries
+            logger.exception("Universal workflow controller sweep failed")
+            return {
+                "evaluated": 0,
+                "mode": "enforce",
+                "error": type(exc).__name__,
+            }
+        return {
+            "evaluated": len(result.decisions),
+            "action_required": len(result.action_required),
+            "jobs_created": result.reconciliation.jobs_created,
+            "jobs_replayed": result.reconciliation.jobs_replayed,
+            "jobs_superseded": result.reconciliation.jobs_superseded,
+            "truncated": result.truncated,
+            "snapshot_generation": result.snapshot_generation,
+            "mode": "enforce",
+        }
+
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
 
@@ -7163,6 +7251,23 @@ class Orchestrator:
             self._workflow_shadow_future = (
                 asyncio.get_running_loop().run_in_executor(
                     self._tick_pool, self._run_workflow_shadow_sweep
+                )
+            )
+
+        # Enforce mode adds the universal totality/liveness controller to the
+        # same bounded maintenance lane.  The durable scheduler is the only
+        # mutation-capable path here; tracker statuses are still owned by the
+        # domain cutovers until their workers are installed.
+        if (
+            self.config.workflow_engine_mode == "enforce"
+            and (
+                self._workflow_controller_future is None
+                or self._workflow_controller_future.done()
+            )
+        ):
+            self._workflow_controller_future = (
+                asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool, self._run_workflow_controller_sweep
                 )
             )
 
@@ -41512,6 +41617,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "quality_gates": quality_gate_state,
             "validation_resources": validation_resource_state,
             "workflow_jobs": self.workflow_job_store.health_snapshot(),
+            "workflow_controller": self.workflow_controller.health_snapshot(),
             "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {

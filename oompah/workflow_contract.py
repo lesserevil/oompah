@@ -83,7 +83,11 @@ class TaskDisposition(str, Enum):
 
     RUNNABLE = "runnable"
     OWNED = "owned"
+    # Descriptive aliases used by the universal controller.  Keep the short
+    # wire values for compatibility with existing dashboard/API consumers.
+    DURABLY_OWNED = "owned"
     BLOCKED = "blocked"
+    NAMED_PREREQUISITE_BLOCKED = "blocked"
     RETRY_SCHEDULED = "retry_scheduled"
     ACTION_REQUIRED = "action_required"
     TERMINAL = "terminal"

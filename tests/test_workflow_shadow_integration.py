@@ -105,6 +105,24 @@ def test_orchestrator_shadow_sweep_is_read_only_and_bounded(tmp_path):
     orch._notify_state_only.assert_called_once()
 
 
+def test_orchestrator_enforce_sweep_materializes_universal_recovery(tmp_path):
+    current = issue(state="In Progress")
+    tracker = fake_tracker([current])
+    orch = orchestrator(tmp_path, mode="enforce")
+    attach_project(orch, tracker)
+
+    result = orch._run_workflow_controller_sweep()
+
+    assert result["evaluated"] == 1
+    assert result["jobs_created"] == 1
+    assert result["action_required"] == 0
+    jobs = orch.workflow_job_store.list_jobs()
+    assert len(jobs) == 1
+    assert jobs[0].reason_code == "implementation.recovery_scheduled"
+    tracker.update_issue.assert_not_called()
+    tracker.add_comment.assert_not_called()
+
+
 def test_orchestrator_shadow_compares_legacy_consumers_without_alerts(tmp_path):
     current = issue()
     tracker = fake_tracker([current])

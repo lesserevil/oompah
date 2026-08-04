@@ -181,6 +181,7 @@ class WorkflowJobScheduler:
                 expected_evidence_revision=decision.evidence_revision,
                 priority=self.default_priority,
                 max_attempts=self.max_attempts,
+                reason_code=decision.reason_code,
             )
             for action in decision.durable_jobs
         )

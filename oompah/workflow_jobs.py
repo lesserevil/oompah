@@ -137,6 +137,9 @@ class WorkflowJobSpec:
     expected_head_sha: str | None = None
     priority: int = 100
     max_attempts: int = 5
+    # Stable policy reason carried with recovery work.  It is stored inside
+    # the immutable spec payload so old SQLite rows remain readable.
+    reason_code: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -161,6 +164,7 @@ class WorkflowJobSpec:
         object.__setattr__(
             self, "expected_head_sha", _optional_text(self.expected_head_sha)
         )
+        object.__setattr__(self, "reason_code", _optional_text(self.reason_code))
         if isinstance(self.priority, bool):
             raise ValueError("priority must be an integer")
         object.__setattr__(self, "priority", int(self.priority))
@@ -169,7 +173,7 @@ class WorkflowJobSpec:
         object.__setattr__(self, "max_attempts", int(self.max_attempts))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "project_id": self.project_id,
             "task_id": self.task_id,
             "generation": self.generation,
@@ -181,6 +185,9 @@ class WorkflowJobSpec:
             "priority": self.priority,
             "max_attempts": self.max_attempts,
         }
+        if self.reason_code is not None:
+            payload["reason_code"] = self.reason_code
+        return payload
 
     @property
     def revision(self) -> str:
@@ -216,6 +223,7 @@ class WorkflowJob:
     created_at: float
     updated_at: float
     completed_at: float | None
+    reason_code: str | None = None
 
     @property
     def is_active(self) -> bool:
@@ -256,6 +264,7 @@ class WorkflowJob:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
+            "reason_code": self.reason_code,
         }
 
 
@@ -669,6 +678,7 @@ class WorkflowJobStore:
             raise WorkflowJobCorruptionError(
                 "unknown workflow job state/category"
             ) from exc
+        spec_payload = _decode_json_object(row["spec_json"], "workflow job spec") or {}
         return WorkflowJob(
             job_id=str(row["job_id"]),
             enqueue_sequence=int(row["enqueue_sequence"]),
@@ -707,6 +717,7 @@ class WorkflowJobStore:
             completed_at=(
                 float(row["completed_at"]) if row["completed_at"] is not None else None
             ),
+            reason_code=_optional_text(spec_payload.get("reason_code")),
         )
 
     @staticmethod
