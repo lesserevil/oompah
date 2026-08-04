@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:11:44.903319Z'
+updated_at: '2026-08-04T11:13:01.466492Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -56,19 +56,101 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 06d7d423a9e6942349ba82551dd79a6b3652276e645a129b3135739822569aea
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T11:12:50.570172+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 815dc74b-9e6c-4fb1-80a7-64a9769afd77
-  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
-  claimed_at: '2026-08-04T11:11:18.892056+00:00'
-  claim_expires_at: '2026-08-04T11:41:18.892056+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+    Duplicate preflight verdict: no_duplicate
+
+    Matches: none
+
+    Evidence: OOMPAH-755 ("Rebase epic-OOMPAH-740 onto main") is a one-off branch-maintenance/repair
+    task: its sole purpose is to fetch origin, rebase the shared epic branch onto
+    origin/main, resolve conflicts, force-push with `--force-with-lease`, and verify
+    the result so OOMPAH-741 can proceed through the integration queue.
+
+    Focus handoff: duplicate_detector
+
+    Duplicate preflight verdict: no_duplicate
+
+    Matches: none
+
+
+    Evidence: OOMPAH-755 ("Rebase epic-OOMPAH-740 onto main") is a one-off branch-maintenance/repair
+    task: its sole purpose is to fetch origin, rebase the shared epic branch onto
+    origin/main, resolve conflicts, force-push with `--force-with-lease`, and verify
+    the result so OOMPAH-741 can proceed through the integration queue.
+
+
+    The six active (non-terminal) tasks in the corpus are:
+
+
+    | Identifier | Title | Status |
+
+    |---|---|---|
+
+    | OOMPAH-740 | Make dashboard alerts compact, truthful, and non-blocking | In
+    Progress (parent epic) |
+
+    | OOMPAH-741 | Classify dashboard facts by current operator actionability | In
+    Progress |
+
+    | OOMPAH-742 | Replace stacked dashboard banners with a compact alert center |
+    Ready to Integrate |
+
+    | OOMPAH-743 | Keep raw failure transcripts out of dashboard alert summaries |
+    Ready to Integrate |
+
+    | OOMPAH-744 | Atomically clear stale alert UI after authoritative resynchronization
+    | Ready to Integrate |
+
+    | OOMPAH-745 | Add browser-level alert density and recovery regression coverage
+    | Ready to Integrate |
+
+
+    None of these describe a git-rebase operation on the shared epic branch. They
+    are all feature/bug implementation tasks targeting dashboard UI behaviour. Every
+    other task in the corpus is terminal (Archived) and therefore excluded as a duplicate
+    target per the screening rules.
+
+
+    OOMPAH-755 is a unique epic-maintenance recovery task with no active duplicate.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.task_costs:
+  total_input_tokens: 3
+  total_output_tokens: 1072
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 3
+      output_tokens: 1072
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 1072
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:12:50.568846+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-755__20260804T111151Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-740
+    source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    completed_at: '2026-08-04T11:12:50.590787+00:00'
 ---
 ## Summary
 
@@ -155,5 +237,15 @@ author: oompah
 created: 2026-08-04 11:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 11:12
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 2, Tool calls: 0
+- Tokens: 3 in / 1.1K out [1.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-755__20260804T111151Z.jsonl
 ---
 <!-- COMMENTS:END -->
