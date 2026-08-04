@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:32:52.058232Z'
+updated_at: '2026-08-04T11:33:32.812006Z'
 work_branch: OOMPAH-754
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/707
@@ -95,18 +95,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-754
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 65f8891b568b81da9017c24eb980ec40b1ec637f11955c4c57628e5d6fd59e02
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c5663d627351
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 65f8891b568b81da9017c24eb980ec40b1ec637f11955c4c57628e5d6fd59e02
+      created_at: '2026-08-04T11:33:31.332520+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T11:33:31.332520+00:00'
+      branch_key: OOMPAH-754
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T11:32:41.870774+00:00'
+    updated_at: '2026-08-04T11:33:31.332520+00:00'
   - version: 1
     audit_id: audit-1d7f30b84c1f
     project_id: proj-14849f1b
@@ -124,7 +138,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T11:32:41.870774+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-c5663d627351
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65f8891b568b81da9017c24eb980ec40b1ec637f11955c4c57628e5d6fd59e02
+    created_at: '2026-08-04T11:33:31.332520+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T11:33:31.332520+00:00'
+    branch_key: OOMPAH-754
 ---
 ## Summary
 

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-756
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reconcile already-landed nested epics from In Review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:33:03.130254Z'
+updated_at: '2026-08-04T11:33:28.898992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-756
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:09:30.502464+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-756
+  head_sha: 1263f924583e55b0ef7b77f0e074bdeab55f344f
+  submitted_at: '2026-08-04T11:33:24.699584+00:00'
+  updated_at: '2026-08-04T11:33:24.699584+00:00'
 ---
 ## Summary
 
@@ -201,5 +209,10 @@ The fix correctly handles:
 ✓ Backward compatible with OOMPAH-748 auto-close fix
 
 Ready for review and integration.
+---
+author: oompah
+created: 2026-08-04 11:33
+---
+Implemented target-relative reconciliation for stale nested epic In Review state. Added test suite with 8 comprehensive tests. All existing tests pass. Ready for integration.
 ---
 <!-- COMMENTS:END -->
