@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:23:04.089487Z'
+updated_at: '2026-08-04T12:33:19.733958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -515,5 +515,10 @@ author: oompah
 created: 2026-08-04 12:23
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-04 12:33
+---
+Understanding: The 51 failing tests are all caused by method-shadowing. The prior implementation added a NEW @staticmethod named _child_landing_evidence_block_reason at orchestrator.py:17397 with signature (integration_record, epic_branch, max_evidence_age_hours). This shadowed the ORIGINAL instance method at orchestrator.py:15048 with signature (self, epic, child, *, expected_work_branch, container_branches). Python resolves to the second definition, so every internal caller (13957, 16217, 23818) and every existing test (epic_strategy, epic_terminal_audit_contract, nested_epic_cycle_fix, yolo_watchdog, merged_labels_scope) fails with 'unexpected keyword argument expected_work_branch'. Fix plan: (1) rename the newly-added static method to _canonical_landing_evidence_block_reason (distinct semantic — evidence validation on an IntegrationRecord); (2) update the 8 tests in test_canonical_landing_evidence.py to use the new name. This is the minimal fix and preserves both semantics.
 ---
 <!-- COMMENTS:END -->
