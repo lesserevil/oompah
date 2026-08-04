@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T01:08:19.223752Z'
+updated_at: '2026-08-04T01:10:52.038346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,24 @@ created: 2026-08-04 01:08
    - Root epic still requires main merge (original behavior preserved)
 
 This breaks the cycle where child couldn't be Merged until parent auto-closes, but parent couldn't auto-close until merged to main. Now nested children can auto-close immediately upon landing on parent branch, unblocking parent progress.
+---
+author: oompah
+created: 2026-08-04 01:10
+---
+**Verification:** All tests pass, including:
+- test_nested_epic_cycle_fix.py: New comprehensive tests (2/2 PASSED)
+- test_epic_auto_close.py: All 25 existing tests PASSED
+- test_epic_strategy.py: Nested epic tests (6/6 PASSED), nested-merge-required test PASSED
+- test_orchestrator_merged.py: 165 tests PASSED
+- test_merged_labels_scope.py: 17 tests PASSED  
+- test_done_merged_archived_lifecycle.py: 52 tests PASSED
+
+The fix correctly implements target-relative validation:
+✓ Nested epics can auto-close when landed on immediate parent branch
+✓ Root epics still require landing on main
+✓ No premature root-level Merged transitions possible
+✓ Lifecycle cycle between child and parent is broken
+
+Code is ready for review and integration.
 ---
 <!-- COMMENTS:END -->
