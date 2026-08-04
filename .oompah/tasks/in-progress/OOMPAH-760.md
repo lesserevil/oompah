@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:30:45.536315Z'
+updated_at: '2026-08-04T11:31:23.323558Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ author: oompah
 created: 2026-08-04 11:30
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 11:31
+---
+Understanding: the bug is a handoff race where Open/reconciliation can retire the old worker before focus-complete metadata is durable. I will trace the authenticated handoff path, worker/reconcile lifecycle, retry cancellation, and focus selection, then add an idempotent persistence boundary with regression tests.
 ---
 <!-- COMMENTS:END -->

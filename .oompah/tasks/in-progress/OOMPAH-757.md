@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:28:47.570626Z'
+updated_at: '2026-08-04T11:31:28.563586Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,5 +210,29 @@ author: oompah
 created: 2026-08-04 11:28
 ---
 Live routing correction: this task requires backend feature implementation; Security Auditor was selected only because security-related acceptance tests scored after the earlier docs focus consumed needs:feature. Do not perform the implementation as a read-only security focus. Hand off to feature/backend, preserving the newly restored needs:feature label and marking the current security focus complete/inapplicable so it is not selected again.
+---
+author: oompah
+created: 2026-08-04 11:31
+---
+**Security Auditor Understanding:**
+
+Issue: Conflict-resolved epic rebases don't persist landing evidence, so authenticated rebase work can't be distinguished from missing commits. This blocks automated review rollup for epics like EXOCOMP-130.
+
+Security-critical requirements identified:
+1. Evidence must be **service-authored only** (by oompah) - not loaded from untrusted human comments or arbitrary input
+2. Evidence must include **cryptographic validation** (fingerprint) tied to exact git state
+3. Evidence must **invalidate on state drift** (branch/head changes) to prevent stale/forged evidence acceptance  
+4. Evidence must **embed authorization context** (rebase helper task ID) to restrict who can create evidence
+5. Must **reject forged/partial evidence** with fail-closed behavior - blocked until human recovery
+6. Must support **bounded historical repair** for EXOCOMP-130 without creating audit gaps
+
+Attack vectors to prevent:
+- Human comment injection: malicious actors adding fake landing evidence in comments
+- Authorization bypass: non-authorized epic rebases creating evidence
+- Evidence replay: stale evidence from deleted/rebased refs accepted as current
+- Partial mapping attacks: wrong child/epic combinations accepted
+- State inconsistency: evidence accepted despite branch drift
+
+Implementation plan: Add CanonicalLandingEvidence dataclass to integration.py with cryptographic fingerprinting; update complete_direct_epic_maintenance_submission to capture and sign evidence; add validation in landing consumers; provide read-only historical repair path for specific past task IDs only.
 ---
 <!-- COMMENTS:END -->
