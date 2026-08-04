@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:22:43.321180Z'
+updated_at: '2026-08-04T12:22:52.499953Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -506,5 +506,10 @@ FAILED tests/test_yolo_watchdog.py::TestYoloEpicStrategyGate::test_shared_nested
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-04 12:22
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
