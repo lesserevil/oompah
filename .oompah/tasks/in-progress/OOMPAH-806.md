@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T21:49:38.228389Z'
+updated_at: '2026-08-04T21:54:50.235631Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-08-04 21:49
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-04 21:54
+---
+Discovery update: The preserved authority-precedence fix is correct, but the acceptance gap is real: run_watchdog_audit still writes Open directly and _route_integration_failure writes the gate repair status directly. TaskTransitionService already supplies a durable per-task claim plus expected-version, assignment-generation, and exact-head CAS, but Orchestrator does not instantiate it. I will wire a shared durable transition journal into Orchestrator, make watchdog remediation fail closed without an injected transition boundary, route combined-tree gate failure through the same boundary, and add a deterministic race/restart test. The workflow contract also needs the existing Needs CI Fix/Needs Rebase -> Open recovery edges so the service can preserve watchdog behavior.
 ---
 <!-- COMMENTS:END -->
