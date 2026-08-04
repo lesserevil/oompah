@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:05:38.204067Z'
+updated_at: '2026-08-04T02:05:50.222616Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -215,5 +215,18 @@ author: oompah
 created: 2026-08-04 02:05
 ---
 Completion (docs focus): Delivered and pushed commit ef5f04049, completing the advisory coordination race contract and clarifying non-terminal durable fallback, terminal peer exclusion, non-disclosing policy denial, and authorization/idempotency ordering. The branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-04 02:05
+---
+Focus handoff: docs
+
+Outcome: Documentation contract is complete and pushed at ef5f04049 (building on b3e9fc225).
+
+Evidence and decisions: Updated docs/scoped-task-cli-authentication.md and plans/advisory-coordination-send-races.md. Focused tests passed, 83 total across tests/test_coordination.py, tests/test_server_coordination.py, and tests/test_task_handoff.py; git diff --check and make check-secrets passed. Recipient-policy denials must be structured, non-disclosing, non-500, and non-actionable. Ready to Integrate and In Review remain non-terminal and use durable fallback while a graph or durable checkpoint still qualifies the peer; terminal peers are denied. Authorization precedes storage, so denied sends create no row and authorized idempotent retries return the original.
+
+Remaining work and risks: Implement the server-side PermissionError handling before the generic task-handoff failure path; preserve token capability for own comment and submit; prevent auth-health and worker-exit poisoning; add the full lifecycle, arbitrary/cross-project, expired-token, completion, restart, and idempotency regression matrix. Security boundaries and non-disclosure require careful review.
+
+Recommended next focus: security, covering the server/auth implementation and regression tests.
 ---
 <!-- COMMENTS:END -->
