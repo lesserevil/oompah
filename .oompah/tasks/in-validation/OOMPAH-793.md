@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:53:23.462703Z'
+updated_at: '2026-08-04T21:28:48.515593Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,14 +23,37 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: OOMPAH-793
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
   head_sha: a744be37d42047e25e6fc62a6a64878c187290e0
+  integrated_sha: a744be37d42047e25e6fc62a6a64878c187290e0
   submitted_at: '2026-08-04T20:53:10.205274+00:00'
-  updated_at: '2026-08-04T20:53:10.205274+00:00'
+  updated_at: '2026-08-04T21:28:41.090316+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8b63c91a6c05
+    project_id: proj-14849f1b
+    task_id: OOMPAH-793
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8400b10bbea40f39b77a4f9f75576effcfef31fc57912cc18515aeae812ae021
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T21:28:44.378297+00:00'
+  attempt_history: []
 ---
 ## Summary
 

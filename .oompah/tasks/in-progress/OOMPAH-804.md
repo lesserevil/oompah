@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:28:14.552802Z'
+updated_at: '2026-08-04T21:28:39.650485Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -190,5 +190,10 @@ author: oompah
 created: 2026-08-04 21:28
 ---
 Understanding (continuation run): The recovery checkpoint contains the full workflow_runtime.py implementation plus bootstrap/config/orchestrator wiring. Tests were passing except for test_hundreds_of_history_rows_do_not_hide_eligible_heads which timed out due to SQLite synchronous=FULL performing 804 fsyncs for a 402-task reconcile batch.
+---
+author: oompah
+created: 2026-08-04 21:28
+---
+Discovery: WorkflowJobStore was initialized with journal_mode=WAL but synchronous=FULL (the SQLite default). WAL mode already provides crash safety for application failures; FULL mode's extra fsyncs are unnecessary overhead. With 402 tasks each requiring 2 transactions (activate_schedule + reconcile_schedule), the 804 fsyncs took ~7.6s, exceeding the 5s test timeout.
 ---
 <!-- COMMENTS:END -->
