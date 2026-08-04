@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-04T17:02:19.944196Z'
+updated_at: '2026-08-04T17:02:25.390456Z'
 work_branch: epic-OOMPAH-765
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ created: 2026-08-04 16:10
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project owner directly verified commit 40e46bf8e: 362 relevant tests, terminal mutation scan, secret scan, and exact git ancestry passed; the exact head is now the tip of epic-OOMPAH-765.
+---
+author: oompah
+created: 2026-08-04 17:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
