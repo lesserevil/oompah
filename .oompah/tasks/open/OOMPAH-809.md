@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-04T21:53:39.753618Z'
+updated_at: '2026-08-04T21:53:54.917326Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,11 @@ Live reproduction on 2026-08-04: OOMPAH-806 occupied one implementation slot whi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 21:53
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
