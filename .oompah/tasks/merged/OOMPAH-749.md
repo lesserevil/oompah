@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T04:00:11.414265Z'
+updated_at: '2026-08-04T04:00:24.255910Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -230,8 +230,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-7f8c950417d2
-    applied: false
+    applied: true
     created_at: '2026-08-04T04:00:05.948884+00:00'
+    applied_at: '2026-08-04T04:00:21.114492+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -594,5 +595,25 @@ author: oompah
 created: 2026-08-04 03:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 04:00
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 94dfee47b6cbacbfb5f06c6cf7758babec8e9eec
+- merge_commit: 495fd7669c1f2b51d4ff1afddd25cde6743c1952
+- merged_pr: #703
+- rebased_onto: 65c94e191 (Merge pull request #702 from lesserevil/OOMPAH-735)
+- files_changed: 7 files, 567 insertions, 23 deletions
+- new_config_fields: integration_audit_batch_size=32, integration_ready_claim_timeout_seconds=300
+- new_public_methods: IntegrationQueueStore.get, IntegrationQueueStore.cursor_for, Orchestrator._replay_integrated_audit_batch, Orchestrator._record_integration_queue_progress
+- regression_tests_added: test_integrated_audit_replay_is_bounded_and_resumes_after_restart, test_live_ready_claim_precedes_large_integrated_audit_history, test_dependency_blocked_ready_row_is_not_reported_as_claim_stall
+- branch_quality_gate: passed (713f79080, make test, 430.9s)
+- focused_tests_after_rebase: 246 passed (per merge conflict resolver report)
+- on_main: true (git merge-base --is-ancestor 495fd7669 origin/main)
 ---
 <!-- COMMENTS:END -->
