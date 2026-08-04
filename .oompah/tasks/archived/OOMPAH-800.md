@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-800
 type: task
-status: Backlog
+status: Archived
 priority: 1
 title: Define stable workflow reason codes and liveness SLOs
 parent: OOMPAH-764
@@ -11,13 +11,35 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:00:48.571071Z'
-updated_at: '2026-08-04T14:00:48.571071Z'
+updated_at: '2026-08-04T14:02:22.203770Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a8fdbf2f5109
+    project_id: proj-14849f1b
+    task_id: OOMPAH-800
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0648aef33ed1653e1f7a3ea6a6047a75c7607ff80feb010be2775483c308302f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Accidental duplicate created while verifying concurrently submitted task-creation
+      requests; canonical task is OOMPAH-773.
+    created_at: '2026-08-04T14:02:18.806113+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
