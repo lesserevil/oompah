@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T20:44:00.064452Z'
+updated_at: '2026-08-04T20:44:10.764626Z'
 work_branch: null
 target_branch: null
 review_url: null
