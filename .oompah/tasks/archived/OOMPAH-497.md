@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-08-04T17:45:06.659135Z'
+updated_at: '2026-08-04T17:45:10.187845Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,8 +21,8 @@ merged_at: null
 oompah.agent_run_id: 5e430d0e-86e9-40e7-8f20-0889f0d0751f
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 593
-  total_output_tokens: 22823
+  total_input_tokens: 626
+  total_output_tokens: 33102
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -34,8 +34,8 @@ oompah.task_costs:
       output_tokens: 17238
       cost_usd: 0.0
     unknown:
-      input_tokens: 46
-      output_tokens: 1347
+      input_tokens: 79
+      output_tokens: 11626
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -56,6 +56,12 @@ oompah.task_costs:
     output_tokens: 1347
     cost_usd: 0.0
     recorded_at: '2026-08-04T17:38:35.872103+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 10279
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:45:04.227647+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
