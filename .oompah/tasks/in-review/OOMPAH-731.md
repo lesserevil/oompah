@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:32:02.115574Z'
+updated_at: '2026-08-04T00:32:14.249849Z'
 work_branch: null
 target_branch: null
 review_url: null
