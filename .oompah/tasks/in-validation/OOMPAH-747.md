@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T01:44:39.722155Z'
+updated_at: '2026-08-04T01:45:04.972756Z'
 work_branch: OOMPAH-747
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/697
@@ -171,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-747
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,13 +216,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-04T01:44:52.262712+00:00'
+    - version: 1
+      attempt_id: attempt-e4a37a126bae
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+      created_at: '2026-08-04T01:44:55.190871+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T01:44:55.190871+00:00'
+      branch_key: OOMPAH-747
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:25:39.651146+00:00'
-    updated_at: '2026-08-04T01:44:32.262739+00:00'
+    updated_at: '2026-08-04T01:44:55.190871+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83223ba19bd7
@@ -276,6 +290,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-04T01:44:52.262712+00:00'
+  - version: 1
+    attempt_id: attempt-e4a37a126bae
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    created_at: '2026-08-04T01:44:55.190871+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T01:44:55.190871+00:00'
+    branch_key: OOMPAH-747
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -456,5 +484,15 @@ author: oompah
 created: 2026-08-04 01:44
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-04 01:45
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-04 01:45
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
