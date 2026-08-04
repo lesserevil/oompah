@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T22:17:38.868007Z'
+updated_at: '2026-08-04T22:17:59.245875Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -47,16 +47,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: efb6bde6-d645-45f9-b066-72582823b0bf
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-04T21:52:37.455778+00:00'
+  head_sha: 7cdc30f36b438671a8c7467834e834d20afa05dd
+  submitted_at: '2026-08-04T22:17:43.504216+00:00'
+  updated_at: '2026-08-04T22:17:43.504216+00:00'
 oompah.task_costs:
   total_input_tokens: 46262
   total_output_tokens: 499
@@ -196,5 +198,10 @@ author: oompah
 created: 2026-08-04 22:17
 ---
 Completion: Delivered and pushed commit 7cdc30f36. Universal controller, durable reason-coded recovery metadata, enforce-mode dispatch integration, restart/idempotency safeguards, design notes, and regression coverage are complete. Branch is clean and up to date with origin; focused verification passed 169 tests.
+---
+author: oompah
+created: 2026-08-04 22:17
+---
+Implemented universal totality/liveness controller with bounded event/full-sync evaluation, durable reason-coded remediation, ownership/graph/liveness/retry safeguards, enforce-mode dispatch integration, restart convergence, and comprehensive regression tests.
 ---
 <!-- COMMENTS:END -->
