@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:51:49.374712Z'
+updated_at: '2026-08-04T11:53:48.933954Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9e50e5e6-b5b5-4665-8235-16bd48c13447
 oompah.task_costs:
-  total_input_tokens: 46601
-  total_output_tokens: 240
+  total_input_tokens: 47593
+  total_output_tokens: 24270
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46601
-      output_tokens: 240
+      input_tokens: 47593
+      output_tokens: 24270
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 240
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:15:15.823679+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 992
+    output_tokens: 24030
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:53:46.623257+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-758__20260804T111458Z
@@ -227,5 +233,15 @@ author: oompah
 created: 2026-08-04 11:51
 ---
 Atomically fenced direct epic maintenance from ordinary integration queue to fix OOMPAH-755 regression. Added guards in _sync_ready_integration_submissions() to skip direct tasks and atomic row cancellation in complete_direct_epic_maintenance_submission() before terminal transition. All 340+ tests pass.
+---
+author: oompah
+created: 2026-08-04 11:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 112
+- Tokens: 992 in / 24.0K out [25.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 35m 36s
+- Log: OOMPAH-758__20260804T111829Z.jsonl
 ---
 <!-- COMMENTS:END -->
