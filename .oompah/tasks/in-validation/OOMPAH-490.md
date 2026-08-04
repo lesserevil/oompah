@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:03:13.726982Z'
+updated_at: '2026-08-04T18:05:50.298745Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -98,7 +98,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-490
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -141,13 +141,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-490 (tried: origin/epic-OOMPAH-490, origin/OOMPAH-490)'
       next_retry_at: '2026-08-04T18:03:22.371392+00:00'
+    - version: 1
+      attempt_id: attempt-68f0e3bab840
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+      created_at: '2026-08-04T18:05:48.668916+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T18:05:48.668916+00:00'
+      branch_key: epic-OOMPAH-490
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T17:27:37.627571+00:00'
-    updated_at: '2026-08-04T18:03:02.371420+00:00'
+    updated_at: '2026-08-04T18:05:48.668916+00:00'
   - version: 1
     audit_id: audit-8170b4cbabb1
     project_id: proj-14849f1b
@@ -216,6 +230,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-490 (tried: origin/epic-OOMPAH-490, origin/OOMPAH-490)'
     next_retry_at: '2026-08-04T18:03:22.371392+00:00'
+  - version: 1
+    attempt_id: attempt-68f0e3bab840
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    created_at: '2026-08-04T18:05:48.668916+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T18:05:48.668916+00:00'
+    branch_key: epic-OOMPAH-490
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 37
   total_output_tokens: 9274
