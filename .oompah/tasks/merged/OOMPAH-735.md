@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:37:22.719791Z'
+updated_at: '2026-08-04T03:37:27.909090Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -175,8 +175,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-542965ce82f2
-    applied: false
+    applied: true
     created_at: '2026-08-04T03:37:19.448353+00:00'
+    applied_at: '2026-08-04T03:37:26.597874+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -572,5 +573,30 @@ author: oompah
 created: 2026-08-04 03:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 03:37
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: 0c7d9cbd41a03aa8092a0e82e10ec50862e143ed
+- config_field: integration_recovery_freshness_seconds at oompah/config.py:619
+- env_var: OOMPAH_INTEGRATION_RECOVERY_FRESHNESS_SECONDS at config.py:1219
+- clear_method: Orchestrator._clear_integration_retry_alert at orchestrator.py:7161
+- classifier_method: Orchestrator._classify_integration_retry_recovery at orchestrator.py:7179
+- reconcile_method: Orchestrator._reconcile_integration_retry_alerts at orchestrator.py:7305
+- reconcile_callsite: get_snapshot() at orchestrator.py:36514
+- action_required_field: alert recording at orchestrator.py:9930
+- dashboard_filter: action_required === false filter confirmed via git show HEAD diff of dashboard.html
+- integration_retry_tests: 21/21 passed (tests/test_integration_retry_alert_recovery.py)
+- dashboard_filter_tests: 2/2 passed (tests/test_dashboard_integration_recovery_filter.py)
+- neighboring_dashboard_tests: 74/74 passed (credential_warning, state_read_warning, websocket_liveness, terminal_audit)
+- integration_queue_tests: 38/38 passed
+- orchestrator_handlers_tests: 279/279 passed
+- config_tests: 117/117 passed
+- total_focused_tests: 118/118 passed in combined run
 ---
 <!-- COMMENTS:END -->
