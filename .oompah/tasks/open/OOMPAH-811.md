@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-04T23:04:20.893904Z'
+updated_at: '2026-08-04T23:35:38.260931Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 57s
 - Log: OOMPAH-811__20260804T230012Z.jsonl
+---
+author: oompah
+created: 2026-08-04 23:35
+---
+Read-only design audit reproduced the defect and recommends a durable two-generation saga rather than an in-memory owner rekey. G0/H0 may persist rearm intent and force-with-lease publish H1, but must not gate. A dedicated restart-safe rearm phase CASes queue + IntegrationRecord on exact project/task/branch/H0/G0/lease to G1/H1, verifies both projections, then exposes a fresh claim; only G1/H1 constructs QualityGateOwner and gates. Persist intent before push; recover remote=H0 by retrying push, remote=H1 by completing rearm, foreign remote by superseding without mutation. All complete/fail/cancel writes need head+generation+lease CAS. Map owner mismatch/stale/preflight/force-lease loss to reconcile, never Needs CI Fix; only a proven executed current-head gate failure may do that. Required tests: real f8→9e2 two-pass gate; crash at intent/push/queue/tracker boundaries; concurrent H2 resubmit; force-lease loss; genuine H1 failure; racing recovery workers; dependency/base/priority/per-epic preservation. Implement on durable integration workflow and land before OOMPAH-804 final composition.
 ---
 <!-- COMMENTS:END -->
