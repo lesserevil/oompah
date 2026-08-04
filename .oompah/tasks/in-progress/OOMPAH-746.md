@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:17:27.872088Z'
+updated_at: '2026-08-04T01:17:47.983121Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -359,5 +359,10 @@ author: oompah
 created: 2026-08-04 01:17
 ---
 Discovery: The failed head has no GitHub Actions run or PR; Oompah's pre-review gate is the authoritative log and reports only test_api_issues_includes_project_scoped_display_identifier. The test passes alone and its module passes alone, confirming an order/load-dependent failure unrelated to the terminal-audit diff. The test currently relies on GET /api/v1/issues scheduling a background serialization and completing within the endpoint's 250 ms fallback window. Under the 15k-test parallel gate, timeout or leaked snapshot work can return an empty Open lane. This test is about display-field serialization, not first-snapshot timing; neighboring dashboard tests already stabilize this by synchronously populating the matching orchestrator snapshot before GET.
+---
+author: oompah
+created: 2026-08-04 01:17
+---
+Implementation: Stabilized the single failing dashboard API test by building the real serialized issue board and installing it as the snapshot for the exact mocked orchestrator before issuing GET /api/v1/issues. This preserves coverage of display_identifier serialization and endpoint response shape while removing dependence on a background thread completing inside a 250 ms timing window. No production or workflow code was changed.
 ---
 <!-- COMMENTS:END -->
