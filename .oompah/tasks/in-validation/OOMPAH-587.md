@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-04T00:34:23.618545Z'
+updated_at: '2026-08-04T00:34:32.527588Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -1908,5 +1908,10 @@ author: oompah
 created: 2026-08-04 00:22
 ---
 Lifecycle reconciliation restored OOMPAH-587 to audited Done: Cannot transition shared-epic child OOMPAH-587 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
+---
+author: oompah
+created: 2026-08-04 00:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
