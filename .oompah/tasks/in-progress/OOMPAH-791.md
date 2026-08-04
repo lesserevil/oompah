@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T22:26:45.479902Z'
+updated_at: '2026-08-04T22:28:04.947933Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -49,7 +49,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8da0e789-eff0-44b4-8a5b-ba65283cf7d6
+oompah.agent_run_id: d501a887-3a5d-433d-b5a6-fbc241e45e9b
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
@@ -220,5 +220,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-04 22:28
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
