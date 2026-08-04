@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-04T22:05:01.131577Z'
+updated_at: '2026-08-04T22:05:22.638932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,11 @@ Live reproduction on 2026-08-04: OOMPAH-793 audit audit-8b63c91a6c05 / attempt-7
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 22:05
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
