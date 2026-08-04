@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:01:23.026979Z'
+updated_at: '2026-08-04T04:01:45.283546Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 83fef2af-a0d9-4a8d-bdb5-0d48c949fc39
+oompah.agent_run_id: 8bb4fa88-f879-4730-b020-b60f1af71392
 oompah.task_costs:
   total_input_tokens: 48202
   total_output_tokens: 53530
@@ -284,5 +284,15 @@ FAILED tests/test_provider_retirement.py::test_claude_tool_catalog_reports_read_
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-04 04:01
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 04:01
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
