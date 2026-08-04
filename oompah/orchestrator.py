@@ -7979,7 +7979,11 @@ class Orchestrator:
                 )
                 continue
 
-            pending_review: list[tuple[Issue, StandaloneDeliveryAuthority]] = []
+            # Build the complete eligible set before claiming any delivery
+            # authority.  The tracker adapters do not all preserve the same
+            # Ready ordering, and claiming every row here lets later claims
+            # cancel or fence work that has not actually been selected.
+            eligible: list[tuple[Issue, StandaloneFinishDependencyState]] = []
             for issue in standalone:
                 task_id = issue.identifier
                 dependency_state = self._standalone_finish_dependency_state(
@@ -7995,20 +7999,11 @@ class Orchestrator:
                         task_id,
                     )
                     continue
-                authority = self._claim_standalone_delivery_authority(
-                    project,
-                    issue,
-                    dependency_revision=dependency_state.revision,
-                    allows_parent=bool(str(issue.parent_id or "").strip()),
-                )
-                if authority is None:
-                    continue
                 if dependency_state.unsatisfied:
                     self._arm_standalone_dependency_wait(
                         project_id,
                         task_id,
                         dependency_state.unsatisfied,
-                        authority=authority,
                     )
                     logger.info(
                         "Deferred standalone Ready task %s: waiting for finish "
@@ -8022,14 +8017,12 @@ class Orchestrator:
                     self._clear_standalone_delivery_alert(
                         project_id,
                         task_id,
-                        authority=authority,
                     )
-                    pending_review.append((issue, authority))
+                    eligible.append((issue, dependency_state))
                     continue
                 self._clear_standalone_delivery_alert(
                     project_id,
                     task_id,
-                    authority=authority,
                 )
                 logger.debug(
                     "Standalone Ready task %s already has integration "
@@ -8037,8 +8030,10 @@ class Orchestrator:
                     task_id,
                     queue_item.state,
                 )
-            if not pending_review:
+            if not eligible:
                 continue
+
+            eligible.sort(key=lambda item: self._standalone_delivery_order_key(item[0]))
 
             provider = None
             repo_slug = ""
@@ -8060,41 +8055,36 @@ class Orchestrator:
                 provider_error = f"SCM provider setup failed: {exc}"
 
             target_branch = str(project.default_branch or "").strip()
-            for issue, authority in pending_review:
-                issue.project_id = project_id
-                task_id = issue.identifier
-
-                if provider is None or not repo_slug:
-                    reason = provider_error or (
+            # Provider and project configuration failures are shared by every
+            # candidate.  Surface them without manufacturing claims for rows
+            # that were never selected.
+            if provider is None or not repo_slug or not target_branch:
+                reason = (
+                    provider_error
+                    or (
                         "repository slug could not be resolved; configure a "
                         "supported project repo_url"
+                        if provider is None or not repo_slug
+                        else "project default_branch is not configured"
                     )
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        reason,
-                        authority=authority,
-                    )
-                    logger.warning(
-                        "Standalone Ready task %s is undeliverable: %s",
-                        task_id,
-                        reason,
-                    )
-                    continue
-                if not target_branch:
-                    reason = "project default_branch is not configured"
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        reason,
-                        authority=authority,
-                    )
-                    logger.warning(
-                        "Standalone Ready task %s is undeliverable: %s",
-                        task_id,
-                        reason,
-                    )
-                    continue
+                )
+                issue, _dependency_state = eligible[0]
+                self._arm_standalone_delivery_alert(
+                    project_id,
+                    issue.identifier,
+                    reason,
+                )
+                logger.warning(
+                    "Standalone Ready task %s is undeliverable: %s",
+                    issue.identifier,
+                    reason,
+                )
+                continue
+
+            review_capacity: tuple[int, int, bool] | None = None
+            for issue, dependency_state in eligible:
+                issue.project_id = project_id
+                task_id = issue.identifier
 
                 task_branch = self._branch_for_issue(issue, project)
                 if not task_branch:
@@ -8103,13 +8093,21 @@ class Orchestrator:
                         project_id,
                         task_id,
                         reason,
-                        authority=authority,
                     )
                     logger.warning(
                         "Standalone Ready task %s is undeliverable: %s",
                         task_id,
                         reason,
                     )
+                    continue
+
+                authority = self._claim_standalone_delivery_authority(
+                    project,
+                    issue,
+                    dependency_revision=dependency_state.revision,
+                    allows_parent=bool(str(issue.parent_id or "").strip()),
+                )
+                if authority is None:
                     continue
 
                 try:
@@ -8274,7 +8272,10 @@ class Orchestrator:
                             task_id,
                             exc,
                         )
-                    continue
+                    # An existing review is already the durable delivery
+                    # path for this selected task.  Leave other candidates
+                    # untouched until the next Ready sweep.
+                    return
 
                 if existing_pr is not None and review_state == "merged":
                     self._release_review_capacity(
@@ -8345,7 +8346,7 @@ class Orchestrator:
                             f"merged review could not enter terminal audit: {reason}",
                             authority=authority,
                         )
-                    continue
+                    return
 
                 if existing_pr is not None and review_state != "closed":
                     reason = (
@@ -8372,15 +8373,20 @@ class Orchestrator:
                         source_branch=task_branch,
                     )
 
-                review_count, review_limit, at_capacity = self._project_review_capacity(
-                    project_id
-                )
+                if review_capacity is None:
+                    review_capacity = self._project_review_capacity(project_id)
+                review_count, review_limit, at_capacity = review_capacity
                 if at_capacity:
-                    # The durable ledger catches reviews created earlier in
-                    # this process even when the cache/forge listing lags.
-                    self._clear_standalone_delivery_alert(
+                    # Capacity is project-wide, so later candidates cannot
+                    # make progress in this sweep.  Keep an informational,
+                    # non-actionable wait state for the selected task rather
+                    # than reporting it as superseded or silently clearing
+                    # the reason it was deferred.
+                    self._arm_standalone_capacity_wait(
                         project_id,
                         task_id,
+                        review_count,
+                        review_limit,
                         authority=authority,
                     )
                     logger.info(
@@ -8390,7 +8396,7 @@ class Orchestrator:
                         review_count,
                         review_limit,
                     )
-                    continue
+                    break
 
                 if not self._review_quality_gate_passes(
                     project,
@@ -8443,14 +8449,16 @@ class Orchestrator:
                     target_branch=target_branch,
                 )
                 if reservation is None:
-                    review_count, review_limit, _ = self._project_review_capacity(
-                        project_id
-                    )
+                    review_count, review_limit, _ = review_capacity
                     # Capacity and an unavailable live listing are both
-                    # retryable.  Neither means the submission is stranded.
-                    self._clear_standalone_delivery_alert(
+                    # retryable.  Neither means the submission is stranded,
+                    # and neither justifies running gates for lower-ranked
+                    # candidates after this selected attempt lost its slot.
+                    self._arm_standalone_capacity_wait(
                         project_id,
                         task_id,
+                        review_count,
+                        review_limit,
                         authority=authority,
                     )
                     logger.info(
@@ -8460,7 +8468,7 @@ class Orchestrator:
                         review_count,
                         review_limit,
                     )
-                    continue
+                    break
 
                 title = f"{task_id}: {issue.title}" if issue.title else task_id
                 description = issue.description or ""
@@ -8595,6 +8603,9 @@ class Orchestrator:
                         f"created review but tracker update failed: {exc}",
                         authority=authority,
                     )
+                # A successful review handoff owns this sweep.  The next
+                # Ready snapshot will fairly select whatever remains.
+                return
 
     def _arm_standalone_delivery_alert(
         self,
@@ -8660,6 +8671,43 @@ class Orchestrator:
                     "message": (
                         f"Standalone Ready task {task_id} is waiting for finish-order "
                         f"dependencies: {', '.join(dependencies)}."
+                    ),
+                }
+            )
+            return True
+
+    def _arm_standalone_capacity_wait(
+        self,
+        project_id: str,
+        task_id: str,
+        review_count: int,
+        review_limit: int,
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
+        """Publish a retry-safe informational wait for project capacity."""
+
+        with self._standalone_delivery_authority_lock:
+            if authority is not None and not self._standalone_delivery_authorized(
+                authority
+            ):
+                self._record_superseded_standalone_delivery(
+                    authority,
+                    "delivery authority was revoked before capacity wait",
+                )
+                return False
+            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+            self._alerts.append(
+                {
+                    "level": "info",
+                    "source": source,
+                    "message": (
+                        f"Standalone Ready task {task_id} is waiting for review "
+                        f"capacity ({review_count}/{review_limit}); retry will "
+                        "resume automatically."
                     ),
                 }
             )
@@ -8787,6 +8835,35 @@ class Orchestrator:
             unsatisfied=unsatisfied,
             revision=revision,
         )
+
+    @staticmethod
+    def _standalone_delivery_order_key(
+        issue: Issue,
+    ) -> tuple[int, datetime, str]:
+        """Return stable priority/FIFO ordering for standalone delivery."""
+
+        try:
+            priority = int(issue.priority) if issue.priority is not None else 999
+        except (TypeError, ValueError):
+            priority = 999
+
+        integration = getattr(issue, "integration", None)
+        submitted_at = getattr(integration, "submitted_at", None)
+        timestamp = submitted_at or getattr(issue, "created_at", None)
+        if isinstance(timestamp, datetime):
+            submitted = timestamp
+        else:
+            try:
+                submitted = datetime.fromisoformat(
+                    str(timestamp).strip().replace("Z", "+00:00")
+                )
+            except (TypeError, ValueError):
+                submitted = datetime.max.replace(tzinfo=timezone.utc)
+        if submitted.tzinfo is None:
+            submitted = submitted.replace(tzinfo=timezone.utc)
+        else:
+            submitted = submitted.astimezone(timezone.utc)
+        return (priority, submitted, str(issue.identifier or ""))
 
     def _current_standalone_finish_dependency_state(
         self,
