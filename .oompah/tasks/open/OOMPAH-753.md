@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:06:18.697411Z'
+updated_at: '2026-08-04T02:06:32.665549Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,13 +25,42 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8176b80e-a5b9-4de5-9316-c0a6f9ceb4c5
-  claim_owner: 1c23f4c6-4c13-43af-86f6-1edf14468b70
-  claimed_at: '2026-08-04T02:04:37.314155+00:00'
-  claim_expires_at: '2026-08-04T02:34:37.314155+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: inconclusive\n\
+    Matches: none\nEvidence: OOMPAH-753 describes a live regression in terminal auditor\
+    \ denial-budget handling where non-mutating validator requests (focused pytest\
+    \ commands) outside the project validation contract are incorrectly consuming\
+    \ fatal policy budget, terminating the auditor prematurely. The issue explicitly\
+    \ references OOMPAH-731 (the merged task that triggered this) and OOMPAH-736 (the\
+    \ fix that introduced the regression). However, neither OOMPAH-731 nor OOMPAH-736\
+    \ appear in the supplied corpus. The corpus shows 30 similarity candidates (all\
+    \ in Archived terminal state) and notes omitted_similarity_candidate_count: 543.\
+    \ None of the 30 provided candidates address auditor denial budgets, policy-contract\
+    \ validation mismatches, or terminal-audit candidate recovery\u2014they cover\
+    \ unrelated domains (tracker sync, release addendums, epic workflows, dashboard\
+    \ UI). The structural peer tasks that directly caused and introduced this regression\
+    \ cannot be evaluated. Recommend retry with full corpus including OOMPAH-731 an\n\
+    Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: inconclusive\n\
+    \nMatches: none\n\nEvidence: OOMPAH-753 describes a live regression in terminal\
+    \ auditor denial-budget handling where non-mutating validator requests (focused\
+    \ pytest commands) outside the project validation contract are incorrectly consuming\
+    \ fatal policy budget, terminating the auditor prematurely. The issue explicitly\
+    \ references OOMPAH-731 (the merged task that triggered this) and OOMPAH-736 (the\
+    \ fix that introduced the regression). However, neither OOMPAH-731 nor OOMPAH-736\
+    \ appear in the supplied corpus. The corpus shows 30 similarity candidates (all\
+    \ in Archived terminal state) and notes omitted_similarity_candidate_count: 543.\
+    \ None of the 30 provided candidates address auditor denial budgets, policy-contract\
+    \ validation mismatches, or terminal-audit candidate recovery\u2014they cover\
+    \ unrelated domains (tracker sync, release addendums, epic workflows, dashboard\
+    \ UI). The structural peer tasks that directly caused and introduced this regression\
+    \ cannot be evaluated. Recommend retry with full corpus including OOMPAH-731 and\
+    \ OOMPAH-736, or with the omitted 543 similarity candidates, to definitively confirm\
+    \ whether an active duplicate exists in the auditor policy/health system."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-04T02:07:09.978007+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
