@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-789
 type: task
-status: Open
+status: Done
 priority: 1
 title: Add restart and external-failure injection at every workflow boundary
 parent: OOMPAH-767
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:14.267846Z'
-updated_at: '2026-08-04T18:11:05.957072Z'
+updated_at: '2026-08-04T18:11:50.224307Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,30 @@ oompah.integration:
   last_error: task worktree head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1 differs
     from the published task head 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae; refusing
     to reset a preserved recovery snapshot
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a472bd66254d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-789
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 936ecf5bf8338fc12a9b34dd30aa75b29cd93311b67281d69ad085fa3280b7be
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner implementation was fully tested and published at exact head
+      6ae941a31682dce6cd9346c3c4d7116a4c2db8ae on epic-OOMPAH-767. Integration incorrectly
+      rejected it because the preserved task recovery worktree remained at parent
+      head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1.
+    created_at: '2026-08-04T18:11:46.474470+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
