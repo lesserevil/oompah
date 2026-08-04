@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-04T22:20:25.829455Z'
+updated_at: '2026-08-04T22:25:47.897169Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -31,6 +31,31 @@ oompah.target_branch: main
 oompah.agent_run_id: d58c06c0-a435-492e-aa36-13e0fccab150
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-047bed843267: '2026-08-04T22:25:37.271593+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    target_state: Archived
+    evidence_fingerprint: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
+    audit_ids:
+    - audit-e210194f8664
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T22:25:37.271604+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    audit_id: audit-e210194f8664
+    attempt_id: attempt-047bed843267
+    target_state: Archived
+    evidence_fingerprint: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
+    status: In Validation
+    audit_ids:
+    - audit-e210194f8664
+    applied: true
+    created_at: '2026-08-04T22:25:37.271620+00:00'
+    applied_at: '2026-08-04T22:25:45.498551+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -38,7 +63,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-457
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -62,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-047bed843267
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,13 +98,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T22:19:55.657378+00:00'
       branch_key: epic-OOMPAH-457
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T22:25:37.271405+00:00'
+      ended_at: '2026-08-04T22:25:37.271405+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:09.639801+00:00'
-    updated_at: '2026-08-04T22:19:55.657378+00:00'
+    updated_at: '2026-08-04T22:25:37.271405+00:00'
   - version: 1
     audit_id: audit-70ee8bf012fa
     project_id: proj-14849f1b
@@ -265,5 +293,27 @@ author: oompah
 created: 2026-08-04 22:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 22:25
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 72dd6b33bd0033851484ee634e6e7bd9363a0d55
+- merge_pr: 565
+- merge_branch: epic-OOMPAH-457
+- merge_date: 2026-07-28
+- quality_gate_commit_1: a5699d6fce9e358c556763e304f47deeca17d958
+- quality_gate_duration_1: 72.3s
+- quality_gate_commit_2: 63c36e380aaee3ccf1bc09b72e5bf17bc71e8b16
+- quality_gate_duration_2: 67.2s
+- files_changed: 28
+- lines_added: 8721
+- child_tasks_on_main: OOMPAH-461 through OOMPAH-467 all have commits on origin/main
+- implementation_files: terminal_audit.py, terminal_audit_enforcement.py, terminal_audit_metadata.py, terminal_transition_coordinator.py
+- test_files: test_terminal_audit.py, test_terminal_audit_enforcement.py, test_terminal_audit_metadata.py, test_terminal_transition_coordinator.py, test_terminal_override.py
 ---
 <!-- COMMENTS:END -->
