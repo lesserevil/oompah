@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:25:41.505899Z'
+updated_at: '2026-08-04T21:30:45.933389Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 87fb254d-1526-4841-a9c7-b10b0805010f
+oompah.agent_run_id: d20ef6d5-cbb3-422d-926c-e2e0142a09ca
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2

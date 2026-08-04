@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:30:04.316900Z'
+updated_at: '2026-08-04T21:30:50.106753Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-08-04 21:30
 ---
 Verification: 54/54 tests pass across test_workflow_runtime.py, test_workflow_jobs.py, and test_integration_workflow.py. All 262 workflow module tests pass. test_hundreds_of_history_rows_do_not_hide_eligible_heads went from timeout (>5s) to 2.03s total suite with synchronous=NORMAL.
+---
+author: oompah
+created: 2026-08-04 21:30
+---
+Completion: OOMPAH-804 delivers the production runtime wiring for durable workflow domains. Key files changed: oompah/workflow_runtime.py (WorkflowRuntime composition root: project-scoped fact collectors, transition journals/services, integration and optional implementation/terminal controllers, shared WorkflowJobStore, DurableWorkflowWorker), oompah/bootstrap.py (build_workflow_runtime call, Services.workflow_runtime field), oompah/config.py (workflow_engine_mode/decision_limit/batch_size settings), oompah/orchestrator.py (start/stop/tick lifecycle wiring, health/projections APIs, enforce/shadow mode gates), oompah/workflow_jobs.py (synchronous=NORMAL for WAL mode performance), tests/test_workflow_runtime.py (4 tests: factory startup, lease recovery, enforce single-writer, shadow decision materialization). Acceptance criteria met: every migrated domain is constructed at startup, enforce mode has legacy writers disabled, restart recovers leases, UI projections derive from accepted decisions, and shadow mode materializes durable decisions without effects.
 ---
 <!-- COMMENTS:END -->
