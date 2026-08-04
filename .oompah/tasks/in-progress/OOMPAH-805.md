@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:59:18.983741Z'
+updated_at: '2026-08-04T21:00:48.780812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,7 +72,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9e281e57-3322-435f-81ee-1d34e1d41854
+oompah.agent_run_id: a995ec0d-693d-4291-ba96-9b92ee03fa93
 oompah.task_costs:
   total_input_tokens: 420
   total_output_tokens: 17536
@@ -265,5 +265,15 @@ FAILED tests/test_orchestrator_merged.py::TestBudgetGateFreeTierBypass::test_fre
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-04 21:00
+---
+Direct-owner repair takeover after the server agent's submitted head failed the full gate. The original two tests are fixed, but the gate exposed tests/test_orchestrator_merged.py::TestBudgetGateFreeTierBypass::test_free_model_dispatched_when_over_budget plus repeated closed-event-loop subprocess warnings. I am reproducing and fixing the remaining deterministic isolation failure on this task branch before resubmission.
+---
+author: oompah
+created: 2026-08-04 21:00
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
