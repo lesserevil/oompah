@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T14:06:31.262418Z'
+updated_at: '2026-08-04T21:22:59.048730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Build a controller that evaluates every nonterminal WorkDecision on relevant eve
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 21:22
+---
+Hard-start prerequisite OOMPAH-785 is Done. Promoting the universal totality/liveness controller for server dispatch as the first OOMPAH-770 implementation wave.
+---
+<!-- COMMENTS:END -->

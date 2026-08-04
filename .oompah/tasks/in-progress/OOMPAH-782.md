@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T21:15:54.272602Z'
+updated_at: '2026-08-04T21:22:29.526026Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-08-04 21:15
 ---
 Understanding: I will reproduce and isolate the combined-gate integration failure (eligible heads with large history), make the smallest covered correction, run the focused and full configured checks, then push and resubmit the exact head.
+---
+author: oompah
+created: 2026-08-04 21:22
+---
+Implementation: replaced per-task cursor/job commits with a single atomic durable snapshot reconciliation in WorkflowJobStore; WorkflowJobScheduler now materializes each bounded decision window through it. Per-task snapshot fences, idempotency, supersession, and rollback are retained. Added rollback coverage and the 402-task regression now completes under its timeout.
 ---
 <!-- COMMENTS:END -->

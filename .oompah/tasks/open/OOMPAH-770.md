@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-770
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Enforce universal nonterminal liveness and truthful operator alerts
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-04T14:04:40.752367Z'
+updated_at: '2026-08-04T21:22:51.812398Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,3 +35,11 @@ Implement a universal liveness controller driven exclusively by WorkDecision. Ev
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 21:22
+---
+Hard-start prerequisites OOMPAH-765 and OOMPAH-766 have landed. Promoting this epic and its first unblocked child so the server can advance the liveness work in parallel with OOMPAH-768.
+---
+<!-- COMMENTS:END -->
