@@ -29109,15 +29109,36 @@ class Orchestrator:
         # it can claim or write anything.
         if implementation_dispatch and retry_entry is not None:
             with self._retry_authority_lock:
+                retry_mismatches = self._retry_authority_mismatches(
+                    issue,
+                    retry_entry,
+                )
+                if retry_entry.cancelled and "cancelled" not in retry_mismatches:
+                    retry_mismatches = (*retry_mismatches, "cancelled")
+                if (
+                    self._retry_dispatching.get(issue.id) is not retry_entry
+                    and "owner" not in retry_mismatches
+                ):
+                    retry_mismatches = (*retry_mismatches, "owner")
                 if (
                     retry_entry.cancelled
                     or self._retry_dispatching.get(issue.id) is not retry_entry
-                    or not self._retry_entry_matches_issue(issue, retry_entry)
+                    or retry_mismatches
                 ):
                     logger.info(
-                        "Skipping stale retry dispatch issue_id=%s issue_identifier=%s",
+                        "Skipping stale retry dispatch issue_id=%s "
+                        "issue_identifier=%s authority_dimensions=%s",
                         issue.id,
                         issue.identifier,
+                        list(retry_mismatches),
+                        extra={
+                            "retry_authority": {
+                                "stage": "dispatch_entry",
+                                "issue_id": issue.id,
+                                "identifier": issue.identifier,
+                                "dimensions": list(retry_mismatches),
+                            }
+                        },
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
@@ -29387,6 +29408,12 @@ class Orchestrator:
         # Implementation work moves to In Progress. Duplicate preflight is a
         # qualification lane, so its tracker state remains Open. Auditors
         # are read-only and never mutate the task's status either.
+        retry_status_write_attempted = False
+        retry_status_write_error = False
+        retry_pre_write_issue = issue
+        retry_intended_active_state = _configured_in_progress_state(
+            self.config.tracker_active_states
+        )
         if implementation_dispatch:
             async with self.issue_transition_lock(issue.id):
                 # The first recheck above protects against stale candidate
@@ -29447,7 +29474,42 @@ class Orchestrator:
                     self.state.claimed_issues.pop(issue.id, None)
                     self.state.completed.add(issue.id)
                     return
+                if retry_entry is not None:
+                    retry_pre_write_issue = locked_state[0] if locked_state else issue
+                    if not retry_pre_write_issue.project_id:
+                        retry_pre_write_issue.project_id = issue.project_id
+                    retry_mismatches = self._retry_authority_mismatches(
+                        retry_pre_write_issue,
+                        retry_entry,
+                    )
+                    if retry_mismatches:
+                        logger.info(
+                            "Aborting retry dispatch before In Progress write "
+                            "issue_id=%s issue_identifier=%s "
+                            "authority_dimensions=%s",
+                            issue.id,
+                            issue.identifier,
+                            list(retry_mismatches),
+                            extra={
+                                "retry_authority": {
+                                    "stage": "pre_write",
+                                    "issue_id": issue.id,
+                                    "identifier": issue.identifier,
+                                    "dimensions": list(retry_mismatches),
+                                }
+                            },
+                        )
+                        self.state.claimed.discard(issue.id)
+                        self.state.claimed_issues.pop(issue.id, None)
+                        return
+                    # Persist the authorized status intent before the tracker
+                    # write.  A process restart can then recognize either the
+                    # source state (crash before commit) or the intended active
+                    # state (crash after commit) as this exact generation.
+                    retry_entry.dispatch_status = retry_intended_active_state
+                    self._persist_retry_entries()
                 try:
+                    retry_status_write_attempted = retry_entry is not None
                     await asyncio.get_event_loop().run_in_executor(
                         self._tick_pool,
                         lambda: tracker.update_issue(
@@ -29462,7 +29524,21 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
-                    return
+                    if retry_entry is None:
+                        return
+                    retry_status_write_error = True
+
+        if retry_status_write_error and retry_entry is not None:
+            await self._recover_aborted_retry_dispatch(
+                issue,
+                retry_entry,
+                tracker,
+                restore_status=retry_pre_write_issue.state,
+                intended_active_state=retry_intended_active_state,
+                status_write_attempted=True,
+                reason="status write failure",
+            )
+            return
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -29523,6 +29599,14 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
+                    if retry_entry is not None:
+                        self._cancel_retry_for_issue(
+                            issue_id=issue.id,
+                            identifier=issue.identifier,
+                            project_id=issue.project_id,
+                            reason="shared tracker dispatch owner replaced retry",
+                            notify=False,
+                        )
                     await _release_preflight(
                         "dispatch aborted after shared tracker claim race"
                     )
@@ -29537,6 +29621,9 @@ class Orchestrator:
                 # next worker assignment, not evidence that the failed retry
                 # lost authority before it could start.
                 claimed_assignment_id = _claim_run_id
+                if retry_entry is not None:
+                    retry_entry.dispatch_assignment_id = claimed_assignment_id
+                    self._persist_retry_entries()
             except Exception as exc:
                 logger.warning(
                     "GitHub run-id claim protocol failed for %s: %s"
@@ -29591,12 +29678,37 @@ class Orchestrator:
                 issue.id in self.state.completed
                 or post_state not in self._retryable_state_keys()
             ):
+                retry_dimensions: list[str] = []
+                if retry_entry is not None:
+                    retry_dimensions.extend(
+                        self._retry_post_write_mismatches(
+                            retry_pre_write_issue,
+                            running_issue,
+                            retry_entry,
+                            retry_intended_active_state,
+                            claimed_assignment_id,
+                        )
+                    )
+                    if issue.id in self.state.completed:
+                        retry_dimensions.append("terminal_owner")
                 logger.info(
                     "Aborting implementation dispatch of %s before worker start: "
-                    "post-update state=%r terminal_fence=%s",
+                    "post-update state=%r terminal_fence=%s "
+                    "authority_dimensions=%s",
                     issue.identifier,
                     post_state,
                     issue.id in self.state.completed,
+                    list(dict.fromkeys(retry_dimensions)),
+                    extra={
+                        "retry_authority": {
+                            "stage": "post_update_lane",
+                            "issue_id": issue.id,
+                            "identifier": issue.identifier,
+                            "dimensions": list(dict.fromkeys(retry_dimensions)),
+                        }
+                    }
+                    if retry_entry is not None
+                    else None,
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
@@ -29629,63 +29741,97 @@ class Orchestrator:
         if implementation_dispatch and issue.id in self.state.completed:
             logger.info(
                 "Aborting implementation dispatch of %s before worker start: "
-                "terminal transition fence appeared during state refresh",
+                "terminal transition fence appeared during state refresh "
+                "authority_dimensions=%s",
                 issue.identifier,
+                ["terminal_owner"],
+                extra={
+                    "retry_authority": {
+                        "stage": "terminal_fence",
+                        "issue_id": issue.id,
+                        "identifier": issue.identifier,
+                        "dimensions": ["terminal_owner"],
+                    }
+                }
+                if retry_entry is not None
+                else None,
             )
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
             await _clear_dispatch_claim()
+            if retry_entry is not None:
+                self._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=issue.project_id,
+                    reason="terminal transition owns pre-start retry",
+                    notify=False,
+                )
             return
 
         # Final compare-and-swap for a timer-driven implementation retry.  The
         # tracker read above is the fresh authority snapshot; the lock makes
         # this check and retry removal indivisible with API cancellation.
         if implementation_dispatch and retry_entry is not None:
+            retry_abort_dimensions: tuple[str, ...] = ()
             with self._retry_authority_lock:
-                # ``post_update`` reflects the orchestrator's own
-                # In Progress write and therefore may have a newer tracker
-                # updated_at.  Generation validation must use the fresh
-                # pre-write snapshot while still checking that the post-write
-                # status/branch/head did not change underneath us.
-                authority_issue = issue
-                post_authority_changed = bool(
-                    post_update
-                    and (
-                        _state_key(post_update[0].state) != _state_key(issue.state)
-                        or str(
-                            getattr(post_update[0], "work_branch", None)
-                            or getattr(post_update[0], "branch_name", None)
-                            or ""
-                        ).strip()
-                        != str(
-                            getattr(issue, "work_branch", None)
-                            or getattr(issue, "branch_name", None)
-                            or ""
-                        ).strip()
-                        or self._retry_issue_head(post_update[0])
-                        != self._retry_issue_head(issue)
-                    )
+                # The dispatcher owns the status transition from the captured
+                # retry state to the configured active state.  Validate that
+                # intended post-write state while comparing the other
+                # authority dimensions against the pre-write snapshot.
+                retry_abort_dimensions = self._retry_post_write_mismatches(
+                    retry_pre_write_issue,
+                    post_update[0] if post_update else None,
+                    retry_entry,
+                    retry_intended_active_state,
+                    claimed_assignment_id,
                 )
                 if (
                     retry_entry.cancelled
                     or self._retry_dispatching.get(issue.id) is not retry_entry
-                    or post_authority_changed
-                    or not self._retry_entry_matches_issue(
-                        authority_issue, retry_entry
-                    )
+                    or retry_abort_dimensions
                 ):
+                    if retry_entry.cancelled and "cancelled" not in retry_abort_dimensions:
+                        retry_abort_dimensions = (*retry_abort_dimensions, "cancelled")
+                    if (
+                        self._retry_dispatching.get(issue.id) is not retry_entry
+                        and "owner" not in retry_abort_dimensions
+                    ):
+                        retry_abort_dimensions = (*retry_abort_dimensions, "owner")
                     logger.info(
-                        "Aborting retry before worker start issue_id=%s issue_identifier=%s",
+                        "Aborting retry before worker start issue_id=%s "
+                        "issue_identifier=%s authority_dimensions=%s",
                         issue.id,
                         issue.identifier,
+                        list(retry_abort_dimensions),
+                        extra={
+                            "retry_authority": {
+                                "stage": "post_write",
+                                "issue_id": issue.id,
+                                "identifier": issue.identifier,
+                                "dimensions": list(retry_abort_dimensions),
+                            }
+                        },
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
-                    await _clear_dispatch_claim()
-                    return
-                self.state.retry_attempts.pop(issue.id, None)
-                self._retry_dispatching.pop(issue.id, None)
-                retry_entry.cancelled = True
+                else:
+                    self.state.retry_attempts.pop(issue.id, None)
+                    self._retry_dispatching.pop(issue.id, None)
+                    retry_entry.cancelled = True
+            if retry_abort_dimensions:
+                await _clear_dispatch_claim()
+                await self._recover_aborted_retry_dispatch(
+                    issue,
+                    retry_entry,
+                    tracker,
+                    restore_status=retry_pre_write_issue.state,
+                    intended_active_state=retry_intended_active_state,
+                    status_write_attempted=retry_status_write_attempted,
+                    observed_post_write=post_update[0] if post_update else None,
+                    reason="post-write authority mismatch",
+                )
+                return
         else:
             # Ordinary dispatches should never inherit an older retry.  This
             # also handles an operator/manual assignment racing a timer.
@@ -35242,26 +35388,66 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
     def _retry_entry_matches_issue(self, issue: Issue, retry: RetryEntry) -> bool:
         """Whether a fresh tracker snapshot still owns a scheduled retry."""
-        if retry.cancelled or not self._retry_issue_matches(issue, retry):
-            return False
+        return not self._retry_authority_mismatches(issue, retry)
 
-        # Entries written before generation evidence existed remain valid under
-        # the legacy retry rules.  New entries fail closed on every captured
-        # authority dimension.
+    @staticmethod
+    def _retry_issue_assignment(issue: Issue) -> str:
+        """Return the assignment identity used by retry authority checks."""
+        return str(
+            getattr(issue, "assignment_id", None)
+            or getattr(issue, "assigned_to", None)
+            or ""
+        ).strip()
+
+    @staticmethod
+    def _retry_issue_branch(issue: Issue) -> str:
+        """Return the work branch used by retry authority checks."""
+        return str(
+            getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        ).strip()
+
+    def _retry_authority_mismatches(
+        self,
+        issue: Issue,
+        retry: RetryEntry,
+        *,
+        include_status: bool = True,
+    ) -> tuple[str, ...]:
+        """Return the captured retry-authority dimensions that no longer match.
+
+        The dimension names are deliberately stable: they are emitted in the
+        structured retry-abort diagnostics and make it possible to distinguish
+        an authorized status handoff from a real external authority change.
+        """
+        mismatches: list[str] = []
+        if retry.cancelled:
+            mismatches.append("cancelled")
+        if not self._retry_issue_matches(issue, retry):
+            mismatches.append("task")
+
+        # Entries written before generation evidence existed retain their
+        # compatibility behavior.  Generation-aware entries fail closed on
+        # every captured authority dimension.
         if retry.authority_generation and retry.project_id != issue.project_id:
-            return False
-        if retry.failed_status is not None and _state_key(issue.state) != _state_key(
-            retry.failed_status
-        ):
-            return False
-        current_assignment = getattr(issue, "assignment_id", None) or getattr(
-            issue, "assigned_to", None
-        )
+            mismatches.append("project")
+        if include_status and retry.failed_status is not None:
+            expected_states = {_state_key(retry.failed_status)}
+            if retry.dispatch_status is not None:
+                expected_states.add(_state_key(retry.dispatch_status))
+            if _state_key(issue.state) not in expected_states:
+                mismatches.append("status")
+
+        current_assignment = self._retry_issue_assignment(issue)
+        expected_assignments = {str(retry.assignment_id or "").strip()}
+        if retry.dispatch_assignment_id is not None:
+            expected_assignments.add(str(retry.dispatch_assignment_id).strip())
         if (
-            retry.assignment_id is not None
-            and str(current_assignment or "") != retry.assignment_id
+            (retry.authority_generation or retry.assignment_id is not None)
+            and current_assignment not in expected_assignments
         ):
-            return False
+            mismatches.append("assignment")
         current_attempt = getattr(issue, "attempt", None) or getattr(
             issue, "retry_attempt", None
         )
@@ -35270,20 +35456,297 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             and current_attempt is not None
             and int(current_attempt) != int(retry.failed_attempt)
         ):
-            return False
+            mismatches.append("attempt")
+
         # ``updated_at`` is diagnostics, not retry authority: a historical
         # run/error comment may legitimately advance it after the failure.
-        # Status, assignment, branch, and head are the ownership boundaries.
-        current_branch = str(
-            getattr(issue, "work_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        ).strip()
-        if retry.work_branch is not None and current_branch != retry.work_branch:
-            return False
+        # Status, assignment, branch, head, and the exact generation are the
+        # ownership boundaries.
+        current_branch = self._retry_issue_branch(issue)
+        if (
+            (retry.authority_generation or retry.work_branch is not None)
+            and current_branch != str(retry.work_branch or "").strip()
+        ):
+            mismatches.append("branch")
         current_head = self._retry_issue_head(issue, retry.workspace_path)
-        if retry.head_sha is not None and current_head != retry.head_sha:
+        if (
+            (retry.authority_generation or retry.head_sha is not None)
+            and current_head != retry.head_sha
+        ):
+            mismatches.append("head")
+
+        if retry.authority_generation:
+            expected_generation = self._retry_authority_generation(
+                issue,
+                attempt=retry.failed_attempt,
+                assignment_id=retry.assignment_id,
+                failed_status=retry.failed_status,
+                failed_updated_at=retry.failed_updated_at,
+                work_branch=retry.work_branch,
+                head_sha=retry.head_sha,
+            )
+            if expected_generation != retry.authority_generation:
+                mismatches.append("generation")
+        return tuple(dict.fromkeys(mismatches))
+
+    def _retry_post_write_mismatches(
+        self,
+        pre_write_issue: Issue,
+        post_write_issue: Issue | None,
+        retry: RetryEntry,
+        intended_active_state: str,
+        intended_assignment_id: str | None = None,
+    ) -> tuple[str, ...]:
+        """Compare a retry's post-write snapshot with its pre-write authority.
+
+        The status comparison intentionally targets ``intended_active_state``.
+        The dispatcher is authorized to perform that one transition itself;
+        status is still checked against the pre-write retry entry so an
+        operator edit cannot be mistaken for the dispatcher's handoff.
+        """
+        mismatches = list(self._retry_authority_mismatches(pre_write_issue, retry))
+        if post_write_issue is None:
+            mismatches.append("status")
+            return tuple(dict.fromkeys(mismatches))
+
+        if _state_key(post_write_issue.state) != _state_key(intended_active_state):
+            mismatches.append("status")
+        if (
+            getattr(post_write_issue, "id", None)
+            and getattr(pre_write_issue, "id", None)
+            and post_write_issue.id != pre_write_issue.id
+        ):
+            mismatches.append("task")
+        if (
+            getattr(post_write_issue, "project_id", None)
+            != getattr(pre_write_issue, "project_id", None)
+        ):
+            mismatches.append("project")
+        expected_assignment = (
+            str(intended_assignment_id).strip()
+            if intended_assignment_id is not None
+            else self._retry_issue_assignment(pre_write_issue)
+        )
+        if self._retry_issue_assignment(post_write_issue) != expected_assignment:
+            mismatches.append("assignment")
+        if self._retry_issue_branch(post_write_issue) != self._retry_issue_branch(
+            pre_write_issue
+        ):
+            mismatches.append("branch")
+        if self._retry_issue_head(
+            post_write_issue, retry.workspace_path
+        ) != self._retry_issue_head(pre_write_issue, retry.workspace_path):
+            mismatches.append("head")
+        return tuple(dict.fromkeys(mismatches))
+
+    async def _recover_aborted_retry_dispatch(
+        self,
+        issue: Issue,
+        retry: RetryEntry,
+        tracker: TrackerProtocol,
+        *,
+        restore_status: str,
+        intended_active_state: str,
+        status_write_attempted: bool,
+        observed_post_write: Issue | None = None,
+        reason: str,
+    ) -> None:
+        """Leave a failed pre-start retry owned or dispatchable.
+
+        A retry timer keeps its entry in ``state.retry_attempts`` while the
+        dispatch is in flight.  If setup aborts after the status claim, the
+        task must not be left In Progress with only that exhausted timer as
+        evidence.  Under the per-issue transition lock, restore the prior
+        retryable state when the dispatcher still owns the active state; then
+        re-arm the same generation if its authority remains valid.  External
+        status/terminal changes or authority revocation are never overwritten.
+        """
+        with self._retry_authority_lock:
+            still_owned = (
+                not retry.cancelled
+                and self._retry_dispatching.get(issue.id) is retry
+            )
+        if not still_owned:
+            return
+
+        current: Issue | None = None
+        restored = False
+        source_observed = False
+        restore_failed = False
+        async with self.issue_transition_lock(issue.id):
+            with self._retry_authority_lock:
+                still_owned = (
+                    not retry.cancelled
+                    and self._retry_dispatching.get(issue.id) is retry
+                )
+            if (
+                not still_owned
+                or issue.id in self.state.completed
+                or issue.id in self.state.running
+            ):
+                return
+            try:
+                refreshed = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+                )
+                current = refreshed[0] if refreshed else None
+            except Exception as exc:  # noqa: BLE001 - recovery is best effort
+                logger.debug(
+                    "Retry abort recovery refresh failed for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                current = observed_post_write
+
+            if current is not None and not current.project_id:
+                current.project_id = issue.project_id
+            if (
+                current is not None
+                and status_write_attempted
+                and _state_key(current.state) == _state_key(intended_active_state)
+                and issue.id not in self.state.completed
+                and issue.id not in self.state.running
+            ):
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.update_issue(
+                            issue.identifier,
+                            status=restore_status,
+                        ),
+                    )
+                    current = replace(current, state=restore_status)
+                    restored = True
+                    retry.dispatch_status = None
+                    retry.dispatch_assignment_id = None
+                    logger.info(
+                        "Recovered aborted retry dispatch issue_id=%s "
+                        "identifier=%s restored_status=%s reason=%s",
+                        issue.id,
+                        issue.identifier,
+                        restore_status,
+                        reason,
+                    )
+                except Exception as exc:  # noqa: BLE001 - keep retry ownership
+                    restore_failed = True
+                    logger.warning(
+                        "Could not restore aborted retry dispatch for %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
+            elif (
+                current is not None
+                and _state_key(current.state) == _state_key(restore_status)
+            ):
+                # The write either did not commit or an external owner already
+                # restored the dispatchable source state.  Clear the durable
+                # claim intent so a later unrelated In Progress edit cannot be
+                # mistaken for this dispatcher.
+                source_observed = True
+                retry.dispatch_status = None
+                retry.dispatch_assignment_id = None
+
+        with self._retry_authority_lock:
+            still_owned = (
+                not retry.cancelled
+                and self._retry_dispatching.get(issue.id) is retry
+            )
+        if not still_owned:
+            return
+
+        if restore_failed:
+            # The tracker still shows the status written by this dispatcher.
+            # Keep a durable timer owner even when another authority dimension
+            # drifted; the next callback will retry the rollback without ever
+            # launching under stale authority.
+            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+            self._persist_retry_entries()
+            return
+
+        # If the current authority no longer matches, keep the external state
+        # and withdraw this generation.  A restored Open/nonterminal task is
+        # still dispatchable through the ordinary candidate path even when
+        # branch/head/assignment drift invalidated this retry.
+        if current is not None and not self._retry_entry_matches_issue(current, retry):
+            self._cancel_retry_for_issue(
+                issue_id=issue.id,
+                identifier=issue.identifier,
+                project_id=issue.project_id,
+                reason=f"aborted retry authority changed during {reason}",
+                notify=False,
+            )
+            return
+
+        if current is None or restored or source_observed or not status_write_attempted:
+            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+            self._persist_retry_entries()
+
+    async def _recover_stale_retry_dispatch_claim(
+        self,
+        retry: RetryEntry,
+        issue: Issue,
+        *,
+        reason: str,
+    ) -> bool:
+        """Recover a persisted active-status claim with stale authority.
+
+        Returns ``True`` when ``issue`` is in the dispatcher-authored status
+        and recovery therefore owns the retry decision.  A failed rollback
+        leaves the same durable generation armed as a recovery owner; it can
+        retry restoration but cannot launch while non-status authority is
+        stale.
+        """
+        dispatch_status = retry.dispatch_status
+        restore_status = retry.failed_status
+        if (
+            dispatch_status is None
+            or restore_status is None
+            or _state_key(dispatch_status) == _state_key(restore_status)
+            or _state_key(issue.state) != _state_key(dispatch_status)
+        ):
             return False
+
+        if not issue.project_id:
+            issue.project_id = retry.project_id
+        installed_dispatch_owner = False
+        with self._retry_authority_lock:
+            existing_owner = self._retry_dispatching.get(retry.issue_id)
+            if existing_owner is not None and existing_owner is not retry:
+                return True
+            self.state.retry_attempts[retry.issue_id] = retry
+            if existing_owner is None:
+                self._retry_dispatching[retry.issue_id] = retry
+                installed_dispatch_owner = True
+
+        try:
+            tracker = self._tracker_for_issue(issue)
+            await self._recover_aborted_retry_dispatch(
+                issue,
+                retry,
+                tracker,
+                restore_status=canonicalize_status(restore_status),
+                intended_active_state=dispatch_status,
+                status_write_attempted=True,
+                observed_post_write=issue,
+                reason=reason,
+            )
+        finally:
+            if installed_dispatch_owner:
+                with self._retry_authority_lock:
+                    if self._retry_dispatching.get(retry.issue_id) is retry:
+                        self._retry_dispatching.pop(retry.issue_id, None)
+                    rearm = (
+                        not retry.cancelled
+                        and self.state.retry_attempts.get(retry.issue_id) is retry
+                        and retry.timer_handle is None
+                    )
+                if rearm:
+                    self._arm_retry_entry(
+                        retry,
+                        self._backoff_delay(retry.attempt),
+                    )
+                self._persist_retry_entries()
         return True
 
     @staticmethod
@@ -35328,6 +35791,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "head_sha": entry.head_sha,
                     "workspace_path": entry.workspace_path,
                     "authority_generation": entry.authority_generation,
+                    "dispatch_status": entry.dispatch_status,
+                    "dispatch_assignment_id": entry.dispatch_assignment_id,
                     "cancelled": bool(entry.cancelled),
                 }
                 for entry in entries
@@ -35378,6 +35843,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     head_sha=value.get("head_sha"),
                     workspace_path=value.get("workspace_path"),
                     authority_generation=value.get("authority_generation"),
+                    dispatch_status=value.get("dispatch_status"),
+                    dispatch_assignment_id=value.get("dispatch_assignment_id"),
                     due_at_epoch_ms=value.get("due_at_epoch_ms"),
                     cancelled=bool(value.get("cancelled", False)),
                 )
@@ -35406,13 +35873,53 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             try:
                 issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
             except Exception as exc:
-                logger.warning(
-                    "Discarding persisted retry for %s after refresh failure: %s",
+                if retry.dispatch_status is not None:
+                    logger.warning(
+                        "Retaining persisted retry status owner for %s after "
+                        "refresh failure: %s",
+                        retry.identifier,
+                        exc,
+                    )
+                    self._arm_retry_entry(
+                        retry,
+                        self._backoff_delay(retry.attempt),
+                    )
+                else:
+                    logger.warning(
+                        "Discarding persisted retry for %s after refresh failure: %s",
+                        retry.identifier,
+                        exc,
+                    )
+                continue
+            if issue is None:
+                logger.info(
+                    "Discarding stale persisted implementation retry for %s",
                     retry.identifier,
-                    exc,
                 )
                 continue
-            if issue is None or not self._retry_entry_matches_issue(issue, retry):
+            retry_mismatches = self._retry_authority_mismatches(issue, retry)
+            if retry_mismatches:
+                logger.info(
+                    "Persisted retry authority changed issue_id=%s identifier=%s "
+                    "authority_dimensions=%s",
+                    retry.issue_id,
+                    retry.identifier,
+                    list(retry_mismatches),
+                    extra={
+                        "retry_authority": {
+                            "stage": "restart_refresh",
+                            "issue_id": retry.issue_id,
+                            "identifier": retry.identifier,
+                            "dimensions": list(retry_mismatches),
+                        }
+                    },
+                )
+                if await self._recover_stale_retry_dispatch_claim(
+                    retry,
+                    issue,
+                    reason="restart found stale pre-start status claim",
+                ):
+                    continue
                 logger.info(
                     "Discarding stale persisted implementation retry for %s",
                     retry.identifier,
@@ -35561,6 +36068,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
         """Install an already-validated retry entry and its timer."""
         with self._retry_authority_lock:
+            previous_timer = retry.timer_handle
+            if previous_timer is not None and not self._retry_timer_cancelled(
+                previous_timer
+            ):
+                try:
+                    previous_timer.cancel()
+                except Exception:
+                    pass
             due_at_ms = time.monotonic() * 1000 + max(delay_ms, 0)
             retry.due_at_ms = due_at_ms
             retry.due_at_epoch_ms = time.time() * 1000 + max(delay_ms, 0)
@@ -35745,6 +36260,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             head_sha=head_sha,
             workspace_path=workspace_path,
             authority_generation=authority_generation,
+            dispatch_status=getattr(context_retry, "dispatch_status", None),
+            dispatch_assignment_id=getattr(
+                context_retry,
+                "dispatch_assignment_id",
+                None,
+            ),
         )
         self._arm_retry_entry(retry, delay_ms)
         self._persist_retry_entries()
@@ -35777,6 +36298,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # flight.  API cancellation can therefore revoke this exact
             # generation instead of racing a popped dictionary entry.
             self._retry_dispatching[issue_id] = retry
+            # The timer that brought us here has fired.  A pre-start abort
+            # may install a replacement timer; keeping the old handle would
+            # make that recovery look already armed.
+            retry.timer_handle = None
 
         # Wake the dispatch loop — even if we handle dispatch directly below,
         # the loop should run a tick to pick up any other work that appeared.
@@ -35817,15 +36342,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # Generation-aware entries fail closed.  Legacy entries retain the
             # previous status-only path for compatibility with old persisted
             # state and test doubles.
-            if retry.authority_generation and not self._retry_entry_matches_issue(
-                issue, retry
-            ):
+            retry_mismatches = self._retry_authority_mismatches(issue, retry)
+            if retry.authority_generation and retry_mismatches:
+                logger.info(
+                    "Retry authority changed before due dispatch issue_id=%s "
+                    "identifier=%s authority_dimensions=%s",
+                    issue_id,
+                    retry.identifier,
+                    list(retry_mismatches),
+                    extra={
+                        "retry_authority": {
+                            "stage": "timer_refresh",
+                            "issue_id": issue_id,
+                            "identifier": retry.identifier,
+                            "dimensions": list(retry_mismatches),
+                        }
+                    },
+                )
+                if await self._recover_stale_retry_dispatch_claim(
+                    retry,
+                    issue,
+                    reason="due retry authority changed after status claim",
+                ):
+                    return
                 self._cancel_retry_for_issue(
                     issue_id=issue_id,
                     reason="task authority changed before due retry",
                 )
                 logger.info(
-                    "Retry released claim issue_id=%s: authority generation changed",
+                    "Retry released claim issue_id=%s: authority dimensions changed",
                     issue_id,
                 )
                 return
@@ -35887,6 +36432,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             with self._retry_authority_lock:
                 if self._retry_dispatching.get(issue_id) is retry:
                     self._retry_dispatching.pop(issue_id, None)
+                rearm = (
+                    not retry.cancelled
+                    and self.state.retry_attempts.get(issue_id) is retry
+                    and issue_id not in self.state.running
+                    and retry.timer_handle is None
+                )
+            if rearm:
+                # Any _dispatch() exit before successful worker registration
+                # must leave a live retry owner, not a claim with no timer.
+                self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
             self._persist_retry_entries()
 
     def _fetch_running_states(self, by_project: dict) -> dict[str, Issue]:
@@ -35981,7 +36536,33 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     exc,
                 )
                 continue
-            if issue is None or not self._retry_entry_matches_issue(issue, retry):
+            retry_mismatches = (
+                self._retry_authority_mismatches(issue, retry)
+                if issue is not None
+                else ("task",)
+            )
+            if retry_mismatches:
+                logger.info(
+                    "Retry reconciliation found changed authority issue_id=%s "
+                    "identifier=%s authority_dimensions=%s",
+                    retry.issue_id,
+                    retry.identifier,
+                    list(retry_mismatches),
+                    extra={
+                        "retry_authority": {
+                            "stage": "reconciliation",
+                            "issue_id": retry.issue_id,
+                            "identifier": retry.identifier,
+                            "dimensions": list(retry_mismatches),
+                        }
+                    },
+                )
+                if issue is not None and await self._recover_stale_retry_dispatch_claim(
+                    retry,
+                    issue,
+                    reason="reconciliation found stale pre-start status claim",
+                ):
+                    continue
                 self._cancel_retry_for_issue(
                     issue_id=retry.issue_id,
                     identifier=retry.identifier,
