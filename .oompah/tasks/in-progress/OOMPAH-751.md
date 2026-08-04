@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:03:54.241051Z'
+updated_at: '2026-08-04T02:05:38.204067Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,5 +210,10 @@ author: oompah
 created: 2026-08-04 02:03
 ---
 Verification (docs focus): Focused coordination and task-handoff suites passed: 83 tests in tests/test_coordination.py, tests/test_server_coordination.py, and tests/test_task_handoff.py. git diff --check also passed. The first uv invocation was blocked before test collection by its systemd transient-scope launcher; rerunning with the available Python test runtime completed successfully.
+---
+author: oompah
+created: 2026-08-04 02:05
+---
+Completion (docs focus): Delivered and pushed commit ef5f04049, completing the advisory coordination race contract and clarifying non-terminal durable fallback, terminal peer exclusion, non-disclosing policy denial, and authorization/idempotency ordering. The branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
