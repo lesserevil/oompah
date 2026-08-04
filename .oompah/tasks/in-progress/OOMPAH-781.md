@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T21:10:57.327601Z'
+updated_at: '2026-08-04T21:11:22.985052Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -280,5 +280,10 @@ created: 2026-08-04 21:10
 ---
 Verification: 18 scheduler, 30 workflow-job, 7 terminal-audit-workflow, 20 integration-workflow, and 5 YOLO merge-conflict tests pass (80 total); targeted Ruff, terminal-mutation scan, and diff check pass. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781' started with the candidate snapshot and passed its audit scan, but this session sandbox terminates the long pytest process after ~30 seconds before completion.
+---
+author: oompah
+created: 2026-08-04 21:11
+---
+Completion: pushed 1ba60b568. Durable workflow scheduling now commits each snapshot atomically, eliminating the combined-gate history-row timeout and preventing partial cursor/job state on errors. The orphan YOLO test passes under full affected-module collection; no behavior change was needed there.
 ---
 <!-- COMMENTS:END -->
