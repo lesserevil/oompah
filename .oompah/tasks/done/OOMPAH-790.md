@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:16.097978Z'
-updated_at: '2026-08-04T17:59:43.523098Z'
+updated_at: '2026-08-04T17:59:49.280419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,7 +54,17 @@ oompah.terminal_audit:
       worktree remained at stale head a681ec2f despite the remote epic branch being
       fee2b7a57.'
     created_at: '2026-08-04T17:59:40.026402+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-790
+    target_state: Done
+    evidence_fingerprint: 953468f90e6665ecc591872730033212d35e1e12bbdc9280d4b0c8a26fc57807
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T17:59:47.950406+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -99,5 +109,12 @@ created: 2026-08-04 17:59
 Integration could not verify `OOMPAH-790`: epic worktree head a681ec2fc005f339063b3b8e2a139b8ae0b3c379 differs from the published epic head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 17:59
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation was fully tested and published at exact head fee2b7a57 on epic-OOMPAH-767. Integration twice failed on server-side recovery state: first the parent epic branch was absent, then its preserved integration worktree remained at stale head a681ec2f despite the remote epic branch being fee2b7a57.
 ---
 <!-- COMMENTS:END -->
