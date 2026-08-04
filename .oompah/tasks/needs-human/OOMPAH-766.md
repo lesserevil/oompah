@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:53:35.659759Z'
+updated_at: '2026-08-04T16:54:25.171429Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -30,6 +30,31 @@ oompah.work_branch: epic-OOMPAH-766
 oompah.target_branch: epic-OOMPAH-763
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-cad15f0c8539-3: '2026-08-04T16:54:15.433774+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    target_state: Done
+    evidence_fingerprint: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    audit_ids:
+    - audit-cad15f0c8539
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T16:54:15.433786+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    audit_id: audit-cad15f0c8539
+    attempt_id: infrastructure-exhausted-audit-cad15f0c8539-3
+    target_state: Done
+    evidence_fingerprint: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    status: Needs Human
+    audit_ids:
+    - audit-cad15f0c8539
+    applied: true
+    created_at: '2026-08-04T16:54:15.433805+00:00'
+    applied_at: '2026-08-04T16:54:22.525932+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -37,7 +62,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-766
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -99,13 +124,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766)'
       next_retry_at: '2026-08-04T16:54:07.735195+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-cad15f0c8539-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T16:54:15.433648+00:00'
+      completed_at: '2026-08-04T16:54:15.433648+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
-    updated_at: '2026-08-04T16:53:27.735228+00:00'
+    updated_at: '2026-08-04T16:54:15.433648+00:00'
   - version: 1
     audit_id: audit-48e0b754331c
     project_id: proj-14849f1b
@@ -264,5 +301,12 @@ author: oompah
 created: 2026-08-04 16:53
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 16:54
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
