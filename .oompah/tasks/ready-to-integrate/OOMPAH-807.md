@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T22:11:25.708871Z'
+updated_at: '2026-08-04T22:39:23.151462Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e576c151-0a32-4fd2-86a3-e96876ea07de
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-807
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-807
   base_branch: epic-OOMPAH-763
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-04T21:37:12.679978+00:00'
+  head_sha: 069633eeb24a4729dee7ace79ec2a0b865838ec5
+  submitted_at: '2026-08-04T22:39:14.732070+00:00'
+  updated_at: '2026-08-04T22:39:14.732070+00:00'
 oompah.task_costs:
   total_input_tokens: 46207
   total_output_tokens: 292
@@ -121,5 +123,10 @@ author: oompah
 created: 2026-08-04 22:11
 ---
 Landing-order dependency added on OOMPAH-806. Its complete clean pushed/submitted head is 8322a4d19. Rebase this task branch onto that exact head now, resolve only the localized legitimate overlap, run combined 806+807 focused verification, then commit/push/submit. The queue must integrate 806 first; this task may carry the exact prerequisite ancestry while waiting.
+---
+author: oompah
+created: 2026-08-04 22:39
+---
+Implemented revisionless terminal auditing for provably metadata-only Archived dispositions, while preserving immutable revision enforcement for code-bearing terminal targets. Added OOMPAH-803 regression coverage, non-Git attempt workspaces, fail-closed evidence preflight, and auditor prompt/source evidence. Verification: terminal mutation scan passed; 612 combined focused tests passed.
 ---
 <!-- COMMENTS:END -->
