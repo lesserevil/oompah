@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T12:42:47.264927Z'
+updated_at: '2026-08-04T12:42:54.036657Z'
 work_branch: OOMPAH-756
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/708
@@ -150,8 +150,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-2f19fb64b177
-    applied: false
+    applied: true
     created_at: '2026-08-04T12:42:43.634529+00:00'
+    applied_at: '2026-08-04T12:42:51.999465+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -521,5 +522,24 @@ author: oompah
 created: 2026-08-04 12:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 12:42
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 1263f924583e55b0ef7b77f0e074bdeab55f344f
+- merge_commit: c83d3d3c2
+- merged_pr: #708 (lesserevil/OOMPAH-756 -> main)
+- origin_main: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+- head_is_ancestor_of_main: true
+- diff_stat: oompah/orchestrator.py +57; tests/test_nested_epic_stale_in_review.py +502
+- impl_location: orchestrator.py:_reconcile_stale_in_review_tasks around line 21556
+- focused_tests_present: tests/test_nested_epic_stale_in_review.py (8 tests)
+- make_test_result: 15311 passed, 7 skipped, 1 xfailed, 57 warnings in 424.21s
+- previous_pass_audit: 2026-08-04 12:23 by Claude/sonnet
 ---
 <!-- COMMENTS:END -->
