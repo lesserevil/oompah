@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:56:45.975117Z'
+updated_at: '2026-08-04T00:57:18.774684Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-04 00:56
 ---
 Verification: 27 epic auto-close tests passed; 233 epic-strategy tests passed; merged/reconciliation/terminal-contract group passed 202 with 1 expected xfail; integration/parallel/landing group passed 57. Direct pytest needed --import-mode=importlib because the ambient environment points tests.conftest at another checkout; compileall and diff checks are clean.
+---
+author: oompah
+created: 2026-08-04 00:57
+---
+Completion: shipped commit a8a9e2b2f and pushed branch OOMPAH-747. Epic auto-close and shared rollup landing now reuse trusted, range-complete patch-equivalence evidence; rebased multi-commit work unblocks only when all patches are proven, while missing/untrusted evidence remains blocked with precise diagnostics. Focused verification is green.
 ---
 <!-- COMMENTS:END -->
