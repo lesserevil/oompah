@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:59:54.543059Z'
+updated_at: '2026-08-04T13:00:07.237511Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ author: oompah
 created: 2026-08-04 12:59
 ---
 Verification: focused suites pass. python3 -m pytest tests/test_orchestrator_duplicate_detection.py tests/test_task_handoff.py tests/test_focus.py tests/test_duplicate_preflight.py = 296 passed. Broader neighboring suites also pass: tests/test_stalled_task_watchdog.py, test_prompt_comment_compaction.py, test_checkpoint_coalescing.py, test_acp_agent.py, test_acp_project_tools.py, test_orchestrator_handlers.py, test_orchestrator_reload_profiles.py, test_orchestrator_full_sync.py, test_orchestrator_addendum_poll.py, test_error_watcher_orchestrator.py, test_orchestrator_repo_hygiene.py. Full make test gate is owned by the branch integrator once the branch head is review-ready.
+---
+author: oompah
+created: 2026-08-04 13:00
+---
+Completion: pushed 2e3402064 on OOMPAH-760. Delivered parser fail-closed identity requirement (no more forged HANDOFF backfill) plus regression tests for the exact OOMPAH-757 docs -> feature race, restart-between-writes, forced/late termination finalization, duplicate-mutation idempotence, already-completed focus, and explicit needs:feature selection. Combined with the prior authority-transition work (RunningEntry handoff generation, ACP/HTTP observer, reconcile Open branch, retirement finalizer, dispatch backfill), the acceptance criteria are met: a valid focus handoff durably completes the old focus before the task is dispatchable, starts the requested applicable focus exactly once, never loops back to the old focus, and never leaves an orphaned In Progress claim.
 ---
 <!-- COMMENTS:END -->
