@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:33.437818Z'
-updated_at: '2026-08-04T17:48:34.605316Z'
+updated_at: '2026-08-04T17:48:50.935822Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -22,13 +22,17 @@ merged_at: null
 oompah.agent_run_id: 3412c37e-e007-4c16-8e0d-17db4ccc714d
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 825541
-  total_output_tokens: 31323
+  total_input_tokens: 825571
+  total_output_tokens: 35806
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 825541
       output_tokens: 31323
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 30
+      output_tokens: 4483
       cost_usd: 0.0
   runs:
   - profile: default
@@ -43,6 +47,12 @@ oompah.task_costs:
     output_tokens: 27487
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:37:22.736724+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 4483
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:48:47.651011+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -361,5 +371,15 @@ Safe evidence:
 - target_state: Archived
 - reason: Aged Merged auto-archive (7 days)
 - previous_test_evidence: Comments record 442 release-delivery tests passing and 12237 total project tests passing
+---
+author: oompah
+created: 2026-08-04 17:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 33, Tool calls: 24
+- Tokens: 30 in / 4.5K out [4.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 27s
+- Log: OOMPAH-498__20260804T174529Z.jsonl
 ---
 <!-- COMMENTS:END -->
