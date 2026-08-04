@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:13:07.710987Z'
+updated_at: '2026-08-04T21:28:58.785530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -385,5 +385,10 @@ author: oompah
 created: 2026-08-04 21:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-04 21:28
+---
+Understanding: Direct-owner CI-fix takeover on 805 head bab1341. The prior gate log listed one hard failure: tests/test_state_branch_e2e.py::TestCommitHistoryRegression::test_state_branch_gets_new_commits_after_cutover. Local focused runs (44 tests, -n 4) pass, so the failure is load-sensitive. Root cause hypothesis after reading CheckpointQueue.flush(): flush() sets pending=0 inside self._lock, releases the lock, then calls flush_fn() which does the git commit. A concurrent caller with pending==0 returns immediately without waiting for the in-flight flush_fn to finish. In the failing test the create_issue triggers a 100 ms debounce timer; under full-gate load the timer thread wins the race, sets pending=0, and starts the commit while holding _write_lock. The test thread's flush_checkpoint() then sees pending=0 and returns before the timer's commit hits git, so state_count_after == state_count_before and the assertion fails. Plan: serialize flush() with a dedicated flush_serial lock so any caller of flush() waits until the currently in-flight flush_fn completes before returning. Add a targeted regression test and re-run focused + parallel checks.
 ---
 <!-- COMMENTS:END -->
