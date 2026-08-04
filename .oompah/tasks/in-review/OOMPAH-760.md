@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -12,10 +12,10 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:14:55.080169Z'
+updated_at: '2026-08-04T13:15:10.867658Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/712
 review_number: null
 review_head: null
 merged_at: null
@@ -154,6 +154,7 @@ oompah.integration:
   head_sha: 2e3402064c996d094a52bb21ef8bc8f451655484
   submitted_at: '2026-08-04T13:00:14.734334+00:00'
   updated_at: '2026-08-04T13:00:14.734334+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/712
 ---
 ## Summary
 
