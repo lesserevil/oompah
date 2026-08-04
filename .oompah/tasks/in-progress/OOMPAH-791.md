@@ -6,13 +6,14 @@ priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-793
 start_blocked_by: &id001
 - OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:58:32.093200Z'
+updated_at: '2026-08-04T21:04:44.690903Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null

@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T20:53:33.633383Z'
+updated_at: '2026-08-04T21:04:34.494899Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -165,5 +165,15 @@ author: oompah
 created: 2026-08-04 20:53
 ---
 Implementation: added workflow_runtime.py as the production composition root. Bootstrap now constructs project-scoped fact collectors, transition journals/services, integration and optional implementation/terminal controllers, and one durable worker from the shared job store. Orchestrator startup recovers leases, shutdown drains the worker, shadow mode materializes durable decisions alongside legacy comparison, and enforce mode returns before legacy lifecycle writers. Added runtime config bounds, health/UI projections, handler-factory injection, and recovery/enforce/shadow/startup tests.
+---
+author: oompah
+created: 2026-08-04 21:04
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 185
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 30m 33s
+- Log: OOMPAH-804__20260804T203416Z.jsonl
 ---
 <!-- COMMENTS:END -->

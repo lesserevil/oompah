@@ -6,13 +6,14 @@ priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-793
 start_blocked_by: &id001
 - OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:52:00.658013Z'
+updated_at: '2026-08-04T21:04:41.088418Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
