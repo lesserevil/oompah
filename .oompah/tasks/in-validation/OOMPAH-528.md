@@ -17,7 +17,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:33:06.419263Z'
+updated_at: '2026-08-04T23:33:17.459450Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-04 23:21
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-528 (tried: origin/epic-OOMPAH-528, origin/OOMPAH-528). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 23:33
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
