@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:35:28.327768Z'
+updated_at: '2026-08-04T01:36:22.106681Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -597,5 +597,10 @@ author: oompah
 created: 2026-08-04 01:35
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-08-04 01:36
+---
+Understanding: rebasing OOMPAH-734 (4 commits ahead of main) onto origin/main to resolve merge conflicts. Prior work already implemented backend commit-before-comment ordering, non-starvable finalization, finalization-health distinction, and regression tests. Main has advanced with OOMPAH-731/733/736/737/738/739/747 that overlap orchestrator/terminal_audit/terminal_transition_coordinator paths flagged in coordination comments.
 ---
 <!-- COMMENTS:END -->

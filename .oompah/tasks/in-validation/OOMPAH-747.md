@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T01:27:19.116154Z'
+updated_at: '2026-08-04T01:36:16.831444Z'
 work_branch: OOMPAH-747
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/697
@@ -83,6 +83,31 @@ oompah.work_branch: OOMPAH-747
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-83223ba19bd7: '2026-08-04T01:36:09.804907+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    target_state: Done
+    evidence_fingerprint: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    audit_ids:
+    - audit-862f2d92c639
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T01:36:09.804917+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    audit_id: audit-862f2d92c639
+    attempt_id: attempt-83223ba19bd7
+    target_state: Done
+    evidence_fingerprint: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    status: In Validation
+    audit_ids:
+    - audit-862f2d92c639
+    applied: true
+    created_at: '2026-08-04T01:36:09.804928+00:00'
+    applied_at: '2026-08-04T01:36:14.879740+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -90,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-747
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -99,7 +124,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-83223ba19bd7
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -109,13 +134,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T01:27:11.035096+00:00'
       branch_key: OOMPAH-747
+      verdict: pass
+      completed_at: '2026-08-04T01:36:09.804792+00:00'
+      ended_at: '2026-08-04T01:36:09.804792+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:25:39.651146+00:00'
-    updated_at: '2026-08-04T01:27:11.035096+00:00'
+    updated_at: '2026-08-04T01:36:09.804792+00:00'
   - version: 1
     audit_id: audit-d960e1cbd976
     project_id: proj-14849f1b
@@ -251,5 +279,21 @@ author: oompah
 created: 2026-08-04 01:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 01:36
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: c54a60a63a1742fa0dfa4ad2a68f46cc61d87fdf
+- implementation_commit: a8a9e2b2f51a581f9066736a9408f21adacffed5
+- pr: #697
+- changed_files: oompah/orchestrator.py (+255/-80), tests/test_epic_auto_close.py (+172)
+- focused_tests: test_epic_auto_close.py=27 pass; test_epic_strategy.py=233 pass; combined epic+terminal+duplicate=335 pass
+- branch_gate: make test 411.9s green (per prior gate comment)
+- acceptance_criteria: canonical proof reused (auto-close + rollup + durable); range-complete equivalence prevents tip-only false positives; stuck-epic alert now includes precise child evidence reason
 ---
 <!-- COMMENTS:END -->
