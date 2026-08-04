@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:45:35.259456Z'
+updated_at: '2026-08-04T12:46:10.066755Z'
 work_branch: OOMPAH-759
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/710
@@ -45,13 +45,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 46969
-  total_output_tokens: 294
+  total_input_tokens: 46975
+  total_output_tokens: 872
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46969
       output_tokens: 294
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 578
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +64,12 @@ oompah.task_costs:
     output_tokens: 294
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:26:05.806108+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 578
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T12:46:07.609670+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-759__20260804T112522Z
@@ -330,5 +340,15 @@ Safe evidence:
 - diff_stat: oompah/models.py +6, oompah/orchestrator.py +727/-73, tests/test_retry_authority_generation.py +601
 - branch_quality_gate: make test passed for 1c5572c87 in 450.3s (per task history)
 - commit_trailer: canonical oompah trailer, no model attribution
+---
+author: oompah
+created: 2026-08-04 12:46
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 37, Tool calls: 26
+- Tokens: 6 in / 578 out [584 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 43s
+- Log: OOMPAH-759__20260804T123932Z.jsonl
 ---
 <!-- COMMENTS:END -->
