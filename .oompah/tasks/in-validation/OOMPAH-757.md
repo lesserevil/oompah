@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T13:26:41.685208Z'
+updated_at: '2026-08-04T13:27:40.918987Z'
 work_branch: OOMPAH-757
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/711
@@ -46,8 +46,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 48714
-  total_output_tokens: 2281
+  total_input_tokens: 48720
+  total_output_tokens: 2463
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,6 +57,10 @@ oompah.task_costs:
     opus:
       input_tokens: 65
       output_tokens: 1672
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 182
       cost_usd: 0.0
   runs:
   - profile: default
@@ -83,6 +87,12 @@ oompah.task_costs:
     output_tokens: 1672
     cost_usd: 0.0
     recorded_at: '2026-08-04T12:42:30.558951+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 182
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T13:27:38.517431+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-757__20260804T111243Z
@@ -731,5 +741,15 @@ Safe evidence:
 - files_added: oompah/integration.py (+291 lines), oompah/orchestrator.py (+116 lines), tests/test_canonical_landing_evidence.py (+733 lines)
 - gap_evidence_consumption: _canonical_landing_evidence_block_reason has no callers in oompah/orchestrator.py outside its definition; existing landing consumers unchanged
 - gap_historical_whitelist: _BOUNDED_HISTORICAL_REPAIR_EVIDENCE dict is empty; no EXOCOMP-130 recovery entry; no EXOCOMP-148 specific test with SHAs 4e013110/8400a54a/61141cb8/9663f4b2
+---
+author: oompah
+created: 2026-08-04 13:27
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 60, Tool calls: 40
+- Tokens: 6 in / 182 out [188 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 40s
+- Log: OOMPAH-757__20260804T130805Z.jsonl
 ---
 <!-- COMMENTS:END -->
