@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:59:12.634279Z'
+updated_at: '2026-08-04T21:00:17.049947Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -61,7 +61,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 3daeb871-6107-458a-b8d0-91606d233f47
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
@@ -284,5 +284,10 @@ FAILED tests/test_orchestrator_merged.py::TestYoloMergeConflictLabelClearing::te
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-04 21:00
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
