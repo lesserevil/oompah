@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-754
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Inspect every integration head when repairing stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:24:09.871348Z'
+updated_at: '2026-08-04T11:32:52.058232Z'
 work_branch: OOMPAH-754
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/707
@@ -86,6 +86,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/707
 oompah.review_number: '707'
 oompah.work_branch: OOMPAH-754
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-114b45ab248d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-754
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65f8891b568b81da9017c24eb980ec40b1ec637f11955c4c57628e5d6fd59e02
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T11:32:41.870774+00:00'
+  - version: 1
+    audit_id: audit-1d7f30b84c1f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-754
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65f8891b568b81da9017c24eb980ec40b1ec637f11955c4c57628e5d6fd59e02
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T11:32:41.870774+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -170,5 +209,15 @@ author: oompah
 created: 2026-08-04 11:23
 ---
 Branch quality gate passed for `0440a66b160781c7c353c283345011d2932e9477` using `make test` in 444.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 11:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 11:32
+---
+YOLO: merged PR #707.
 ---
 <!-- COMMENTS:END -->
