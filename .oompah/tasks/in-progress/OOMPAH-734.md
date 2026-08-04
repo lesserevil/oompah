@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:40:15.568512Z'
+updated_at: '2026-08-04T01:40:29.462194Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -611,5 +611,13 @@ Discovery + Implementation: rebase encountered 2 conflicts.
 1) oompah/terminal_audit_enforcement.py (TerminalAuditEnforcement.__init__): main added self._lifecycle_lock/_lifecycle_state_lock (OOMPAH-737/738); OOMPAH-734 added self.finalization_failure_counts. Resolved by keeping BOTH — they are independent instance attributes and each is required for its own concern.
 
 2) oompah/terminal_transition_coordinator.py (owner override in _apply_override): main kept the old comment-before-status ordering (Step 5 post comment, Step 6 update_issue), OOMPAH-734 inverted this to Step 5 update_issue, Step 6 post comment (commit-before-comment). Resolved by accepting the OOMPAH-734 ordering — this IS the fix for OOMPAH-734 and matches the aligned regression test in tests/test_terminal_override.py. The tracker status is written before the human-readable comment; a comment failure now cannot leave the tracker mid-transition, and a persisted override intent remains for restart reconciliation.
+---
+author: oompah
+created: 2026-08-04 01:40
+---
+Verification: focused suites all green after rebase.
+- tests/test_terminal_transition_coordinator.py, test_terminal_audit_enforcement.py, test_terminal_audit_health.py, test_terminal_audit_observability.py, test_auditor_result_api.py, test_auditor_dispatch.py, test_auditor_termination_cleanup.py: 342 passed
+- adjacent: tests/test_terminal_override.py, test_dashboard_terminal_audit_health.py, test_terminal_audit.py: 76 passed
+Force-pushed OOMPAH-734 to 199812413. Branch is 4 commits ahead of main.
 ---
 <!-- COMMENTS:END -->
