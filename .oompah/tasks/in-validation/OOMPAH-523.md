@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T22:31:57.920803Z'
+updated_at: '2026-08-04T22:44:48.555859Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -95,7 +95,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f7925f9e54b7
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -106,13 +106,29 @@ oompah.terminal_audit:
       started_at: '2026-08-04T22:21:17.998838+00:00'
       branch_key: epic-OOMPAH-521
       candidate_rotation_count: 1
+      ended_at: '2026-08-04T22:44:40.375973+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-e821f107f942
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+      created_at: '2026-08-04T22:44:45.402997+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T22:44:45.402997+00:00'
+      branch_key: epic-OOMPAH-521
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:35.336793+00:00'
-    updated_at: '2026-08-04T22:21:17.998838+00:00'
+    updated_at: '2026-08-04T22:44:45.402997+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
@@ -132,7 +148,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-f7925f9e54b7
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -143,6 +159,22 @@ oompah.terminal_audit:
     started_at: '2026-08-04T22:21:17.998838+00:00'
     branch_key: epic-OOMPAH-521
     candidate_rotation_count: 1
+    ended_at: '2026-08-04T22:44:40.375973+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-e821f107f942
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+    created_at: '2026-08-04T22:44:45.402997+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T22:44:45.402997+00:00'
+    branch_key: epic-OOMPAH-521
+    candidate_rotation_count: 2
 ---
 ## Summary
 

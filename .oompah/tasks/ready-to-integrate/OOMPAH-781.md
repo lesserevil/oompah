@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T22:33:21.202825Z'
+updated_at: '2026-08-04T22:44:32.998822Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ author: oompah
 created: 2026-08-04 21:44
 ---
 Rebased terminal-audit domain onto a744be37; dropped redundant batching alternative; 57 focused tests pass.
+---
+author: oompah
+created: 2026-08-04 22:44
+---
+Live acceptance reproduction from OOMPAH-805: PR #715 was merged and terminal target Merged was queued. Audit audit-3d1 recorded a valid PASS labeled Done, but its result application reported/applied In Validation; the scheduler then dispatched a second audit for target Merged, which was interrupted, leaving the task In Validation with no active run/retry until an evidence-backed owner override. Please ensure the durable cutover preserves/advances the terminal target across intermediate PASS results, applies one valid verdict exactly once, and does not dispatch a second audit or strand the task when the merge target changes while an audit is active.
 ---
 <!-- COMMENTS:END -->

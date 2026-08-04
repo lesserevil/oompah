@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-08-04T21:49:29.724102Z'
+updated_at: '2026-08-04T22:44:39.606825Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-510
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -56,13 +56,27 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-502
       ended_at: '2026-08-04T21:49:26.714580+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-35a3bc46f9b6
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9eb31e3e9c4c81c46b81e601bb31a8296e3d8ac9dc55e07ee85fd6adc7d7b125
+      created_at: '2026-08-04T22:44:37.089640+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T22:44:37.089640+00:00'
+      branch_key: epic-OOMPAH-502
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:29:01.065359+00:00'
-    updated_at: '2026-08-04T21:41:56.285799+00:00'
+    updated_at: '2026-08-04T22:44:37.089640+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-53f0177746fa
@@ -79,6 +93,20 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-502
     ended_at: '2026-08-04T21:49:26.714580+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-35a3bc46f9b6
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9eb31e3e9c4c81c46b81e601bb31a8296e3d8ac9dc55e07ee85fd6adc7d7b125
+    created_at: '2026-08-04T22:44:37.089640+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T22:44:37.089640+00:00'
+    branch_key: epic-OOMPAH-502
+    candidate_rotation_count: 1
 ---
 ## Summary
 
