@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:39:19.254417Z'
+updated_at: '2026-08-04T20:39:27.919104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-04 20:39
 ---
 Gate triage: the two failures are load/order-sensitive tests outside this workflow change. On exact head ef5e8c30e, both failing tests passed together, then passed 10/10 repeated focused runs; the complete Granian E2E and GitHub lifecycle modules passed with four-worker loadgroup xdist (45 passed). OOMPAH-805 now records these exact fixture/process/event-loop isolation bugs alongside the earlier full-gate flakes. Resubmitting the unchanged clean head as the scoped in-flight workaround; no unrelated or empty commit added.
+---
+author: oompah
+created: 2026-08-04 20:39
+---
+Exact-head retry after reproducing both gate failures as load/order flakes: 10/10 focused repeats and 45/45 module tests under -n4 passed. Systemic deterministic-gate repair is active in OOMPAH-805.
 ---
 <!-- COMMENTS:END -->
