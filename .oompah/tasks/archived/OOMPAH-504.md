@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-08-04T23:08:52.287279Z'
+updated_at: '2026-08-04T23:09:00.200599Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -75,8 +75,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-a4497cc05587
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:08:48.817336+00:00'
+    applied_at: '2026-08-04T23:08:57.704815+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -315,5 +316,20 @@ author: oompah
 created: 2026-08-04 22:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:08
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- compact_prompt_comments_location: oompah/prompt.py:106
+- orchestrator_call_sites: oompah/orchestrator.py lines 264, 12394, 26274
+- env_example_lines: 427 (OOMPAH_PROMPT_MAX_COMMENTS=20), 432 (OOMPAH_PROMPT_MAX_COMMENT_BYTES=32768)
+- merge_commit: c1eb096e2 feat: compact startup prompt history
+- test_results: 7/7 test_prompt_comment_compaction.py passed; 482/482 test_config+test_provenance+test_prompt passed
+- days_since_merge: 7+
 ---
 <!-- COMMENTS:END -->
