@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:54:49.315494Z'
+updated_at: '2026-08-04T12:58:47.705864Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -282,5 +282,10 @@ author: oompah
 created: 2026-08-04 12:54
 ---
 Discovery: identified two blocking gaps from the prior audit. (1) The trusted-comment parser skipped both author and user identity checks when either field was absent, so a scraped tracker snapshot or an operator-written fixture without a byline could forge a HANDOFF. (2) Handoff tests only covered the reconciliation-during-handoff and the human-forged-text cases; the exact OOMPAH-757 docs -> feature race, restart-between-write, already-completed focus, explicit needs:feature routing, forced/late termination, and duplicate-mutation idempotence were untested. Applying the parser fix and adding regression tests now.
+---
+author: oompah
+created: 2026-08-04 12:58
+---
+Implementation: (1) Tightened _trusted_focus_handoff_comment in oompah/orchestrator.py to fail closed when a comment lacks both author and user identity fields, and when either present field does not match the bot login; the ACP observer synthesizes {author: oompah} so its path is unchanged. (2) Added regression tests to tests/test_orchestrator_duplicate_detection.py::TestFocusHandoff for: forged missing-identity rejection, explicit identity acceptance in either field, duplicate handoff mutation idempotence (comment + label + set-status all delivered twice), already-completed focus never re-selects docs, explicit needs:feature routing to feature via BUILTIN_FOCI, dispatch backfill after restart writes both focus-complete:docs and needs:feature idempotently, forced-termination finalization guard behavior, tracker error during forced-termination finalization, and the exact OOMPAH-757 docs -> feature race where Open becomes visible before worker exit (reconcile finalizes handoff, retires worker, no retry scheduled).
 ---
 <!-- COMMENTS:END -->
