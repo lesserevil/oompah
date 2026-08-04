@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: Merged
+status: Done
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-04T00:04:19.525730Z'
+updated_at: '2026-08-04T00:07:48.942412Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
