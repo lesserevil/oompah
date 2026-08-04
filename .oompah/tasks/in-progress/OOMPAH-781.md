@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:24:33.813725Z'
+updated_at: '2026-08-04T20:26:35.931046Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -61,7 +61,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6479cc35-618b-4384-b2cd-6ee48a4db025
+oompah.agent_run_id: 85e821e6-3fe4-41e2-a4c3-34d2d51ca7b3
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
@@ -129,5 +129,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 5s
 - Log: OOMPAH-781__20260804T202239Z.jsonl
+---
+author: oompah
+created: 2026-08-04 20:26
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
