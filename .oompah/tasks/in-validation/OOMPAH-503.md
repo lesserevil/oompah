@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-08-04T21:41:18.624466Z'
+updated_at: '2026-08-04T21:48:40.888543Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-503
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -52,7 +52,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e767ecd57fbd
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -62,6 +62,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:41:17.253063+00:00'
       branch_key: epic-OOMPAH-502
+      ended_at: '2026-08-04T21:48:38.539541+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah
@@ -73,7 +75,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-e767ecd57fbd
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,6 +85,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:41:17.253063+00:00'
     branch_key: epic-OOMPAH-502
+    ended_at: '2026-08-04T21:48:38.539541+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T21:45:30.419463Z'
+updated_at: '2026-08-04T21:48:47.174441Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -59,13 +59,13 @@ oompah.integration:
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
   updated_at: '2026-08-04T20:47:45.793269+00:00'
 oompah.task_costs:
-  total_input_tokens: 47917
-  total_output_tokens: 291
+  total_input_tokens: 48116
+  total_output_tokens: 5083
   total_cost_usd: 0.0
   by_model:
     opus:
-      input_tokens: 47917
-      output_tokens: 291
+      input_tokens: 48116
+      output_tokens: 5083
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 291
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:47:13.658330+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 199
+    output_tokens: 4792
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:48:38.627010+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-806__20260804T204517Z
@@ -158,5 +164,20 @@ Implementation: Three surgical changes to fence stalled-task recovery behind int
 - tests/test_stalled_task_watchdog.py::TestInternalGateAuthorityPrecedence — 12 cases covering the blocked-gate + passing-CI reproduction, prose-comment fallback, newer-head repair evidence, NEEDS_REBASE symmetry, restart idempotence, and end-to-end run_watchdog_audit assertions.
 - test_collects_integration_record_for_internal_gate_authority — verifies the orchestrator evidence collector surfaces the integration record.
 - tests/test_delivery_plane_recovery.py — 6 new cases covering blocked-row preservation across watchdog-driven Open/Needs CI Fix/Needs Rebase/In Progress transitions, terminal-state retirement (parametrised across Done/Merged/Archived), head-divergence retirement, tracker-issue-absent retirement, non-blocked (ready) row retirement (OOMPAH-657 regression), and explicit_retry rearm-exactly-once via the queue.
+---
+author: oompah
+created: 2026-08-04 21:48
+---
+Agent stalled — no productive actions (writes/commands) for 10 consecutive turns (3660s (4991 tokens)). Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-04 21:48
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 189, Tool calls: 126
+- Tokens: 199 in / 4.8K out [5.0K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 1m 0s
+- Log: OOMPAH-806__20260804T204754Z.jsonl
 ---
 <!-- COMMENTS:END -->
