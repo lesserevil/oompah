@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:08:22.204071Z'
+updated_at: '2026-08-04T16:09:03.062071Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -72,14 +72,20 @@ oompah.agent_run_id: 47c85803-5064-41c7-807f-cf6c5044bf48
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 2
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
   base_branch: epic-OOMPAH-740
   base_sha: b51047023a5a9d5a36d119260222fb57168cbf41
   head_sha: 1a6af40bf7b796d8c9984b49884088880b895388
   submitted_at: '2026-08-04T16:07:52.347672+00:00'
-  updated_at: '2026-08-04T16:08:20.549363+00:00'
+  updated_at: '2026-08-04T16:08:56.913366+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Trusted quality-gate
+    runtime corruption detected; candidate CI was not run: trusted editable source
+    mapping is inconsistent: expected one of [''/home/shedwards/src/oompah''] or immutable
+    candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-wz2ipoe2/workspace;
+    actual /home/shedwards/src/oompah-779. Repair or replace the service test runtime
+    before rerunning the branch gate.'
 oompah.task_costs:
   total_input_tokens: 151
   total_output_tokens: 47141
@@ -373,5 +379,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 31m 3s
 - Log: OOMPAH-745__20260804T153726Z.jsonl
+---
+author: oompah
+created: 2026-08-04 16:09
+---
+The combined-tree quality gate failed on `epic-OOMPAH-740--task-OOMPAH-745`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-wz2ipoe2/workspace; actual /home/shedwards/src/oompah-779. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
