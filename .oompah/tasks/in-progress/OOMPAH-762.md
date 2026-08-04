@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:16:19.341290Z'
-updated_at: '2026-08-04T13:17:46.860403Z'
+updated_at: '2026-08-04T13:18:14.021721Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-04 13:17
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-04 13:18
+---
+Understanding: The epic branch epic-OOMPAH-740 has fallen behind main and needs to be rebased. Plan: (1) fetch latest origin/main, (2) rebase epic-OOMPAH-740 onto origin/main, (3) resolve any conflicts, (4) force-push with --force-with-lease.
 ---
 <!-- COMMENTS:END -->
