@@ -109,6 +109,7 @@ from oompah.release_delivery_executor import cherry_pick_delivery
 from oompah.release_delivery_queue import ReleaseDeliveryQueue
 from oompah.release_delivery_store import make_delivery_worktree_key
 from oompah.epic_proposal import process_epic_proposal_issue
+from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
 from oompah.github_intake_bridge import (
     poll_github_issue_intake_project,
     project_uses_github_issue_intake,
@@ -215,7 +216,7 @@ from oompah.terminal_transition_coordinator import (
 )
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
-from oompah.workflow_facts import FactDomain, WorkflowFactCollector
+from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
 from oompah.workflow_jobs import WorkflowJobStore
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
@@ -6968,11 +6969,27 @@ class Orchestrator:
             : self.config.workflow_shadow_scan_limit
         ]:
             try:
-                collector = WorkflowFactCollector(
-                    project_id=project_id,
-                    tracker=tracker,
-                    sources=self._workflow_shadow_sources(issue),
-                )
+                if str(issue.issue_type or "").strip().lower() == "epic":
+                    project = self.project_store.get(project_id)
+                    collector = EpicFactCollector(
+                        project_id=project_id,
+                        tracker=tracker,
+                        default_branch=str(
+                            getattr(project, "default_branch", None)
+                            or getattr(project, "branch", None)
+                            or "main"
+                        ),
+                        repo_path=getattr(project, "repo_path", None)
+                        if project
+                        else None,
+                        sources=self._workflow_shadow_sources(issue),
+                    )
+                else:
+                    collector = WorkflowFactCollector(
+                        project_id=project_id,
+                        tracker=tracker,
+                        sources=self._workflow_shadow_sources(issue),
+                    )
                 facts = collector.collect(issue.identifier)
                 result = self.workflow_shadow.evaluate(
                     issue,
@@ -15556,6 +15573,66 @@ class Orchestrator:
             )
             return []
 
+    def _shared_epic_workflow_decision(
+        self,
+        epic: Issue,
+        *,
+        schedule: bool = True,
+    ) -> tuple[Any, Any] | None:
+        """Return the shared epic decision and facts for enforce-mode gates.
+
+        Keeping construction here makes the orchestrator a thin effect layer:
+        target resolution, graph validation, landing collection, and durable
+        job identity all come from :mod:`oompah.epic_workflow`.  The legacy
+        gate remains available while the workflow engine is off, which keeps
+        old projects and read-only tests on their established compatibility
+        path during rollout.
+        """
+        project = self.project_store.get(epic.project_id) if epic.project_id else None
+        tracker = self._tracker_for_issue(epic)
+        project_id = str(epic.project_id or getattr(project, "id", None) or "legacy")
+        collector = EpicFactCollector(
+            project_id=project_id,
+            tracker=tracker,
+            default_branch=str(
+                getattr(project, "default_branch", None)
+                or getattr(project, "branch", None)
+                or "main"
+            ),
+            repo_path=getattr(project, "repo_path", None) if project else None,
+        )
+        controller = EpicWorkflowController(
+            collector=collector,
+            store=self.workflow_job_store,
+        )
+        batch = controller.evaluate([epic])
+        if not batch.tasks:
+            return None
+        item = batch.tasks[0]
+        if schedule:
+            # Reconcile the exact facts/decision that the gate consumed.  The
+            # controller's durable cursor makes repeated maintenance ticks and
+            # process restarts idempotent.
+            controller.reconcile([epic])
+        return item.decision, item.facts
+
+    @staticmethod
+    def _shared_epic_landing_proven(facts: Any) -> bool:
+        """Check the epic's own immediate-target LandingFact, not its status."""
+        containment = facts.fact(FactDomain.CONTAINMENT)
+        if containment.state.value != "known" or not isinstance(containment.value, Mapping):
+            return False
+        source = str(containment.value.get("epic_branch") or "").strip()
+        target = str(containment.value.get("target_branch") or "").strip()
+        if not source or not target or facts.fact(FactDomain.LANDING).state.value != "known":
+            return False
+        return any(
+            item.source == source
+            and item.target == target
+            and item.state is LandingState.LANDED
+            for item in facts.landings
+        )
+
     def _is_epic_rebase_task(
         self,
         issue: Issue,
@@ -15885,6 +15962,27 @@ class Orchestrator:
         before its parent lands, that state is evidence of an independently
         merged or falsely promoted task, not proof that the epic contains it.
         """
+        if self.config.workflow_engine_mode == "enforce":
+            try:
+                shared = self._shared_epic_workflow_decision(epic)
+            except Exception as exc:  # noqa: BLE001 - rollup gates fail closed
+                return (
+                    f"shared epic facts for {epic.identifier} are unavailable "
+                    f"({type(exc).__name__}); refusing to merge"
+                )
+            if shared is None:
+                return f"shared epic facts for {epic.identifier} are incomplete"
+            decision, _facts = shared
+            if decision.disposition is TaskDisposition.RUNNABLE:
+                return None
+            waiting = ", ".join(
+                item.subject for item in decision.unmet_prerequisites
+            )
+            return (
+                f"shared epic decision {decision.reason_code} for {epic.identifier}"
+                + (f" (waiting on {waiting})" if waiting else "")
+            )
+
         if children is None:
             try:
                 children = self._fetch_epic_children(epic)
@@ -18588,6 +18686,53 @@ class Orchestrator:
         if _is_terminal_state(epic.state, self.config.tracker_terminal_states):
             self._clear_stuck_epic_alert(epic.identifier)
             return False
+
+        if self.config.workflow_engine_mode == "enforce":
+            try:
+                shared = self._shared_epic_workflow_decision(epic)
+                if shared is None:
+                    self._clear_stuck_epic_alert(epic.identifier)
+                    return False
+                decision, facts = shared
+                if (
+                    decision.disposition is not TaskDisposition.RUNNABLE
+                    or not self._shared_epic_landing_proven(facts)
+                ):
+                    # Rollup readiness and the epic's own landing are
+                    # separate facts.  A parent may remain open on main while
+                    # a nested child is already proven on that parent's
+                    # branch; neither check consults the other's derived
+                    # tracker status.
+                    self._clear_stuck_epic_alert(epic.identifier)
+                    return False
+                children = self._fetch_epic_children(epic)
+                tracker = self._tracker_for_issue(epic)
+                terminal_state = self._terminal_status_for_tracker(tracker)
+                self._request_epic_terminal_rollup(epic, terminal_state)
+                try:
+                    tracker.append_comment(
+                        epic.identifier,
+                        (
+                            f"Auto-closed from LandingFact evidence: all "
+                            f"{len(children)} direct children are ready and "
+                            "the epic branch landed on its immediate target."
+                        ),
+                    )
+                except Exception as exc:  # noqa: BLE001 - status remains authoritative
+                    logger.debug(
+                        "Failed to append shared auto-close reason to %s: %s",
+                        epic.identifier,
+                        exc,
+                    )
+                self._clear_stuck_epic_alert(epic.identifier)
+                return True
+            except Exception as exc:  # noqa: BLE001 - maintenance is best effort
+                logger.debug(
+                    "Shared epic auto-close check failed for %s: %s",
+                    epic.identifier,
+                    exc,
+                )
+                return False
 
         # Edge case: epic with no children — never auto-close.
         children = self._fetch_epic_children(epic)

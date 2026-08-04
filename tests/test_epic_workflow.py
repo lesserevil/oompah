@@ -6,10 +6,11 @@ import os
 import subprocess
 from pathlib import Path
 
-from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
+from oompah.epic_workflow import EpicAction, EpicFactCollector, EpicWorkflowController
 from oompah.models import Issue
 from oompah.statuses import DONE, IN_PROGRESS, OPEN
 from oompah.workflow_contract import TaskDisposition
+from oompah.work_decision import evaluate_task
 from oompah.workflow_facts import GitLandingCollector, LandingRequest, LandingState
 from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
 
@@ -178,3 +179,50 @@ def test_rebased_source_is_proven_by_patch_equivalence(tmp_path):
     assert fact.state is LandingState.LANDED
     assert fact.proof["kind"] == "patch_id"
     assert fact.durable
+
+
+def test_containment_cycle_is_actionable_and_never_schedules_rollup(tmp_path):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic", parent_id="MID")
+    mid = issue("MID", state=IN_PROGRESS, issue_type="epic", parent_id="TOP")
+    tracker = Tracker([top, mid])
+    collector = EpicFactCollector(project_id="project-1", tracker=tracker)
+    facts = collector.collect("TOP")
+
+    decision = evaluate_task(top, facts)
+
+    assert decision.action_required
+    assert decision.reason_code == "operator.action_required"
+    assert not decision.durable_jobs
+
+
+def test_maintenance_actions_are_idempotent_and_restart_safe(tmp_path):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    tracker = Tracker([top])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(project_id="project-1", tracker=tracker),
+        store=store,
+    )
+
+    first = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.REBASE_REPAIR,
+        generation="g1",
+    )
+    replay = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.REBASE_REPAIR,
+        generation="g1",
+    )
+    second = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.CLEANUP,
+        generation="g1",
+    )
+    assert replay == first
+    assert second.job_id != first.job_id
+    assert {job.action for job in store.list_jobs()} == {
+        EpicAction.REBASE_REPAIR.value,
+        EpicAction.CLEANUP.value,
+    }
+    store.close()
