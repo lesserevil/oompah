@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:28:39.650485Z'
+updated_at: '2026-08-04T21:29:07.777013Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -195,5 +195,10 @@ author: oompah
 created: 2026-08-04 21:28
 ---
 Discovery: WorkflowJobStore was initialized with journal_mode=WAL but synchronous=FULL (the SQLite default). WAL mode already provides crash safety for application failures; FULL mode's extra fsyncs are unnecessary overhead. With 402 tasks each requiring 2 transactions (activate_schedule + reconcile_schedule), the 804 fsyncs took ~7.6s, exceeding the 5s test timeout.
+---
+author: oompah
+created: 2026-08-04 21:29
+---
+Implementation: Added PRAGMA synchronous=NORMAL to WorkflowJobStore initialization (oompah/workflow_jobs.py). With WAL mode, this reduces per-commit fsync overhead while maintaining crash safety for committed data. 400-task reconcile time dropped from 7.6s to 0.3s. The recovery checkpoint already contained the complete OOMPAH-804 implementation: workflow_runtime.py (production composition root), bootstrap.py (build_workflow_runtime call + Services.workflow_runtime field), config.py (workflow_engine_mode/decision_limit/batch_size attributes), orchestrator.py (start/stop/tick lifecycle wiring + health/projections APIs), tests/test_workflow_runtime.py (4 tests for startup, recovery, enforce, shadow modes), and .env.example config documentation.
 ---
 <!-- COMMENTS:END -->

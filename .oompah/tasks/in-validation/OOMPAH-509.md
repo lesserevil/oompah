@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-08-04T21:28:55.267666Z'
+updated_at: '2026-08-04T21:29:09.773824Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-08-04 18:28
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-04 21:29
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
