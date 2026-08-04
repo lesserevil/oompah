@@ -1,23 +1,25 @@
 ---
 id: OOMPAH-811
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Atomically rearm integration ownership when rebase advances the task head
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-768
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-04T22:28:32.090875Z'
+updated_at: '2026-08-04T22:30:33.133743Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
