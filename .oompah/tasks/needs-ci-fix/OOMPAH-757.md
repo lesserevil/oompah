@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -11,9 +11,10 @@ start_blocked_by: []
 labels:
 - focus-complete:docs
 - needs:feature
+- ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:04:42.320814Z'
+updated_at: '2026-08-04T12:21:18.143624Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -450,5 +451,60 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 36m 46s
 - Log: OOMPAH-757__20260804T112802Z.jsonl
+---
+author: oompah
+created: 2026-08-04 12:21
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-757`
+Target: `main`
+Head: `a4945efdb056563f620c297e143fd2040a50dbe0`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+egy.py::TestOpenEpicMainPrs::test_idempotent_when_pr_already_exists
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_existing_pr_waits_for_changed_head_quality_gate
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_opens_pr_for_parent_with_missing_epic_label
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_idempotent_when_existing_pr_is_missing_from_cache
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_skips_when_provider_unavailable
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_marks_merged_instead_of_reopening_when_epic_already_landed
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_existing_pr_missing_from_cache_advances_epic_to_in_review
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_defers_epic_pr_when_project_at_review_cap
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_parent_shared_epic_opens_when_child_epics_already_merged
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_still_opens_when_no_prior_merged_pr
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_target_mismatch_does_not_mark_epic_merged
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_epic_rollup_waits_for_blocker_to_land
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_push_failure_without_remote_work_opens_no_epic_pr
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_uses_existing_remote_epic_branch_when_shared_push_blocked
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_reserves_project_review_capacity_within_epic_sweep
+FAILED tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_epic_rollup_allows_merged_blocker
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_refreshes_stale_target_before_judging_done_child
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_marks_epic_and_children_merged
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_fresh_target_still_escalates_genuinely_unlanded_child
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_merged_epic_reconciles_children_still_done
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_done_epic_is_marked_merged_after_rollup_pr_lands
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_provider_landed_epic_marks_children_and_helper_tasks
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_rewritten_unlanded_candidate_still_escalates
+FAILED tests/test_epic_strategy.py::TestLabelMergedEpics::test_rebased_remote_candidate_is_used_for_landing_evidence
+FAILED tests/test_epic_strategy.py::TestNestedEpicMergeChain::test_child_epic_pr_targets_parent_epic_branch_not_main
+FAILED tests/test_epic_strategy.py::TestNestedEpicMergeChain::test_child_epic_pr_defers_when_parent_branch_unavailable
+FAILED tests/test_epic_strategy.py::TestNestedEpicMergeChain::test_three_level_nesting_c_targets_b_branch
+FAILED tests/test_epic_strategy.py::TestNestedEpicMergeChain::test_shared_mode_child_epic_waits_for_all_direct_children_terminal
+FAILED tests/test_epic_strategy.py::TestNestedEpicMergeChain::test_top_level_epic_pr_still_targets_main
+FAILED tests/test_epic_strategy.py::TestYoloEpicStrategyBlockReason::test_allows_epic_rollup_pr_when_source_branch_matches_epic_branch
+FAILED tests/test_epic_strategy.py::TestYoloEpicStrategyBlockReason::test_allows_nested_epic_rollup_pr_with_parent_id
+FAILED tests/test_epic_terminal_audit_contract.py::test_shared_child_landing_evidence_uses_local_and_remote_bare_refs
+FAILED tests/test_nested_epic_cycle_fix.py::TestNestedEpicCycleFix::test_root_epic_still_requires_main_merge_for_auto_close
+FAILED tests/test_nested_epic_cycle_fix.py::TestNestedEpicCycleFix::test_nested_epic_auto_close_when_landed_on_parent_branch
+FAILED tests/test_yolo_watchdog.py::TestYoloEpicStrategyGate::test_shared_nested_epic_branch_can_merge
+= 51 failed, 15298 passed, 8 skipped, 1 xfailed, 44 warnings in 440.39s (0:07:20) =
+
+make: *** [Makefile:401: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
