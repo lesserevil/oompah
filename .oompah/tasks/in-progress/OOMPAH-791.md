@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T22:29:09.176660Z'
+updated_at: '2026-08-04T22:29:41.481826Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -231,5 +231,10 @@ author: oompah
 created: 2026-08-04 22:29
 ---
 Understanding: I will reconcile this branch with the integrated dependency, inspect the existing LandingFact-driven epic rollup implementation, and then rerun the exact-head quality gate before pushing and resubmitting.
+---
+author: oompah
+created: 2026-08-04 22:29
+---
+Discovery: the quality-gate infrastructure error is reproducible from the integration path. integration_executor resolves a new rebased candidate SHA but passes the caller's QualityGateOwner keyed to the submitted pre-rebase SHA; BranchQualityGate correctly rejects this exact-owner/head mismatch. I will preserve the owner identity/generation while rekeying its head to the resolved rebased candidate, with a focused regression test.
 ---
 <!-- COMMENTS:END -->
