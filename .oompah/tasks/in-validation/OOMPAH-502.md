@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T22:43:33.575166Z'
+updated_at: '2026-08-04T22:44:03.114310Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -381,5 +381,10 @@ Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 5s
+---
+author: oompah
+created: 2026-08-04 22:44
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->

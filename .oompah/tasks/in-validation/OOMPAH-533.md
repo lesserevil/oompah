@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-08-04T22:41:56.250552Z'
+updated_at: '2026-08-04T22:43:58.906767Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,6 +66,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T22:41:40.426681+00:00'
     branch_key: OOMPAH-533
+oompah.task_costs:
+  total_input_tokens: 20
+  total_output_tokens: 133
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 20
+      output_tokens: 133
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 20
+    output_tokens: 133
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T22:43:55.949419+00:00'
 ---
 ## Summary
 
@@ -156,5 +172,15 @@ author: oompah
 created: 2026-08-04 22:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 22:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 3
+- Tokens: 20 in / 133 out [153 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 13s
+- Log: OOMPAH-533__20260804T224158Z.jsonl
 ---
 <!-- COMMENTS:END -->
