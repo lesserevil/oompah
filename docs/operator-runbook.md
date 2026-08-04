@@ -262,6 +262,19 @@ Key fields to inspect:
 | `budget.exceeded` | `false` | Raise `OOMPAH_BUDGET_LIMIT`, wait for the window to roll, or call `/resume` |
 | `counts.running` | ≥ 0 | If 0 and tasks are open, check `paused`, alerts, and budget |
 
+### Dashboard alert center
+
+The dashboard shows generic actionable alerts once in the compact **Oompah
+alerts** disclosure below the agent bar. It is collapsed by default so the
+Kanban board remains usable; select the disclosure to review each alert and
+its remediation. Diagnostic transcripts are available only from the alert's
+**Diagnostic details** disclosure and remain internally scrollable.
+
+Audit, quality-gate, repository-hygiene, and authentication health retain
+their own status panels. Informational or healthy status is not added to the
+actionable-alert list. A WebSocket full resynchronization replaces stale
+warnings with the current state without requiring a page reload.
+
 ### Log tail
 
 ```bash
