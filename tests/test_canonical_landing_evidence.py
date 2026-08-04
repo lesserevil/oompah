@@ -494,13 +494,13 @@ if __name__ == "__main__":
 # ============================================================================
 
 class TestOrchestratorLandingEvidenceValidation:
-    """Tests for Orchestrator._child_landing_evidence_block_reason validation."""
+    """Tests for Orchestrator._canonical_landing_evidence_block_reason validation."""
 
     def test_no_record_no_block(self):
         """No integration record should not block (None)."""
         from oompah.orchestrator import Orchestrator
         
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=None,
             epic_branch="epic-E1",
         )
@@ -515,7 +515,7 @@ class TestOrchestratorLandingEvidenceValidation:
             task_branch="task-1",
             head_sha="a" * 40,
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch="epic-E1",
         )
@@ -532,7 +532,7 @@ class TestOrchestratorLandingEvidenceValidation:
             head_sha="a" * 40,
             canonical_landing_evidence=evidence.to_dict(),
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch=VALID_EPIC_BRANCH,
         )
@@ -549,7 +549,7 @@ class TestOrchestratorLandingEvidenceValidation:
             head_sha="a" * 40,
             canonical_landing_evidence=evidence.to_dict(),
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch="epic-DIFFERENT-999",  # Wrong epic
         )
@@ -580,7 +580,7 @@ class TestOrchestratorLandingEvidenceValidation:
             head_sha="a" * 40,
             canonical_landing_evidence=evidence.to_dict(),
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch=VALID_EPIC_BRANCH,
             max_evidence_age_hours=24,
@@ -612,7 +612,7 @@ class TestOrchestratorLandingEvidenceValidation:
             head_sha="a" * 40,
             canonical_landing_evidence=evidence.to_dict(),
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch=VALID_EPIC_BRANCH,
             max_evidence_age_hours=24,
@@ -631,7 +631,7 @@ class TestOrchestratorLandingEvidenceValidation:
                 "old_base_sha": "invalid",  # Not a valid SHA
             },
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch=VALID_EPIC_BRANCH,
         )
@@ -649,7 +649,7 @@ class TestOrchestratorLandingEvidenceValidation:
             head_sha="a" * 40,
             canonical_landing_evidence="not a dict",  # type: ignore
         )
-        result = Orchestrator._child_landing_evidence_block_reason(
+        result = Orchestrator._canonical_landing_evidence_block_reason(
             integration_record=record,
             epic_branch=VALID_EPIC_BRANCH,
         )

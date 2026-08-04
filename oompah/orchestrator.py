@@ -17394,12 +17394,17 @@ class Orchestrator:
         return tuple(found)
 
     @staticmethod
-    def _child_landing_evidence_block_reason(
+    def _canonical_landing_evidence_block_reason(
         integration_record: IntegrationRecord | None,
         epic_branch: str,
         max_evidence_age_hours: int = 24,
     ) -> str | None:
-        """Check if landing evidence blocks child landing validation (fail-closed).
+        """Check if canonical landing evidence blocks child landing validation (fail-closed).
+
+        Distinct from the instance method ``_child_landing_evidence_block_reason``
+        which reasons about Git branch containment.  This validates the
+        service-authored ``CanonicalLandingEvidence`` persisted in an
+        ``IntegrationRecord`` after a conflict-resolved epic-maintenance rebase.
 
         Returns a block reason string if evidence validation fails, None if
         evidence is valid or absent. This implements fail-closed design:
