@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:05.979634Z'
-updated_at: '2026-08-04T16:35:38.114156Z'
+updated_at: '2026-08-04T16:35:45.906015Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,7 +49,17 @@ oompah.terminal_audit:
       terminal mutation scan, secret scan, lint, compile, and ancestry all passed;
       the exact head is now the tip of epic-OOMPAH-766.'
     created_at: '2026-08-04T16:35:33.873482+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-785
+    target_state: Done
+    evidence_fingerprint: cc4ae5ee49a81edc4b2971b04f8a122ae99b013c2ed9fe1e2f6b191f6d9d23fb
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T16:35:44.210996+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -75,5 +85,12 @@ author: oompah
 created: 2026-08-04 16:35
 ---
 Implemented restart-safe event-to-decision-to-job scheduling with durable stale-scan fences, task serialization, persisted fairness, bounded full-sync recovery, graceful drain, and queue health.
+---
+author: oompah
+created: 2026-08-04 16:35
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project owner directly verified fd480f6bd with the exact prerequisite merge: focused workflow and scheduler tests, 428 adjacent orchestration tests, terminal mutation scan, secret scan, lint, compile, and ancestry all passed; the exact head is now the tip of epic-OOMPAH-766.
 ---
 <!-- COMMENTS:END -->
