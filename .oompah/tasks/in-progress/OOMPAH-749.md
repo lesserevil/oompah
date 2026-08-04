@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T01:00:00.434626Z'
+updated_at: '2026-08-04T01:00:49.026751Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,7 +118,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ac66c931-99e8-4cec-829e-74ca11079729
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2521
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-08-04 01:00
 ---
 Verification: 171 affected tests pass across delivery recovery, parallel epic integration, queue storage, and configuration suites. The 200-history regression confirms the live Ready row is claimed before audit replay; cursor replay resumes after restart; dependency-blocked rows do not trigger false degraded claims. compileall and git diff --check also pass.
+---
+author: oompah
+created: 2026-08-04 01:00
+---
+Completion: delivered and pushed commit 713f79080. Historical integrated-audit recovery is now cursor-based and batch-bounded, live Ready claims run first with dependency/lease behavior preserved, and integration queue progress exposes cursor/batch/Ready-age metrics plus a degraded alert for overdue eligible rows. Focused verification passed (171 affected tests plus the 200-history regression); branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->

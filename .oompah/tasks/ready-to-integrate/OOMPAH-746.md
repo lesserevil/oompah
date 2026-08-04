@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:59:41.459211Z'
+updated_at: '2026-08-04T01:00:38.230091Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-746
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:42:31.995844+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-746
+  head_sha: ad5f2dff5e7f9227bd86d5e39c187affc4294d39
+  submitted_at: '2026-08-04T01:00:31.045844+00:00'
+  updated_at: '2026-08-04T01:00:31.045844+00:00'
 ---
 ## Summary
 
@@ -225,5 +233,10 @@ Key test scenarios covered:
 7. All existing terminal audit and orchestrator flows remain functional
 
 The implementation successfully resolves the EXOCOMP-130 scenario where work_branch is absent but canonical epic branch exists.
+---
+author: oompah
+created: 2026-08-04 01:00
+---
+Implemented epic branch resolution for terminal-audit evidence fingerprinting. When work_branch is absent for epics, the system now resolves canonical branch names (origin/epic-ISSUE-ID for standalone, origin/epic-PARENT-ID for nested). All 853+ related tests pass. Enables EXOCOMP-130 scenario resolution.
 ---
 <!-- COMMENTS:END -->
