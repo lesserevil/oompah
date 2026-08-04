@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-773
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Define stable workflow reason codes and liveness SLOs
 parent: OOMPAH-764
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:42.900744Z'
-updated_at: '2026-08-04T14:27:06.907874Z'
+updated_at: '2026-08-04T14:27:26.679484Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-773
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -31,6 +31,31 @@ oompah.integration:
   head_sha: e34e3c58b8f99cda238df44d1e59d816303d3112
   submitted_at: '2026-08-04T14:27:00.846137+00:00'
   updated_at: '2026-08-04T14:27:00.846137+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-fd17c7dde891
+    project_id: proj-14849f1b
+    task_id: OOMPAH-773
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adff7c1f3683660b2b7f93ec3b9aee23c27296a6fb743ef0249265d8a41a15c5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct owner independently verified stable-schema, severity, deadline,
+      compatibility, focused-test, lint, format, secret-scan, pushed-head, fast-forward
+      ancestry, and exact parent-branch containment evidence. The automatic integration
+      queue remains occupied by pre-existing full-gate work, so this records the already-landed
+      result without interrupting it.
+    created_at: '2026-08-04T14:27:23.432274+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
