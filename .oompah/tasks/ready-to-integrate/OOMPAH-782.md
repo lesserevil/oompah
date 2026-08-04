@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T21:34:31.093711Z'
+updated_at: '2026-08-04T21:35:34.177082Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -46,16 +46,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: aa7f9192-c94f-40ce-9ed7-1f429bb98b56
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-782
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-782
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T21:15:28.354430+00:00'
+  head_sha: 37731edc88515dbcc5ee059cfa4ba20a6196cad1
+  submitted_at: '2026-08-04T21:35:11.928029+00:00'
+  updated_at: '2026-08-04T21:35:11.928029+00:00'
 oompah.task_costs:
   total_input_tokens: 46834
   total_output_tokens: 334
@@ -281,5 +283,20 @@ author: oompah
 created: 2026-08-04 21:34
 ---
 Completion: pushed 37731edc8. The combined-gate regression is fixed by atomically materializing bounded scheduler snapshots instead of committing every task cursor/job pair; the 402-row history case remains fully visible and now passes within its timeout. Working tree is clean and aligned with origin.
+---
+author: oompah
+created: 2026-08-04 21:35
+---
+Fixed the combined-gate durable scheduler timeout with atomic snapshot reconciliation; full gate passes
+---
+author: oompah
+created: 2026-08-04 21:35
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 53
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 14s
+- Log: OOMPAH-782__20260804T211535Z.jsonl
 ---
 <!-- COMMENTS:END -->
