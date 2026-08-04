@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:01:14.489029Z'
+updated_at: '2026-08-04T15:01:55.359202Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -73,14 +73,16 @@ oompah.agent_run_id: f9e1a639-d85c-49fa-93aa-654e36be27f4
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-744
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 2
   task_branch: epic-OOMPAH-740--task-OOMPAH-744
   base_branch: epic-OOMPAH-740
   base_sha: 494c39f8f06ec986bd4efb345ea59e359cf95aed
-  head_sha: adb19e5715330bd11924e8b0c27a45c6256049ad
+  head_sha: b51047023a5a9d5a36d119260222fb57168cbf41
   submitted_at: '2026-08-04T15:00:22.914116+00:00'
-  updated_at: '2026-08-04T15:00:22.914116+00:00'
+  updated_at: '2026-08-04T15:01:49.143415+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.task_costs:
   total_input_tokens: 130
   total_output_tokens: 41239
@@ -342,5 +344,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 17m 43s
 - Log: OOMPAH-744__20260804T144401Z.jsonl
+---
+author: oompah
+created: 2026-08-04 15:01
+---
+The combined-tree quality gate failed on `epic-OOMPAH-740--task-OOMPAH-744`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
