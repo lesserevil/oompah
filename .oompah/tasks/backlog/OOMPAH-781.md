@@ -7,17 +7,19 @@ title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T13:58:59.010872Z'
+updated_at: '2026-08-04T14:06:16.348042Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

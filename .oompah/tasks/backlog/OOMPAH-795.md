@@ -7,17 +7,20 @@ title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-796
+- OOMPAH-779
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-04T13:59:25.042939Z'
+updated_at: '2026-08-04T14:06:38.139083Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
