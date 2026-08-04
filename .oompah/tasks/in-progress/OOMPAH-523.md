@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:50:01.191773Z'
+updated_at: '2026-08-04T23:50:33.083057Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -742,5 +742,10 @@ author: oompah
 created: 2026-08-04 23:50
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 23:50
+---
+Understanding: enforce the OOMPAH-522 Basic-auth verifier at the ASGI boundary so all HTTP/mounted/WebSocket surfaces are protected when enabled, with only exact healthz and forge webhook POST exemptions. Preserve disabled behavior and forge validation, redact credentials, add focused integration tests, then verify and submit.
 ---
 <!-- COMMENTS:END -->
