@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-786
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Implement versioned WorkflowFacts and first-class LandingFact
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:07.630785Z'
-updated_at: '2026-08-04T15:12:41.282826Z'
+updated_at: '2026-08-04T15:13:08.875711Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-786
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -31,6 +31,30 @@ oompah.integration:
   head_sha: b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
   submitted_at: '2026-08-04T15:12:34.407260+00:00'
   updated_at: '2026-08-04T15:12:34.407260+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3b3e3f0bc2dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner exact fast-forward integration. Published head b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b
+      was proven to descend from epic-OOMPAH-765 and pushed exactly to that immediate
+      target. Evidence: 116 adjacent tests and final 33 focused tests passed; Ruff,
+      formatting, diff, secret, and terminal mutation checks clean.'
+    created_at: '2026-08-04T15:13:05.081368+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
