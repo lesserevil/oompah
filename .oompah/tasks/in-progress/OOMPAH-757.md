@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:33:19.733958Z'
+updated_at: '2026-08-04T12:42:32.831602Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: c2412a90-44d2-4ec9-a2e4-2237655e2206
 oompah.task_costs:
-  total_input_tokens: 48649
-  total_output_tokens: 609
+  total_input_tokens: 48714
+  total_output_tokens: 2281
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 48649
       output_tokens: 609
+      cost_usd: 0.0
+    opus:
+      input_tokens: 65
+      output_tokens: 1672
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +77,12 @@ oompah.task_costs:
     output_tokens: 344
     cost_usd: 0.0
     recorded_at: '2026-08-04T12:04:40.016556+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 65
+    output_tokens: 1672
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T12:42:30.558951+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-757__20260804T111243Z
@@ -520,5 +530,15 @@ author: oompah
 created: 2026-08-04 12:33
 ---
 Understanding: The 51 failing tests are all caused by method-shadowing. The prior implementation added a NEW @staticmethod named _child_landing_evidence_block_reason at orchestrator.py:17397 with signature (integration_record, epic_branch, max_evidence_age_hours). This shadowed the ORIGINAL instance method at orchestrator.py:15048 with signature (self, epic, child, *, expected_work_branch, container_branches). Python resolves to the second definition, so every internal caller (13957, 16217, 23818) and every existing test (epic_strategy, epic_terminal_audit_contract, nested_epic_cycle_fix, yolo_watchdog, merged_labels_scope) fails with 'unexpected keyword argument expected_work_branch'. Fix plan: (1) rename the newly-added static method to _canonical_landing_evidence_block_reason (distinct semantic — evidence validation on an IntegrationRecord); (2) update the 8 tests in test_canonical_landing_evidence.py to use the new name. This is the minimal fix and preserves both semantics.
+---
+author: oompah
+created: 2026-08-04 12:42
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 38
+- Tokens: 65 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 40s
+- Log: OOMPAH-757__20260804T122309Z.jsonl
 ---
 <!-- COMMENTS:END -->
