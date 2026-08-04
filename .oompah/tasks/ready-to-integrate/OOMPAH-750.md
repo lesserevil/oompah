@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:06:26.567992Z'
+updated_at: '2026-08-04T01:06:42.772811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3967ca50-839e-4383-bc09-c9789dd49d35
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1312
@@ -94,6 +94,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-750
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:48:42.364373+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-750
+  head_sha: 92bf56563a2803a4a3df0e146739634da6caa48a
+  submitted_at: '2026-08-04T01:06:32.087031+00:00'
+  updated_at: '2026-08-04T01:06:32.087031+00:00'
 ---
 ## Summary
 
@@ -168,5 +176,10 @@ author: oompah
 created: 2026-08-04 01:06
 ---
 Completion: Delivered and pushed commit 92bf56563. The watchdog now prioritizes current review/audit/branch/CI/provider evidence, distinguishes technical ambiguity from human decisions, honors newest comment timestamps, and remains idempotent across restarts. Focused and adjacent verification is green (90 + 346 tests); branch is clean and tracks origin/OOMPAH-750.
+---
+author: oompah
+created: 2026-08-04 01:06
+---
+Prefer current tracker, SCM, audit, CI, and provider evidence over stale handoff wording; preserve genuine human decisions and fail closed on technical ambiguity. Verified with 90 focused and 346 adjacent tests.
 ---
 <!-- COMMENTS:END -->
