@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:41:57.537507Z'
+updated_at: '2026-08-04T12:54:49.315494Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ author: oompah
 created: 2026-08-04 12:41
 ---
 Understanding: continuing after the deep-audit handoff. Prior worker delivered the atomic authority transition (handoff generation on RunningEntry, ACP/HTTP mutation observer, reconcile Open branch, retirement finalization) and 224 focused tests pass. Remaining gaps flagged by the audit: (1) trusted-comment parser accepts records lacking both author and user identity (should fail closed); (2) restart between structured comment write and Open transition can leave an orphaned In Progress claim because backfill only runs during dispatch; (3) missing regression tests for the exact docs -> feature race, forced/late worker exit, retry/normal dispatch, restart-between-writes, duplicate handoff, already-completed focus, and exactly-once successor. I will tighten the parser, add restart recovery for In Progress tasks whose live worker no longer exists, and add the missing tests.
+---
+author: oompah
+created: 2026-08-04 12:54
+---
+Discovery: identified two blocking gaps from the prior audit. (1) The trusted-comment parser skipped both author and user identity checks when either field was absent, so a scraped tracker snapshot or an operator-written fixture without a byline could forge a HANDOFF. (2) Handoff tests only covered the reconciliation-during-handoff and the human-forged-text cases; the exact OOMPAH-757 docs -> feature race, restart-between-write, already-completed focus, explicit needs:feature routing, forced/late termination, and duplicate-mutation idempotence were untested. Applying the parser fix and adding regression tests now.
 ---
 <!-- COMMENTS:END -->
