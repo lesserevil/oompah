@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-783
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Implement the durable workflow worker and resumable external-effect saga
 parent: OOMPAH-766
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T15:50:16.589672Z'
+updated_at: '2026-08-04T15:50:39.703189Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,14 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-783
+  head_sha: a55846f783f215ce2383ab4d67699031ddc8a71b
+  submitted_at: '2026-08-04T15:50:27.189523+00:00'
+  updated_at: '2026-08-04T15:50:27.189523+00:00'
 ---
 ## Summary
 
@@ -37,5 +45,10 @@ author: oompah
 created: 2026-08-04 15:50
 ---
 Implemented the durable workflow worker saga: token-fenced leases and heartbeats; exact generation/evidence/head revalidation; idempotency inspection; bounded external effects and verification; durable phase checkpoints; TaskTransitionService routing; retry/error taxonomy; stale-race supersession; cooperative interruption; graceful drain; and restart recovery. Added 31 focused tests including process-death injection at leased, revalidated, effect pending/returned/verified, transition returned/applied, and completed boundaries; effect-before-ack and transition-before-ack recovery; lost leases; timeouts; and cancellation. Verification: 206 focused/adjacent tests passed; ruff check/format, make terminal-audit-scan, staged secret scan, and diff check passed.
+---
+author: oompah
+created: 2026-08-04 15:50
+---
+Implemented and verified the resumable durable workflow worker; exact commit a55846f783f215ce2383ab4d67699031ddc8a71b is ready to land on epic-OOMPAH-766.
 ---
 <!-- COMMENTS:END -->
