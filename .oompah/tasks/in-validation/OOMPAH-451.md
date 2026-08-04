@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:39:26.817849Z'
+updated_at: '2026-08-04T15:45:16.959541Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -29,6 +29,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5b11000acb47: '2026-08-04T15:25:41.704049+00:00'
+    infrastructure-exhausted-audit-24a26411808a-3: '2026-08-04T15:45:14.970779+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-451
@@ -39,6 +40,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T15:25:41.704061+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-451
+    target_state: Done
+    evidence_fingerprint: f94586f4c9bd8064b7231df299d8b94ebac70190a3c18e373cdb4e2c4f67f348
+    audit_ids:
+    - audit-24a26411808a
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T15:45:14.970791+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-451
@@ -52,6 +62,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T15:25:41.704076+00:00'
     applied_at: '2026-08-04T15:25:50.985609+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-451
+    audit_id: audit-24a26411808a
+    attempt_id: infrastructure-exhausted-audit-24a26411808a-3
+    target_state: Done
+    evidence_fingerprint: f94586f4c9bd8064b7231df299d8b94ebac70190a3c18e373cdb4e2c4f67f348
+    status: Needs Human
+    audit_ids:
+    - audit-24a26411808a
+    applied: false
+    created_at: '2026-08-04T15:45:14.970804+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -94,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-451
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -156,13 +177,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-451 (tried: origin/epic-OOMPAH-451, origin/OOMPAH-451)'
       next_retry_at: '2026-08-04T15:39:57.487455+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-24a26411808a-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f94586f4c9bd8064b7231df299d8b94ebac70190a3c18e373cdb4e2c4f67f348
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T15:45:14.970709+00:00'
+      completed_at: '2026-08-04T15:45:14.970709+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T15:22:35.004302+00:00'
-    updated_at: '2026-08-04T15:39:17.487484+00:00'
+    updated_at: '2026-08-04T15:45:14.970709+00:00'
   - version: 1
     audit_id: audit-c1c7f0c558af
     project_id: proj-14849f1b
