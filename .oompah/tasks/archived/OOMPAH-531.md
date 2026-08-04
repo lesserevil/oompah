@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-08-04T23:41:28.879840Z'
+updated_at: '2026-08-04T23:41:34.605043Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -68,8 +68,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-6f439353f931
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:41:25.498975+00:00'
+    applied_at: '2026-08-04T23:41:33.357761+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -420,5 +421,22 @@ author: oompah
 created: 2026-08-04 23:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:41
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- epic_merge_commit: 70771b4e9 (PR #568 epic-OOMPAH-528 into main)
+- implementation_commit: cd8a01018 Schedule duplicate checks before implementation (on main)
+- config_env_line: .env.example:194 OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS=1
+- config_service_field: oompah/config.py: duplicate_preflight_max_agents (declared line 590, loaded line 1154)
+- orchestrator_scheduler: oompah/orchestrator.py: _select_duplicate_preflight_candidates (line 12579), _duplicate_preflight_limit (line 11781)
+- tests_present: tests/test_duplicate_preflight.py, tests/test_duplicate_screening.py, tests/test_orchestrator_duplicate_detection.py
+- docs_present: docs/duplicate-screening.md
+- followup_commits_on_main: 20dd1e42b, 625ee321e, 71f87859f, 145972d50, 2d682cacc and others
 ---
 <!-- COMMENTS:END -->
