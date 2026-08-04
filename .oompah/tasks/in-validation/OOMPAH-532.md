@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-532
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Apply duplicate-preflight verdicts without implementation transitions
 parent: OOMPAH-528
@@ -11,12 +11,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:28.624983Z'
-updated_at: '2026-07-28T22:14:49.647893Z'
+updated_at: '2026-08-04T22:36:54.076374Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-216a219f736c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-532
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f27213465bfff8140a3998693fe6a0a61a164e67cfd0816b12fc8ed672fb76f6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:36:46.855034+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -95,5 +117,10 @@ author: oompah
 created: 2026-07-28 22:13
 ---
 Verified the completed duplicate-preflight work landed in PR #568; removed stale divergent worktree evidence.
+---
+author: oompah
+created: 2026-08-04 22:36
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
