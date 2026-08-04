@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-466
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Apply audit verdicts and route failures without fail-open behavior
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-07-28T21:17:42.882286Z'
+updated_at: '2026-08-04T21:34:06.090620Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -45,6 +45,28 @@ oompah.task_costs:
     output_tokens: 3178
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:04:58.585212+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e83dfc0257fe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-466
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5035c7261246e8fe6d45dbd09ced47dc347d1fd9b27581db5c669e79f47aaac5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:59.671378+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -142,5 +164,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 55s
 - Log: OOMPAH-466__20260728T195305Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
