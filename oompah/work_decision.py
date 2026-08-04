@@ -66,6 +66,23 @@ IMPLEMENTATION_ACTION_JOBS = frozenset(
     }
 )
 
+# Review actions are deliberately named independently from the legacy
+# maintenance methods.  A controller may materialize these names in the
+# durable job ledger and a worker can safely replay them after a restart.
+REVIEW_ACTION_JOBS = frozenset(
+    {
+        "review_monitor",
+        "review_refresh",
+        "review_ci_repair",
+        "review_conflict_repair",
+        "review_closed_repair",
+        "review_head_reconciliation",
+        "review_landing_refresh",
+        "review_terminal_stage",
+        "review_capacity_recheck",
+    }
+)
+
 _FIXED_DECISION_REASON_CODES = frozenset(
     {
         "coordination.policy_denied",
@@ -97,8 +114,17 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "prioritization.awaiting_owner",
         "requestor.answer_required",
         "review.ci_fix_required",
+        "review.ci_pending",
+        "review.capacity_wait",
+        "review.closed_unmerged",
+        "review.head_changed",
+        "review.landing_refresh",
+        "review.merge_target_mismatch",
+        "review.missing_artifact",
         "review.monitoring",
+        "review.provider_unavailable",
         "review.rebase_required",
+        "review.source_deleted",
         "rollup.children_complete",
         "rollup.children_missing",
         "rollup.waiting_children",
@@ -514,11 +540,16 @@ def _fact_wait(
     job: str,
 ) -> WorkDecision:
     observation = facts.fact(domain)
+    reason_code = (
+        "review.provider_unavailable"
+        if domain is FactDomain.REVIEW_CI and observation.state is FactState.ERROR
+        else f"evidence.{domain.value}_{observation.state.value}"
+    )
     return _decision(
         task,
         facts,
         disposition=TaskDisposition.RETRY_SCHEDULED,
-        reason_code=f"evidence.{domain.value}_{observation.state.value}",
+        reason_code=reason_code,
         owner=owner,
         prerequisites=(
             UnmetPrerequisite(
@@ -646,17 +677,177 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             action=PermittedAction.REFRESH_REVIEW,
             job="review_refresh",
         )
-    if value.get("conflict") or value.get("mergeable") is False:
+
+    # The collector uses ``state=missing`` for a successful empty forge
+    # result.  This must remain distinct from FactState.ERROR/STALE above:
+    # empty means the provider answered, whereas error means it did not.
+    state = str(value.get("state") or "open").strip().lower()
+    task_fact = _mapping(facts.fact(FactDomain.TASK).value) or {}
+    expected_target = str(
+        task.target_branch or task_fact.get("target_branch") or ""
+    ).strip()
+    observed_target = str(value.get("target_branch") or "").strip()
+    if observed_target and expected_target and observed_target != expected_target:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="review.merge_target_mismatch",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "review.merge_target_mismatch",
+                    expected_target,
+                    observed_target,
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+            recommended_status=NEEDS_HUMAN,
+        )
+
+    if state in {"missing", "not_found", "none"} or value.get("present") is False:
+        landed = tuple(
+            item
+            for item in facts.landings
+            if item.state is LandingState.LANDED
+            and (not expected_target or item.target == expected_target)
+        )
+        if landed:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.TERMINAL,
+                reason_code="terminal.immediate_target_landing_proven",
+                owner=WorkflowOwner.REVIEW_MONITOR,
+                actions=(PermittedAction.REQUEST_MERGED,),
+                durable_jobs=("review_terminal_stage",),
+                recommended_status=MERGED,
+            )
+        if bool(value.get("source_deleted")):
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.ACTION_REQUIRED,
+                reason_code="review.source_deleted",
+                owner=WorkflowOwner.OPERATOR,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "review.source_deleted",
+                        str(value.get("source_branch") or "review_source"),
+                    ),
+                ),
+                actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+                alert=AlertSeverity.WARNING,
+                recommended_status=NEEDS_HUMAN,
+            )
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="review.missing_artifact",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "review.missing_artifact",
+                    str(value.get("source_branch") or "review"),
+                ),
+            ),
+            actions=(PermittedAction.REFRESH_REVIEW,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=("review_refresh",),
+        )
+
+    if state in {"merged", "closed_merged"}:
+        recorded_head = str(task_fact.get("review_head") or "").strip().lower()
+        current_head = str(task_fact.get("head_sha") or "").strip().lower()
+        if recorded_head and current_head and recorded_head != current_head:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="review.head_changed",
+                owner=WorkflowOwner.REVIEW_MONITOR,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "review.head_changed",
+                        recorded_head,
+                        current_head,
+                    ),
+                ),
+                actions=(PermittedAction.ROUTE_REBASE,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=("review_head_reconciliation",),
+                recommended_status=READY_TO_INTEGRATE,
+            )
+        landed = tuple(
+            item
+            for item in facts.landings
+            if item.state is LandingState.LANDED
+            and (not expected_target or item.target == expected_target)
+        )
+        if landed:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.TERMINAL,
+                reason_code="terminal.immediate_target_landing_proven",
+                owner=WorkflowOwner.REVIEW_MONITOR,
+                actions=(PermittedAction.REQUEST_MERGED,),
+                durable_jobs=("review_terminal_stage",),
+                recommended_status=MERGED,
+            )
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="review.landing_refresh",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "review.landing_unknown",
+                    expected_target or "review_target",
+                ),
+            ),
+            actions=(PermittedAction.REFRESH_LANDING,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=("review_landing_refresh",),
+        )
+
+    if state in {"closed", "closed_unmerged"}:
         return _decision(
             task,
             facts,
             disposition=TaskDisposition.OWNED,
-            reason_code="review.rebase_required",
-            owner=WorkflowOwner.REVIEW_MONITOR,
-            actions=(PermittedAction.ROUTE_REBASE,),
-            recommended_status=NEEDS_REBASE,
+            reason_code="review.closed_unmerged",
+            owner=WorkflowOwner.REPAIR_WORKER,
+            actions=(PermittedAction.CLAIM_REPAIR,),
+            durable_jobs=("review_closed_repair",),
+            recommended_status=OPEN,
         )
-    if value.get("ci") in {"failed", "failure"}:
+
+    capacity = _mapping(value.get("capacity"))
+    if capacity and bool(capacity.get("at_capacity")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="review.capacity_wait",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "review.capacity_wait",
+                    "review_capacity",
+                    str(capacity.get("limit") or ""),
+                ),
+            ),
+            actions=(PermittedAction.REFRESH_REVIEW,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=("review_capacity_recheck",),
+        )
+
+    ci = str(value.get("ci") or "unknown").strip().lower()
+    if ci in {"failed", "failure"}:
         return _decision(
             task,
             facts,
@@ -664,7 +855,31 @@ def _review_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             reason_code="review.ci_fix_required",
             owner=WorkflowOwner.REVIEW_MONITOR,
             actions=(PermittedAction.ROUTE_CI_FIX,),
+            durable_jobs=("review_ci_repair",),
             recommended_status=NEEDS_CI_FIX,
+        )
+    if value.get("conflict") or value.get("mergeable") is False or str(
+        value.get("mergeable_state") or ""
+    ).strip().lower() in {"dirty", "behind"}:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="review.rebase_required",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            actions=(PermittedAction.ROUTE_REBASE,),
+            durable_jobs=("review_conflict_repair",),
+            recommended_status=NEEDS_REBASE,
+        )
+    if ci in {"pending", "unknown", ""}:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="review.ci_pending",
+            owner=WorkflowOwner.REVIEW_MONITOR,
+            actions=(PermittedAction.REFRESH_REVIEW,),
+            durable_jobs=("review_monitor",),
         )
     return _decision(
         task,
