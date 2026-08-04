@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:19:28.447454Z'
+updated_at: '2026-08-04T11:25:34.786537Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,29 @@ author: oompah
 created: 2026-08-04 11:19
 ---
 Task-specific recovery update: the reconciler safely cancelled OOMPAH-755's obsolete ordinary integration row after the tracker reopened, clearing the integration alert. A normal authenticated transition back to Done then succeeded and created audit audit-4d23d9e26034; OOMPAH-755 is now In Validation with an active independent Completion Auditor. This restores the in-flight helper without bypassing terminal auditing, while this task remains necessary to make enqueue exclusion and direct completion atomic.
+---
+author: oompah
+created: 2026-08-04 11:25
+---
+UNDERSTANDING: This is a race condition fix for OOMPAH-731 (direct epic maintenance atomicity). The issue: direct epic maintenance tasks are supposed to bypass ordinary integration queue and use a Done-only path. However, OOMPAH-755 (a direct helper) submitted successfully but also created a stale ordinary integration row. Later, the queue tried to lease that stale row and failed because the epic worktree was already owned.
+
+The root cause appears to be a window between task classification and enqueue decision where:
+1. is_direct_epic_maintenance_issue() returns true
+2. complete_direct_epic_maintenance_submission() is called
+3. But a concurrent process may also enqueue the same task into the ordinary queue
+
+Current flow (api_submit_issue):
+- Lock acquisition
+- Cancel retry authority
+- IF is_direct_epic_maintenance_issue: call complete() and publish
+- ELSE: persist, enqueue, and publish
+
+Required fixes:
+1. Serialize all producers to prevent concurrent enqueue once direct flag is detected
+2. Cancel/fence any stale concurrent ordinary rows before staging Done
+3. Clear alerts and reconcile idempotently under same ownership lock
+4. Fence late worker-exit and duplicate-screening paths
+
+Next: explore orchestrator.complete_direct_epic_maintenance_submission() and integration_queue enqueue/claim logic to find the race window.
 ---
 <!-- COMMENTS:END -->
