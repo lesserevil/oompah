@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:52:39.764643Z'
+updated_at: '2026-08-04T16:53:17.792509Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -37,7 +37,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-766
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -80,13 +80,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766)'
       next_retry_at: '2026-08-04T16:52:51.764310+00:00'
+    - version: 1
+      attempt_id: attempt-a9484b21d76f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+      created_at: '2026-08-04T16:53:12.285147+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T16:53:12.285147+00:00'
+      branch_key: epic-OOMPAH-766
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
-    updated_at: '2026-08-04T16:52:31.764329+00:00'
+    updated_at: '2026-08-04T16:53:12.285147+00:00'
   - version: 1
     audit_id: audit-48e0b754331c
     project_id: proj-14849f1b
@@ -142,6 +156,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766)'
     next_retry_at: '2026-08-04T16:52:51.764310+00:00'
+  - version: 1
+    attempt_id: attempt-a9484b21d76f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    created_at: '2026-08-04T16:53:12.285147+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T16:53:12.285147+00:00'
+    branch_key: epic-OOMPAH-766
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -207,5 +235,10 @@ author: oompah
 created: 2026-08-04 16:52
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 16:53
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
