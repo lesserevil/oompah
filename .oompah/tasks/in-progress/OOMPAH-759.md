@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:55:45.723841Z'
+updated_at: '2026-08-04T11:56:27.727110Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-08-04 11:55
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-04 11:56
+---
+Understanding: the retry dispatcher must treat its own Open -> In Progress write as authorized, while preserving generation and external-authority fences. I am reviewing the preserved checkpoint, then will ensure every post-write pre-start abort restores a dispatchable prior state (or retains a live owner), add dimension-specific diagnostics, cover handoff/race/restart paths, and run focused Makefile-based checks before push and submission.
 ---
 <!-- COMMENTS:END -->
