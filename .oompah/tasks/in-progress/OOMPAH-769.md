@@ -13,17 +13,19 @@ children:
 - OOMPAH-802
 - OOMPAH-803
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-764
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-04T14:03:24.934049Z'
+updated_at: '2026-08-04T14:04:08.690284Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
