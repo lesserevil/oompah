@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-779
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Run WorkDecision in shadow mode and expose divergence diagnostics
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-04T16:09:36.110789Z'
+updated_at: '2026-08-04T16:10:21.131302Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,29 @@ oompah.integration:
   head_sha: 40e46bf8e41c15a0a89529694cbb3aa3580f2f19
   submitted_at: '2026-08-04T16:09:26.258699+00:00'
   updated_at: '2026-08-04T16:09:26.258699+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1af133e37d3f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4083f79d9641a27e75062d175962b284ef7958a9d825dc92b26a2a3d81e3f9bd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project owner directly verified commit 40e46bf8e: 362 relevant tests,
+      terminal mutation scan, secret scan, and exact git ancestry passed; the exact
+      head is now the tip of epic-OOMPAH-765.'
+    created_at: '2026-08-04T16:10:15.923579+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
