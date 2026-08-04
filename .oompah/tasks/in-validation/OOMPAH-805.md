@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T22:17:42.940787Z'
+updated_at: '2026-08-04T22:26:25.216334Z'
 work_branch: OOMPAH-805
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/715
@@ -139,6 +139,31 @@ oompah.work_branch: OOMPAH-805
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-33b447f9422a: '2026-08-04T22:26:15.319108+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-805
+    target_state: Done
+    evidence_fingerprint: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    audit_ids:
+    - audit-3d1b3c625ed7
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T22:26:15.319119+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-805
+    audit_id: audit-3d1b3c625ed7
+    attempt_id: attempt-33b447f9422a
+    target_state: Done
+    evidence_fingerprint: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    status: In Validation
+    audit_ids:
+    - audit-3d1b3c625ed7
+    applied: true
+    created_at: '2026-08-04T22:26:15.319136+00:00'
+    applied_at: '2026-08-04T22:26:22.872472+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -146,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-805
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -155,7 +180,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-33b447f9422a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -165,13 +190,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-04T22:16:46.515202+00:00'
       branch_key: OOMPAH-805
+      verdict: pass
+      completed_at: '2026-08-04T22:26:15.318929+00:00'
+      ended_at: '2026-08-04T22:26:15.318929+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T22:12:26.519849+00:00'
-    updated_at: '2026-08-04T22:16:46.515202+00:00'
+    updated_at: '2026-08-04T22:26:15.318929+00:00'
   - version: 1
     audit_id: audit-498d220ab608
     project_id: proj-14849f1b
@@ -545,5 +573,22 @@ author: oompah
 created: 2026-08-04 22:17
 ---
 Terminal-audit evidence note: exact head 376e9a011 passed the configured isolated make test branch gate in 436.3s; PR #715 then passed Python 3.11/3.12/3.13 CI and merged as e1b0f4846054bacac48e667295e2c00733d86d8c. Prefer bounded read-only code/regression inspection and the existing exact-head evidence rather than blindly repeating the entire gate; OOMPAH-810 tracks the live ACP run_command result-return deadlock observed after a completed make test-serial.
+---
+author: oompah
+created: 2026-08-04 22:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_on_main: e1b0f4846 Merge pull request #715 from lesserevil/OOMPAH-805
+- branch_head: 376e9a011a6ba90ed4160a9c2754844c2d37d809
+- gate_result: make test passed in 436.3s (scheduler record 2026-08-04 22:01)
+- focused_tests_event_loop_and_tick: 74 passed in 43.00s (serial), 74 passed in 11.51s (-n 4)
+- focused_tests_checkpoint_state_branch: 106 passed in 4.46s (-n 4)
+- focused_tests_budget_gate: 5 passed in 3.88s
+- regression_test: test_concurrent_flush_waits_for_in_flight_flush_fn: PASSED
+- files_changed: oompah/checkpoint_queue.py, tests/test_checkpoint_coalescing.py, tests/test_event_driven_loop.py, tests/test_long_tick_regression.py, tests/test_orchestrator_merged.py
 ---
 <!-- COMMENTS:END -->
