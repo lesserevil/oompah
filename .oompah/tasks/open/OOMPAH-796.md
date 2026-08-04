@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:31:27.197038Z'
+updated_at: '2026-08-04T21:41:44.969757Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-04 21:31
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 21:41
+---
+Branch-topology repair: the empty implementation run was dispatched from task/parent branch a681ec2fc, which predates completed hard-start prerequisites OOMPAH-765/766/785 on epic-OOMPAH-763 f1e7925b7. No task edits or commits exist. Returning to Open revokes the stale-base run; epic-OOMPAH-770 and this task branch will be fast-forwarded to the prerequisite lineage before redispatch.
 ---
 <!-- COMMENTS:END -->
