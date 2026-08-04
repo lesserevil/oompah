@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:09:47.055400Z'
+updated_at: '2026-08-04T03:09:57.495977Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -334,5 +334,10 @@ author: oompah
 created: 2026-08-04 03:09
 ---
 Implementation: Rebasing bbdb6e8be onto current origin/main produced one overlap in Orchestrator._clear_integration_delivery_alert. Resolved it by preserving main's direct-epic recovery cleanup and delegating that cleanup to OOMPAH-735's dedicated _clear_integration_retry_alert helper. Config, structured recovery classification/reconciliation, dashboard action_required filter, and both regression suites applied unchanged. Rebased head is 0c7d9cbd4.
+---
+author: oompah
+created: 2026-08-04 03:09
+---
+Verification: Post-rebase focused suites are green. Batch 1: 173/173 across integration retry recovery, dashboard actionability/credential/state-read/websocket/repository-hygiene/terminal-audit, integration queue/conflict repair, and worker submission. Batch 2: 579/579 across epic strategy, orchestrator handlers, parallel epic children, state API responsiveness, and authenticated websocket bootstrap. python3 py_compile and git diff --check pass. The earlier exact implementation head also passed make test; Oompah will run the configured full gate once for this new rebased head after submission.
 ---
 <!-- COMMENTS:END -->
