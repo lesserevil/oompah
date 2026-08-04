@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-780
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Implement the durable workflow-job store, leases, retries, and checkpoints
 parent: OOMPAH-766
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:57.339751Z'
-updated_at: '2026-08-04T14:05:48.715677Z'
+updated_at: '2026-08-04T15:31:11.428270Z'
 work_branch: null
 target_branch: null
 review_url: null

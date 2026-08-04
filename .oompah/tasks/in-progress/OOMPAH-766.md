@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T15:30:46.173648Z'
+updated_at: '2026-08-04T15:30:56.235007Z'
 work_branch: null
 target_branch: null
 review_url: null
