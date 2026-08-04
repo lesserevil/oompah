@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:32:40.821697Z'
+updated_at: '2026-08-04T20:42:00.345798Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-04 20:32
 ---
 Discovery: epic consumers remain in orchestrator.py (_epic_auto_close_check, _open_epic_main_prs, _resolve_epic_target_branch, stale/rebase/repair and review-child reconciliation) and merged_evidence_collector.py, while the new workflow engine is only wired to standalone integration. Existing _rollup_decision checks child statuses but has no child LandingFact/target graph, so it cannot enforce Done plus immediate-target landing without a parent-status cycle. I will add an epic-specific facts/decision/job adapter and route the legacy gates through its pure result, preserving existing Git patch-equivalence helpers.
+---
+author: oompah
+created: 2026-08-04 20:42
+---
+Implementation: added EpicFactCollector/EpicWorkflowController and target-relative epic actions. Enriched containment facts now validate acyclic ownership, resolve nested targets from immediate parent identity, and collect child plus epic landing requests. Epic decisions require normal child Done plus exact landing, use nested landing without parent status, and schedule bounded rollup/landing jobs through WorkflowJobScheduler. GitLandingCollector now records durable patch-equivalence proof for rebased sources and preserves prior proof after ref deletion. Added real-Git nested, deleted-ref, and rebase regression coverage.
 ---
 <!-- COMMENTS:END -->
