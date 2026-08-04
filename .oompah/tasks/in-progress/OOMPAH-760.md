@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:58:47.705864Z'
+updated_at: '2026-08-04T12:59:54.543059Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,10 @@ author: oompah
 created: 2026-08-04 12:58
 ---
 Implementation: (1) Tightened _trusted_focus_handoff_comment in oompah/orchestrator.py to fail closed when a comment lacks both author and user identity fields, and when either present field does not match the bot login; the ACP observer synthesizes {author: oompah} so its path is unchanged. (2) Added regression tests to tests/test_orchestrator_duplicate_detection.py::TestFocusHandoff for: forged missing-identity rejection, explicit identity acceptance in either field, duplicate handoff mutation idempotence (comment + label + set-status all delivered twice), already-completed focus never re-selects docs, explicit needs:feature routing to feature via BUILTIN_FOCI, dispatch backfill after restart writes both focus-complete:docs and needs:feature idempotently, forced-termination finalization guard behavior, tracker error during forced-termination finalization, and the exact OOMPAH-757 docs -> feature race where Open becomes visible before worker exit (reconcile finalizes handoff, retires worker, no retry scheduled).
+---
+author: oompah
+created: 2026-08-04 12:59
+---
+Verification: focused suites pass. python3 -m pytest tests/test_orchestrator_duplicate_detection.py tests/test_task_handoff.py tests/test_focus.py tests/test_duplicate_preflight.py = 296 passed. Broader neighboring suites also pass: tests/test_stalled_task_watchdog.py, test_prompt_comment_compaction.py, test_checkpoint_coalescing.py, test_acp_agent.py, test_acp_project_tools.py, test_orchestrator_handlers.py, test_orchestrator_reload_profiles.py, test_orchestrator_full_sync.py, test_orchestrator_addendum_poll.py, test_error_watcher_orchestrator.py, test_orchestrator_repo_hygiene.py. Full make test gate is owned by the branch integrator once the branch head is review-ready.
 ---
 <!-- COMMENTS:END -->
