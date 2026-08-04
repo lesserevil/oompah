@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-525
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Add Basic auth support to Oompah CLIs and lifecycle commands
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:12:57.984075Z'
-updated_at: '2026-07-28T21:32:52.413989Z'
+updated_at: '2026-08-04T21:34:55.001674Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -58,6 +58,28 @@ oompah.task_costs:
     output_tokens: 6224
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:54:05.198074+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7fb8321c6761
+    project_id: proj-14849f1b
+    task_id: OOMPAH-525
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f2845124924fe736ffd4cc33ba4b1e65c7754cd1f006d9b1164d58ae720dc35f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:50.003815+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -430,5 +452,10 @@ author: oompah
 created: 2026-07-28 20:08
 ---
 Basic auth support for task/admin CLIs and Makefile lifecycle commands is implemented, hardened, tested, committed, and pushed in bae820184.
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
