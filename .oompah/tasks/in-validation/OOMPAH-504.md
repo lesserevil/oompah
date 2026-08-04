@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-504
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Compact agent prompt history around actionable handoffs
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:00.486812Z'
-updated_at: '2026-07-28T17:58:56.990899Z'
+updated_at: '2026-08-04T18:28:14.243666Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -51,6 +51,28 @@ oompah.task_costs:
     output_tokens: 799
     cost_usd: 0.0
     recorded_at: '2026-07-28T17:52:33.885793+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a4497cc05587
+    project_id: proj-14849f1b
+    task_id: OOMPAH-504
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cdac45e193220a608ea9c2cb7c7de0c9366e23d9601e844d60283aaf8e2215d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:07.309771+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -192,5 +214,10 @@ author: oompah
 created: 2026-07-28 17:54
 ---
 Restored after patch-equivalent commit 85be456eb was verified on the rebased epic branch; prompt compaction remains fully implemented and tested.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
