@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:44:33.564475Z'
+updated_at: '2026-08-04T00:48:25.126176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,19 @@ created: 2026-08-04 00:44
 - Implement canonical epic branch resolution using issue type/parent/project metadata
 - Add tests covering EXOCOMP-130 scenario, nested epics, deleted branches, ambiguity
 - Preserve immutable-SHA recovery from OOMPAH-671
+---
+author: oompah
+created: 2026-08-04 00:48
+---
+**Discovery**: The issue is in \`terminal_audit.py:compute_issue_evidence_fingerprint()\` which resolves the source branch for evidence fingerprinting. Currently it tries: source_branch, work_branch, task_branch, branch_name - but when an epic has no work_branch, it doesn't try the canonical epic branch names like origin/epic-ISSUE-ID.
+
+The fix needs to:
+1. Add branch resolution helpers in projects.py to construct canonical epic branch names
+2. Modify compute_issue_evidence_fingerprint to resolve epic branches when work_branch is absent
+3. Verify remote refs and fail safely on ambiguity
+4. Persist work_branch and immutable SHA in metadata to enable restart idempotency
+5. Add comprehensive tests for epic branch resolution, nested epics, deleted branches, and ambiguity
+
+Key files: terminal_audit.py (fingerprint computation), projects.py (branch resolution), terminal_transition_coordinator.py (metadata persistence)
 ---
 <!-- COMMENTS:END -->
