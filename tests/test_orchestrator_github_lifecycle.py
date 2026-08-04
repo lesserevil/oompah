@@ -395,8 +395,21 @@ class TestMixedCandidateFetch:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(20)
 class TestGitHubClaimProtocol:
     """``_dispatch`` stamps a run-ID and verifies ownership for GitHub tasks."""
+
+    @pytest.fixture(autouse=True)
+    def _close_owned_orchestrators(self, event_loop):
+        """Keep per-test pools and durable stores from leaking across the worker."""
+        self._owned_orchestrators: list[Orchestrator] = []
+        yield
+        for orch in reversed(self._owned_orchestrators):
+            event_loop.run_until_complete(orch._drain_background_work())
+
+    def _own_orchestrator(self, orch: Orchestrator) -> Orchestrator:
+        self._owned_orchestrators.append(orch)
+        return orch
 
     def _make_dispatch_orch(self, tmp_path) -> tuple[Orchestrator, MagicMock]:
         """Return (orch, github_tracker) ready for _dispatch tests."""
@@ -409,7 +422,7 @@ class TestGitHubClaimProtocol:
         tracker.get_metadata.return_value = {}  # overridden per test
 
         proj = _make_project("proj-gh")
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-gh"] = tracker
 
         # Stub profile matching so _dispatch doesn't need full WORKFLOW.md
@@ -509,7 +522,7 @@ class TestGitHubClaimProtocol:
         tracker.get_metadata.side_effect = _echo_metadata
 
         proj = _make_project("proj-native", tracker_kind="oompah_md")
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-native"] = tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")
@@ -534,7 +547,7 @@ class TestGitHubClaimProtocol:
         proj = _make_project(
             "proj-native", name="myproject", tracker_kind="oompah_md"
         )
-        orch = _make_orch(tmp_path, projects=[proj])
+        orch = self._own_orchestrator(_make_orch(tmp_path, projects=[proj]))
         orch._project_trackers["proj-native"] = tracker
 
         mock_profile = AgentProfile(name="default", command="echo test")

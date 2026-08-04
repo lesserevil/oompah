@@ -749,17 +749,20 @@ class TestOperatorDiagnostics:
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
 
-        async def _run_tick_and_drain():
-            """Run a tick and drain all background work to prevent test leakage."""
-            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-                await orch._tick()
-            # Drain any background futures spawned during the tick to prevent leakage
-            # across test boundaries.
-            await orch._drain_background_work()
+        async def _run_tick_snapshot_and_drain():
+            """Capture diagnostics before shutdown closes their durable stores."""
+            try:
+                with patch(
+                    "oompah.orchestrator.validate_dispatch_config", return_value=[]
+                ):
+                    await orch._tick()
+                return orch.get_snapshot()
+            finally:
+                # Drain background work only after the assertion snapshot exists;
+                # draining owns and closes the workflow/review stores.
+                await orch._drain_background_work()
 
-        asyncio.run(_run_tick_and_drain())
-
-        snapshot = orch.get_snapshot()
+        snapshot = asyncio.run(_run_tick_snapshot_and_drain())
         tick_metrics = snapshot["orchestrator_metrics"]["last_tick"]
         assert "total_ms" in tick_metrics, "total_ms missing from last_tick metrics."
         assert "dispatch_ms" in tick_metrics, "dispatch_ms missing from last_tick metrics."

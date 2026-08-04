@@ -195,11 +195,32 @@ def _wait_ready(port: int, proc: OwnedProcess, timeout: float = 12.0) -> bool:
 
 def _stop_proc(proc: OwnedProcess) -> None:
     """Bounded identity-checked shutdown, then drain pipes."""
-    stop_owned_process(proc, timeout_s=8)
+    survivors = stop_owned_process(proc, timeout_s=8)
     try:
         proc.process.communicate(timeout=2)
     except Exception:
         pass
+    assert proc.process.poll() is not None, (
+        f"Granian process {proc.process.pid} was not reaped during shutdown"
+    )
+    assert not survivors, (
+        f"Granian process tree still has survivors after shutdown: {sorted(survivors)}"
+    )
+
+
+def _wait_port_released(port: int, timeout: float = 5.0) -> bool:
+    """Wait until no prior server owns *port* instead of sleeping blindly."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                time.sleep(0.05)
+                continue
+            return True
+    return False
 
 
 @contextlib.contextmanager
@@ -450,6 +471,7 @@ def test_ws_broadcast_fan_out() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(30)
 def test_restart_http_and_ws_contract() -> None:
     """Server restarts on the same port; HTTP contract and WS initial push preserved.
 
@@ -476,8 +498,9 @@ def test_restart_http_and_ws_contract() -> None:
         first_state_ct = r_state_1.headers.get("content-type")
     # _granian_server exits here: SIGINT → drain; port is released
 
-    # Brief pause so the OS releases the port
-    time.sleep(0.5)
+    assert _wait_port_released(port), (
+        f"First Granian server did not release port {port} after owned shutdown"
+    )
 
     # --- Second server: verify HTTP preserved and WS works ---
     with _granian_server(port=port) as base_url_2:
