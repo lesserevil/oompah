@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:10:55.141975Z'
+updated_at: '2026-08-04T03:11:23.920494Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
