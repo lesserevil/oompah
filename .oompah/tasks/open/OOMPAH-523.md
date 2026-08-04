@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Needs Human
+status: Open
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:37:24.659028Z'
+updated_at: '2026-08-04T23:40:31.069614Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -625,5 +625,17 @@ author: oompah
 created: 2026-08-04 23:37
 ---
 The parent epic OOMPAH-521 merged from epic-OOMPAH-521, but this task was Open with work branch epic-OOMPAH-521. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-04 23:40
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #9)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 567 is merged
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
