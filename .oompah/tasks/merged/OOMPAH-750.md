@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T02:21:48.074043Z'
+updated_at: '2026-08-04T02:28:23.851723Z'
 work_branch: OOMPAH-750
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/699
@@ -120,6 +120,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5086218c7e21: '2026-08-04T02:16:32.067820+00:00'
+    attempt-201f28836bf3: '2026-08-04T02:28:18.747507+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-750
@@ -130,6 +131,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T02:16:32.067828+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    target_state: Merged
+    evidence_fingerprint: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    audit_ids:
+    - audit-45e76dc650ad
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T02:28:18.747517+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-750
@@ -143,6 +153,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T02:16:32.067840+00:00'
     applied_at: '2026-08-04T02:16:38.442956+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    audit_id: audit-45e76dc650ad
+    attempt_id: attempt-201f28836bf3
+    target_state: Merged
+    evidence_fingerprint: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    status: Merged
+    audit_ids:
+    - audit-45e76dc650ad
+    applied: false
+    created_at: '2026-08-04T02:28:18.747527+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -184,7 +205,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-750
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +214,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-201f28836bf3
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -203,13 +224,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T02:21:38.999336+00:00'
       branch_key: OOMPAH-750
+      verdict: pass
+      completed_at: '2026-08-04T02:28:18.747361+00:00'
+      ended_at: '2026-08-04T02:28:18.747361+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T02:07:35.356255+00:00'
-    updated_at: '2026-08-04T02:21:38.999336+00:00'
+    updated_at: '2026-08-04T02:28:18.747361+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5086218c7e21
@@ -395,5 +419,34 @@ author: oompah
 created: 2026-08-04 02:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 02:28
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 9b3197a1156b117b35398c61a74fcc6b677c0f6b
+- feature_commit: 92bf56563a2803a4a3df0e146739634da6caa48a
+- pr_number: 699
+- merged_into: origin/main
+- ancestor_check: git merge-base --is-ancestor 92bf56563 origin/main exit 0
+- files_changed: oompah/orchestrator.py, oompah/stalled_task_watchdog.py, tests/test_stalled_task_watchdog.py
+- diffstat: 3 files changed, 833 insertions(+), 40 deletions(-)
+- focused_watchdog_tests: 90 passed (tests/test_stalled_task_watchdog.py)
+- adjacent_tracker_tests: 19 passed (tests/test_managed_tracker_state_branch_guard.py)
+- ac1_handoff_alone_not_blocker: test_handoff_wording_alone_is_not_human_blocker present (line 186)
+- ac2_merged_review_recovers: test_merged_review_overrides_stale_handoff present (line 193)
+- ac2_canonical_audit_ref: test_missing_audit_branch_with_canonical_ref_is_technical present (line 207)
+- ac2_provider_failure: test_provider_failure_is_not_human_blocked present (line 217)
+- ac2_ambiguous_scm: test_ambiguous_scm_state_fails_closed present (line 227)
+- ac3_newer_question_current: test_newer_question_remains_current_after_older_completion present (line 247)
+- ac3_newer_completion_supersedes: test_newer_completion_supersedes_older_question present (line 237)
+- idempotent_restart: test_same_current_evidence_after_restart_is_idempotent (593); test_new_current_evidence_after_restart_is_not_suppressed (608)
+- orchestrator_evidence_tests: test_collects_current_review_ci_and_audit_evidence (715); test_current_evidence_provider_overrides_handoff_comment (468)
+- commit_trailer: canonical oompah trailer present; no model attribution
+- prior_branch_quality_gate: passed for 92bf56563 via make test in 411.6s
 ---
 <!-- COMMENTS:END -->
