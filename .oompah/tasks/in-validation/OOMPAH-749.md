@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-749
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Bound historical audit replay so Ready integration claims cannot starve
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:33:46.815672Z'
+updated_at: '2026-08-04T03:41:51.380453Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -168,6 +168,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/703
 oompah.review_number: '703'
 oompah.work_branch: OOMPAH-749
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b6fab5e64282
+    project_id: proj-14849f1b
+    task_id: OOMPAH-749
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bd5606d6f14355af3f97235dab67d2510f435205323810d53640f61d590e5f7c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:41:41.660598+00:00'
+  - version: 1
+    audit_id: audit-7f8c950417d2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-749
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bd5606d6f14355af3f97235dab67d2510f435205323810d53640f61d590e5f7c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:41:41.660598+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -305,5 +344,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 58s
 - Log: OOMPAH-749__20260804T032244Z.jsonl
+---
+author: oompah
+created: 2026-08-04 03:41
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 03:41
+---
+YOLO: merged PR #703.
 ---
 <!-- COMMENTS:END -->
