@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:56:47.258783Z'
+updated_at: '2026-08-04T01:57:03.260612Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/699
 review_number: null
 review_head: null
 merged_at: null
@@ -102,6 +102,7 @@ oompah.integration:
   head_sha: 92bf56563a2803a4a3df0e146739634da6caa48a
   submitted_at: '2026-08-04T01:06:32.087031+00:00'
   updated_at: '2026-08-04T01:06:32.087031+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/699
 ---
 ## Summary
 
