@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T02:16:40.497270Z'
+updated_at: '2026-08-04T02:19:21.900674Z'
 work_branch: OOMPAH-750
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/699
@@ -69,13 +69,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1312
+  total_input_tokens: 16
+  total_output_tokens: 1734
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1312
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 422
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +88,12 @@ oompah.task_costs:
     output_tokens: 1312
     cost_usd: 0.0
     recorded_at: '2026-08-04T00:48:42.361821+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 422
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T02:19:15.584261+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-750__20260804T004746Z
@@ -338,5 +348,15 @@ Safe evidence:
 - idempotent_restart: test_same_current_evidence_after_restart_is_idempotent, test_new_current_evidence_after_restart_is_not_suppressed PASS
 - orchestrator_evidence_collection: test_collects_current_review_ci_and_audit_evidence, test_current_evidence_provider_overrides_handoff_comment PASS
 - commit_trailer: canonical oompah trailer present
+---
+author: oompah
+created: 2026-08-04 02:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 42, Tool calls: 29
+- Tokens: 6 in / 422 out [428 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 40s
+- Log: OOMPAH-750__20260804T020843Z.jsonl
 ---
 <!-- COMMENTS:END -->

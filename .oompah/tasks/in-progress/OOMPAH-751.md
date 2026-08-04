@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:07:18.732846Z'
+updated_at: '2026-08-04T02:19:15.553054Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-08-04 02:07
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-04 02:19
+---
+Understanding (security focus): The docs specialist established the contract at ef5f04049. I will now implement the server-side fix: in api_task_handoff (oompah/server.py), a PermissionError raised by Orchestrator.coordination_send during the coordination-send action currently falls into the generic except Exception handler, which records an actionable task-handoff failure and returns HTTP 500. That path (1) poisons worker-exit reconciliation (moving completed work to Needs Human via consume_task_handoff_failure), (2) potentially degrades auth-health, and (3) leaks a generic 500 for an expected fail-closed policy result. My plan: catch PermissionError specifically in the coordination-send branch before the generic handler; return a structured 403 with coordination_forbidden (matching the existing REST endpoint via _coordination_error); do NOT call record_task_handoff_failure or record_worker_401; record record_worker_403_policy so operators can see policy denial frequency without treating it as auth degradation; keep the message non-disclosing (does not reveal recipient existence beyond what the caller sent); preserve token capability so subsequent own-task comment and submit succeed. Regression matrix will cover the docs-specified cases in tests/test_task_handoff.py and tests/test_server_coordination.py.
 ---
 <!-- COMMENTS:END -->
