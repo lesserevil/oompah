@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T21:04:44.690903Z'
+updated_at: '2026-08-04T21:32:37.738574Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -167,5 +167,19 @@ author: oompah
 created: 2026-08-04 20:58
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-04 21:32
+---
+Verification (continuation run): All affected suites pass at HEAD f8f9d382c.
+
+Fixed pre-existing timeout: test_hundreds_of_history_rows_do_not_hide_eligible_heads (added in 08f6a8c5a) was correctly testing that 400 history rows don't block 2 eligible heads, but the 402 WAL-mode SQLite commits take ~17 s — above the project-wide 5 s signal timeout. Added @pytest.mark.timeout(30) to give it headroom while still catching genuine hangs.
+
+Test results:
+- test_epic_workflow (6/6)
+- test_integration_workflow (20/20)
+- test_workflow_facts + test_workflow_jobs + test_workflow_scheduler + test_work_decision (146/146)
+- test_epic_strategy + test_epic_auto_close + test_epic_staleness + test_nested_epic_cycle_fix + test_nested_epic_stale_in_review (286/286)
+- test_workflow_shadow + test_workflow_shadow_integration + test_orchestrator_handlers (304/304)
 ---
 <!-- COMMENTS:END -->
