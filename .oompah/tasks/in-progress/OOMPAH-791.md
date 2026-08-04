@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:31:12.473168Z'
+updated_at: '2026-08-04T20:32:40.821697Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-04 20:31
 ---
 Understanding: migrate epic and nested-epic readiness, landing proof, rollup, lifecycle, repair, cleanup, and restart reconciliation to shared LandingFact-driven jobs while preserving patch-equivalence and durable evidence. I will first map existing facts/decisions/jobs and epic consumers, then implement small tested refactors and validate required real-Git scenarios.
+---
+author: oompah
+created: 2026-08-04 20:32
+---
+Discovery: epic consumers remain in orchestrator.py (_epic_auto_close_check, _open_epic_main_prs, _resolve_epic_target_branch, stale/rebase/repair and review-child reconciliation) and merged_evidence_collector.py, while the new workflow engine is only wired to standalone integration. Existing _rollup_decision checks child statuses but has no child LandingFact/target graph, so it cannot enforce Done plus immediate-target landing without a parent-status cycle. I will add an epic-specific facts/decision/job adapter and route the legacy gates through its pure result, preserving existing Git patch-equivalence helpers.
 ---
 <!-- COMMENTS:END -->
