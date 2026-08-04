@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T00:42:50.151660Z'
+updated_at: '2026-08-04T00:43:28.601445Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,51 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c9fbcc861c522c73c72cc1ac5637b98b071961b57276069044961a27cbe66c16
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T00:43:21.382931+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: c6f318f9-40ae-4edd-862b-2c5bda4714f0
-  claim_owner: b6e50576-eec3-4dce-bc89-fe685f70768e
-  claimed_at: '2026-08-04T00:42:28.225032+00:00'
-  claim_expires_at: '2026-08-04T01:12:28.225032+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Closest tasks OOMPAH-165 and OOMPAH-162 are terminal\
+    \ and excluded; no active peer covers this nested-epic rollup cycle.\nFocus handoff:\
+    \ duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \nMatches:\
+    \ none  \n\nEvidence: Closest tasks OOMPAH-165 and OOMPAH-162 are terminal and\
+    \ excluded; no active peer covers this nested-epic rollup cycle."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 82407244-35fe-46b1-8da2-e804f3a98724
+oompah.task_costs:
+  total_input_tokens: 46205
+  total_output_tokens: 195
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46205
+      output_tokens: 195
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46205
+    output_tokens: 195
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T00:43:18.192127+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-748__20260804T004257Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-748
+    source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+    completed_at: '2026-08-04T00:43:18.203330+00:00'
 ---
 ## Summary
 
@@ -60,5 +91,15 @@ author: oompah
 created: 2026-08-04 00:42
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 00:43
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.2K in / 195 out [46.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 33s
+- Log: OOMPAH-748__20260804T004257Z.jsonl
 ---
 <!-- COMMENTS:END -->
