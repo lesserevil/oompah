@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:39:06.920102Z'
+updated_at: '2026-08-04T04:39:13.895804Z'
 work_branch: OOMPAH-753
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/706
@@ -170,8 +170,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-0b52e8fa988d
-    applied: false
+    applied: true
     created_at: '2026-08-04T04:39:03.878206+00:00'
+    applied_at: '2026-08-04T04:39:11.818022+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -556,5 +557,25 @@ author: oompah
 created: 2026-08-04 04:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 04:39
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- main_head: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+- branch_head: d9e937f7192866b0f45939da7e7eb1d642b0912c
+- pr_merge_commit: 5368e2361
+- pr_number: 706
+- merge_parents: 9b94cdcf2 d9e937f71
+- commits_on_branch: a24d0317b, 7b4245335, d9e937f71
+- regression_test_path: tests/test_auditor_contract.py::test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable
+- regression_test_local: passed 1/1 in 0.40s
+- ci_fix_test_local: tests/test_provider_retirement.py::test_claude_tool_catalog_reports_read_only_shell_denials passed 1/1 in 0.96s
+- prior_branch_gate: passed at d9e937f71 in 409.6s (make test)
+- primary_source: oompah/auditor.py::check_auditor_command
 ---
 <!-- COMMENTS:END -->
