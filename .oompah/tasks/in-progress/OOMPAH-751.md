@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:28:17.889367Z'
+updated_at: '2026-08-04T02:28:34.769917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-08-04 02:28
 ---
 Discovery: The generic exception handler in api_task_handoff (oompah/server.py:5333) catches every non-ValueError/OperationPermitDenied error, records a task-handoff failure, and returns HTTP 500. Orchestrator.coordination_send (oompah/orchestrator.py:27042) raises PermissionError with a message containing sender+recipient identifiers. That PermissionError previously fell into the generic handler, triggering record_task_handoff_failure which poisons worker-exit reconciliation via consume_task_handoff_failure (line 33019). The existing REST /coordination/send endpoint's _coordination_error helper (line 4500) already correctly returns 403 coordination_forbidden for PermissionError — task-handoff endpoint just needed the same specific handling in the coordination-send branch.
+---
+author: oompah
+created: 2026-08-04 02:28
+---
+Implementation: Added a targeted try/except PermissionError inside the coordination-send branch of api_task_handoff (oompah/server.py). The branch is specifically wrapped (not the entire endpoint) so PermissionError raised from a different action path — if one is ever added — still routes through the generic handler and receives its full failure/scope classification. Behavior on advisory denial: (1) HTTP 403 with structured 'coordination_forbidden' code, (2) non-disclosing message that does not echo recipient or sender identifiers, (3) NO record_task_handoff_failure call (preserves worker exit reconciliation), (4) NO record_worker_401 call (preserves auth-health), (5) record_worker_403_policy for operator visibility (same signal used by cross-task peer view denials), (6) capability remains fully valid for own-task comment and submit. The permit's __aexit__ only releases the operation refcount, and Orchestrator.coordination_send authorizes before CoordinationStore.append, so denied sends create no durable message row.
 ---
 <!-- COMMENTS:END -->
