@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:38:12.149812Z'
+updated_at: '2026-08-04T20:41:24.743896Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-04 20:38
 ---
 Implementation: added terminal_audit_workflow durable adapter over WorkflowJobStore, phase-aware failure/recovery and phase telemetry in the ledger, wired enforcement/dispatch/retry/finalization into Orchestrator, and carried only non-secret workflow job identity on RunningEntry. Finalization is checkpointed before coordinator side effects; output/comments are excluded from checkpoints. Focused suites: 176 passed.
+---
+author: oompah
+created: 2026-08-04 20:41
+---
+Verification: 189 focused tests pass across terminal_audit_workflow, workflow_jobs, workflow shadow, enforcement, workspace recovery, auditor exit/termination, and coordinator suites. Targeted Ruff checks, git diff --check, and direct terminal mutation scan pass. Make terminal-audit-scan could not initialize its task venv because uv failed with a DBus transient-scope error; underlying scan passed directly.
 ---
 <!-- COMMENTS:END -->
