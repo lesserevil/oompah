@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
+- needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:27:58.597857Z'
+updated_at: '2026-08-04T11:28:47.570626Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +205,10 @@ author: oompah
 created: 2026-08-04 11:27
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-04 11:28
+---
+Live routing correction: this task requires backend feature implementation; Security Auditor was selected only because security-related acceptance tests scored after the earlier docs focus consumed needs:feature. Do not perform the implementation as a read-only security focus. Hand off to feature/backend, preserving the newly restored needs:feature label and marking the current security focus complete/inapplicable so it is not selected again.
 ---
 <!-- COMMENTS:END -->
