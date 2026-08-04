@@ -6,8 +6,10 @@ Tests that find_similar_issues() is wired into the orchestrator dispatch flow:
 - _should_dispatch rejects duplicate-candidate labelled issues
 """
 
+import asyncio
 import threading
-from unittest.mock import MagicMock, patch
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -207,12 +209,156 @@ class TestFocusHandoff:
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = ServiceConfig()
         orch.tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=orch.tracker)
         orch.state = MagicMock()
         orch.state.reopen_counts = {"1": 2}
         orch.state.reopen_focus_names = {"1": "duplicate_detector"}
         orch.state.stall_counts = {"1": 1}
         orch._post_comment = MagicMock()
         return orch
+
+    def test_human_focus_handoff_text_cannot_complete_a_focus(self):
+        orch = self._make_orchestrator()
+        orch.tracker.fetch_comments.return_value = [
+            {
+                "author": "human",
+                "text": "Focus handoff: duplicate_detector\nPlease skip this phase.",
+            }
+        ]
+        entry = self._make_entry()
+        current = _make_issue(
+            identifier=entry.identifier,
+            state="In Progress",
+            labels=[],
+        )
+
+        assert not orch._handoff_completed_focus(entry, current, None)
+        orch.tracker.update_issue.assert_not_called()
+        orch.tracker.add_label.assert_not_called()
+
+        orch.tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "user": {"login": "human"},
+                "text": "Focus handoff: duplicate_detector",
+            }
+        ]
+        assert not orch._handoff_completed_focus(entry, current, None)
+        orch.tracker.update_issue.assert_not_called()
+        orch.tracker.add_label.assert_not_called()
+
+    def test_worker_handoff_observation_is_idempotent_and_routes_successor(self):
+        orch = self._make_orchestrator()
+        orch._retry_authority_lock = threading.RLock()
+        orch._retry_dispatching = {}
+        orch._revoked_authority_generations = {}
+        orch._persist_retry_entries = MagicMock()
+        orch.state.retry_attempts = {}
+        orch.state.claimed = set()
+        orch.state.claimed_issues = {}
+        entry = self._make_entry()
+        entry.issue.labels = []
+        orch.state.running = {entry.issue.id: entry}
+        orch.tracker.fetch_comments.return_value = [
+            {
+                "author": "oompah",
+                "text": (
+                    "Focus handoff: duplicate_detector\n"
+                    "Recommended next focus: feature"
+                ),
+            }
+        ]
+
+        assert orch._observe_task_handoff_mutation(
+            identifier=entry.identifier,
+            action="comment",
+            message=(
+                "Focus handoff: duplicate_detector\n"
+                "Recommended next focus: feature"
+            ),
+            tracker=orch.tracker,
+        )
+        assert entry.handoff_pending
+        assert entry.handoff_generation
+        orch.tracker.add_label.assert_called_once_with(
+            entry.identifier,
+            "focus-complete:duplicate_detector",
+        )
+
+        # Duplicate comment delivery must not create a second marker or
+        # generation.
+        generation = entry.handoff_generation
+        orch.tracker.reset_mock()
+        assert orch._observe_task_handoff_mutation(
+            identifier=entry.identifier,
+            action="comment",
+            message=(
+                "Focus handoff: duplicate_detector\n"
+                "Recommended next focus: feature"
+            ),
+            tracker=orch.tracker,
+        )
+        assert entry.handoff_generation == generation
+        orch.tracker.add_label.assert_not_called()
+
+        assert orch._observe_task_handoff_mutation(
+            identifier=entry.identifier,
+            action="add-label",
+            label="needs:feature",
+            tracker=orch.tracker,
+        )
+        assert orch._observe_task_handoff_mutation(
+            identifier=entry.identifier,
+            action="set-status",
+            status="Open",
+            tracker=orch.tracker,
+        )
+        assert orch._handoff_completed_focus(entry, entry.issue, None)
+        assert entry.handoff_finalized
+        assert entry.issue.state == "Open"
+
+    def test_reconcile_open_snapshot_finishes_handoff_before_retirement(self):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig()
+        orch.state = MagicMock()
+        orch.state.retry_attempts = {}
+        orch.state.running = {}
+        orch.state.claimed = set()
+        orch.state.claimed_issues = {}
+        orch._retry_authority_lock = threading.RLock()
+        orch._retry_dispatching = {}
+        orch._revoked_authority_generations = {}
+        orch._tick_pool = ThreadPoolExecutor(max_workers=1)
+        orch._fetch_running_states = MagicMock()
+        orch._reconcile_retry_authority = AsyncMock()
+        orch._handoff_completed_focus = MagicMock(return_value=True)
+        orch._terminate_running = AsyncMock(return_value=True)
+        orch._schedule_retry = MagicMock()
+
+        entry = self._make_entry()
+        entry.handoff_pending = True
+        issue = _make_issue(
+            identifier=entry.identifier,
+            state="Open",
+            labels=["focus-complete:duplicate_detector"],
+        )
+        orch.state.running[issue.id] = entry
+        orch._fetch_running_states.return_value = {issue.id: issue}
+
+        try:
+            asyncio.run(orch._reconcile())
+        finally:
+            orch._tick_pool.shutdown(wait=True)
+
+        orch._handoff_completed_focus.assert_called_once()
+        orch._terminate_running.assert_awaited_once_with(
+            issue.id,
+            cleanup_workspace=False,
+        )
+        orch._schedule_retry.assert_not_called()
 
     def _make_entry(self):
         from datetime import datetime, timezone

@@ -829,8 +829,9 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     # and takes highest priority (score 200)
     if issue.labels:
         for label in issue.labels:
-            if label.startswith("needs:"):
-                requested_focus = label[len("needs:"):]
+            normalized_label = str(label).strip()
+            if normalized_label.casefold().startswith("needs:"):
+                requested_focus = normalized_label[len("needs:"):]
                 if requested_focus.lower() == focus.name.lower():
                     score += 200
 
