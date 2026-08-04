@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T22:10:01.400330Z'
+updated_at: '2026-08-04T22:10:08.464361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,6 +32,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T21:36:12.621196+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-803
+    target_state: Archived
+    evidence_fingerprint: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
+    audit_ids:
+    - audit-82e9f76863be
+    - audit-aa0c724bb97e
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T22:10:07.172311+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-803
@@ -45,6 +55,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T21:36:12.621212+00:00'
     applied_at: '2026-08-04T21:36:20.741272+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-0a0a61ca7301
@@ -61,7 +72,7 @@ oompah.terminal_audit:
       source: api
     reason: '[REDACTED]'
     created_at: '2026-08-04T22:09:56.032005+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -155,7 +166,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -202,7 +213,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:37:21.180442+00:00'
-    updated_at: '2026-08-04T22:09:03.898796+00:00'
+    updated_at: '2026-08-04T22:10:07.172268+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -433,5 +444,12 @@ author: oompah
 created: 2026-08-04 22:09
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-04 22:10
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->

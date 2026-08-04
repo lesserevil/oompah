@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:09:30.552343Z'
+updated_at: '2026-08-04T22:10:23.756546Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -48,16 +48,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 85da4349-ac06-446d-9250-722ffd493c01
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-806
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-806
   base_branch: epic-OOMPAH-763
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-04T21:49:35.025549+00:00'
+  head_sha: 8322a4d198067b7c01d1e8ce7f379ca8f51bc621
+  submitted_at: '2026-08-04T22:10:13.633855+00:00'
+  updated_at: '2026-08-04T22:10:13.633855+00:00'
 oompah.task_costs:
   total_input_tokens: 48116
   total_output_tokens: 5083
@@ -219,5 +221,15 @@ author: oompah
 created: 2026-08-04 22:09
 ---
 Verification: 188 focused tests pass (test_stalled_task_watchdog, test_delivery_plane_recovery, test_task_transition_service, test_workflow_contract). An additional 334 neighboring tests pass (test_integration_retry_alert_recovery, test_parallel_epic_children, test_orchestrator_handlers). Terminal mutation scan passes: 8 identified, 8 allowlisted. git diff --check and py_compile pass. The normal Make bootstrap could not run because uv/systemd-run fails in this managed container (DBus rejects PID 2); after attempting the Make target, I ran its underlying scanner with the already provisioned project Python. GitHub has no PR or Actions run for this unpushed task branch, so there were no remote failure logs to inspect.
+---
+author: oompah
+created: 2026-08-04 22:10
+---
+Completion: Delivered and pushed 8322a4d198067b7c01d1e8ce7f379ca8f51bc621 on epic-OOMPAH-763--task-OOMPAH-806. Internal blocked gate evidence now outranks external CI; watchdog and combined-tree gate status writers share durable generation/version/head CAS; blocked rows and actionable alerts survive inconsistent tracker state; Open+blocked cannot dispatch duplicate implementation; repaired/newer heads and explicit retries remain available. Focused and neighboring suites total 522 passing tests, with terminal mutation scan, py_compile, and diff checks clean. The remote branch exactly matches local and is up to date. GitHub currently reports no PR or workflow run for the newly published branch; oompah submission will create/manage the review.
+---
+author: oompah
+created: 2026-08-04 22:10
+---
+Fenced stalled-task recovery behind authoritative internal gate records and durable TaskTransitionService CAS; preserved blocked generations/alerts and prevented duplicate dispatch. 522 focused/neighboring tests pass.
 ---
 <!-- COMMENTS:END -->
