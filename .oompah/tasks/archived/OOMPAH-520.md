@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-520
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Re-run the branch quality gate when an open review head changes
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:49:18.823929Z'
-updated_at: '2026-08-04T21:20:45.086543Z'
+updated_at: '2026-08-04T21:27:42.135501Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ merged_at: null
 oompah.work_branch: epic-OOMPAH-502
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-edf71b014236: '2026-08-04T21:27:36.876685+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-520
+    target_state: Archived
+    evidence_fingerprint: 2076952ea563505f7fffb4cc9669183c2bfdc2f1c88feb998c00f20722605d9c
+    audit_ids:
+    - audit-ee3efb94ff66
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T21:27:36.876697+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-520
+    audit_id: audit-ee3efb94ff66
+    attempt_id: attempt-edf71b014236
+    target_state: Archived
+    evidence_fingerprint: 2076952ea563505f7fffb4cc9669183c2bfdc2f1c88feb998c00f20722605d9c
+    status: Archived
+    audit_ids:
+    - audit-ee3efb94ff66
+    applied: false
+    created_at: '2026-08-04T21:27:36.876713+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-520
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +59,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-edf71b014236
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,13 +69,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:20:30.664945+00:00'
       branch_key: epic-OOMPAH-502
+      verdict: pass
+      completed_at: '2026-08-04T21:27:36.876507+00:00'
+      ended_at: '2026-08-04T21:27:36.876507+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:29:36.524473+00:00'
-    updated_at: '2026-08-04T21:20:30.664945+00:00'
+    updated_at: '2026-08-04T21:27:36.876507+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-edf71b014236
