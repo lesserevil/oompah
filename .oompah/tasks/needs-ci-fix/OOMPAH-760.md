@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-760
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Persist completed focus before a task handoff reopens work
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
+- ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:15:28.090832Z'
+updated_at: '2026-08-04T13:23:18.247919Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -339,5 +340,10 @@ author: oompah
 created: 2026-08-04 13:14
 ---
 Branch quality gate passed for `2e3402064c996d094a52bb21ef8bc8f451655484` using `make test` in 417.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 13:23
+---
+YOLO: CI tests failed on MR #712. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
