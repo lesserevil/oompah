@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-04T14:41:42.959651Z'
+updated_at: '2026-08-04T14:41:48.101377Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -214,8 +214,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-57045e98717f
-    applied: false
+    applied: true
     created_at: '2026-08-04T14:41:39.906048+00:00'
+    applied_at: '2026-08-04T14:41:47.029158+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -575,5 +576,23 @@ author: oompah
 created: 2026-08-04 14:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 14:41
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 494c39f8f06ec986bd4efb345ea59e359cf95aed
+- integrated_into_epic: yes; epic-OOMPAH-740 tip == task tip == 494c39f8f
+- focused_tests: 78 passed (alert_center/12 + alert_contract/6 + alert_safety/3 + credential_warning/4 + vertical_scroll/4 + repo_hygiene_health/5 + terminal_audit_health/18 + state_read_warning/20 + integration_recovery_filter/2 + activity_summary/28 + board_reconciliation/44 + intake_actions/23 + websocket_liveness/9 across two runs)
+- alert_center_id_present: line 2569 id='alert-center'
+- legacy_banner_ids_removed: no matches for id='agent-warnings' or id='alerts-banner' or id='cred-error-banner' in dashboard.html
+- dedupe_before_partition: handleStateUpdate: rawAlerts.map(normalizeAlertForRender) -> dedupeAlertFacts -> actionable/diagnostic filter
+- expanded_scroll_bounds: .alert-center-list max-height: 35vh; overflow-y: auto; overscroll-behavior: contain
+- diagnostics_overlay_bounds: .dashboard-diagnostics-panel position: absolute; z-index: 10; max-height: min(65vh, 34rem); overflow-y: auto
+- aria_and_focus: button type=button, aria-controls=alert-center-list, aria-expanded, dynamic aria-label; list tabindex=0; sr-only live region announces summary only; focusBoardAfterAlertCenter moves focus to id='board' tabindex='-1' when cleared
 ---
 <!-- COMMENTS:END -->
