@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Validation
+status: Open
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T23:56:51.603564Z'
+updated_at: '2026-08-04T00:21:02.091869Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -132,6 +132,31 @@ oompah.work_branch: OOMPAH-739
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-2f32a1a374de: '2026-08-04T00:20:55.601100+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    target_state: Done
+    evidence_fingerprint: 4d441cbf0abbf4453853f300194108d5efaada0e662456141fce0b14c08f4611
+    audit_ids:
+    - audit-461416d2e0fc
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T00:20:55.601112+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    audit_id: audit-461416d2e0fc
+    attempt_id: attempt-2f32a1a374de
+    target_state: Done
+    evidence_fingerprint: 4d441cbf0abbf4453853f300194108d5efaada0e662456141fce0b14c08f4611
+    status: Open
+    audit_ids:
+    - audit-461416d2e0fc
+    applied: true
+    created_at: '2026-08-04T00:20:55.601129+00:00'
+    applied_at: '2026-08-04T00:21:00.035045+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -139,7 +164,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-739
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -163,7 +188,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2f32a1a374de
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -174,13 +199,17 @@ oompah.terminal_audit:
       started_at: '2026-08-03T23:56:32.962924+00:00'
       branch_key: OOMPAH-739
       candidate_rotation_count: 1
+      verdict: fail
+      failure_classification: missing_tests
+      completed_at: '2026-08-04T00:20:55.600855+00:00'
+      ended_at: '2026-08-04T00:20:55.600855+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-03T22:54:54.684359+00:00'
-    updated_at: '2026-08-03T23:56:32.962924+00:00'
+    updated_at: '2026-08-04T00:20:55.600855+00:00'
   - version: 1
     audit_id: audit-d0f8780b1855
     project_id: proj-14849f1b
@@ -456,5 +485,22 @@ author: oompah
 created: 2026-08-03 23:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 00:20
+---
+Audit FAIL — missing tests. Routing task to Open.
+
+[REDACTED]
+
+Questions:
+- Should the 5 required regression tests from the task description be added in a follow-up task, or must this branch be re-opened for implementation of the missing test coverage?
+- The PR #694 was reportedly merged to main during prior attempts; should this audit target 'Merged' rather than 'Done'?
+
+Instructions:
+- Add a test in test_terminal_audit_enforcement.py that verifies: given a child issue in Merged state with a parent issue also in Merged state, recover_pending_audits() does NOT demote the child to Done (OOMPAH-584/587/588 scenario).
+- Add a test verifying that when the parent is not in terminal Merged/Archived state (unlanded), the Merged-to-Done repair still fires exactly once.
+- Add a test verifying OOMPAH-447 regression: a later open PR on the shared branch does not reopen already-Merged siblings.
+- Add direct coverage for get_recovery_snapshot() — specifically that it returns the snapshot during recovery and None outside of it.
 ---
 <!-- COMMENTS:END -->
