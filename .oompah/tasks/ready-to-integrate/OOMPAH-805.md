@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:49:08.771309Z'
+updated_at: '2026-08-04T20:49:34.651744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,6 +98,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-805
     source_sha: a681ec2fc005f339063b3b8e2a139b8ae0b3c379
     completed_at: '2026-08-04T20:29:29.223195+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-805
+  head_sha: 73a18c40fb6c85d57b622797a7bc94e589c1bf95
+  submitted_at: '2026-08-04T20:49:30.059910+00:00'
+  updated_at: '2026-08-04T20:49:30.059910+00:00'
 ---
 ## Summary
 
@@ -165,5 +173,10 @@ author: oompah
 created: 2026-08-04 20:49
 ---
 **VERIFICATION**: All tests pass. Test results: (1) Individual tests: burst test and tick-metrics test both pass. (2) Full suite: 60 tests in test_event_driven_loop.py pass, 14 tests in test_long_tick_regression.py pass. (3) Parallel execution: All 74 tests pass with -n 4 xdist workers. (4) No timing-dependent assertions remain - both tests now use explicit asyncio event synchronization. Changes: tests/test_event_driven_loop.py (1 test modified), tests/test_long_tick_regression.py (1 test modified). Branch: OOMPAH-805 (1 commit). Ready for full gate testing.
+---
+author: oompah
+created: 2026-08-04 20:49
+---
+Fixed intermittent test failures under parallel load by replacing time-based sleeps with explicit asyncio event synchronization. Burst test now waits for tick completion instead of elapsed time. Tick-metrics test now properly drains background work and prevents archived-audit side effects. All 74 tests pass serially and with -n 4 parallel workers.
 ---
 <!-- COMMENTS:END -->
