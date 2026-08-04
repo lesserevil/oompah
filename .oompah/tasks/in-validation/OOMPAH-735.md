@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:11:23.920494Z'
+updated_at: '2026-08-04T03:19:29.907493Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -119,6 +119,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/702
 oompah.review_number: '702'
 oompah.work_branch: OOMPAH-735
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f147c8dafc43
+    project_id: proj-14849f1b
+    task_id: OOMPAH-735
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1d818b590605c25ba03df13c287aacb18ffdf6925ab41d1c954ee1a34c00f1b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:19:20.068819+00:00'
+  - version: 1
+    audit_id: audit-542965ce82f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-735
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1d818b590605c25ba03df13c287aacb18ffdf6925ab41d1c954ee1a34c00f1b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:19:20.068819+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -358,5 +397,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 58s
 - Log: OOMPAH-735__20260804T030214Z.jsonl
+---
+author: oompah
+created: 2026-08-04 03:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 03:19
+---
+YOLO: merged PR #702.
 ---
 <!-- COMMENTS:END -->
