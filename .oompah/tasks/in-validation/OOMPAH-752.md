@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:40:38.579555Z'
+updated_at: '2026-08-04T02:41:16.817486Z'
 work_branch: OOMPAH-752
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/700
@@ -68,13 +68,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1899
+  total_input_tokens: 40
+  total_output_tokens: 7436
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1899
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 30
+      output_tokens: 5537
       cost_usd: 0.0
   runs:
   - profile: default
@@ -83,6 +87,12 @@ oompah.task_costs:
     output_tokens: 1899
     cost_usd: 0.0
     recorded_at: '2026-08-04T01:59:42.860844+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 5537
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T02:41:10.905107+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-752__20260804T015847Z
@@ -324,5 +334,15 @@ Safe evidence:
 - code_helpers_added: _standalone_delivery_order_key, _arm_standalone_capacity_wait
 - regression_tests_added: test_standalone_delivery_selects_priority_then_submitted_fifo; test_invalid_old_candidate_falls_through_without_claiming_later_rows; test_dependency_blocked_candidate_does_not_claim_or_block_next
 - diff_scope: oompah/orchestrator.py (+201/-65 combined via merge), tests/test_standalone_ready_to_integrate.py (+136 net additions)
+---
+author: oompah
+created: 2026-08-04 02:41
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 33, Tool calls: 24
+- Tokens: 30 in / 5.5K out [5.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 34s
+- Log: OOMPAH-752__20260804T023444Z.jsonl
 ---
 <!-- COMMENTS:END -->
