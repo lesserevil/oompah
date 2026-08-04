@@ -9,7 +9,7 @@ testable without starting an agent or a tracker server.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -89,6 +89,11 @@ class AuditDispatchPlan:
     previous_state: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    # The generic workflow ledger owns the launch lease.  These fields are
+    # populated only after the attempt metadata has been persisted and the
+    # durable job has been claimed.
+    workflow_job_id: str | None = None
+    workflow_lease_token: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if (self.selected_ref is None) != (self.selected_sha is None):
