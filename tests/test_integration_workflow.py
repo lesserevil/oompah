@@ -162,6 +162,7 @@ def test_decision_and_queue_projection_have_exact_reason_parity(tmp_path):
     store.close()
 
 
+@pytest.mark.timeout(30)  # 402 SQLite job writes at WAL-mode throughput takes ~17 s
 def test_hundreds_of_history_rows_do_not_hide_eligible_heads(tmp_path):
     history = [issue(f"HISTORY-{index:03d}") for index in range(400)]
     ready = [issue("TASK-X"), issue("TASK-Y")]
