@@ -406,6 +406,28 @@ def render_auditor_prompt(
         )
     evidence_text = evidence_text.replace("`", "\\u0060")
 
+    metadata_archive = (
+        evidence_summary.get("metadata_archive")
+        if isinstance(evidence_summary, Mapping)
+        else None
+    )
+    metadata_archive_contract: list[str] = []
+    if (
+        isinstance(metadata_archive, Mapping)
+        and metadata_archive.get("mode") == "revisionless_metadata_archive"
+    ):
+        metadata_archive_contract = [
+            "### Metadata-only Archived target",
+            "This task is a planning-metadata retirement, not code-bearing completion.",
+            "No implementation revision, Git branch, code diff, or test run is expected; "
+            "their absence is not missing evidence and must not be reported as a transport failure.",
+            "Validate the trusted preflight facts and independently check that the untrusted "
+            "disposition explanation and source/replacement reference support retirement.",
+            "Fail the Archived target if the reason/source is inconsistent or any active "
+            "work, claim, retry, review, child, dependency, or changed-requirement evidence remains.",
+            "",
+        ]
+
     def _safe_json(value: Any) -> str:
         """Serialize dynamic values without allowing Markdown fence escape."""
         return json.dumps(
@@ -501,6 +523,7 @@ def render_auditor_prompt(
         evidence_text,
         "",
     ]
+    prompt_content.extend(metadata_archive_contract)
     
     # Conditionally add validation targets section
     if validation_targets_section:

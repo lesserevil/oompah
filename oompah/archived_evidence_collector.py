@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -34,6 +35,16 @@ from oompah.done_evidence_collector import (  # noqa: E402
 from oompah.terminal_audit import EvidenceFingerprint, Verdict  # noqa: E402
 
 MaybeEvidence = str | int | float | bool | None | dict[str, Any] | list[Any] | EvidenceUnavailable | EvidenceInvalid
+
+
+_SOURCE_TASK_RE = re.compile(
+    r"(?im)^\s*Triggered\s+by:\s*(?P<task>[^\s]+)\s*$"
+)
+_EXPLICIT_DISPOSITION_RE = re.compile(
+    r"(?is)\b(?:archive|archived)\s+disposition\s*:\s*"
+    r"(?P<kind>duplicate|obsolete|blocked|superseded)\s*[:\-]\s*"
+    r"(?P<reason>.+)"
+)
 
 
 class DispositionType(str, Enum):
@@ -72,6 +83,98 @@ class DispositionType(str, Enum):
         raise ValueError(
             f"Unknown DispositionType {raw!r}; expected one of: {valid}"
         )
+
+
+_NARRATIVE_DISPOSITION_PATTERNS = (
+    (
+        DispositionType.DUPLICATE,
+        re.compile(r"(?is)\barchiv(?:e|ed|ing)\b.{0,160}\bduplicate\b"),
+    ),
+    (
+        DispositionType.OBSOLETE,
+        re.compile(r"(?is)\barchiv(?:e|ed|ing)\b.{0,160}\bobsolete\b"),
+    ),
+    (
+        DispositionType.SUPERSEDED,
+        re.compile(r"(?is)\barchiv(?:e|ed|ing)\b.{0,160}\bsupersed(?:e|ed|ing)\b"),
+    ),
+    (
+        DispositionType.BLOCKED,
+        re.compile(r"(?is)\barchiv(?:e|ed|ing)\b.{0,160}\bpermanently\s+blocked\b"),
+    ),
+)
+
+
+def revisionless_metadata_archive_candidate(
+    issue: Any,
+    *,
+    target_state: Any,
+    previous_state: str | None,
+) -> bool:
+    """Return whether an Archived audit is provably planning-metadata-only.
+
+    This classification is intentionally narrow.  Only work retired directly
+    from Proposed or Backlog can use a revisionless audit view, and any durable
+    implementation or integration evidence keeps the audit on the immutable-
+    revision path.  Live review evidence is validated separately as an unsafe
+    retirement blocker.  ``branch_name`` is deliberately excluded: native
+    trackers historically derive it from the task identifier even when no
+    branch was ever created (the OOMPAH-803 failure mode).
+    """
+
+    target = str(getattr(target_state, "value", target_state) or "").strip().casefold()
+    previous = str(previous_state or "").strip().casefold().replace("_", " ")
+    if target != "archived" or previous not in {"proposed", "backlog"}:
+        return False
+
+    integration = getattr(issue, "integration", None)
+    code_evidence = (
+        getattr(issue, "source_sha", None),
+        getattr(issue, "target_sha", None),
+        getattr(issue, "head_sha", None),
+        getattr(issue, "source_branch", None),
+        getattr(issue, "work_branch", None),
+        getattr(integration, "task_branch", None),
+        getattr(integration, "head_sha", None),
+        getattr(integration, "integrated_sha", None),
+    )
+    return not any(str(value or "").strip() for value in code_evidence)
+
+
+def metadata_archive_disposition(
+    description: str | None,
+    comments: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+) -> tuple[DispositionType | None, str, str | None]:
+    """Extract a bounded direct-retirement reason and structured source.
+
+    ``Triggered by: TASK`` is server-managed source metadata.  Disposition
+    prose remains untrusted evidence, but recognizing a small archive-specific
+    vocabulary lets the trusted collector validate that evidence before a
+    revisionless workspace is launched.  The explicit ``Archive disposition``
+    form is preferred; the narrative forms preserve existing tasks such as
+    OOMPAH-803 without requiring an invented branch or metadata rewrite.
+    """
+
+    source_match = _SOURCE_TASK_RE.search(str(description or ""))
+    source = source_match.group("task").strip() if source_match else None
+
+    for comment in reversed(list(comments or [])):
+        if not isinstance(comment, dict):
+            continue
+        text = str(comment.get("text") or comment.get("body") or "").strip()
+        if not text:
+            continue
+        explicit = _EXPLICIT_DISPOSITION_RE.search(text)
+        if explicit:
+            return (
+                DispositionType.from_raw(explicit.group("kind")),
+                explicit.group("reason").strip()[:2000],
+                source,
+            )
+        for disposition_type, pattern in _NARRATIVE_DISPOSITION_PATTERNS:
+            if pattern.search(text):
+                return disposition_type, text[:2000], source
+    return None, "", source
 
 
 class SafetyFailureMode(str, Enum):
@@ -944,4 +1047,6 @@ __all__ = [
     "AuditReferenceEvidence",
     "EvidenceUnavailable",
     "EvidenceInvalid",
+    "metadata_archive_disposition",
+    "revisionless_metadata_archive_candidate",
 ]
