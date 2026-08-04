@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T13:53:43.719998Z'
+updated_at: '2026-08-04T14:00:08.547871Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-08-04 13:53
 ---
 Understanding: I will trace integration/health failure data from producers through the dashboard contract and renderer, reconcile OOMPAH-741 first, then enforce redacted one-line bounded compact fields plus separately bounded expandable diagnostics. I will add regression/security tests for EXOCOMP-147-style rebase output, escaping/control characters/credential redaction, Unicode truncation, and existing concise alerts, while avoiding overlapping orchestrator paths unless necessary.
+---
+author: oompah
+created: 2026-08-04 14:00
+---
+Discovery: The rebase conflict came from OOMPAH-741 introducing dashboard_alerts.normalize_alerts as the canonical actionability/deduplication contract while the prior OOMPAH-743 commit added a parallel alert sanitizer. I reconciled the interfaces by retaining OOMPAH-741's canonical contract and layering transcript-aware redaction/bounds beneath it. Integration retry production, snapshot normalization, and REST/WebSocket enrichment now share that path; the renderer remains a separate defensive boundary.
 ---
 <!-- COMMENTS:END -->
