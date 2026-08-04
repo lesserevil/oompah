@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-809
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Reserve workflow-repair capacity while terminal audits drain
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:49:44.289735Z'
-updated_at: '2026-08-04T21:50:36.095178Z'
+updated_at: '2026-08-04T21:50:39.601189Z'
 work_branch: null
 target_branch: null
 review_url: null
