@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -13,10 +13,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:57:13.680820Z'
+updated_at: '2026-08-04T12:57:26.358592Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/711
 review_number: null
 review_head: null
 merged_at: null
@@ -101,6 +101,7 @@ oompah.integration:
   head_sha: 0d92e522f6010a24da1b5d5de8a79fd9010157fa
   submitted_at: '2026-08-04T12:49:30.253299+00:00'
   updated_at: '2026-08-04T12:49:30.253299+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/711
 ---
 ## Summary
 
