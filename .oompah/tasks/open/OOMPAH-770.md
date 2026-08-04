@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-770
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Enforce universal nonterminal liveness and truthful operator alerts
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-04T21:31:52.341062Z'
+updated_at: '2026-08-04T21:42:49.508700Z'
 work_branch: null
 target_branch: null
 review_url: null
