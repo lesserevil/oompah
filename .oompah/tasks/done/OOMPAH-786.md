@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:07.630785Z'
-updated_at: '2026-08-04T15:13:16.187853Z'
+updated_at: '2026-08-04T17:02:35.777731Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-786
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -62,8 +62,43 @@ oompah.terminal_audit:
     applied: true
     retired_at: '2026-08-04T15:13:14.902223+00:00'
   oompah.terminal_audit_result_intents: []
+  queued_comment_posted: true
   version: 1
-  pending_chain: []
+  pending_chain:
+  - version: 1
+    audit_id: audit-9f97ed70a405
+    project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-04T17:02:30.923844+00:00'
+  - version: 1
+    audit_id: audit-433a0cedfa70
+    project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-04T17:02:30.923844+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -94,5 +129,10 @@ created: 2026-08-04 15:13
 Override by oompah-cli: terminal transition to Done applied by project owner.
 
 Reason: Project-owner exact fast-forward integration. Published head b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b was proven to descend from epic-OOMPAH-765 and pushed exactly to that immediate target. Evidence: 116 adjacent tests and final 33 focused tests passed; Ruff, formatting, diff, secret, and terminal mutation checks clean.
+---
+author: oompah
+created: 2026-08-04 17:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
