@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-08-04T15:29:44.372872Z'
+updated_at: '2026-08-04T15:29:51.655473Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -65,8 +65,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-db40c5a65f21
-    applied: false
+    applied: true
     created_at: '2026-08-04T15:29:41.122665+00:00'
+    applied_at: '2026-08-04T15:29:49.551689+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -374,5 +375,21 @@ author: oompah
 created: 2026-08-04 15:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 15:29
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit_on_main: e7f3e9370 Merge pull request #560 from lesserevil/epic-OOMPAH-451
+- recovery_commits_present_on_main: 14344e318, 238ce3900, 4c5420f7d, f6c4ef88d, 4c215500f
+- gitlab_tracker_module_path: oompah/gitlab_tracker.py
+- tracker_registry_lines: oompah/tracker.py:554-572 register gitlab_issues and gitlab-issues
+- server_governance_reference: oompah/server.py:16416 lists gitlab_issues
+- downstream_integration_evidence: Later commits (OOMPAH-527, 455, 456, 523, 680) touch gitlab surfaces on main
+- audit_trigger: Aged Merged auto-archive (closed 7 days ago)
 ---
 <!-- COMMENTS:END -->
