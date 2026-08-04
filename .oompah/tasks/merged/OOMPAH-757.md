@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T13:31:42.546025Z'
+updated_at: '2026-08-04T13:32:19.368651Z'
 work_branch: OOMPAH-757
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/711
@@ -46,8 +46,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 48720
-  total_output_tokens: 2463
+  total_input_tokens: 48726
+  total_output_tokens: 2905
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -59,8 +59,8 @@ oompah.task_costs:
       output_tokens: 1672
       cost_usd: 0.0
     unknown:
-      input_tokens: 6
-      output_tokens: 182
+      input_tokens: 12
+      output_tokens: 624
       cost_usd: 0.0
   runs:
   - profile: default
@@ -93,6 +93,12 @@ oompah.task_costs:
     output_tokens: 182
     cost_usd: 0.0
     recorded_at: '2026-08-04T13:27:38.517431+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 442
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T13:32:17.218611+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-757__20260804T111243Z
@@ -839,5 +845,15 @@ Safe evidence:
 - gap_evidence_consumption_still_present: _canonical_landing_evidence_block_reason has no callers in oompah/orchestrator.py; existing landing consumers unchanged at merge SHA
 - gap_historical_whitelist_still_empty: _BOUNDED_HISTORICAL_REPAIR_EVIDENCE dict is empty at merge SHA; no EXOCOMP-130 recovery entry
 - gap_no_exocomp_148_test: no EXOCOMP-148 specific test with SHAs 4e013110/8400a54a/61141cb8/9663f4b2 present in tests/test_canonical_landing_evidence.py
+---
+author: oompah
+created: 2026-08-04 13:32
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 20
+- Tokens: 6 in / 442 out [448 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 25s
+- Log: OOMPAH-757__20260804T132800Z.jsonl
 ---
 <!-- COMMENTS:END -->

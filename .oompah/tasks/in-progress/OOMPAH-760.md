@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:31:22.827107Z'
+updated_at: '2026-08-04T13:32:23.797043Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -370,5 +370,10 @@ author: oompah
 created: 2026-08-04 13:31
 ---
 Implementation: added 'author': 'oompah' to the mock tracker.fetch_comments return value in tests/test_retry_authority_generation.py::test_focus_handoff_open_retry_starts_feature_developer_exactly_once so the fail-closed parser accepts the structured HANDOFF comment. Minimal test-only change; no feature code touched. Also rebased the branch on origin/main to bring the OOMPAH-759 test into the worktree.
+---
+author: oompah
+created: 2026-08-04 13:32
+---
+Verification: rebased on origin/main, applied test-only fix, focused suites pass (332 passed in test_retry_authority_generation.py + test_task_handoff.py + test_focus.py + test_orchestrator_duplicate_detection.py + test_duplicate_preflight.py). Pushed c9c5e9b6c with --force-with-lease. CI on MR #712 (run 30914293810) has re-queued for Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
