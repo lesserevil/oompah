@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-499
 type: chore
-status: In Validation
+status: Archived
 priority: 2
 title: Remove exact duplicate tests and resolve shadowed definitions
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:34.407060Z'
-updated_at: '2026-08-04T17:49:13.628384Z'
+updated_at: '2026-08-04T17:52:18.233059Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -44,6 +44,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T16:49:18.043956+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-481a01144aee: '2026-08-04T17:52:14.861019+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-499
+    target_state: Archived
+    evidence_fingerprint: 8ab31866e7402f94b27f8ad98f3660788289d281c25797051745322d6bbfdee3
+    audit_ids:
+    - audit-181754bd05b4
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T17:52:14.861030+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-499
+    audit_id: audit-181754bd05b4
+    attempt_id: attempt-481a01144aee
+    target_state: Archived
+    evidence_fingerprint: 8ab31866e7402f94b27f8ad98f3660788289d281c25797051745322d6bbfdee3
+    status: Archived
+    audit_ids:
+    - audit-181754bd05b4
+    applied: false
+    created_at: '2026-08-04T17:52:14.861046+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -51,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-499
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -60,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-481a01144aee
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -70,13 +94,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T17:49:01.066415+00:00'
       branch_key: epic-OOMPAH-490
+      verdict: pass
+      completed_at: '2026-08-04T17:52:14.860820+00:00'
+      ended_at: '2026-08-04T17:52:14.860820+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T17:26:57.870195+00:00'
-    updated_at: '2026-08-04T17:49:01.066415+00:00'
+    updated_at: '2026-08-04T17:52:14.860820+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-481a01144aee
