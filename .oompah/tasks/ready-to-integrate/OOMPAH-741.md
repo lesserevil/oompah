@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:43:30.327379Z'
+updated_at: '2026-08-04T11:45:19.003379Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -54,10 +54,10 @@ oompah.integration:
   base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
   head_sha: a6a023f461e0c6ff11de967fc617e35996a3116b
   submitted_at: '2026-08-04T11:43:26.269270+00:00'
-  updated_at: '2026-08-04T11:43:26.269270+00:00'
+  updated_at: '2026-08-04T11:45:16.294413+00:00'
 oompah.task_costs:
-  total_input_tokens: 46376
-  total_output_tokens: 15598
+  total_input_tokens: 46384
+  total_output_tokens: 16826
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -65,8 +65,8 @@ oompah.task_costs:
       output_tokens: 259
       cost_usd: 0.0
     opus:
-      input_tokens: 134
-      output_tokens: 15339
+      input_tokens: 142
+      output_tokens: 16567
       cost_usd: 0.0
   runs:
   - profile: default
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 5768
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:19:20.115797+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 8
+    output_tokens: 1228
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:45:05.153381+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-741__20260803T230037Z
@@ -97,6 +103,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-741
     source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
     completed_at: '2026-08-03T23:02:22.799945+00:00'
+  - run_id: OOMPAH-741__20260804T112747Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: frontend
+    source_branch: epic-OOMPAH-740--task-OOMPAH-741
+    source_sha: a6a023f461e0c6ff11de967fc617e35996a3116b
+    completed_at: '2026-08-04T11:45:05.195923+00:00'
 ---
 ## Summary
 
@@ -352,5 +366,20 @@ author: oompah
 created: 2026-08-04 11:43
 ---
 Structured server-side dashboard alert contract (oompah.dashboard_alerts) applied to generic orchestrator alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Frontend uses action_required=false as the actionability decision without message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification. Rebased onto current epic-OOMPAH-740; focused alert/health/state-API/WebSocket + test_long_tick_regression suites pass locally; prior single-test gate failure was a flaky race in the unrelated maintenance-future ordering test (see TASK-472.4) and not caused by this branch.
+---
+author: oompah
+created: 2026-08-04 11:45
+---
+Agent completed successfully in 1051s (1236 tokens)
+---
+author: oompah
+created: 2026-08-04 11:45
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 63, Tool calls: 41
+- Tokens: 8 in / 1.2K out [1.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 31s
+- Log: OOMPAH-741__20260804T112747Z.jsonl
 ---
 <!-- COMMENTS:END -->
