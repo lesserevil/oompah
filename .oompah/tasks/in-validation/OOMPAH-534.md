@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-534
 type: task
-status: Merged
+status: In Validation
 priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-07-28T22:17:24.960498Z'
+updated_at: '2026-08-04T22:37:11.935343Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 1829
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:51:00.720201+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8eb77ffe3310
+    project_id: proj-14849f1b
+    task_id: OOMPAH-534
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 838b285675c0a1d84af99cb495f92d1f35444bd4046d1e6ca4cb2f8398d7a147
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:37:05.290529+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -227,5 +249,10 @@ author: oompah
 created: 2026-07-28 22:13
 ---
 Verified the completed duplicate-preflight work landed in PR #568; removed stale divergent worktree evidence.
+---
+author: oompah
+created: 2026-08-04 22:37
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
