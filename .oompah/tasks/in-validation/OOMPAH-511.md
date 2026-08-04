@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-08-04T16:26:13.536161Z'
+updated_at: '2026-08-04T16:32:17.703762Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -25,6 +25,31 @@ oompah.work_branch: epic-OOMPAH-511
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-cb96d0a8036a: '2026-08-04T16:32:06.464468+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-511
+    target_state: Archived
+    evidence_fingerprint: d46f59de6b7e98be6b90abb05ad71e10fedea7b02363822c30dd5c37750f1529
+    audit_ids:
+    - audit-dc2b7e9fa81f
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T16:32:06.464480+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-511
+    audit_id: audit-dc2b7e9fa81f
+    attempt_id: attempt-cb96d0a8036a
+    target_state: Archived
+    evidence_fingerprint: d46f59de6b7e98be6b90abb05ad71e10fedea7b02363822c30dd5c37750f1529
+    status: In Validation
+    audit_ids:
+    - audit-dc2b7e9fa81f
+    applied: true
+    created_at: '2026-08-04T16:32:06.464497+00:00'
+    applied_at: '2026-08-04T16:32:16.301930+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -32,7 +57,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-511
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -41,7 +66,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cb96d0a8036a
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -51,13 +76,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T16:26:01.168349+00:00'
       branch_key: epic-OOMPAH-511
+      verdict: pass
+      completed_at: '2026-08-04T16:32:06.464292+00:00'
+      ended_at: '2026-08-04T16:32:06.464292+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T16:24:35.836414+00:00'
-    updated_at: '2026-08-04T16:26:01.168349+00:00'
+    updated_at: '2026-08-04T16:32:06.464292+00:00'
   - version: 1
     audit_id: audit-6fabd90c6453
     project_id: proj-14849f1b
@@ -165,5 +193,25 @@ author: oompah
 created: 2026-08-04 16:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 16:32
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 1143e5cb139b795262ff0e7d0cbd3753751940f7
+- epic_impl_commit: 6533e235e
+- coverage_commit: 5397b7a82
+- pull_request: https://github.com/lesserevil/oompah/pull/562
+- days_since_merge: 7
+- merged_into_main: true
+- regression_test_file: tests/test_managed_tracker_state_branch_guard.py
+- regression_test_size_lines: 535
+- children: OOMPAH-512, OOMPAH-513, OOMPAH-514
+- task_file_location: oompah/state/proj-14849f1b:.oompah/tasks/in-validation/OOMPAH-511.md
+- worktree_status: clean
 ---
 <!-- COMMENTS:END -->

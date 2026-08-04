@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:31:39.699761Z'
+updated_at: '2026-08-04T16:32:27.261692Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -177,5 +177,17 @@ Output tail:
 ```text
 The quality-gate worktree has uncommitted changes. Commit and push the repair before rerunning the exact review-head gate.
 ```
+---
+author: oompah
+created: 2026-08-04 16:32
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #21)
+
+**State audited:** `Needs Rebase`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current SCM evidence shows the stalled branch/rebase condition is resolved.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
