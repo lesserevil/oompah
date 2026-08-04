@@ -5033,19 +5033,62 @@ async def api_task_handoff(request: Request):
             return JSONResponse({"messages": messages})
 
         if action == "coordination-send":
-            message = await run_mutation(
-                lambda: _run_api_io(
-                    orch.coordination_send,
-                    project_id=project_id,
-                    sender=identifier,
-                    recipient=str(body.get("recipient") or "").strip(),
-                    text=str(body.get("text") or "").strip(),
-                    kind=str(body.get("kind") or "message").strip(),
-                    changed_paths=body.get("changed_paths"),
-                    commit_sha=body.get("commit_sha"),
-                    idempotency_key=body.get("idempotency_key"),
+            try:
+                message = await run_mutation(
+                    lambda: _run_api_io(
+                        orch.coordination_send,
+                        project_id=project_id,
+                        sender=identifier,
+                        recipient=str(body.get("recipient") or "").strip(),
+                        text=str(body.get("text") or "").strip(),
+                        kind=str(body.get("kind") or "message").strip(),
+                        changed_paths=body.get("changed_paths"),
+                        commit_sha=body.get("commit_sha"),
+                        idempotency_key=body.get("idempotency_key"),
+                    )
                 )
-            )
+            except PermissionError:
+                # Advisory peer authorization is intentionally dynamic:
+                # ``coordination_peers`` re-derives the suggested set from the
+                # current graph and lifecycle, so a recipient can leave that
+                # set between a worker listing peers and calling send.  This
+                # is an expected fail-closed coordination policy result, not
+                # an assigned-task handoff or authentication failure.  The
+                # response must therefore satisfy four security invariants:
+                #
+                #   1.  Non-500 structured denial (uniform whether the peer
+                #       became stale, was never authorized, is in another
+                #       project, or does not exist) so the caller cannot
+                #       infer target existence.
+                #   2.  No ``record_task_handoff_failure`` write, so
+                #       worker-exit reconciliation does not move successful
+                #       own-task work to Needs Human.
+                #   3.  No ``record_worker_401`` write, so the token's
+                #       auth-health does not degrade on an intentional
+                #       policy event.
+                #   4.  The capability remains valid for the worker's own
+                #       ``comment``, ``submit``, and other granted actions
+                #       — nothing is revoked here.
+                #
+                # ``record_worker_403_policy`` is the same informational
+                # signal we already emit for cross-task peer view denials so
+                # operators can see the frequency without treating it as a
+                # transport or scope failure.  The permit's ``__aexit__``
+                # simply releases the operation refcount; ``coordination_send``
+                # authorizes before ``CoordinationStore.append``, so no
+                # durable message row is created on this path.
+                record_worker_403_policy()
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "coordination_forbidden",
+                            "message": (
+                                "coordination recipient is not a suggested peer"
+                            ),
+                        }
+                    },
+                    status_code=403,
+                )
             await broadcast_issues()
             return JSONResponse({"message": message}, status_code=201)
 

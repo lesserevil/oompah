@@ -965,6 +965,514 @@ class TestFailedHandoffLifecycle:
         assert not orch.state.retry_attempts
 
 
+class TestCoordinationSendRaces:
+    """OOMPAH-751 regression: advisory coordination-send policy denials must
+    not poison the assigned task.
+
+    ``Orchestrator.coordination_send`` re-derives the suggested peer set
+    right before ``CoordinationStore.append``. When the recipient is no
+    longer in that set (or was never authorized, or is in a different
+    project, or does not exist), the orchestrator raises
+    ``PermissionError``. The task-handoff endpoint must:
+
+      1. return a structured non-500 response ``coordination_forbidden``
+         so the caller cannot infer target existence;
+      2. NOT record a task-handoff failure — worker-exit reconciliation
+         would otherwise move successful own-task work to Needs Human;
+      3. NOT record a worker-401 or scope-403 auth-health event;
+      4. leave the capability valid so subsequent own-task ``comment`` and
+         ``submit`` continue to succeed;
+      5. emit the same informational ``policy_denial_count`` signal we
+         emit for cross-task peer view denials.
+    """
+
+    def _make_orch_and_tracker(self, server_module, issue: Issue, token: str):
+        """Build a MagicMock orchestrator/tracker pair for the handoff route.
+
+        The orchestrator exposes:
+
+          * the tracker for the issue's project via ``_tracker_for_project``;
+          * an empty ``project_store`` so canonicalization is a passthrough;
+          * a ``state.running`` entry that carries the capability token;
+          * an ``update_issue`` side effect on the tracker so status
+            transitions caused by ``set-status`` or ``submit`` are visible.
+        """
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_comments.return_value = []
+
+        def update_issue(_identifier, **kwargs):
+            if "status" in kwargs:
+                issue.state = kwargs["status"]
+
+        tracker.update_issue.side_effect = update_issue
+
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.list_all.return_value = []
+        orch.config.parallel_epic_children_enabled = False
+        orch.coordination_checkpoint.return_value = {"peers": []}
+        orch.state = SimpleNamespace(
+            running={
+                issue.id: SimpleNamespace(
+                    identifier=issue.identifier,
+                    issue=issue,
+                    task_handoff_token=token,
+                )
+            }
+        )
+        return orch, tracker
+
+    def _install_orch(self, server_module, orch):
+        old_orch = server_module._orchestrator
+        old_creds = server_module._http_credentials
+        old_broadcast = server_module.broadcast_issues
+        server_module._orchestrator = orch
+        server_module._http_credentials = None
+        server_module.broadcast_issues = AsyncMock()
+        return old_orch, old_creds, old_broadcast
+
+    def _restore_orch(self, server_module, saved):
+        old_orch, old_creds, old_broadcast = saved
+        server_module._orchestrator = old_orch
+        server_module._http_credentials = old_creds
+        server_module.broadcast_issues = old_broadcast
+
+    def test_stale_peer_send_returns_structured_403_and_preserves_capability(
+        self,
+    ):
+        """The peer race must not poison the worker's own comment and submit.
+
+        Sequence:
+
+            1. ``coordination-send`` races: the recipient left the
+               suggested set between peer discovery and send, so
+               ``orch.coordination_send`` raises PermissionError.
+            2. The endpoint returns HTTP 403 ``coordination_forbidden``
+               with a non-disclosing message.
+            3. The worker's own ``comment`` and ``submit`` succeed against
+               the same capability.
+            4. ``consume_task_handoff_failure`` returns None: the exit
+               reconciler will not move the completed task to Needs Human.
+            5. Auth-health records only the informational policy denial.
+        """
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        issue = Issue(
+            id="issue-751-1",
+            identifier="OOMPAH-746",
+            title="Advisory sender",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="OOMPAH-746",
+            allowed_actions={"view", "comment", "submit", "coordination-send"},
+        )
+        orch, tracker = self._make_orch_and_tracker(server, issue, token)
+        orch.coordination_send.side_effect = PermissionError(
+            "OOMPAH-734 is not a suggested peer for OOMPAH-746"
+        )
+
+        saved = self._install_orch(server, orch)
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                send = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-746",
+                        "recipient": "OOMPAH-734",
+                        "text": "Repair head pushed at 3ed0f959",
+                    },
+                )
+                comment = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-746",
+                        "message": "Repair pushed",
+                    },
+                )
+                submit = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "submit",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-746",
+                        "summary": "Repair merged",
+                        "task_branch": "OOMPAH-746",
+                        "head_sha": "3" * 40,
+                        "remote_head_sha": "3" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+        finally:
+            self._restore_orch(server, saved)
+            revoke_task_handoff_token(token)
+
+        assert send.status_code == 403, send.text
+        payload = send.json()["error"]
+        assert payload["code"] == "coordination_forbidden"
+        # Non-disclosing: the message must not vary with recipient identity
+        # in a way that lets the caller infer target existence.
+        assert "not a suggested peer" in payload["message"]
+        assert "OOMPAH-734" not in payload["message"]
+        assert "OOMPAH-746" not in payload["message"]
+
+        # The capability still works for the worker's own operations.
+        assert comment.status_code == 200, comment.text
+        assert submit.status_code == 200, submit.text
+        assert issue.state == "Ready to Integrate"
+
+        # No actionable handoff failure was recorded — the exit reconciler
+        # cannot move successful work to Needs Human.
+        assert consume_task_handoff_failure(token) is None
+
+        # Auth-health treats the denial as an informational policy event,
+        # not a transport or scope failure.
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_401_count"] == 0
+        assert snap["recent_403_scope_count"] == 0
+        assert snap["policy_denial_count"] == 1
+        ah._reset_for_testing()
+
+    @pytest.mark.parametrize(
+        "recipient",
+        [
+            # Arbitrary identifier the caller made up.
+            "OOMPAH-DOES-NOT-EXIST",
+            # Cross-project identifier — the endpoint must not disclose that
+            # a peer for another project exists.
+            "OTHER-42",
+            # Recipient in the same project that never qualified as a peer.
+            "OOMPAH-UNRELATED",
+        ],
+    )
+    def test_non_peer_recipients_are_indistinguishable(self, recipient):
+        """A stale peer, arbitrary target, cross-project target, and
+        never-authorized target must all return the same structured 403 —
+        the response cannot be used as an oracle for target existence."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        issue = Issue(
+            id="issue-751-2",
+            identifier="TASK-SEND",
+            title="Advisory sender",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-SEND",
+            allowed_actions={"view", "comment", "submit", "coordination-send"},
+        )
+        orch, _tracker = self._make_orch_and_tracker(server, issue, token)
+        orch.coordination_send.side_effect = PermissionError(
+            f"{recipient} is not a suggested peer for TASK-SEND"
+        )
+
+        saved = self._install_orch(server, orch)
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-SEND",
+                        "recipient": recipient,
+                        "text": "hello",
+                    },
+                )
+        finally:
+            self._restore_orch(server, saved)
+            revoke_task_handoff_token(token)
+
+        assert response.status_code == 403
+        error = response.json()["error"]
+        assert error["code"] == "coordination_forbidden"
+        assert "not a suggested peer" in error["message"]
+        # The response must not leak the recipient's identity in the error.
+        assert recipient not in error["message"]
+        assert consume_task_handoff_failure(token) is None
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_401_count"] == 0
+        assert snap["recent_403_scope_count"] == 0
+        ah._reset_for_testing()
+
+    def test_expired_token_still_authenticates_before_policy(self):
+        """A capability that expired mid-run must fail as authentication
+        (401), not as an advisory coordination denial. The scope boundary
+        remains strict — the OOMPAH-751 fix only re-classifies the
+        PermissionError raised inside a validated, unexpired session."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import TASK_HANDOFF_HEADER
+
+        ah._reset_for_testing()
+        saved = self._install_orch(
+            server,
+            self._make_orch_and_tracker(
+                server,
+                Issue(
+                    id="issue-751-3",
+                    identifier="TASK-SEND",
+                    title="Sender",
+                    description="body",
+                    state="In Progress",
+                    project_id="proj-a",
+                ),
+                token="unused",
+            )[0],
+        )
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: "never-issued-token"},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-SEND",
+                        "recipient": "TASK-OTHER",
+                        "text": "hello",
+                    },
+                )
+        finally:
+            self._restore_orch(server, saved)
+
+        # Invalid/expired tokens 401 at authentication; they never reach
+        # the coordination-send policy layer.
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] != "coordination_forbidden"
+        ah._reset_for_testing()
+
+    def test_advisory_denial_survives_worker_exit_reconciliation(
+        self, tmp_path
+    ):
+        """End-to-end: a coordination-send denial does not move successful
+        completed work to Needs Human on worker exit."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        issue = Issue(
+            id="issue-751-4",
+            identifier="OOMPAH-746",
+            title="Advisory sender",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="OOMPAH-746",
+            allowed_actions={"view", "comment", "submit", "coordination-send"},
+        )
+        server_orch, tracker = self._make_orch_and_tracker(server, issue, token)
+        server_orch.coordination_send.side_effect = PermissionError(
+            "OOMPAH-734 is not a suggested peer for OOMPAH-746"
+        )
+
+        saved = self._install_orch(server, server_orch)
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-746",
+                        "recipient": "OOMPAH-734",
+                        "text": "Repair head pushed at 3ed0f959",
+                    },
+                )
+                submit = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "submit",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-746",
+                        "summary": "Repair merged",
+                        "task_branch": "OOMPAH-746",
+                        "head_sha": "3" * 40,
+                        "remote_head_sha": "3" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+        finally:
+            self._restore_orch(server, saved)
+
+        assert submit.status_code == 200, submit.text
+        assert issue.state == "Ready to Integrate"
+
+        # Wire a real orchestrator that shares the same tracker so the
+        # exit reconciler runs the production classification path.
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        orch.tracker = tracker
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._accept_worker_submission = MagicMock(return_value=True)
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._fire_work_contributor_record = MagicMock()
+        orch._post_comment = MagicMock()
+        orch._post_event = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+        )
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        # The advisory denial was informational, so the exit reconciler
+        # accepts the submission instead of routing to Needs Human.
+        assert issue.state == "Ready to Integrate"
+        assert not any(
+            call.kwargs.get("status") == "Needs Human"
+            for call in tracker.update_issue.call_args_list
+        )
+        orch._accept_worker_submission.assert_called_once()
+
+        revoke_task_handoff_token(token)
+        ah._reset_for_testing()
+
+    def test_authorized_send_retry_is_idempotent(self):
+        """An authorized retry with the same idempotency key returns the
+        original durable message, never a duplicate.
+
+        This is a shape assertion against the endpoint: the orchestrator's
+        underlying store handles idempotency by returning the same message
+        for a matching key, and the endpoint forwards it unchanged. The
+        coordination-send path is not implicitly retried by the endpoint
+        on PermissionError, so a denied send creates no row that a later
+        authorized retry could collide with."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="issue-751-5",
+            identifier="TASK-SEND",
+            title="Sender",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-SEND",
+            allowed_actions={"coordination-send"},
+        )
+        orch, _tracker = self._make_orch_and_tracker(server, issue, token)
+        stored = {
+            "id": "message-42",
+            "sender_task": "TASK-SEND",
+            "recipient_task": "TASK-PEER",
+            "text": "shape change",
+            "live_delivery": "durable_fallback",
+        }
+        orch.coordination_send.return_value = stored
+
+        saved = self._install_orch(server, orch)
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                first = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-SEND",
+                        "recipient": "TASK-PEER",
+                        "text": "shape change",
+                        "idempotency_key": "shape-v2",
+                    },
+                )
+                second = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "coordination-send",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-SEND",
+                        "recipient": "TASK-PEER",
+                        "text": "shape change",
+                        "idempotency_key": "shape-v2",
+                    },
+                )
+        finally:
+            self._restore_orch(server, saved)
+            revoke_task_handoff_token(token)
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["message"]["id"] == stored["id"]
+        assert second.json()["message"]["id"] == stored["id"]
+
+
 class TestHandoffTokenFailClosed:
     """OOMPAH-575 regression: missing, invalid, and cross-scope tokens must
     fail closed.  The handoff endpoint must never grant access when the
