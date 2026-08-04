@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:16:43.951943Z'
+updated_at: '2026-08-04T18:16:56.499653Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -341,13 +341,13 @@ oompah.terminal_audit:
     started_at: '2026-08-04T18:14:03.092799+00:00'
     branch_key: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 37
-  total_output_tokens: 9274
+  total_input_tokens: 58
+  total_output_tokens: 14223
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 37
-      output_tokens: 9274
+      input_tokens: 58
+      output_tokens: 14223
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -356,6 +356,12 @@ oompah.task_costs:
     output_tokens: 9274
     cost_usd: 0.0
     recorded_at: '2026-08-04T17:57:55.966575+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 21
+    output_tokens: 4949
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T18:16:53.807130+00:00'
 ---
 ## Summary
 
@@ -526,5 +532,15 @@ Safe evidence:
 - duplicate_guard_present: tests/test_duplicate_names.py
 - removed_design_tests_absent: test_state_branch_design.py, test_draft_epic_badge.py, test_draft_epic_swimlane.py, test_draft_swimlane_toggle.py
 - origin_main_head: a681ec2fc
+---
+author: oompah
+created: 2026-08-04 18:16
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 25, Tool calls: 15
+- Tokens: 21 in / 4.9K out [5.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 49s
+- Log: OOMPAH-490__20260804T181419Z.jsonl
 ---
 <!-- COMMENTS:END -->
