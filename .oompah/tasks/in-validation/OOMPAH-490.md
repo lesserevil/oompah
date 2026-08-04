@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:12:22.288744Z'
+updated_at: '2026-08-04T18:14:10.413693Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -206,18 +206,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-490
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-fa71f06b7f0b
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+      created_at: '2026-08-04T18:14:03.092799+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T18:14:03.092799+00:00'
+      branch_key: epic-OOMPAH-490
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T17:27:37.627571+00:00'
+    updated_at: '2026-08-04T18:14:03.092799+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4235dd76a811
@@ -288,6 +302,19 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-490 (tried: origin/epic-OOMPAH-490, origin/OOMPAH-490)'
     next_retry_at: '2026-08-04T18:06:44.356424+00:00'
+  - version: 1
+    attempt_id: attempt-fa71f06b7f0b
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    created_at: '2026-08-04T18:14:03.092799+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T18:14:03.092799+00:00'
+    branch_key: epic-OOMPAH-490
 oompah.task_costs:
   total_input_tokens: 37
   total_output_tokens: 9274
@@ -444,5 +471,15 @@ created: 2026-08-04 18:10
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-04 18:14
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 18:14
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

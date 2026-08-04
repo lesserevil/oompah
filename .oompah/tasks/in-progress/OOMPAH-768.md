@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-768
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Migrate every workflow domain to shared decisions and durable jobs
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-04T14:04:29.680427Z'
+updated_at: '2026-08-04T18:14:15.846541Z'
 work_branch: null
 target_branch: null
 review_url: null
