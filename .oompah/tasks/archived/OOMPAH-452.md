@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-08-04T15:29:51.655473Z'
+updated_at: '2026-08-04T15:30:08.882890Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ merged_at: null
 oompah.agent_run_id: 5f2edf84-251c-481d-88e2-c95a83815384
 oompah.work_branch: epic-OOMPAH-451
 oompah.task_costs:
-  total_input_tokens: 87
-  total_output_tokens: 26670
+  total_input_tokens: 117
+  total_output_tokens: 31399
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 87
-      output_tokens: 26670
+      input_tokens: 117
+      output_tokens: 31399
       cost_usd: 0.0
   runs:
   - profile: default
@@ -41,6 +41,12 @@ oompah.task_costs:
     output_tokens: 19531
     cost_usd: 0.0
     recorded_at: '2026-07-28T13:04:29.597135+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 4729
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T15:30:06.371562+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -391,5 +397,15 @@ Safe evidence:
 - server_governance_reference: oompah/server.py:16416 lists gitlab_issues
 - downstream_integration_evidence: Later commits (OOMPAH-527, 455, 456, 523, 680) touch gitlab surfaces on main
 - audit_trigger: Aged Merged auto-archive (closed 7 days ago)
+---
+author: oompah
+created: 2026-08-04 15:30
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 31, Tool calls: 24
+- Tokens: 30 in / 4.7K out [4.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 49s
+- Log: OOMPAH-452__20260804T152631Z.jsonl
 ---
 <!-- COMMENTS:END -->
