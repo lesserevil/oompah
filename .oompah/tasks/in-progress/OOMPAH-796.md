@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:53:22.649460Z'
+updated_at: '2026-08-04T21:54:12.402580Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-08-04 21:53
 ---
 Understanding: I will trace WorkDecision evaluation, dispatch, recovery jobs, and bounded full-sync paths; implement a single totality/liveness controller that assigns exactly one allowed disposition and enqueues reason-coded remediation; then add focused regression coverage for stalls, graph impossibility, restart convergence, and idempotency.
+---
+author: oompah
+created: 2026-08-04 21:54
+---
+Discovery: Found existing pure evaluator (oompah/work_decision.py), facts collector (workflow_facts.py), durable jobs (workflow_jobs.py), and scheduler (workflow_scheduler.py). Runtime currently has only shadow comparison plus legacy dispatch/watchdog paths; I am tracing initialization and tick/full-sync seams to add the universal controller without moving status writes into evaluation.
 ---
 <!-- COMMENTS:END -->
