@@ -14,10 +14,11 @@ children:
 - OOMPAH-755
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- rebase-requested
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-04T11:04:47.888489Z'
+updated_at: '2026-08-04T11:05:05.171574Z'
 work_branch: null
 target_branch: null
 review_url: null
