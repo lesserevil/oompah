@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:53:17.792509Z'
+updated_at: '2026-08-04T16:53:35.659759Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -37,7 +37,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-766
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a9484b21d76f
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -94,13 +94,18 @@ oompah.terminal_audit:
       started_at: '2026-08-04T16:53:12.285147+00:00'
       branch_key: epic-OOMPAH-766
       candidate_rotation_count: 2
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-04T16:53:27.735228+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766)'
+      next_retry_at: '2026-08-04T16:54:07.735195+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
-    updated_at: '2026-08-04T16:53:12.285147+00:00'
+    updated_at: '2026-08-04T16:53:27.735228+00:00'
   - version: 1
     audit_id: audit-48e0b754331c
     project_id: proj-14849f1b
@@ -159,7 +164,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-a9484b21d76f
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -170,6 +175,11 @@ oompah.terminal_audit:
     started_at: '2026-08-04T16:53:12.285147+00:00'
     branch_key: epic-OOMPAH-766
     candidate_rotation_count: 2
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-04T16:53:27.735228+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766)'
+    next_retry_at: '2026-08-04T16:54:07.735195+00:00'
 ---
 ## Summary
 
@@ -240,5 +250,19 @@ author: oompah
 created: 2026-08-04 16:53
 ---
 Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-04 16:53
+---
+Run #3 [attempt=3, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 10s
+---
+author: oompah
+created: 2026-08-04 16:53
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-766 (tried: origin/epic-OOMPAH-766, origin/OOMPAH-766). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
