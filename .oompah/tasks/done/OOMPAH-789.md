@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:14.267846Z'
-updated_at: '2026-08-04T18:11:50.224307Z'
+updated_at: '2026-08-04T18:11:55.948912Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,7 +53,17 @@ oompah.terminal_audit:
       rejected it because the preserved task recovery worktree remained at parent
       head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1.
     created_at: '2026-08-04T18:11:46.474470+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-789
+    target_state: Done
+    evidence_fingerprint: 936ecf5bf8338fc12a9b34dd30aa75b29cd93311b67281d69ad085fa3280b7be
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T18:11:54.728185+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -86,5 +96,12 @@ created: 2026-08-04 18:11
 Integration could not verify `OOMPAH-789`: task worktree head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1 differs from the published task head 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 18:11
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation was fully tested and published at exact head 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae on epic-OOMPAH-767. Integration incorrectly rejected it because the preserved task recovery worktree remained at parent head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1.
 ---
 <!-- COMMENTS:END -->
