@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T03:00:12.241152Z'
+updated_at: '2026-08-04T03:00:25.451771Z'
 work_branch: OOMPAH-751
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/701
@@ -168,8 +168,9 @@ oompah.terminal_audit:
     status: In Validation
     audit_ids:
     - audit-d9db7e8d585e
-    applied: false
+    applied: true
     created_at: '2026-08-04T03:00:05.508873+00:00'
+    applied_at: '2026-08-04T03:00:21.567508+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -444,5 +445,21 @@ author: oompah
 created: 2026-08-04 02:52
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 03:00
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 38bb88c85d869a232a90974a07bacb5d20cd37d6
+- merge_sha: 11d81c27a
+- pr: 701
+- focused_tests_passed: 120
+- new_regression_tests: 7
+- full_gate_result: passed (411.1s, per scheduler evidence)
+- key_changed_files: oompah/server.py, tests/test_task_handoff.py, docs/scoped-task-cli-authentication.md, plans/advisory-coordination-send-races.md
 ---
 <!-- COMMENTS:END -->
