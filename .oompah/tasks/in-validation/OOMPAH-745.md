@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:37:23.903638Z'
+updated_at: '2026-08-04T16:38:50.383476Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -167,7 +167,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ea3d0a66f695
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -177,18 +177,34 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T16:26:21.374167+00:00'
       branch_key: epic-OOMPAH-740--task-OOMPAH-745
+      ended_at: '2026-08-04T16:38:37.055942+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-dd929426a6ae
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+      created_at: '2026-08-04T16:38:49.186821+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T16:38:49.186821+00:00'
+      branch_key: epic-OOMPAH-740--task-OOMPAH-745
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T16:24:28.373263+00:00'
-    updated_at: '2026-08-04T16:26:21.374167+00:00'
+    updated_at: '2026-08-04T16:38:49.186821+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ea3d0a66f695
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -198,6 +214,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T16:26:21.374167+00:00'
     branch_key: epic-OOMPAH-740--task-OOMPAH-745
+    ended_at: '2026-08-04T16:38:37.055942+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-dd929426a6ae
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+    created_at: '2026-08-04T16:38:49.186821+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T16:38:49.186821+00:00'
+    branch_key: epic-OOMPAH-740--task-OOMPAH-745
+    candidate_rotation_count: 1
 ---
 ## Summary
 
