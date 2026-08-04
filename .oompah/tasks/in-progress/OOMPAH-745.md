@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:55:45.236600Z'
+updated_at: '2026-08-04T00:07:16.969314Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-08-03 23:55
 ---
 Verification: focused regression command passed 149 tests: dashboard alert browser harness, alert center/safety/credential flows, intake lifecycle, audit/quality/repo-health panels, vertical layout, WebSocket full-sync, and fault injection. Chrome scenarios verified collapsed desktop height <=80px with a visible board, mobile internal list overflow, accessible details/focus order, running-to-failed gate updates, and a delivery-sequence gap converging to recovered state without reload.
+---
+author: oompah
+created: 2026-08-04 00:07
+---
+Verification update: make test was attempted on e3f2f2750 but stopped before collection because the task-private venv is absent and sandboxed uv cannot create a DBus transient scope (kernel-thread rejection). Fallback full pytest collected 15,246 tests; it exposed only the known OOMPAH-675 order-dependent xdist timeout regressions. Those exact tests pass in isolation (3/3), as do the 149 directly affected tests. scripts/find_terminal_mutations.py oompah also passed (8 allowlisted mutations).
 ---
 <!-- COMMENTS:END -->
