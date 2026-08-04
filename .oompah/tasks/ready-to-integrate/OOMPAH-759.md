@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-759
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Preserve focus-handoff authority across Open-to-In-Progress retry dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:18:17.276247Z'
+updated_at: '2026-08-04T12:18:38.634654Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a845443c-446b-423f-9fed-a76822e72445
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46969
   total_output_tokens: 294
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-759
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:26:05.823955+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-759
+  head_sha: 1c5572c87ba76dd501dbe3911838fd9ec40a83a8
+  submitted_at: '2026-08-04T12:18:18.497844+00:00'
+  updated_at: '2026-08-04T12:18:18.497844+00:00'
 ---
 ## Summary
 
@@ -167,5 +175,10 @@ author: oompah
 created: 2026-08-04 12:18
 ---
 Completion: delivered and pushed commit 1c5572c87. Retry dispatch now preserves pre-write generation authority while durably owning its Open -> In Progress status/run-ID handoff across setup failures and restarts; real operator, submission, cancellation, terminal, branch, head, and assignment changes still fence launch. Aborted claims restore a dispatchable state or retain a live recovery timer. Focused race/restart/handoff suites and terminal/secret scans pass; branch is synchronized with origin.
+---
+author: oompah
+created: 2026-08-04 12:18
+---
+Preserved retry focus-handoff authority across self-authored In Progress and assignment claims, added atomic rollback/live-owner recovery with restart persistence, retained external authority fences, and covered handoff/race/restart paths.
 ---
 <!-- COMMENTS:END -->
