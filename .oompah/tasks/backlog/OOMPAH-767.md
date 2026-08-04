@@ -5,13 +5,17 @@ status: Backlog
 priority: 1
 title: Prove safety and eventual progress with model-based fault testing
 parent: OOMPAH-763
-children: []
+children:
+- OOMPAH-789
+- OOMPAH-790
+- OOMPAH-792
+- OOMPAH-797
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:58.011307Z'
-updated_at: '2026-08-04T13:55:58.011307Z'
+updated_at: '2026-08-04T13:59:29.141651Z'
 work_branch: null
 target_branch: null
 review_url: null

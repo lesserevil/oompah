@@ -7,12 +7,14 @@ title: Retire legacy reconcilers and modularize the orchestrator
 parent: OOMPAH-763
 children:
 - OOMPAH-787
+- OOMPAH-794
+- OOMPAH-798
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:05.119669Z'
-updated_at: '2026-08-04T13:59:09.890047Z'
+updated_at: '2026-08-04T13:59:30.858029Z'
 work_branch: null
 target_branch: null
 review_url: null
