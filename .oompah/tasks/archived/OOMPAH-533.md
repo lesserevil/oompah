@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-08-04T23:12:57.640492Z'
+updated_at: '2026-08-04T23:13:03.208829Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,8 +41,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-a7689a4beebe
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:12:54.256826+00:00'
+    applied_at: '2026-08-04T23:13:01.824746+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -251,5 +252,20 @@ author: oompah
 created: 2026-08-04 22:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:13
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- pr_merged: PR #568 merged 2026-07-28 as commit 70771b4e9
+- branch_delta: 0 commits ahead of main (clean)
+- tests_passing: 82 total: dashboard(4) + snapshot(25) + preflight(44) + screening(9)
+- key_files: oompah/server.py:2126 (_issue_duplicate_screening_summary), dashboard.html (CSS screening states)
+- previous_state: Merged
+- auto_archive_trigger: Aged Merged 7 days
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-502
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Reduce agent wall-clock latency without weakening delivery gates
 parent: null
@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T22:56:09.624017Z'
+updated_at: '2026-08-04T23:13:12.736975Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -36,6 +36,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-69402e9e4957: '2026-08-04T22:08:31.729868+00:00'
+    infrastructure-exhausted-audit-930e23082310-3: '2026-08-04T23:13:05.036936+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-502
@@ -46,6 +47,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T22:08:31.729880+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-502
+    target_state: Done
+    evidence_fingerprint: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+    audit_ids:
+    - audit-930e23082310
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:13:05.036951+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-502
@@ -59,6 +69,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T22:08:31.729895+00:00'
     applied_at: '2026-08-04T22:08:36.791434+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-502
+    audit_id: audit-930e23082310
+    attempt_id: infrastructure-exhausted-audit-930e23082310-3
+    target_state: Done
+    evidence_fingerprint: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+    status: Needs Human
+    audit_ids:
+    - audit-930e23082310
+    applied: true
+    created_at: '2026-08-04T23:13:05.036971+00:00'
+    applied_at: '2026-08-04T23:13:11.478492+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -116,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-502
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -178,13 +200,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502)'
       next_retry_at: '2026-08-04T22:56:39.362345+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-930e23082310-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T23:13:05.036841+00:00'
+      completed_at: '2026-08-04T23:13:05.036841+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T18:30:13.803900+00:00'
-    updated_at: '2026-08-04T22:55:59.362372+00:00'
+    updated_at: '2026-08-04T23:13:05.036841+00:00'
   - version: 1
     audit_id: audit-3d99b9c238bc
     project_id: proj-14849f1b
@@ -443,5 +477,12 @@ author: oompah
 created: 2026-08-04 22:56
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 23:13
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
