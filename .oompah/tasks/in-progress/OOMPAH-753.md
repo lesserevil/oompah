@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:08:22.462517Z'
+updated_at: '2026-08-04T02:09:01.900367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2c60bccb-8302-4c9d-bf4d-3525c5088798
+oompah.agent_run_id: 83fef2af-a0d9-4a8d-bdb5-0d48c949fc39
 oompah.task_costs:
   total_input_tokens: 47368
   total_output_tokens: 2808
@@ -139,5 +139,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 51s
 - Log: OOMPAH-753__20260804T020751Z.jsonl
+---
+author: oompah
+created: 2026-08-04 02:09
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
