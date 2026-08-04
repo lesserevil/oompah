@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:25:13.167694Z'
+updated_at: '2026-08-04T13:30:10.657222Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -360,5 +360,10 @@ author: oompah
 created: 2026-08-04 13:25
 ---
 Understanding: CI on MR #712 failed on test_focus_handoff_open_retry_starts_feature_developer_exactly_once in tests/test_retry_authority_generation.py (Python 3.13 failed; 3.11 and 3.12 were cancelled after 3.13 failed). Plan: reproduce locally, read the test, fix the minimal issue in the implementation or test as appropriate.
+---
+author: oompah
+created: 2026-08-04 13:30
+---
+Discovery: failing test tests/test_retry_authority_generation.py::test_focus_handoff_open_retry_starts_feature_developer_exactly_once was added in origin/main by OOMPAH-759. It mocks tracker.fetch_comments with a comment that lacks an author identity field. OOMPAH-760's parser hardening (fail-closed identity requirement) now rejects that comment, causing _handoff_completed_focus to enter the 'no handoff' branch that scrubs labels — so subsequent select_focus picks Test Engineer instead of Feature Developer. Minimal CI fix: add 'author': 'oompah' to the mock comment. This matches how OOMPAH-760's own trusted-comment tests in test_orchestrator_duplicate_detection.py are constructed.
 ---
 <!-- COMMENTS:END -->
