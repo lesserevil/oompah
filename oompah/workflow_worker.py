@@ -656,6 +656,7 @@ class DurableWorkflowWorker:
         *,
         project_id: str | None = None,
         actions: Sequence[str] | None = None,
+        fair_across_projects: bool = False,
     ) -> WorkflowRunResult:
         if not self._accepting:
             return WorkflowRunResult(
@@ -674,6 +675,7 @@ class DurableWorkflowWorker:
                 lease_seconds=self.lease_seconds,
                 project_id=project_id,
                 actions=actions,
+                fair_across_projects=fair_across_projects,
             )
             if job is None:
                 return WorkflowRunResult(
