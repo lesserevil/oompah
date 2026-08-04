@@ -10,11 +10,10 @@ blocked_by:
 - OOMPAH-806
 - OOMPAH-814
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T23:56:53.101709Z'
+updated_at: '2026-08-04T23:57:16.097101Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -221,5 +220,20 @@ author: oompah
 created: 2026-08-04 23:56
 ---
 Implementation: no source change was made because no regression reproduces. The initial full-gate attempt could not enter pytest: the managed task-private venv is absent and uv fails during transient-scope creation. I am using Make's supported gate-mode setup against the already-provisioned local test venv; it retains the complete parallel test command, isolated run root, credential clearing, and terminal mutation scan.
+---
+author: oompah
+created: 2026-08-04 23:57
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 28
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 25s
+- Log: OOMPAH-807__20260804T235356Z.jsonl
+---
+author: oompah
+created: 2026-08-04 23:57
+---
+Reclaimed direct ownership after the failed integration row was cancelled and tracker returned to In Progress without an active worker. Work is intentionally waiting only for OOMPAH-814 to land; then this clean product branch will be rebased and resubmitted. This prevents the in-flight task from becoming ownerless while the deterministic gate-fixture repair runs.
 ---
 <!-- COMMENTS:END -->
