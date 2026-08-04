@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:23:56.670486Z'
+updated_at: '2026-08-04T16:25:44.771182Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
