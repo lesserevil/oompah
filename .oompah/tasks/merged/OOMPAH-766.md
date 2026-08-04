@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:56:14.671164Z'
+updated_at: '2026-08-04T17:01:02.419543Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -32,6 +32,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     infrastructure-exhausted-audit-cad15f0c8539-3: '2026-08-04T16:54:15.433774+00:00'
+    attempt-936aec44b9e3: '2026-08-04T17:00:58.978151+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-766
@@ -42,6 +43,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T16:54:15.433786+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    target_state: Merged
+    evidence_fingerprint: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    audit_ids:
+    - audit-48e0b754331c
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T17:00:58.978167+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-766
@@ -55,6 +65,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T16:54:15.433805+00:00'
     applied_at: '2026-08-04T16:54:22.525932+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    audit_id: audit-48e0b754331c
+    attempt_id: attempt-936aec44b9e3
+    target_state: Merged
+    evidence_fingerprint: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    status: Merged
+    audit_ids:
+    - audit-48e0b754331c
+    applied: false
+    created_at: '2026-08-04T17:00:58.978184+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -148,7 +169,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-766
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,7 +178,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-936aec44b9e3
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -167,13 +188,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T16:56:04.564185+00:00'
       branch_key: epic-OOMPAH-766
+      verdict: pass
+      completed_at: '2026-08-04T17:00:58.977956+00:00'
+      ended_at: '2026-08-04T17:00:58.977956+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
-    updated_at: '2026-08-04T16:56:04.564185+00:00'
+    updated_at: '2026-08-04T17:00:58.977956+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7de0b06f8d3c
