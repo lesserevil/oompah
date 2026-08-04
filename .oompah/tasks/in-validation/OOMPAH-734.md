@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:49:21.939209Z'
+updated_at: '2026-08-04T01:50:35.227926Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -131,18 +131,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-734
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7498160e6709
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+      created_at: '2026-08-04T01:50:31.166078+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T01:50:31.166078+00:00'
+      branch_key: OOMPAH-734
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:49:12.453114+00:00'
+    updated_at: '2026-08-04T01:50:31.166078+00:00'
   - version: 1
     audit_id: audit-78f902ca8093
     project_id: proj-14849f1b
@@ -160,7 +174,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:49:12.453114+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-7498160e6709
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+    created_at: '2026-08-04T01:50:31.166078+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T01:50:31.166078+00:00'
+    branch_key: OOMPAH-734
 ---
 ## Summary
 
