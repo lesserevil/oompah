@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:50:32.208001Z'
+updated_at: '2026-08-04T13:50:51.872575Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -112,8 +112,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 278349f1-bec5-4d83-8312-4ddc376f0ec2
 oompah.task_costs:
-  total_input_tokens: 213
-  total_output_tokens: 35457
+  total_input_tokens: 250
+  total_output_tokens: 45268
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -123,6 +123,10 @@ oompah.task_costs:
     opus:
       input_tokens: 203
       output_tokens: 33386
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 37
+      output_tokens: 9811
       cost_usd: 0.0
   runs:
   - profile: default
@@ -143,6 +147,12 @@ oompah.task_costs:
     output_tokens: 2450
     cost_usd: 0.0
     recorded_at: '2026-08-04T13:42:08.677895+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 37
+    output_tokens: 9811
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T13:50:49.488204+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-760__20260804T112834Z
@@ -523,5 +533,15 @@ Safe evidence:
 - focused_tests: 317 passed (retry_authority, duplicate_detection, task_handoff, focus, duplicate_preflight)
 - neighboring_tests: 323 passed (orchestrator handlers/full_sync/reload_profiles/addendum_poll/repo_hygiene)
 - focus_handoff_regression_tests: 16 passed
+---
+author: oompah
+created: 2026-08-04 13:50
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 47, Tool calls: 31
+- Tokens: 37 in / 9.8K out [9.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 25s
+- Log: OOMPAH-760__20260804T134237Z.jsonl
 ---
 <!-- COMMENTS:END -->
