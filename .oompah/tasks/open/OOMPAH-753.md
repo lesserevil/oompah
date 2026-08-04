@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:03:10.235988Z'
+updated_at: '2026-08-04T02:03:18.427470Z'
 work_branch: null
 target_branch: null
 review_url: null
