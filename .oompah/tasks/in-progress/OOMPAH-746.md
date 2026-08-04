@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:13:11.976149Z'
+updated_at: '2026-08-04T01:17:27.872088Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-08-04 01:13
 ---
 Understanding: Repair the existing OOMPAH-746 review branch after its full quality gate failed in test_dashboard_task_display_identifier. I will confirm the exact branch/head and failure, reproduce that test, determine whether the failure comes from this branch or a concurrent mainline change, apply only the minimal required fix with focused coverage, then push and resubmit the same branch.
+---
+author: oompah
+created: 2026-08-04 01:17
+---
+Discovery: The failed head has no GitHub Actions run or PR; Oompah's pre-review gate is the authoritative log and reports only test_api_issues_includes_project_scoped_display_identifier. The test passes alone and its module passes alone, confirming an order/load-dependent failure unrelated to the terminal-audit diff. The test currently relies on GET /api/v1/issues scheduling a background serialization and completing within the endpoint's 250 ms fallback window. Under the 15k-test parallel gate, timeout or leaked snapshot work can return an empty Open lane. This test is about display-field serialization, not first-snapshot timing; neighboring dashboard tests already stabilize this by synchronously populating the matching orchestrator snapshot before GET.
 ---
 <!-- COMMENTS:END -->
