@@ -11,10 +11,11 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-776
 - OOMPAH-806
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:32:24.676612Z'
+updated_at: '2026-08-04T22:16:14.089819Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -218,5 +219,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 57s
 - Log: OOMPAH-775__20260804T213040Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:16
+---
+Temporary collision fence: the existing hard-start on OOMPAH-806 prevents the original watchdog overlap, but OOMPAH-807 and OOMPAH-796 now legitimately modify the same audit/projects/orchestrator/transition seams and have explicit landing order 806 -> 807 -> 796. This task's broad API/CLI/watchdog/audit auxiliary-writer cutover must not dispatch on the older epic-OOMPAH-769 lineage as soon as 806 becomes Done. The human-only label is an operational dispatch fence; remove it after 796 lands and the canonical predecessor code is reachable, then run this task on the refreshed epic branch.
 ---
 <!-- COMMENTS:END -->
