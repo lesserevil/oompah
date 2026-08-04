@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T21:12:17.258153Z'
+updated_at: '2026-08-04T21:44:39.512608Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -71,9 +71,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  head_sha: 1ba60b5687f4e321c17d0f1ffb71b68a8d6c61e1
-  submitted_at: '2026-08-04T21:11:27.905540+00:00'
-  updated_at: '2026-08-04T21:11:27.905540+00:00'
+  head_sha: 41f717cd46baf4e8ba455586b39ce9e67d25a471
+  submitted_at: '2026-08-04T21:44:34.061860+00:00'
+  updated_at: '2026-08-04T21:44:34.061860+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -302,5 +302,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 57s
 - Log: OOMPAH-781__20260804T210036Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:44
+---
+Reconciled onto landed OOMPAH-793 head a744be37d: retained the terminal-audit domain commit as 41f717cd4 and dropped only redundant batching alternative 1ba60b568, because the epic already contains the authoritative atomic scheduling implementation with stronger rollback coverage. Focused verification: 57 passed (terminal audit workflow, workflow jobs, auditor dispatch). Branch is clean and force-updated with an exact old-head lease.
+---
+author: oompah
+created: 2026-08-04 21:44
+---
+Rebased terminal-audit domain onto a744be37; dropped redundant batching alternative; 57 focused tests pass.
 ---
 <!-- COMMENTS:END -->
