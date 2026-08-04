@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:50:06.360223Z'
+updated_at: '2026-08-04T01:51:48.174122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4f0597bb-1ee4-4047-967c-ed64442c8041
+oompah.agent_run_id: e2a3a69e-0639-424c-ada4-fba6ddda3e4e
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2110
