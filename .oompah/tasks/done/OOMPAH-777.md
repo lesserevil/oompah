@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:52.177276Z'
-updated_at: '2026-08-04T15:28:52.530232Z'
+updated_at: '2026-08-04T15:28:59.162247Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-777
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -51,7 +51,17 @@ oompah.terminal_audit:
       195 workflow/delivery tests, ruff check/format, terminal mutation scan, secret
       scan, and diff check passed.'
     created_at: '2026-08-04T15:28:48.450992+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-777
+    target_state: Done
+    evidence_fingerprint: 7a0d62337d276c70afd99a556a6dfcb63eabd18937a196b52010b68fe42d296b
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T15:28:56.714051+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -77,5 +87,12 @@ author: oompah
 created: 2026-08-04 15:28
 ---
 Implemented and verified the pure WorkDecision evaluator; exact commit 96b878f747949df1956de1d11e6f9bc6db32d279 is ready to land on epic-OOMPAH-765.
+---
+author: oompah
+created: 2026-08-04 15:28
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner exact-head integration: commit 96b878f747949df1956de1d11e6f9bc6db32d279 was proven a descendant and fast-forwarded to epic-OOMPAH-765. Verification: 195 workflow/delivery tests, ruff check/format, terminal mutation scan, secret scan, and diff check passed.
 ---
 <!-- COMMENTS:END -->
