@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:57:45.381079Z'
+updated_at: '2026-08-04T01:58:26.014940Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e2a3a69e-0639-424c-ada4-fba6ddda3e4e
+oompah.agent_run_id: 658ae263-6b0a-4069-a73f-383da6f8b353
 oompah.task_costs:
   total_input_tokens: 2536248
   total_output_tokens: 12916
@@ -175,5 +175,15 @@ author: oompah
 created: 2026-08-04 01:57
 ---
 Agent completed without closing this issue (331s (2547044 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-08-04 01:58
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 01:58
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
