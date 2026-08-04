@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:01:55.359202Z'
+updated_at: '2026-08-04T15:02:15.459619Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -69,7 +69,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f9e1a639-d85c-49fa-93aa-654e36be27f4
+oompah.agent_run_id: f362e801-1d1d-4a36-904f-c9ca484f4990
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-744
 oompah.integration:
   version: 2
@@ -354,5 +354,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-04 15:02
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
