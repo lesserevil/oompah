@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:15:16.757254Z'
+updated_at: '2026-08-04T16:15:26.277010Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -401,5 +401,10 @@ author: oompah
 created: 2026-08-04 16:15
 ---
 Verification: Final head b08a12057 is pushed and clean. 207 focused tests passed (dashboard alert browser/accessibility/density/recovery, WebSocket convergence, quality-gate, and Makefile setup); final exact-head smoke of setup plus browser coverage passed 17/17. make test was attempted twice, including at b08a12057, but stops before collection because sandboxed uv cannot create a DBus transient scope while provisioning the absent task-private venv; no candidate CI test ran.
+---
+author: oompah
+created: 2026-08-04 16:15
+---
+Completion: Pushed b08a12057 on epic-OOMPAH-740--task-OOMPAH-745. In addition to the existing alert-experience coverage and operator documentation, the branch makes the Makefile setup dry-run contract deterministic for managed workers by clearing only OOMPAH_TASK_VENV when asserting the default developer .venv path. Branch is clean and up to date with origin; submitting for a fresh combined-tree quality gate.
 ---
 <!-- COMMENTS:END -->
