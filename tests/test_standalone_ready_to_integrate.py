@@ -42,8 +42,10 @@ def _issue(
     branch: str | None = None,
     parent_id: str | None = None,
     issue_type: str = "task",
+    priority: int | None = None,
+    submitted_at: str | None = None,
 ) -> Issue:
-    return Issue(
+    issue = Issue(
         id=f"id-{identifier}",
         identifier=identifier,
         title=f"Title for {identifier}",
@@ -51,8 +53,16 @@ def _issue(
         state=READY_TO_INTEGRATE,
         parent_id=parent_id,
         issue_type=issue_type,
+        priority=priority,
         work_branch=branch or identifier,
     )
+    if submitted_at is not None:
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch=branch or identifier,
+            submitted_at=submitted_at,
+        )
+    return issue
 
 
 def _review(
@@ -420,6 +430,124 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
     assert not _delivery_alerts(orch)
 
 
+def test_standalone_delivery_selects_priority_then_submitted_fifo(harness):
+    """A newer Ready arrival cannot overtake an older equal-priority row."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 3
+    low_old = _issue(
+        "TASK-LOW-OLD",
+        priority=3,
+        submitted_at="2026-08-01T00:00:00Z",
+    )
+    high_new = _issue(
+        "TASK-HIGH-NEW",
+        priority=1,
+        submitted_at="2026-08-01T03:00:00Z",
+    )
+    high_old = _issue(
+        "TASK-HIGH-OLD",
+        priority=1,
+        submitted_at="2026-08-01T02:00:00Z",
+    )
+    provider.list_open_reviews.return_value = []
+    provider.create_review.side_effect = [
+        _review("TASK-HIGH-OLD", review_id="priority-1"),
+        _review("TASK-HIGH-NEW", review_id="priority-2"),
+    ]
+    tracker.fetch_issues_by_states.return_value = [low_old, high_new, high_old]
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    tracker.fetch_issues_by_states.return_value = [low_old, high_new]
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert gate.call_args_list == [
+        mock.call(project, high_old, "TASK-HIGH-OLD", "trunk"),
+        mock.call(project, high_new, "TASK-HIGH-NEW", "trunk"),
+    ]
+    assert provider.create_review.call_args_list[0].args[1].startswith(
+        "TASK-HIGH-OLD:"
+    )
+    assert provider.create_review.call_args_list[1].args[1].startswith(
+        "TASK-HIGH-NEW:"
+    )
+
+
+def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness):
+    """An invalid oldest row does not block the next ordered candidate."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 3
+    invalid = _issue(
+        "TASK-INVALID-OLD",
+        submitted_at="2026-08-01T00:00:00Z",
+    )
+    valid = _issue(
+        "TASK-VALID-NEXT",
+        submitted_at="2026-08-01T01:00:00Z",
+    )
+    unselected = _issue(
+        "TASK-UNSELECTED",
+        submitted_at="2026-08-01T02:00:00Z",
+    )
+    provider.get_branch_head_sha.side_effect = (
+        lambda _repo, branch: None
+        if branch == invalid.work_branch
+        else "abc123"
+    )
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(
+        "TASK-VALID-NEXT",
+        review_id="fallback-1",
+    )
+    tracker.fetch_issues_by_states.return_value = [invalid, valid, unselected]
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert gate.call_args_list == [
+        mock.call(project, valid, "TASK-VALID-NEXT", "trunk"),
+    ]
+    assert provider.create_review.call_count == 1
+    assert (project.id, invalid.identifier) in orch._standalone_delivery_authorities
+    assert (project.id, valid.identifier) in orch._standalone_delivery_authorities
+    assert (project.id, unselected.identifier) not in orch._standalone_delivery_authorities
+    assert "not present on the remote" in next(
+        alert["message"]
+        for alert in _delivery_alerts(orch)
+        if invalid.identifier in alert["message"]
+    )
+
+
+def test_dependency_blocked_candidate_does_not_claim_or_block_next(harness):
+    """A finish-order wait is excluded before the next candidate is claimed."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    blocked = _issue(
+        "TASK-BLOCKED-OLD",
+        submitted_at="2026-08-01T00:00:00Z",
+    )
+    blocker = _issue("TASK-BLOCKER")
+    blocker.state = OPEN
+    blocked.blocked_by = [
+        BlockerRef(id=blocker.id, identifier=blocker.identifier)
+    ]
+    next_task = _issue(
+        "TASK-NEXT",
+        submitted_at="2026-08-01T01:00:00Z",
+    )
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review("TASK-NEXT", review_id="next-1")
+    tracker.fetch_issues_by_states.return_value = [blocked, next_task]
+    _set_all_issues(tracker, [blocked, blocker, next_task])
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, next_task, "TASK-NEXT", "trunk")
+    assert (project.id, blocked.identifier) not in orch._standalone_delivery_authorities
+    assert provider.create_review.call_count == 1
+    assert blocker.identifier in _delivery_alerts(orch)[0]["message"]
+
+
 def test_unfinished_finish_dependency_defers_gate_and_review_idempotently(harness):
     """A direct Ready task waits without consuming a gate or CI-fix retry."""
 
@@ -531,7 +659,8 @@ def test_terminal_audit_satisfied_dependency_releases_one_gate(harness):
     gate.assert_called_once_with(project, task, "TASK-RELEASE", "trunk")
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
-    assert not _delivery_alerts(orch)
+    assert _delivery_alerts(orch)[0]["level"] == "info"
+    assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
 
 
 def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
@@ -835,7 +964,8 @@ def test_later_sweep_stale_cache_cannot_create_second_review(harness):
 
     assert provider.create_review.call_count == 1
     assert gate.call_count == 1
-    assert not _delivery_alerts(orch)
+    assert _delivery_alerts(orch)[0]["level"] == "info"
+    assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
 
 
 def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
