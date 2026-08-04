@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:38:06.401677Z'
+updated_at: '2026-08-04T21:38:13.023043Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -242,5 +242,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 26m 53s
 - Log: OOMPAH-804__20260804T210623Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:38
+---
+Independent completion review found a pre-integration acceptance gap: workflow_runtime.py currently binds implementation, integration, and an existing terminal workflow reference, but does not construct/bind OOMPAH-782 ReviewWorkflowController or OOMPAH-791 EpicWorkflowController; terminal construction also needs confirmation. This is expected on the old 08f6a8c5 base but means the branch is not final. Adding hard-start edges on all four domain tasks and returning to Open preserves 0baeb01f1; once those domain heads are Done/available, the server must rebase and add an explicit all-domain composition pass with production binding/startup/restart/enforce/shadow tests before resubmission.
 ---
 <!-- COMMENTS:END -->
