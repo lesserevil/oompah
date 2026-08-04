@@ -1254,12 +1254,14 @@
     .agent-bar {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 1rem;
       padding: 0.4rem 1.5rem;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
       font-size: 0.72rem;
       flex-shrink: 0;
+      position: relative;
     }
     .agent-bar .agent-stat {
       color: var(--text-muted);
@@ -1274,18 +1276,56 @@
       border-radius: 4px;
       font-weight: 600;
     }
-    .agent-bar .agent-warning {
-      color: var(--yellow);
-      font-size: 0.7rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      min-width: 0;
-      max-width: min(42vw, 36rem);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .dashboard-diagnostics {
+      position: relative;
+      margin-left: auto;
+      flex-shrink: 0;
     }
+    .dashboard-diagnostics > summary {
+      cursor: pointer;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      list-style: none;
+    }
+    .dashboard-diagnostics > summary::-webkit-details-marker { display: none; }
+    .dashboard-diagnostics > summary::before { content: '\26A1  '; }
+    .dashboard-diagnostics > summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .dashboard-diagnostics-panel {
+      position: absolute;
+      z-index: 10;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      width: min(32rem, calc(100vw - 3rem));
+      max-height: min(65vh, 34rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+    }
+    .dashboard-diagnostics-panel > * + * { margin-top: 0.6rem; }
+    .dashboard-diagnostics-panel .terminal-audit-health-banner,
+    .dashboard-diagnostics-panel .repo-hygiene-health-panel,
+    .dashboard-diagnostics-panel .auth-health-banner {
+      margin: 0;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .dashboard-diagnostics-panel .auth-health-banner { border-bottom: 1px solid var(--border); }
+    .diagnostic-facts { font-size: 0.75rem; }
+    .diagnostic-facts[hidden] { display: none; }
+    .diagnostic-facts-title { font-size: 0.78rem; margin-bottom: 0.3rem; }
+    .diagnostic-facts-list { list-style: none; display: grid; gap: 0.35rem; }
+    .diagnostic-fact { color: var(--text-muted); overflow-wrap: anywhere; }
+    .diagnostic-fact strong { color: var(--text); }
     /* Task-state freshness banner — shown when the issues snapshot is stale
        or unavailable (OOMPAH-306). Never silently renders obsolete state. */
     .task-state-stale-banner {
@@ -1305,43 +1345,6 @@
     .task-state-stale-banner .stale-icon { font-size: 1rem; flex-shrink: 0; }
     .task-state-stale-banner .stale-body { flex: 1; }
     .task-state-stale-banner .stale-title { font-weight: 600; margin-bottom: 0.1rem; }
-    /* Credential-error warning banner — shown above the board when provider
-       credentials are missing or invalid for one or more retrying tasks. */
-    .cred-error-banner {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.6rem 1.5rem;
-      background: rgba(248, 81, 73, 0.12);
-      border-bottom: 1px solid rgba(248, 81, 73, 0.4);
-      flex-shrink: 0;
-    }
-    .cred-error-banner[hidden] { display: none; }
-    .cred-error-banner .cred-error-icon {
-      font-size: 1rem;
-      color: var(--red);
-      flex-shrink: 0;
-      line-height: 1.4;
-    }
-    .cred-error-banner .cred-error-body {
-      flex: 1;
-    }
-    .cred-error-banner .cred-error-title {
-      font-size: 0.78rem;
-      font-weight: 700;
-      color: var(--red);
-      margin-bottom: 0.2rem;
-    }
-    .cred-error-banner .cred-error-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      font-size: 0.72rem;
-      color: var(--text);
-    }
-    .cred-error-banner .cred-error-list li {
-      padding: 0.1rem 0;
-    }
     /* Compact alert center — consolidates alerts into one collapsible component */
     .alert-center {
       display: none;
@@ -1416,10 +1419,17 @@
       display: none;
       flex-direction: column;
       gap: 0;
-      max-height: 300px;
+      /* The expanded center is strictly bounded by the viewport, leaving the
+         board its own flex-managed space below this component. */
+      max-height: 35vh;
       overflow-y: auto;
+      overscroll-behavior: contain;
       background: rgba(210, 153, 34, 0.08);
       border-bottom: 1px solid rgba(210, 153, 34, 0.4);
+    }
+    .alert-center-list:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
     .alert-center[aria-expanded="true"] .alert-center-list {
       display: flex;
@@ -1455,64 +1465,35 @@
       margin-top: 0.1rem;
       overflow-wrap: anywhere;
     }
-    .alerts-banner {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.6rem 1.5rem;
-      background: rgba(210, 153, 34, 0.12);
-      border-bottom: 1px solid rgba(210, 153, 34, 0.4);
-      flex-shrink: 0;
+    .alert-center[data-highest-severity="error"] .alert-center-toggle,
+    .alert-center[data-highest-severity="critical"] .alert-center-toggle {
+      background: rgba(248, 81, 73, 0.12);
+      border-bottom-color: rgba(248, 81, 73, 0.45);
+      color: var(--red);
     }
-    .alerts-banner[hidden] { display: none; }
-    .alerts-banner .alerts-icon {
-      font-size: 1rem;
+    .alert-center[data-highest-severity="warning"] .alert-center-toggle {
       color: var(--yellow);
-      flex-shrink: 0;
-      line-height: 1.4;
     }
-    .alerts-banner .alerts-body {
-      flex: 1;
-      min-width: 0;
-    }
-    .alerts-banner .alerts-title {
-      font-size: 0.78rem;
-      font-weight: 700;
-      color: var(--yellow);
-      margin-bottom: 0.25rem;
-    }
-    .alerts-banner .alerts-list {
-      list-style: none;
-      margin: 0;
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
       padding: 0;
-      display: grid;
-      gap: 0.35rem;
-      font-size: 0.72rem;
-      color: var(--text);
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
-    .alerts-banner .alert-title {
-      font-weight: 700;
-      color: var(--text);
-    }
-    .alerts-banner .alert-detail,
-    .alerts-banner .alert-action,
-    .alerts-banner .alert-source {
-      margin-top: 0.1rem;
-      color: var(--text-muted);
-      overflow-wrap: anywhere;
-    }
-    .alerts-banner .alert-action {
-      color: var(--text);
-    }
-    .alerts-banner .alert-diagnostics {
+    .alert-center .alert-diagnostics {
       margin-top: 0.25rem;
       color: var(--text-muted);
     }
-    .alerts-banner .alert-diagnostics summary {
+    .alert-center .alert-diagnostics summary {
       cursor: pointer;
       user-select: none;
     }
-    .alerts-banner .alert-diagnostic {
+    .alert-center .alert-diagnostic {
       max-height: 14rem;
       margin: 0.25rem 0 0;
       padding: 0.45rem;
@@ -2526,17 +2507,69 @@
       &#10067; <strong id="questions-count" style="color:var(--orange,#d18616);">0</strong> <span>questions waiting</span>
       <div class="questions-dropdown" id="questions-dropdown" role="menu" aria-label="Issues asking questions"></div>
     </span>
-    <span class="agent-stat" id="audit-stat" style="display:none;" aria-label="Terminal audit throughput">
-      Audits: <strong id="audit-queued">0</strong>q/<strong id="audit-running">0</strong>r
-    </span>
-    <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
+    <details class="dashboard-diagnostics" id="dashboard-diagnostics">
+      <summary aria-label="Open dashboard diagnostics">Status</summary>
+      <div class="dashboard-diagnostics-panel" role="region" aria-label="Dashboard diagnostics">
+        <span class="agent-stat" id="audit-stat" style="display:none;" aria-label="Terminal audit throughput">
+          Audits: <strong id="audit-queued">0</strong> queued / <strong id="audit-running">0</strong> running
+        </span>
+        <section class="diagnostic-facts" id="diagnostic-facts" hidden aria-label="Informational status">
+          <h2 class="diagnostic-facts-title">Informational status</h2>
+          <ul class="diagnostic-facts-list" id="diagnostic-facts-list"></ul>
+        </section>
+        <div class="terminal-audit-health-banner" id="terminal-audit-health" hidden
+             role="status" aria-live="polite" aria-label="Terminal-audit health">
+          <span class="tah-icon" aria-hidden="true">&#9888;</span>
+          <div class="tah-body">
+            <div class="tah-title">Terminal-audit health</div>
+            <div class="tah-detail" id="terminal-audit-health-detail"></div>
+          </div>
+        </div>
+        <div class="terminal-audit-health-banner" id="quality-gate-health" hidden
+             role="status" aria-live="polite" aria-label="Branch quality gate health">
+          <span class="tah-icon" aria-hidden="true">&#9881;</span>
+          <div class="tah-body">
+            <div class="tah-title">Branch quality gate health</div>
+            <div class="tah-detail" id="quality-gate-health-detail"></div>
+          </div>
+        </div>
+        <section class="repo-hygiene-health-panel" id="repo-hygiene-health" hidden
+                 role="status" aria-live="polite" aria-label="Repository hygiene health">
+          <div class="repo-hygiene-health-header">
+            <span class="repo-hygiene-health-icon" id="repo-hygiene-health-icon" aria-hidden="true">&#10003;</span>
+            <div class="repo-hygiene-health-body">
+              <div class="repo-hygiene-health-title" id="repo-hygiene-health-title">Repository hygiene health</div>
+              <div class="repo-hygiene-health-summary" id="repo-hygiene-health-summary"></div>
+              <div class="repo-hygiene-inventory" id="repo-hygiene-inventory" aria-label="Repository hygiene inventory"></div>
+              <div class="repo-hygiene-artifacts" id="repo-hygiene-overdue" hidden>
+                <h4>Overdue safely-prunable artifacts</h4>
+                <ul id="repo-hygiene-overdue-list"></ul>
+              </div>
+              <div class="repo-hygiene-artifacts" id="repo-hygiene-errors" hidden>
+                <h4>Cleanup errors</h4>
+                <ul id="repo-hygiene-error-list"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="auth-health-banner" id="auth-health-banner" hidden
+             role="status" aria-live="polite" aria-label="Authentication health">
+          <span class="auth-health-icon" aria-hidden="true">&#128274;</span>
+          <div class="auth-health-body">
+            <div class="auth-health-title">Authentication health</div>
+            <div class="auth-health-planes" id="auth-health-planes" aria-label="Auth plane status"></div>
+            <ul class="auth-health-details" id="auth-health-details" aria-label="Auth health details"></ul>
+          </div>
+        </div>
+      </div>
+    </details>
   </div>
-  <!-- Compact alert center consolidating alerts into one collapsible component (OOMPAH-742) -->
+  <!-- The sole board-displacing alert surface: a collapsed operator summary. -->
   <div class="alert-center" id="alert-center" data-alert-count="0" aria-expanded="false"
-       role="region" aria-label="Oompah alerts">
+       role="region" aria-label="Active operator alerts">
     <button class="alert-center-toggle" type="button" onclick="toggleAlertCenter()"
-            aria-controls="alert-center-list" aria-expanded="false" aria-label="Alerts">
+            aria-controls="alert-center-list" aria-expanded="false" aria-label="Show active alerts">
       <span class="alert-center-icon" aria-hidden="true">&#9888;</span>
       <div class="alert-center-summary">
         <span class="alert-center-count"><span id="alert-center-count">0</span> alerts</span>
@@ -2544,67 +2577,8 @@
       </div>
       <span class="alert-center-expand-indicator" aria-hidden="true">&#9658;</span>
     </button>
-    <ul class="alert-center-list" id="alert-center-list" aria-live="polite" aria-label="Alert details"></ul>
-  </div>
-  <div class="cred-error-banner" id="cred-error-banner" hidden
-       role="alert" aria-live="polite" aria-label="Provider credential error">
-    <span class="cred-error-icon" aria-hidden="true">&#9888;</span>
-    <div class="cred-error-body">
-      <div class="cred-error-title">Provider credentials missing or invalid</div>
-      <ul class="cred-error-list" id="cred-error-list"></ul>
-    </div>
-  </div>
-  <div class="alerts-banner" id="alerts-banner" hidden
-       role="status" aria-live="polite" aria-label="Oompah alerts">
-    <span class="alerts-icon" aria-hidden="true">&#9888;</span>
-    <div class="alerts-body">
-      <div class="alerts-title">Oompah alerts</div>
-      <ul class="alerts-list" id="alerts-list"></ul>
-    </div>
-  </div>
-  <div class="terminal-audit-health-banner" id="terminal-audit-health" hidden
-       role="status" aria-live="polite" aria-label="Terminal-audit health">
-    <span class="tah-icon" aria-hidden="true">&#9888;</span>
-    <div class="tah-body">
-      <div class="tah-title">Terminal-audit health</div>
-      <div class="tah-detail" id="terminal-audit-health-detail"></div>
-    </div>
-  </div>
-  <div class="terminal-audit-health-banner" id="quality-gate-health" hidden
-       role="status" aria-live="polite" aria-label="Branch quality gate health">
-    <span class="tah-icon" aria-hidden="true">&#9881;</span>
-    <div class="tah-body">
-      <div class="tah-title">Branch quality gate health</div>
-      <div class="tah-detail" id="quality-gate-health-detail"></div>
-    </div>
-  </div>
-  <section class="repo-hygiene-health-panel" id="repo-hygiene-health" hidden
-           role="status" aria-live="polite" aria-label="Repository hygiene health">
-    <div class="repo-hygiene-health-header">
-      <span class="repo-hygiene-health-icon" id="repo-hygiene-health-icon" aria-hidden="true">&#10003;</span>
-      <div class="repo-hygiene-health-body">
-        <div class="repo-hygiene-health-title" id="repo-hygiene-health-title">Repository hygiene health</div>
-        <div class="repo-hygiene-health-summary" id="repo-hygiene-health-summary"></div>
-        <div class="repo-hygiene-inventory" id="repo-hygiene-inventory" aria-label="Repository hygiene inventory"></div>
-        <div class="repo-hygiene-artifacts" id="repo-hygiene-overdue" hidden>
-          <h4>Overdue safely-prunable artifacts</h4>
-          <ul id="repo-hygiene-overdue-list"></ul>
-        </div>
-        <div class="repo-hygiene-artifacts" id="repo-hygiene-errors" hidden>
-          <h4>Cleanup errors</h4>
-          <ul id="repo-hygiene-error-list"></ul>
-        </div>
-      </div>
-    </div>
-  </section>
-  <div class="auth-health-banner" id="auth-health-banner" hidden
-       role="status" aria-live="polite" aria-label="Authentication health">
-    <span class="auth-health-icon" aria-hidden="true">&#128274;</span>
-    <div class="auth-health-body">
-      <div class="auth-health-title">Authentication health</div>
-      <div class="auth-health-planes" id="auth-health-planes" aria-label="Auth plane status"></div>
-      <ul class="auth-health-details" id="auth-health-details" aria-label="Auth health details"></ul>
-    </div>
+    <ul class="alert-center-list" id="alert-center-list" hidden tabindex="0" aria-label="Active alert details"></ul>
+    <div class="sr-only" id="alert-center-live" role="status" aria-live="polite" aria-atomic="true"></div>
   </div>
   <div class="task-state-stale-banner" id="task-state-stale-banner" hidden
        role="alert" aria-live="polite" aria-label="Task state data may be stale">
@@ -2617,7 +2591,7 @@
   <div class="board-error" id="board-error" hidden role="alert" aria-live="assertive"></div>
   <div class="board-notice" id="board-notice" hidden role="status" aria-live="polite"></div>
   <div class="main-area">
-    <div class="board" id="board">
+    <div class="board" id="board" tabindex="-1" aria-label="Task board">
       <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
         <svg width="20" height="20" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;">
           <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
@@ -3508,17 +3482,6 @@ function normalizeAlertForRender(alert) {
   return safe;
 }
 
-function renderAlertSummary(alert) {
-  const title = alertPrimaryText(alert);
-  const detail = alertDetailText(alert);
-  const action = alertActionText(alert);
-  const hasDiagnostic = !!alertDiagnosticText(alert);
-  const tooltipParts = [title, detail, action];
-  if (hasDiagnostic) tooltipParts.push('Diagnostic details available on demand.');
-  const tooltip = tooltipParts.filter(Boolean).join('\n\n');
-  return '<span title="' + esc(tooltip) + '">&#9888; ' + esc(title) + '</span>';
-}
-
 function renderAlertItem(alert) {
   const title = alertPrimaryText(alert);
   const detail = alertDetailText(alert);
@@ -3541,15 +3504,13 @@ function renderAlertItem(alert) {
     '</li>';
 }
 
-/* Alert center (OOMPAH-742) — compact collapsible alert consolidation */
+/* Alert center (OOMPAH-742) — the dashboard's one actionable-alert surface. */
+const ALERT_SEVERITY_RANK = { info: 1, warning: 2, error: 3, critical: 4 };
+
 function getAlertSeverity(alert) {
   if (!alert) return 0;
-  // Map alert source/type to severity (higher = more severe)
-  const source = alert.source || '';
-  if (source.indexOf('cred_error:') === 0) return 3;  // Critical
-  if (source.indexOf('auth_health:degraded') === 0) return 2;  // Warning
-  if (source.indexOf('terminal_audit') === 0) return 2;  // Warning
-  return 1;  // Info
+  const severity = String(alert.severity || alert.level || 'warning').toLowerCase();
+  return ALERT_SEVERITY_RANK[severity] || ALERT_SEVERITY_RANK.warning;
 }
 
 function getHighestAlertSeverity(alerts) {
@@ -3558,20 +3519,91 @@ function getHighestAlertSeverity(alerts) {
 }
 
 function getSeverityLabel(severity) {
-  switch (severity) {
-    case 3: return 'critical';
-    case 2: return 'warning';
-    default: return 'info';
+  return Object.keys(ALERT_SEVERITY_RANK).find(function(label) {
+    return ALERT_SEVERITY_RANK[label] === severity;
+  }) || 'info';
+}
+
+function alertStableIdentity(alert) {
+  if (!alert) return '';
+  const explicit = alert.stable_id || alert.stable_identity || alert.identity ||
+    alert.alert_id || alert.id || alert.source;
+  if (explicit) return String(explicit);
+  // Legacy rows without a producer identity still collapse if every stable
+  // presentation field describes the same condition.
+  return ['legacy', alertPrimaryText(alert), alertDetailText(alert), alertActionText(alert)].join('\u001f');
+}
+
+function dedupeAlertFacts(alerts) {
+  const selected = new Map();
+  (alerts || []).filter(Boolean).forEach(function(alert) {
+    const key = alertStableIdentity(alert);
+    const current = selected.get(key);
+    if (!current) {
+      selected.set(key, alert);
+      return;
+    }
+    const rank = function(fact) {
+      return [getAlertSeverity(fact), fact.action_required !== false ? 1 : 0,
+        fact.active !== false ? 1 : 0];
+    };
+    const candidateRank = rank(alert);
+    const currentRank = rank(current);
+    if (candidateRank[0] > currentRank[0] ||
+        (candidateRank[0] === currentRank[0] && candidateRank[1] > currentRank[1]) ||
+        (candidateRank[0] === currentRank[0] && candidateRank[1] === currentRank[1] &&
+         candidateRank[2] > currentRank[2])) {
+      selected.set(key, alert);
+    }
+  });
+  return Array.from(selected.values());
+}
+
+function setAlertCenterExpanded(center, list, expanded) {
+  const button = center.querySelector('.alert-center-toggle');
+  center.setAttribute('aria-expanded', String(expanded));
+  if (button) {
+    button.setAttribute('aria-expanded', String(expanded));
+    const count = Number(center.getAttribute('data-alert-count') || 0);
+    if (count > 0) {
+      const severity = center.getAttribute('data-highest-severity') || 'warning';
+      button.setAttribute('aria-label', (expanded ? 'Hide ' : 'Show ') + count +
+        ' active ' + (count === 1 ? 'alert' : 'alerts') +
+        ', highest severity ' + severity);
+    }
   }
+  list.hidden = !expanded;
 }
 
 function toggleAlertCenter() {
   const center = document.getElementById('alert-center');
-  const expanded = center.getAttribute('aria-expanded') === 'true';
-  const newState = !expanded;
-  center.setAttribute('aria-expanded', String(newState));
-  const btn = center.querySelector('.alert-center-toggle');
-  if (btn) btn.setAttribute('aria-expanded', String(newState));
+  const list = document.getElementById('alert-center-list');
+  if (!center || !list || center.getAttribute('data-alert-count') === '0') return;
+  setAlertCenterExpanded(center, list, center.getAttribute('aria-expanded') !== 'true');
+}
+
+function renderDiagnosticFacts(alerts) {
+  const section = document.getElementById('diagnostic-facts');
+  const list = document.getElementById('diagnostic-facts-list');
+  if (!section || !list) return;
+  const genericFacts = (alerts || []).filter(function(alert) {
+    const source = String(alert.source || '');
+    return !source.startsWith('quality_gate:') &&
+      !source.startsWith('terminal_audit') &&
+      !source.startsWith('auth_health:') &&
+      source !== 'repo_hygiene_health';
+  });
+  list.innerHTML = genericFacts.map(function(alert) {
+    const detail = alertDetailText(alert);
+    return '<li class="diagnostic-fact"><strong>' + esc(alertPrimaryText(alert)) +
+      '</strong>' + (detail ? ' — ' + esc(detail) : '') + '</li>';
+  }).join('');
+  section.hidden = genericFacts.length === 0;
+}
+
+function focusBoardAfterAlertCenter() {
+  const board = document.getElementById('board');
+  if (board) board.focus();
 }
 
 function renderAlertCenter(alerts) {
@@ -3579,49 +3611,68 @@ function renderAlertCenter(alerts) {
   const list = document.getElementById('alert-center-list');
   const countEl = document.getElementById('alert-center-count');
   const severityEl = document.getElementById('alert-center-severity-label');
-  
+  const live = document.getElementById('alert-center-live');
+  const button = center && center.querySelector('.alert-center-toggle');
   if (!center || !list) return;
-  
-  // Filter out credential and auth_health alerts (shown in separate banners during migration)
-  const otherAlerts = (alerts || []).filter(function(a) {
-    if (!a.source) return true;
-    if (a.source.indexOf('cred_error:') === 0) return false;
-    if (a.source.indexOf('auth_health:') === 0) return false;
-    return true;
-  });
-  
-  const count = otherAlerts.length;
-  const severity = getHighestAlertSeverity(otherAlerts);
+
+  const uniqueAlerts = dedupeAlertFacts(alerts);
+  const count = uniqueAlerts.length;
+  const severity = getHighestAlertSeverity(uniqueAlerts);
   const severityLabel = getSeverityLabel(severity);
-  
-  // Update data attribute and visibility
+  const signature = uniqueAlerts.map(function(alert) {
+    return alertStableIdentity(alert) + '\u001f' + getAlertSeverity(alert) +
+      '\u001f' + alertPrimaryText(alert);
+  }).join('\u001e');
+  const hadCenterFocus = center.contains(document.activeElement);
+
   center.setAttribute('data-alert-count', String(count));
-  
-  // Update summary
+  center.setAttribute('data-highest-severity', count > 0 ? severityLabel : 'none');
+  center.setAttribute('aria-label', count > 0
+    ? count + ' active operator ' + (count === 1 ? 'alert' : 'alerts') +
+      ', highest severity ' + severityLabel
+    : 'No active operator alerts');
   if (countEl) countEl.textContent = String(count);
-  if (severityEl) {
-    severityEl.textContent = count > 0 ? '(' + severityLabel + ')' : '';
+  if (severityEl) severityEl.textContent = count > 0 ? 'Highest severity: ' + severityLabel : '';
+  if (button) {
+    button.setAttribute('aria-label', count > 0
+      ? (center.getAttribute('aria-expanded') === 'true' ? 'Hide ' : 'Show ') +
+        count + ' active ' + (count === 1 ? 'alert' : 'alerts') +
+        ', highest severity ' + severityLabel
+      : 'No active alerts');
   }
-  
-  // Populate list
-  list.innerHTML = otherAlerts.map(renderAlertItem).join('');
-  
-  // Reset expanded state when alerts change
+  list.innerHTML = uniqueAlerts.map(renderAlertItem).join('');
+
   if (count === 0) {
-    center.setAttribute('aria-expanded', 'false');
-    const btn = center.querySelector('.alert-center-toggle');
-    if (btn) btn.setAttribute('aria-expanded', 'false');
+    setAlertCenterExpanded(center, list, false);
+    if (hadCenterFocus) focusBoardAfterAlertCenter();
+  } else if (center.getAttribute('aria-expanded') === 'true') {
+    // Keep an operator's expanded state while websocket updates add/remove
+    // rows, so an update cannot steal focus or collapse the current review.
+    setAlertCenterExpanded(center, list, true);
+  }
+
+  const previousSignature = center.getAttribute('data-alert-signature');
+  if (live && previousSignature !== signature) {
+    // A clean first paint needs no announcement. Later additions and clearing
+    // announce only this short summary, never the list's full transcript.
+    live.textContent = previousSignature !== null || count > 0
+      ? (count > 0
+        ? count + ' active operator ' + (count === 1 ? 'alert' : 'alerts') +
+          '; highest severity ' + severityLabel + '.'
+        : 'No active operator alerts.')
+      : '';
+    center.setAttribute('data-alert-signature', signature);
   }
 }
 
-function renderTerminalAuditHealth(health) {
+function renderTerminalAuditHealth(health, hiddenByAlert) {
   // Build a compact, redacted health summary from durable numeric facts only.
   // This function deliberately does NOT render provider names, model output, or
   // exception text — those live in the alert list which is filtered server-side.
   const banner = document.getElementById('terminal-audit-health');
   const detail = document.getElementById('terminal-audit-health-detail');
   if (!banner || !detail) return;
-  if (!health || typeof health !== 'object') {
+  if (hiddenByAlert || !health || typeof health !== 'object') {
     banner.hidden = true;
     detail.textContent = '';
     return;
@@ -3664,11 +3715,11 @@ function renderTerminalAuditHealth(health) {
   }
 }
 
-function renderQualityGateHealth(health) {
+function renderQualityGateHealth(health, hiddenByAlert) {
   const banner = document.getElementById('quality-gate-health');
   const detail = document.getElementById('quality-gate-health-detail');
   if (!banner || !detail) return;
-  if (!health || typeof health !== 'object') {
+  if (hiddenByAlert || !health || typeof health !== 'object') {
     banner.hidden = true;
     detail.textContent = '';
     return;
@@ -3692,7 +3743,7 @@ function renderQualityGateHealth(health) {
   banner.hidden = false;
 }
 
-function renderRepoHygieneHealth(health) {
+function renderRepoHygieneHealth(health, hiddenByAlert) {
   var panel = document.getElementById('repo-hygiene-health');
   var icon = document.getElementById('repo-hygiene-health-icon');
   var title = document.getElementById('repo-hygiene-health-title');
@@ -3705,7 +3756,7 @@ function renderRepoHygieneHealth(health) {
   if (!panel || !icon || !title || !summary || !inventory || !overdue ||
       !overdueList || !errors || !errorList) return;
 
-  if (!health || typeof health !== 'object') {
+  if (hiddenByAlert || !health || typeof health !== 'object') {
     panel.hidden = true;
     inventory.innerHTML = '';
     overdueList.innerHTML = '';
@@ -3770,13 +3821,13 @@ function renderRepoHygieneHealth(health) {
  * rendered.  Token values, credentials, and Authorization headers are
  * never present in the snapshot payload.
  */
-function renderAuthHealthBanner(authHealth) {
+function renderAuthHealthBanner(authHealth, hiddenByAlert) {
   var banner = document.getElementById('auth-health-banner');
   var planesEl = document.getElementById('auth-health-planes');
   var detailsEl = document.getElementById('auth-health-details');
   if (!banner || !planesEl || !detailsEl) return;
 
-  if (!authHealth) {
+  if (hiddenByAlert || !authHealth) {
     banner.hidden = true;
     planesEl.innerHTML = '';
     detailsEl.innerHTML = '';
@@ -3788,16 +3839,6 @@ function renderAuthHealthBanner(authHealth) {
   var opStatus = op.status || 'ok';
   var wkStatus = wk.status || 'ok';
   var wkPolicyDenials = wk.policy_denial_count || wk.scope_denial_count || 0;
-
-  // Hide the banner only when there is neither a degraded plane nor useful
-  // informational policy-denial context to show.
-  if (opStatus === 'ok' && (wkStatus === 'ok' || wkStatus === 'never_minted') &&
-      wkPolicyDenials === 0) {
-    banner.hidden = true;
-    planesEl.innerHTML = '';
-    detailsEl.innerHTML = '';
-    return;
-  }
 
   // Build plane badge HTML.
   function planeBadge(label, status, countHint) {
@@ -3883,83 +3924,58 @@ function handleStateUpdate(state) {
   // Update HTTP auth state (used by mutations to conditionally omit actor)
   httpAuthEnabled = (state.http_auth && state.http_auth.enabled) || false;
 
-  // Render alerts inline in agent bar.
-  const warningsEl = document.getElementById('agent-warnings');
-  const alerts = state.alerts || [];
+  // Normalize at the renderer boundary so an older cache or direct caller
+  // cannot put an unbounded transcript into the compact, always-visible
+  // alert summary. Dedupe before partitioning so legacy and structured
+  // producers cannot render the same stable condition twice.
+  const alerts = Array.isArray(state.alerts) ? state.alerts : [];
   // State normally arrives projected by the server. Normalize once more at
   // the renderer boundary so an older cache or direct caller cannot put an
   // unbounded transcript into an always-visible surface.
   const safeAlerts = (Array.isArray(alerts) ? alerts : []).map(normalizeAlertForRender);
-  // Separate credential-error alerts (shown in dedicated banner) and
-  // auth-health alerts (shown in auth-health banner) from generic alerts.
-  const credAlerts = safeAlerts.filter(function(a) {
-    return a.source && a.source.indexOf('cred_error:') === 0;
+  const alertFacts = dedupeAlertFacts(safeAlerts);
+  const actionableAlerts = alertFacts.filter(function(alert) {
+    return alert.action_required !== false;
   });
-  const otherAlerts = safeAlerts.filter(function(a) {
-    if (!a.source) return true;
-    if (a.source.indexOf('cred_error:') === 0) return false;
-    if (a.source.indexOf('auth_health:') === 0) return false;
-    // OOMPAH-735 and OOMPAH-741: recovery/status facts are retained in the
-    // state payload but do not occupy the global operator warning surface.
-    // The server supplies this decision explicitly (action_required=false
-    // for automatic recoveries, bounded retries, and informational status);
-    // no message parsing is needed in the frontend.  Missing/undefined
-    // field is treated as actionable to preserve legacy alert semantics.
-    if (a.action_required === false) return false;
-    return true;
+  const diagnosticAlerts = alertFacts.filter(function(alert) {
+    return alert.action_required === false;
   });
-  if (otherAlerts.length > 0) {
-    warningsEl.innerHTML = otherAlerts.map(function(a) {
-      return renderAlertSummary(a);
-    }).join(' &middot; ');
-  } else {
-    warningsEl.textContent = '';
-  }
+  const hasActionableSource = function(prefix) {
+    return actionableAlerts.some(function(alert) {
+      return String(alert.source || '').startsWith(prefix);
+    });
+  };
 
-  // Render the new compact alert center (OOMPAH-742)
-  renderAlertCenter(otherAlerts);
+  renderAlertCenter(actionableAlerts);
+  renderDiagnosticFacts(diagnosticAlerts);
 
-  const alertsBanner = document.getElementById('alerts-banner');
-  const alertsList = document.getElementById('alerts-list');
-  if (otherAlerts.length > 0) {
-    alertsList.innerHTML = otherAlerts.map(renderAlertItem).join('');
-    alertsBanner.hidden = false;
-  } else {
-    alertsBanner.hidden = true;
-    alertsList.innerHTML = '';
-  }
-
-  // Render terminal-audit health banner using safe numeric facts only.
+  // Dedicated diagnostics present only non-actionable facts. Their matching
+  // actionable condition is already represented once in the alert center.
+  const terminalAuditHasAction = hasActionableSource('terminal_audit:') ||
+    hasActionableSource('terminal_audit_health:');
+  const qualityGateHasAction = hasActionableSource('quality_gate:');
+  const repoHygieneHasAction = hasActionableSource('repo_hygiene_health');
+  const authHealthHasAction = hasActionableSource('auth_health:');
   renderTerminalAuditHealth(
     state.terminal_audit_health ||
     (state.health && state.health.terminal_audit) ||
-    null
+    null,
+    terminalAuditHasAction
   );
   renderQualityGateHealth(
     state.quality_gates ||
     (state.health && state.health.quality_gates) ||
-    null
+    null,
+    qualityGateHasAction
   );
 
   var metrics = state.orchestrator_metrics || {};
   var maintenance = metrics.maintenance || state.maintenance || {};
-  renderRepoHygieneHealth(maintenance.repo_hygiene_health || null);
+  renderRepoHygieneHealth(maintenance.repo_hygiene_health || null, repoHygieneHasAction);
 
-  // Render credential-error banner above the board.
-  const credBanner = document.getElementById('cred-error-banner');
-  const credList = document.getElementById('cred-error-list');
-  if (credAlerts.length > 0) {
-    credList.innerHTML = credAlerts.map(function(a) {
-      return '<li>' + esc(a.message) + '</li>';
-    }).join('');
-    credBanner.hidden = false;
-  } else {
-    credBanner.hidden = true;
-    credList.innerHTML = '';
-  }
-
-  // Render auth-health banner (operator + worker planes).
-  renderAuthHealthBanner(state.auth_health || null);
+  // Authentication is status information when healthy and an alert-center
+  // item when degraded, never both.
+  renderAuthHealthBanner(state.auth_health || null, authHealthHasAction);
 
   // Update agent stats
   const totals = state.agent_totals || {};

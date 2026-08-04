@@ -50,16 +50,12 @@ def _state_update_body(html: str) -> str:
     return match.group("body")
 
 
-def test_no_alert_layout_keeps_all_preboard_panels_outside_board() -> None:
-    """Empty alert panels are hidden but remain ordered before the board."""
+def test_no_alert_layout_keeps_the_compact_center_before_the_board() -> None:
+    """No alerts leaves only the hidden center between the agent bar and board."""
     html = _dashboard_html()
     main_area = html.index('<div class="main-area">')
     preboard_panel_ids = (
-        "cred-error-banner",
-        "alerts-banner",
-        "terminal-audit-health",
-        "repo-hygiene-health",
-        "auth-health-banner",
+        "alert-center",
         "task-state-stale-banner",
         "board-error",
         "board-notice",
@@ -69,22 +65,23 @@ def test_no_alert_layout_keeps_all_preboard_panels_outside_board() -> None:
     for panel_id in preboard_panel_ids:
         match = re.search(rf'<[^>]+id="{re.escape(panel_id)}"[^>]*>', html)
         assert match, f"missing pre-board panel {panel_id}"
-        assert "hidden" in match.group(0), f"{panel_id} must be hidden with no alert"
+        if panel_id == "alert-center":
+            assert 'data-alert-count="0"' in match.group(0)
+        else:
+            assert "hidden" in match.group(0), f"{panel_id} must be hidden with no alert"
         assert previous < match.start() < main_area
         previous = match.start()
 
 
 def test_alert_transitions_reflow_the_same_board_container() -> None:
-    """One or many alerts toggle visibility instead of replacing the board."""
+    """One or many alerts update the center instead of replacing the board."""
     html = _dashboard_html()
     body = _state_update_body(html)
 
-    assert "const alerts = state.alerts || [];" in body
-    assert "otherAlerts.length > 0" in body
-    assert "alertsBanner.hidden = false;" in body
-    assert "alertsBanner.hidden = true;" in body
-    assert "credBanner.hidden = false;" in body
-    assert "credBanner.hidden = true;" in body
+    assert "const alerts = Array.isArray(state.alerts) ? state.alerts : [];" in body
+    assert "const actionableAlerts" in body
+    assert "renderAlertCenter(actionableAlerts);" in body
+    assert "renderDiagnosticFacts(diagnosticAlerts);" in body
     assert 'id="board"' in html
 
 
