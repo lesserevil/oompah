@@ -17,7 +17,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:18:33.279817Z'
+updated_at: '2026-08-04T23:19:11.578944Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -138,6 +138,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T23:12:12.003450+00:00'
     branch_key: epic-OOMPAH-528
+oompah.task_costs:
+  total_input_tokens: 22
+  total_output_tokens: 4128
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 22
+      output_tokens: 4128
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 22
+    output_tokens: 4128
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:19:08.656650+00:00'
 ---
 ## Summary
 
@@ -230,5 +246,15 @@ Safe evidence:
 - core_files_present_on_main: oompah/duplicate_screening.py, docs/duplicate-screening.md, tests/test_duplicate_screening.py, tests/test_duplicate_preflight.py, tests/test_dashboard_duplicate_screening.py
 - later_maintenance_commits: OOMPAH-706 (0b78028a6), OOMPAH-682 (71f87859f, d11354931)
 - days_since_merge: 7
+---
+author: oompah
+created: 2026-08-04 23:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 23, Tool calls: 16
+- Tokens: 22 in / 4.1K out [4.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 55s
+- Log: OOMPAH-528__20260804T231226Z.jsonl
 ---
 <!-- COMMENTS:END -->
