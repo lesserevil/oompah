@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:31:23.323558Z'
+updated_at: '2026-08-04T11:33:07.509707Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-08-04 11:31
 ---
 Understanding: the bug is a handoff race where Open/reconciliation can retire the old worker before focus-complete metadata is durable. I will trace the authenticated handoff path, worker/reconcile lifecycle, retry cancellation, and focus selection, then add an idempotent persistence boundary with regression tests.
+---
+author: oompah
+created: 2026-08-04 11:33
+---
+Discovery: the race is in _reconcile (oompah/orchestrator.py): it treats any Open snapshot as a state revert and terminates the live worker before _on_worker_exit can run _handoff_completed_focus. The current handoff protocol also reads any matching comment text without author verification, and each comment/label/status CLI call is independently authorized. I’m going to add a task-scoped handoff authority marker on accepted structured worker handoff mutations, make reconciliation/exit honor it, and make durable focus evidence trust only Oompah-authored structured comments with idempotent completion handling.
 ---
 <!-- COMMENTS:END -->

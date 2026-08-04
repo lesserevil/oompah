@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:31:44.597155Z'
+updated_at: '2026-08-04T11:33:03.130254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,29 @@ CHANGES:
    - Root epics unaffected
 
 All existing tests pass (167 in merged/nested suite). Tests ready for focused review.
+---
+author: oompah
+created: 2026-08-04 11:33
+---
+VERIFICATION: All tests pass. Code implementation complete.
+
+Test Results:
+- New tests (test_nested_epic_stale_in_review.py): 8 passed
+- Existing nested epic tests (test_nested_epic_cycle_fix.py): 2 passed
+- Epic auto-close tests (test_epic_auto_close.py): 27 passed
+- Orchestrator merged tests (test_orchestrator_merged.py): 130 passed
+
+Changes committed and pushed to origin/OOMPAH-756.
+
+The fix correctly handles:
+✓ Nested epics merged to parent branch now reconcile to MERGED
+✓ Source branch can be deleted (merge evidence is authoritative)
+✓ Wrong-target PRs are rejected
+✓ Unresolvable parents are deferred gracefully
+✓ Reconciliation is idempotent
+✓ Non-epic and root epics unaffected
+✓ Backward compatible with OOMPAH-748 auto-close fix
+
+Ready for review and integration.
 ---
 <!-- COMMENTS:END -->
