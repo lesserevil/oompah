@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:00:12.560998Z'
+updated_at: '2026-08-04T15:00:34.109613Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -73,12 +73,14 @@ oompah.agent_run_id: f9e1a639-d85c-49fa-93aa-654e36be27f4
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-744
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-744
   base_branch: epic-OOMPAH-740
   base_sha: 494c39f8f06ec986bd4efb345ea59e359cf95aed
-  updated_at: '2026-08-04T14:43:37.657684+00:00'
+  head_sha: adb19e5715330bd11924e8b0c27a45c6256049ad
+  submitted_at: '2026-08-04T15:00:22.914116+00:00'
+  updated_at: '2026-08-04T15:00:22.914116+00:00'
 oompah.task_costs:
   total_input_tokens: 30
   total_output_tokens: 2441
@@ -315,5 +317,10 @@ author: oompah
 created: 2026-08-04 15:00
 ---
 COMPLETION: Delivered atomic alert/health UI replacement on top of the rebased head (origin/main + OOMPAH-741/742/743). Amended prior OOMPAH-744 commit into adb19e571 pushed to origin/epic-OOMPAH-740--task-OOMPAH-744.\n\nChanges:\n- oompah/templates/dashboard.html: retargeted _clearAllAlertAndHealthUI() to current template IDs (alert-center* / diagnostic-facts* / terminal-audit / quality-gate / repo-hygiene / auth-health / running-agents); added bounded _recordPresentationReplacementFailure(); phased clear/state/board try-catch in _applyFullSyncMessage().\n- tests/test_dashboard_full_sync_atomic_replacement.py: 8 new source-contract + Node-runtime tests.\n\nAcceptance criteria covered:\n- Post-resync browser DOM matches the authoritative snapshot (list containers innerHTML='', signature dropped) ✓\n- No stale failure remains alongside recovered state (verified via transport-failure-to-zero and state-render-throws runtime tests) ✓\n- Normal gap recovery remains non-alerting (the diagnostics helper never re-emits into the alert stream) ✓\n- Focused websocket / state reconciliation / dashboard tests pass (257 focused tests). Full make test is the orchestrator's branch gate.
+---
+author: oompah
+created: 2026-08-04 15:00
+---
+Delivered atomic alert/health UI replacement on the rebased head. Retargeted _clearAllAlertAndHealthUI to current template IDs (post OOMPAH-741/742/743), added bounded _recordPresentationReplacementFailure, and phased clear/state/board try-catch in _applyFullSyncMessage. 8 new source-contract + Node-runtime tests plus 250+ focused adjacent tests pass.
 ---
 <!-- COMMENTS:END -->
