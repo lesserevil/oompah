@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:03:04.881380Z'
+updated_at: '2026-08-04T03:09:47.055400Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -329,5 +329,10 @@ author: oompah
 created: 2026-08-04 03:03
 ---
 Discovery: Contrary to the earlier compacted handoff, the branch already contains the complete OOMPAH-735 implementation at bbdb6e8be and the exact-head full gate passed. The task was redispatched because MR #702 now conflicts with advanced main. Root behavior remains structured action_required/recovery_state classification plus dashboard filtering; this focus will rebase that commit onto current origin/main, preserve newer alert-center behavior, resolve any dashboard conflicts, and rerun focused recovery/dashboard tests.
+---
+author: oompah
+created: 2026-08-04 03:09
+---
+Implementation: Rebasing bbdb6e8be onto current origin/main produced one overlap in Orchestrator._clear_integration_delivery_alert. Resolved it by preserving main's direct-epic recovery cleanup and delegating that cleanup to OOMPAH-735's dedicated _clear_integration_retry_alert helper. Config, structured recovery classification/reconciliation, dashboard action_required filter, and both regression suites applied unchanged. Rebased head is 0c7d9cbd4.
 ---
 <!-- COMMENTS:END -->
