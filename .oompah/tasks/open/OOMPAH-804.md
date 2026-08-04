@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:38:18.617003Z'
+updated_at: '2026-08-04T23:39:24.292900Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ author: oompah
 created: 2026-08-04 21:38
 ---
 Independent completion review found a pre-integration acceptance gap: workflow_runtime.py currently binds implementation, integration, and an existing terminal workflow reference, but does not construct/bind OOMPAH-782 ReviewWorkflowController or OOMPAH-791 EpicWorkflowController; terminal construction also needs confirmation. This is expected on the old 08f6a8c5 base but means the branch is not final. Adding hard-start edges on all four domain tasks and returning to Open preserves 0baeb01f1; once those domain heads are Done/available, the server must rebase and add an explicit all-domain composition pass with production binding/startup/restart/enforce/shadow tests before resubmission.
+---
+author: oompah
+created: 2026-08-04 23:39
+---
+Pre-integration composition audit at 0baeb01f found the branch is not yet acceptance-complete and must remain last. Final implementation must construct ReviewWorkflowController and EpicWorkflowController/EpicFactCollector; bind complete project-routed production handlers using authoritative domain action sets (including review_merge, integration_attempt, integration_recovery, historical_audit_replay_batch); reject enforce mode unless total handler coverage exists; remove/partition the duplicate generic decision lane; scope restart recovery by proven-dead owner, project, phase, and actions while leaving terminal audits to TerminalAuditWorkflow recovery/finalization; preserve one event-loop owner; and add multi-project routing, cutover-totality, restart/finalization, domain-deduplication, epic-supersession, loop, and drain regressions. Textual clean merges hide these semantic omissions. Recommended composition after domain branches land, with WAL/NORMAL performance commit applied last.
 ---
 <!-- COMMENTS:END -->
