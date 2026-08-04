@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-789
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Add restart and external-failure injection at every workflow boundary
 parent: OOMPAH-767
@@ -10,10 +10,11 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-790
 - OOMPAH-783
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-04T13:59:14.267846Z'
-updated_at: '2026-08-04T14:06:53.582624Z'
+updated_at: '2026-08-04T18:00:30.739582Z'
 work_branch: null
 target_branch: null
 review_url: null
