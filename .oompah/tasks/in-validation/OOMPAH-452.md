@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-452
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Recover the GitLab Issues tracker implementation onto main
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-07-28T15:05:46.104884Z'
+updated_at: '2026-08-04T15:19:18.488208Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -41,6 +41,28 @@ oompah.task_costs:
     output_tokens: 19531
     cost_usd: 0.0
     recorded_at: '2026-07-28T13:04:29.597135+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-db40c5a65f21
+    project_id: proj-14849f1b
+    task_id: OOMPAH-452
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0fc11ce66f62ced8b1175f04f2e801d82623fd28d1a035aed06c50e32e2dcb3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T15:19:13.102597+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -283,5 +305,10 @@ author: oompah
 created: 2026-07-28 13:06
 ---
 Recovered the complete GitLab Issues tracker and related webhook/lifecycle/status-governance implementation onto epic-OOMPAH-451, restored comprehensive tests, verified 12,324 passed with 0 failures, pushed the clean branch, and opened PR #558 targeting main.
+---
+author: oompah
+created: 2026-08-04 15:19
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
