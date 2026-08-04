@@ -63,6 +63,36 @@ Only `Open`, `Needs CI Fix`, and `Needs Rebase` are dispatchable agent states.
 and `Needs Human` are waiting states. `In Validation` is the terminal-audit
 staging state. `Done`, `Merged`, and `Archived` are terminal states.
 
+The machine-readable lifecycle contract is defined in
+`oompah.workflow_contract`. It is the authoritative inventory of canonical
+statuses, legal transitions, execution phases, total dispositions, expected
+owners, reassessment triggers, transition evidence, and safety/liveness
+invariants. `oompah.statuses` remains a compatibility facade for callers that
+only need the historic string constants and category helpers.
+
+Tracker status is intentionally not treated as execution ownership. For
+example, `In Progress` is the business status while its owner may be either an
+implementation-agent lease or a direct-owner lease. Likewise,
+`Ready to Integrate` records the business milestone while a durable integration
+job and lease own the next execution attempt. This separation lets recovery
+replace a stale execution owner without inventing a new business status.
+
+Every canonical status has one default total disposition:
+
+| Disposition | Meaning | Required liveness evidence |
+|---|---|---|
+| Runnable | Eligible for a dispatcher decision | A bounded dispatch tick |
+| Owned | One authority owns the current generation | A durable renewable lease |
+| Blocked | A named prerequisite prevents progress | The prerequisite and its reassessment event |
+| Retry scheduled | Durable work will become claimable | A due time, job, and lease recovery path |
+| Action required | A named person or role must act | A stable visible reason and responsible party |
+| Terminal | No implementation work is runnable | Audit/landing evidence or an explicit final disposition |
+
+The later fact evaluator may refine this default. An `Open` task is normally
+Runnable, but an unmet hard-start dependency makes that task Blocked with the
+dependency as its named prerequisite. The tracker status remains `Open`; the
+derived disposition explains why it is not currently selectable.
+
 ```mermaid
 flowchart TD
     Request[New request] --> Entry{Entry point}
