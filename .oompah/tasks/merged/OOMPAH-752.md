@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-752
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Select standalone Ready delivery fairly before claiming task authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:44:59.922871Z'
+updated_at: '2026-08-04T02:50:30.578303Z'
 work_branch: OOMPAH-752
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/700
@@ -125,6 +125,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-49a23c2a8c61: '2026-08-04T02:40:24.889931+00:00'
+    attempt-12eb428625b1: '2026-08-04T02:50:23.701259+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-752
@@ -135,6 +136,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T02:40:24.889942+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-752
+    target_state: Merged
+    evidence_fingerprint: 40e0d5b46c5fba3c67f60c445ffe7cada4ddea298e85979faaae425f5fd12886
+    audit_ids:
+    - audit-1783e534c137
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T02:50:23.701275+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-752
@@ -148,6 +158,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T02:40:24.889957+00:00'
     applied_at: '2026-08-04T02:40:35.632377+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-752
+    audit_id: audit-1783e534c137
+    attempt_id: attempt-12eb428625b1
+    target_state: Merged
+    evidence_fingerprint: 40e0d5b46c5fba3c67f60c445ffe7cada4ddea298e85979faaae425f5fd12886
+    status: Merged
+    audit_ids:
+    - audit-1783e534c137
+    applied: false
+    created_at: '2026-08-04T02:50:23.701407+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -189,7 +210,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-752
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -217,7 +238,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-12eb428625b1
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -228,13 +249,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T02:44:53.470381+00:00'
       branch_key: OOMPAH-752
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T02:50:23.701074+00:00'
+      ended_at: '2026-08-04T02:50:23.701074+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T02:33:57.257550+00:00'
-    updated_at: '2026-08-04T02:44:53.470381+00:00'
+    updated_at: '2026-08-04T02:50:23.701074+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49a23c2a8c61
@@ -452,5 +476,22 @@ author: oompah
 created: 2026-08-04 02:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 02:50
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_sha: 45fd50c6f56f22d8195ee2cb67ab84c57918d5ac
+- merge_commit: bc9c289f401b63603454cda00f7670c000354a21
+- merge_commit_message: Merge pull request #700 from lesserevil/OOMPAH-752
+- ancestor_of_main: true
+- focused_tests_passed: 60 (35 standalone + 25 review-capacity/integration-queue)
+- regression_tests_verified: test_standalone_delivery_selects_priority_then_submitted_fifo; test_invalid_old_candidate_falls_through_without_claiming_later_rows; test_dependency_blocked_candidate_does_not_claim_or_block_next
+- code_helpers_confirmed: _standalone_delivery_order_key (line 8840), _arm_standalone_capacity_wait (line 8679), eligible.sort (line 8036)
+- diff_scope: oompah/orchestrator.py (+201/-65), tests/test_standalone_ready_to_integrate.py (+136)
 ---
 <!-- COMMENTS:END -->
