@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T21:51:40.195759Z'
+updated_at: '2026-08-04T21:55:11.584924Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
