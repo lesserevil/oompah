@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-762
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:16:19.341290Z'
-updated_at: '2026-08-04T13:19:53.185508Z'
+updated_at: '2026-08-04T13:20:36.876204Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -30,14 +30,72 @@ oompah.agent_run_id: 54c0f508-ae79-4a16-b547-746c1093c2b1
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
   head_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+  integrated_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
   submitted_at: '2026-08-04T13:19:46.816433+00:00'
-  updated_at: '2026-08-04T13:19:46.816433+00:00'
+  updated_at: '2026-08-04T13:20:22.271395+00:00'
+  canonical_landing_evidence:
+    old_base_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+    old_head_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+    new_base_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+    new_head_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+    target_epic_branch: epic-OOMPAH-740
+    rebase_task_id: OOMPAH-762
+    created_at_utc: '2026-08-04T13:20:22.271347+00:00'
+    evidence_fingerprint: 9bc9a463b8d58e266af1762c3b1b75e3ed6d82f61fdb9afcb9b3d9289061c9eb
+oompah.task_costs:
+  total_input_tokens: 14
+  total_output_tokens: 1759
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 14
+      output_tokens: 1759
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 14
+    output_tokens: 1759
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T13:20:12.942388+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-762__20260804T131748Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: general
+    source_branch: epic-OOMPAH-740
+    source_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+    completed_at: '2026-08-04T13:20:12.954634+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f793ad0066b7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-762
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38bbc968e2fd5f4e7b6bc847ebb7695347c4b7aa67c63a7d67e2bec1f986a896
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-epic-maintenance
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T13:20:29.451586+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -82,5 +140,25 @@ author: oompah
 created: 2026-08-04 13:19
 ---
 Rebased epic-OOMPAH-740 onto origin/main (5 commits from OOMPAH-757 and related merges). No conflicts. Force-pushed with --force-with-lease. Branch is now in sync with main at 32d881aa2.
+---
+author: oompah
+created: 2026-08-04 13:20
+---
+Agent completed successfully in 159s (1773 tokens)
+---
+author: oompah
+created: 2026-08-04 13:20
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 17, Tool calls: 13
+- Tokens: 14 in / 1.8K out [1.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 39s
+- Log: OOMPAH-762__20260804T131748Z.jsonl
+---
+author: oompah
+created: 2026-08-04 13:20
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

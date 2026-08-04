@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:16:28.438629Z'
+updated_at: '2026-08-04T13:20:28.748231Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,14 +47,16 @@ oompah.agent_run_id: 23af49eb-ddef-4572-8912-c896053edb76
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 4
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
-  base_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
-  head_sha: aae9534a2a9314e209d9823890fe4ae588f86835
+  base_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+  head_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
   submitted_at: '2026-08-04T13:15:42.426498+00:00'
-  updated_at: '2026-08-04T13:15:42.426498+00:00'
+  updated_at: '2026-08-04T13:20:21.662930+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.task_costs:
   total_input_tokens: 46421
   total_output_tokens: 21147
@@ -432,5 +434,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 8s
 - Log: OOMPAH-741__20260804T130835Z.jsonl
+---
+author: oompah
+created: 2026-08-04 13:20
+---
+The combined-tree quality gate failed on `epic-OOMPAH-740--task-OOMPAH-741`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
