@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T22:09:46.081426Z'
+updated_at: '2026-08-04T22:13:33.044045Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -116,18 +116,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-502
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-d00cb31c0e1c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+      created_at: '2026-08-04T22:13:11.820939+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T22:13:11.820939+00:00'
+      branch_key: epic-OOMPAH-502
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T18:30:13.803900+00:00'
+    updated_at: '2026-08-04T22:13:11.820939+00:00'
   - version: 1
     audit_id: audit-3d99b9c238bc
     project_id: proj-14849f1b
@@ -175,6 +189,19 @@ oompah.terminal_audit:
     started_at: '2026-08-04T21:48:21.618731+00:00'
     branch_key: epic-OOMPAH-502
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-d00cb31c0e1c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+    created_at: '2026-08-04T22:13:11.820939+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T22:13:11.820939+00:00'
+    branch_key: epic-OOMPAH-502
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 7374
@@ -273,5 +300,19 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 21m 15s
 - Log: OOMPAH-502__20260804T214848Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:13
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 22:13
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 8s
 ---
 <!-- COMMENTS:END -->

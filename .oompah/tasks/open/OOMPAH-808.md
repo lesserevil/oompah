@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-808
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T22:11:32.698752Z'
+updated_at: '2026-08-04T22:13:20.206169Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -171,5 +171,15 @@ author: oompah
 created: 2026-08-04 22:11
 ---
 Understanding: nested-epic dispatch must prove hard-start prerequisite code is reachable from the actual epic and private-task bases before any workspace, claim, provider, or worker launch. I will trace existing target-resolution, reachability, repair, generation-CAS, and dispatch paths, then add a focused guard plus regression tests while preserving standalone/top-level behavior.
+---
+author: oompah
+created: 2026-08-04 22:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 39
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 27s
+- Log: OOMPAH-808__20260804T221110Z.jsonl
 ---
 <!-- COMMENTS:END -->
