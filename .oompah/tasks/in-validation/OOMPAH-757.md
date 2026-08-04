@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:57:33.788781Z'
+updated_at: '2026-08-04T13:06:30.307323Z'
 work_branch: OOMPAH-757
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/711
@@ -105,6 +105,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/711
 oompah.review_number: '711'
 oompah.work_branch: OOMPAH-757
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e4bd3e8e57ac
+    project_id: proj-14849f1b
+    task_id: OOMPAH-757
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1c2b44ec5ba4173571dee97e456b254f78763c9f518a043747ed09ae6f3fd6b5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T13:06:20.442602+00:00'
+  - version: 1
+    audit_id: audit-67e14e57baf6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-757
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1c2b44ec5ba4173571dee97e456b254f78763c9f518a043747ed09ae6f3fd6b5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T13:06:20.442602+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -599,5 +638,15 @@ author: oompah
 created: 2026-08-04 12:57
 ---
 Branch quality gate passed for `0d92e522f6010a24da1b5d5de8a79fd9010157fa` using `make test` in 426.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 13:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 13:06
+---
+YOLO: merged PR #711.
 ---
 <!-- COMMENTS:END -->
