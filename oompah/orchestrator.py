@@ -10382,17 +10382,54 @@ class Orchestrator:
         if not ready_items:
             return False
 
-        first_item = ready_items[0]
-        dependencies = set(dependency_map.get(first_item.task_id, ()))
-        unsatisfied = dependencies - satisfied
-        if not unsatisfied:
-            return False
-
         issues_by_alias: dict[str, Issue] = {}
         for issue in issues:
             for alias in (issue.id, issue.identifier):
                 if str(alias or "").strip():
                     issues_by_alias[str(alias).strip()] = issue
+
+        # Build ready set for topological filtering
+        ready_task_ids = {item.task_id for item in ready_items}
+        
+        # Find the first topologically eligible head (one whose nonterminal
+        # dependencies don't block it in the ready queue).
+        eligible_item = None
+        for item in ready_items:
+            dependencies = set(dependency_map.get(item.task_id, ()))
+            unsatisfied = dependencies - satisfied
+            
+            if not unsatisfied:
+                # This item has all deps satisfied, keep looking for one with
+                # unsatisfied deps that we can repair
+                continue
+            
+            # Check if this item has nonterminal deps that would block it
+            nonterminal_blocking = False
+            for dep_id in unsatisfied:
+                if dep_id not in ready_task_ids:
+                    # Dep is not in ready queue, so it's external and we'll
+                    # let normal dependency resolution handle it
+                    continue
+                # Dep is in the ready queue; check if it's terminal or nonterminal
+                dep_issue = issues_by_alias.get(str(dep_id).strip())
+                if dep_issue:
+                    status = canonicalize_status(dep_issue.state)
+                    if status not in {DONE, MERGED, ARCHIVED}:
+                        # Nonterminal dep in ready queue blocks this item
+                        nonterminal_blocking = True
+                        break
+            
+            if not nonterminal_blocking:
+                # This item is eligible and has unsatisfied deps
+                eligible_item = item
+                break
+        
+        if eligible_item is None:
+            return False
+
+        # Compute unsatisfied deps for the eligible item
+        dependencies = set(dependency_map.get(eligible_item.task_id, ()))
+        unsatisfied = dependencies - satisfied
 
         project = self.project_store.get(project_id)
         epic = issues_by_alias.get(str(epic_id or "").strip())

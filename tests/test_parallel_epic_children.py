@@ -1794,3 +1794,142 @@ def test_nested_epic_queue_repair_with_successful_parent_sync_allows_claim_next(
     # Should be able to claim the item once dependency is satisfied
     assert claimed is not None
     assert claimed.task_id == "TASK-2"
+
+
+def test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible(
+    tmp_path,
+):
+    """Test that detector inspects all heads, not just the first ready item.
+
+    Regression test for OOMPAH-754: if the first Ready item is blocked on a
+    nonterminal dependency that is also in the queue, but a later item has only
+    terminal-unreachable dependencies, the detector should skip the blocked
+    item and repair the eligible one.
+
+    Queue order: TASK-2 (depends on TASK-1 nonterminal), TASK-1 (nonterminal),
+    then TASK-3 (depends on TASK-0 terminal/unreachable).
+    Detector should skip TASK-2 and TASK-1, then file repair for TASK-3.
+    """
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    # TASK-0: terminal dependency that should trigger repair for TASK-3
+    terminal_unreachable_dep = _make_issue(
+        identifier="TASK-0",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Merged",  # Terminal
+    )
+    # TASK-1: nonterminal, in queue, blocks TASK-2
+    nonterminal_blocking = _make_issue(
+        identifier="TASK-1",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Needs Rebase",  # Nonterminal
+    )
+    # TASK-2: Ready but blocked on nonterminal TASK-1 (in queue)
+    queued_blocked = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha=None,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    # TASK-1: Nonterminal, in ready queue
+    queued_nonterminal = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-1",
+        task_branch="epic-EPIC-2--task-TASK-1",
+        head_sha="a" * 40,
+        base_sha=None,
+        priority=2,
+        submitted_at="2026-07-29T00:00:30+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:30+00:00",
+    )
+    # TASK-3: Ready and eligible with terminal unreachable dep
+    queued_eligible = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-3",
+        task_branch="epic-EPIC-2--task-TASK-3",
+        head_sha="b" * 40,
+        base_sha=None,
+        priority=1,
+        submitted_at="2026-07-29T00:01:00+00:00",  # After TASK-1
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:01:00+00:00",
+    )
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._resolve_epic_target_branch = MagicMock(return_value="main")
+    orchestrator._find_active_epic_rebase_sibling = MagicMock(
+        return_value=None
+    )
+    orchestrator._file_rebase_task = MagicMock()
+    orchestrator._set_epic_rebase_state = MagicMock()
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+    ):
+        repaired = (
+            orchestrator._detect_and_repair_integration_queue_staleness_block(
+                project_id=project.id,
+                epic_id=epic.identifier,
+                issues=[epic, terminal_unreachable_dep, nonterminal_blocking],
+                # Queue order: TASK-2 (blocked on TASK-1), TASK-1 (nonterminal),
+                # then TASK-3 (eligible with TASK-0 terminal unreachable)
+                queue_items=[queued_blocked, queued_nonterminal, queued_eligible],
+                # TASK-2 depends on nonterminal TASK-1
+                # TASK-1 has no unsatisfied deps (for simplicity)
+                # TASK-3 depends on terminal TASK-0
+                dependency_map={
+                    "TASK-2": ("TASK-1",),
+                    "TASK-1": (),
+                    "TASK-3": ("TASK-0",),
+                },
+                satisfied=set(),
+            )
+        )
+
+    # Should have repaired for TASK-3 (the eligible head)
+    assert repaired is True
+    tracker.update_issue.assert_called_once_with(
+        epic.identifier,
+        **{"add-label": "rebase-requested"},
+    )
+    assert "rebase-requested" in epic.labels
+    # Verify file_rebase_task was called once (for TASK-3, not TASK-2)
+    orchestrator._file_rebase_task.assert_called_once_with(
+        tracker,
+        epic,
+        "epic-EPIC-2",
+        "main",
+    )
+    orchestrator._set_epic_rebase_state.assert_called_once_with(
+        epic.identifier,
+        EpicRebaseState.REBASING,
+        project_id=project.id,
+        reason="queue_staleness_block",
+    )
