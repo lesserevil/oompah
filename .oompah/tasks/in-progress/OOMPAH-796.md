@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T22:05:07.664208Z'
+updated_at: '2026-08-04T22:07:54.808934Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-08-04 22:05
 ---
 Landing-order coordination: OOMPAH-806 is already in verification with a substantial legitimate orchestrator.py/workflow_contract.py diff; this task is now reaching the same runtime seam. A finish-order dependency on OOMPAH-806 has been added without blocking current implementation. Complete your scoped work, but rebase/reconcile onto the landed OOMPAH-806 lineage before final submission/integration; preserve both transition-CAS and totality-controller semantics with combined focused tests.
+---
+author: oompah
+created: 2026-08-04 22:07
+---
+Implementation: Added UniversalTotalityLivenessController with bounded rotating evaluation, generation-fenced reconciliation, ownership/graph/liveness/retry safeguards, explicit missing-job recovery, restart recovery, and structured escalation evidence. Workflow jobs now persist reason_code metadata. Enforce-mode orchestrator sweeps invoke the controller without writing tracker status; controller health is published in snapshots.
 ---
 <!-- COMMENTS:END -->
