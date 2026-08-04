@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:25:53.585736Z'
+updated_at: '2026-08-04T11:28:29.282250Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: b618e2de7a17cf673ff221e1bd18c0cdbaea44a2ebb4ac1e0e1125298329f0e8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4ba3d544-0f93-4829-b912-daa23e1c03a5
+  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
+  claimed_at: '2026-08-04T11:28:14.040416+00:00'
+  claim_expires_at: '2026-08-04T11:58:14.040416+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: d917a910-5de3-4bec-adf1-0b59914e90e6
 ---
 ## Summary
 
@@ -39,3 +57,16 @@ Required tests: exact OOMPAH-757 docs -> feature handoff where Open becomes visi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 11:28
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 11:28
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
