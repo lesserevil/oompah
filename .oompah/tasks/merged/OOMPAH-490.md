@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-490
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:14:10.413693Z'
+updated_at: '2026-08-04T18:16:38.206887Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -35,6 +35,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-4235dd76a811: '2026-08-04T17:57:31.777583+00:00'
     infrastructure-exhausted-audit-801f3111cfd3-3: '2026-08-04T18:10:08.301436+00:00'
+    attempt-fa71f06b7f0b: '2026-08-04T18:16:34.118222+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-490
@@ -54,6 +55,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T18:10:08.301450+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-490
+    target_state: Merged
+    evidence_fingerprint: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    audit_ids:
+    - audit-8170b4cbabb1
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T18:16:34.118250+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-490
@@ -79,6 +89,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T18:10:08.301469+00:00'
     applied_at: '2026-08-04T18:10:15.747570+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-490
+    audit_id: audit-8170b4cbabb1
+    attempt_id: attempt-fa71f06b7f0b
+    target_state: Merged
+    evidence_fingerprint: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    status: Merged
+    audit_ids:
+    - audit-8170b4cbabb1
+    applied: false
+    created_at: '2026-08-04T18:16:34.118273+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -206,7 +227,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-490
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -215,7 +236,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fa71f06b7f0b
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -225,13 +246,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T18:14:03.092799+00:00'
       branch_key: epic-OOMPAH-490
+      verdict: pass
+      completed_at: '2026-08-04T18:16:34.118030+00:00'
+      ended_at: '2026-08-04T18:16:34.118030+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T17:27:37.627571+00:00'
-    updated_at: '2026-08-04T18:14:03.092799+00:00'
+    updated_at: '2026-08-04T18:16:34.118030+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4235dd76a811
