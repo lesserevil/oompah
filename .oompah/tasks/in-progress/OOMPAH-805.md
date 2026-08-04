@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:12:28.723878Z'
+updated_at: '2026-08-04T21:12:59.545604Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,7 +72,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 2ae2a3ff-bb5a-4098-9e2a-40cc821fde58
 oompah.task_costs:
   total_input_tokens: 420
   total_output_tokens: 17536
@@ -375,5 +375,10 @@ FAILED tests/test_state_branch_e2e.py::TestCommitHistoryRegression::test_state_b
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-04 21:12
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
