@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:58:38.148628Z'
+updated_at: '2026-08-04T15:58:58.508281Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -377,13 +377,13 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-451
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 111
-  total_output_tokens: 2920
+  total_input_tokens: 134
+  total_output_tokens: 10746
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 111
-      output_tokens: 2920
+      input_tokens: 134
+      output_tokens: 10746
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -398,6 +398,12 @@ oompah.task_costs:
     output_tokens: 1336
     cost_usd: 0.0
     recorded_at: '2026-08-04T15:53:26.399307+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 23
+    output_tokens: 7826
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T15:58:55.706999+00:00'
 ---
 ## Summary
 
@@ -574,5 +580,15 @@ Safe evidence:
 - test_bootstrap_readiness_and_review_flows: 131 passed
 - child_tasks: OOMPAH-452 Archived, OOMPAH-453 Archived, OOMPAH-454 Archived, OOMPAH-455 Archived, OOMPAH-456 Archived
 - prior_audit_failure_reason: Infrastructure: auditors resolved origin/OOMPAH-451 and origin/epic-OOMPAH-451 as remote refs; both deleted post-merge. Not an implementation deficiency.
+---
+author: oompah
+created: 2026-08-04 15:58
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 52, Tool calls: 30
+- Tokens: 23 in / 7.8K out [7.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 2s
+- Log: OOMPAH-451__20260804T155405Z.jsonl
 ---
 <!-- COMMENTS:END -->
