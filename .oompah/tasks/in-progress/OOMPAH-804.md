@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:06:12.455073Z'
+updated_at: '2026-08-04T21:28:14.552802Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-08-04 21:06
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 21:28
+---
+Understanding (continuation run): The recovery checkpoint contains the full workflow_runtime.py implementation plus bootstrap/config/orchestrator wiring. Tests were passing except for test_hundreds_of_history_rows_do_not_hide_eligible_heads which timed out due to SQLite synchronous=FULL performing 804 fsyncs for a 402-task reconcile batch.
 ---
 <!-- COMMENTS:END -->
