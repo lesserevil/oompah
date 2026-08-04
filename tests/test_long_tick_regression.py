@@ -744,9 +744,20 @@ class TestOperatorDiagnostics:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._notify_observers = MagicMock()
+        # Stub maintenance methods to prevent background work from spawning
+        orch._run_step5b_maintenance = MagicMock()
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
 
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+        async def _run_tick_and_drain():
+            """Run a tick and drain all background work to prevent test leakage."""
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+            # Drain any background futures spawned during the tick to prevent leakage
+            # across test boundaries.
+            await orch._drain_background_work()
+
+        asyncio.run(_run_tick_and_drain())
 
         snapshot = orch.get_snapshot()
         tick_metrics = snapshot["orchestrator_metrics"]["last_tick"]

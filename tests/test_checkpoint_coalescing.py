@@ -503,6 +503,108 @@ class TestCheckpointQueueConcurrency:
         assert flushed2 == 0, "Second flush must be a no-op"
         assert flush_count == 1, "flush_fn must be called only once"
 
+    def test_concurrent_flush_waits_for_in_flight_flush_fn(self):
+        """A second flush() must wait until the first flush_fn completes.
+
+        Regression for OOMPAH-805: under full-gate load the debounce timer
+        thread could set pending=0 and start flush_fn (git commit), then a
+        concurrent manual flush_checkpoint() call would see pending=0 and
+        return before the timer's commit reached git.  The manual caller
+        wrongly believed the checkpoint had been flushed, so the
+        state-branch commit count assertion in
+        tests/test_state_branch_e2e.py::TestCommitHistoryRegression::
+        test_state_branch_gets_new_commits_after_cutover flaked.
+
+        This test simulates the race: flush_fn blocks on an event that only
+        the concurrent flush() caller can release.  If the concurrent
+        flush() returned without waiting, the blocking flush_fn would
+        deadlock (never released), and the join()/wait() below would
+        timeout.  Passing proves the concurrent flush() waited on the
+        in-flight flush_fn instead of racing ahead.
+        """
+        in_flush_event = threading.Event()
+        release_event = threading.Event()
+        flush_fn_completed = threading.Event()
+
+        def flush_fn() -> None:
+            in_flush_event.set()
+            # Block until the second flush() caller signals us to release.
+            # If the second caller races past without waiting, this hangs.
+            release_event.wait(timeout=2.0)
+
+        FakeTimer, _ = TestCheckpointQueueDebounce()._make_fake_timer_factory(False)
+        q = CheckpointQueue(
+            debounce_ms=100,
+            max_delay_ms=1100,
+            flush_fn=flush_fn,
+            _timer_factory=FakeTimer,
+        )
+        q.schedule()
+
+        # Kick off the first flush in a background thread — it will block
+        # inside flush_fn on release_event.
+        first_result: list[int] = []
+        first_error: list[BaseException] = []
+
+        def first_flush() -> None:
+            try:
+                first_result.append(q.flush(reason="first"))
+            except BaseException as exc:  # noqa: BLE001
+                first_error.append(exc)
+            finally:
+                flush_fn_completed.set()
+
+        t1 = threading.Thread(target=first_flush, daemon=True)
+        t1.start()
+
+        # Wait for the first flush to enter flush_fn (mirrors the timer
+        # thread winning the race in production).
+        assert in_flush_event.wait(timeout=2.0), (
+            "First flush never entered flush_fn"
+        )
+
+        # Kick off a second flush from another thread.  With the serial
+        # lock in place this must block on t1's in-flight flush; without
+        # it, the second flush would see pending==0 and return
+        # immediately while t1 is still committing.
+        second_result: list[int] = []
+        second_returned = threading.Event()
+
+        def second_flush() -> None:
+            second_result.append(q.flush(reason="second"))
+            second_returned.set()
+
+        t2 = threading.Thread(target=second_flush, daemon=True)
+        t2.start()
+
+        # Second flush must NOT return while the first flush_fn is still
+        # blocked — the serial lock enforces the wait.
+        assert not second_returned.wait(timeout=0.2), (
+            "Concurrent flush() returned while first flush_fn was in "
+            "flight — the serialization lock is missing or ineffective"
+        )
+
+        # Release the first flush_fn.  The first flush completes, then the
+        # second flush observes pending==0 (because the first drained it)
+        # and returns 0 promptly.
+        release_event.set()
+        assert flush_fn_completed.wait(timeout=2.0), (
+            "First flush_fn did not complete after release"
+        )
+        assert second_returned.wait(timeout=2.0), (
+            "Concurrent flush() never returned after first flush completed"
+        )
+
+        t1.join(timeout=2.0)
+        t2.join(timeout=2.0)
+        assert not first_error, f"First flush raised: {first_error}"
+        assert first_result == [1], (
+            f"First flush must report 1 mutation flushed; got {first_result}"
+        )
+        assert second_result == [0], (
+            f"Concurrent flush must observe pending==0 after waiting; got {second_result}"
+        )
+
     def test_concurrent_tracker_mutations_committed_atomically(
         self, state_repo: tuple[Path, str]
     ) -> None:
