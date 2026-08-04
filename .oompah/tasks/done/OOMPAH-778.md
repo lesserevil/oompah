@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T17:44:21.233396Z'
+updated_at: '2026-08-04T17:44:26.640671Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,7 +51,17 @@ oompah.terminal_audit:
       head 6561d52e5 on epic-OOMPAH-769 after the integration worker incorrectly compared
       against stale parent-worktree head db0157018.
     created_at: '2026-08-04T17:44:18.062346+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-778
+    target_state: Done
+    evidence_fingerprint: e626484b0a37592c3e672ebc405760f10e3c1f9a3def9c8942e03319f229ee3f
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T17:44:25.352453+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -84,5 +94,12 @@ created: 2026-08-04 17:42
 Integration could not verify `OOMPAH-778`: task worktree head db015701875b7976bfdaa7993b4043f2a21f2817 differs from the published task head 6561d52e5a879375ea3587582f335419ed49310e; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 17:44
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct-owner implementation was fully tested and landed at exact pushed head 6561d52e5 on epic-OOMPAH-769 after the integration worker incorrectly compared against stale parent-worktree head db0157018.
 ---
 <!-- COMMENTS:END -->
