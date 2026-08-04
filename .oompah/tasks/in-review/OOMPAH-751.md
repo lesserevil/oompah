@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -12,10 +12,10 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:41:34.120084Z'
+updated_at: '2026-08-04T02:41:48.455260Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/701
 review_number: null
 review_head: null
 merged_at: null
@@ -140,6 +140,7 @@ oompah.integration:
   head_sha: 38bb88c85d869a232a90974a07bacb5d20cd37d6
   submitted_at: '2026-08-04T02:32:03.831369+00:00'
   updated_at: '2026-08-04T02:32:28.772049+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/701
 ---
 ## Summary
 
