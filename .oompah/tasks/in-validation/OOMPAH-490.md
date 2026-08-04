@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-490
 type: epic
-status: Merged
+status: In Validation
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-07-28T17:11:24.362629Z'
+updated_at: '2026-08-04T17:25:44.157568Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -30,6 +30,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/563
 oompah.review_number: '563'
 oompah.work_branch: epic-OOMPAH-490
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-05cb93465a95
+    project_id: proj-14849f1b
+    task_id: OOMPAH-490
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3e3610fa43b469229d03dedf5959434f2861f2cb85d542b40502214cbe776f99
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:25:37.057351+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -61,5 +83,10 @@ author: oompah
 created: 2026-07-28 17:04
 ---
 YOLO: merged PR #563.
+---
+author: oompah
+created: 2026-08-04 17:25
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
