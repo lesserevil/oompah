@@ -1,0 +1,115 @@
+---
+id: OOMPAH-765
+type: epic
+status: Needs CI Fix
+priority: 1
+title: Build unified versioned facts and a pure WorkDecision evaluator
+parent: OOMPAH-763
+children:
+- OOMPAH-777
+- OOMPAH-779
+- OOMPAH-786
+blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-764
+labels:
+- ci-fix
+assignee: null
+created_at: '2026-08-04T13:55:54.087142Z'
+updated_at: '2026-08-04T16:19:01.864059Z'
+work_branch: epic-OOMPAH-765
+target_branch: epic-OOMPAH-763
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+oompah.start_blocked_by: *id001
+oompah.target_branch: epic-OOMPAH-763
+oompah.work_branch: epic-OOMPAH-765
+---
+## Summary
+
+Create versioned WorkflowFacts and a pure evaluate_task(task, facts) -> WorkDecision engine. Facts must normalize tracker state, dependencies, containment, integration records/queue rows, terminal audit records, review/CI state, Git/forge landing evidence, ownership generations, retry budgets, and configuration. WorkDecision must be total for every task and return disposition (runnable, owned, blocked, retry_scheduled, action_required, terminal), stable reason code, responsible owner type, unmet prerequisites, evidence revision, next reassessment time, permitted actions, action_required flag, and alert level. Centralize dependency satisfaction, target/landing resolution, and retry classification. Run shadow evaluation without mutations, compare with legacy scheduler/UI/watchdog decisions, and expose a diagnostic API. Required tests: pure table-driven decisions, deterministic evidence revisions, multi-project scope, missing/stale/error facts, nested epic landing, cross-epic dependencies, and shadow disagreement telemetry. Acceptance: every nonterminal task produces a deterministic decision; scheduler, UI, and liveness consumers can use the same object; unexplained shadow divergences are zero before enforcement.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 16:18
+---
+Branch quality gate blocked review creation.
+
+Branch: `epic-OOMPAH-765`
+Target: `epic-OOMPAH-763`
+Head: `40e46bf8e41c15a0a89529694cbb3aa3580f2f19`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+hon-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/selector_events.py", line 282, in _add_reader
+      key = self._selector.get_key(fd)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/selectors.py", line 192, in get_key
+      raise KeyError("{!r} is not registered".format(fileobj)) from None
+  KeyError: '114 is not registered'
+  
+  During handling of the above exception, another exception occurred:
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_includes_api_metrics
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-i9ijw8v0/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7131f66b39c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_does_not_await_epic_maintenance
+= 1 failed, 15549 passed, 8 skipped, 1 xfailed, 48 warnings in 420.08s (0:07:00) =
+
+make: *** [Makefile:401: test] Error 1
+```
+---
+<!-- COMMENTS:END -->
