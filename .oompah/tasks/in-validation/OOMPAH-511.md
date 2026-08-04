@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-08-04T16:33:23.930437Z'
+updated_at: '2026-08-04T16:38:19.381074Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -91,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-511
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -115,13 +115,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511)'
       next_retry_at: '2026-08-04T16:33:23.293270+00:00'
+    - version: 1
+      attempt_id: attempt-0b79ccc027fe
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e71dfa7416a52cb6bc6b3a4d8a9dd8360dcefdcdf3bd14817ceea24fdb92b6c4
+      created_at: '2026-08-04T16:38:06.030864+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T16:38:06.030864+00:00'
+      branch_key: epic-OOMPAH-511
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T16:25:26.662298+00:00'
-    updated_at: '2026-08-04T16:33:13.293305+00:00'
+    updated_at: '2026-08-04T16:38:06.030864+00:00'
   - version: 1
     audit_id: audit-35731bc0bd87
     project_id: proj-14849f1b
@@ -171,6 +185,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511)'
     next_retry_at: '2026-08-04T16:33:23.293270+00:00'
+  - version: 1
+    attempt_id: attempt-0b79ccc027fe
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e71dfa7416a52cb6bc6b3a4d8a9dd8360dcefdcdf3bd14817ceea24fdb92b6c4
+    created_at: '2026-08-04T16:38:06.030864+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T16:38:06.030864+00:00'
+    branch_key: epic-OOMPAH-511
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 45
   total_output_tokens: 8447
@@ -295,5 +323,19 @@ author: oompah
 created: 2026-08-04 16:33
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 16:38
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-04 16:38
+---
+Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 6s
 ---
 <!-- COMMENTS:END -->
