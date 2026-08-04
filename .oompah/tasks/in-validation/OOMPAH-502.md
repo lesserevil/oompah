@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T22:13:53.847662Z'
+updated_at: '2026-08-04T22:43:10.121207Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -116,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-502
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -140,13 +140,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502)'
       next_retry_at: '2026-08-04T22:13:43.766308+00:00'
+    - version: 1
+      attempt_id: attempt-07688b36768e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+      created_at: '2026-08-04T22:43:08.829012+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T22:43:08.829012+00:00'
+      branch_key: epic-OOMPAH-502
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T18:30:13.803900+00:00'
-    updated_at: '2026-08-04T22:13:33.766342+00:00'
+    updated_at: '2026-08-04T22:43:08.829012+00:00'
   - version: 1
     audit_id: audit-3d99b9c238bc
     project_id: proj-14849f1b
@@ -212,6 +226,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502)'
     next_retry_at: '2026-08-04T22:13:43.766308+00:00'
+  - version: 1
+    attempt_id: attempt-07688b36768e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+    created_at: '2026-08-04T22:43:08.829012+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T22:43:08.829012+00:00'
+    branch_key: epic-OOMPAH-502
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 7374
