@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-464
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-08-04T23:12:45.595059Z'
+updated_at: '2026-08-04T23:20:14.275681Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -39,6 +39,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T18:57:15.087815+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-dff3c7581e07: '2026-08-04T23:20:08.483760+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-464
+    target_state: Archived
+    evidence_fingerprint: 45ebe8b84d7a75b3b6bf4c866519c50b75e9e293221cd667d23d1697e016a015
+    audit_ids:
+    - audit-bbdd18e64e5c
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:20:08.483772+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-464
+    audit_id: audit-bbdd18e64e5c
+    attempt_id: attempt-dff3c7581e07
+    target_state: Archived
+    evidence_fingerprint: 45ebe8b84d7a75b3b6bf4c866519c50b75e9e293221cd667d23d1697e016a015
+    status: Archived
+    audit_ids:
+    - audit-bbdd18e64e5c
+    applied: false
+    created_at: '2026-08-04T23:20:08.483788+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -46,7 +70,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-464
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +94,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-dff3c7581e07
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -81,13 +105,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T23:12:28.740679+00:00'
       branch_key: epic-OOMPAH-457
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T23:20:08.483627+00:00'
+      ended_at: '2026-08-04T23:20:08.483627+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:43.966727+00:00'
-    updated_at: '2026-08-04T23:12:28.740679+00:00'
+    updated_at: '2026-08-04T23:20:08.483627+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-605e78be8661
