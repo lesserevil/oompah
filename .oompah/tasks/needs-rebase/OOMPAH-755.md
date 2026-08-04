@@ -12,13 +12,14 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:05:13.137859Z'
+updated_at: '2026-08-04T11:05:24.568268Z'
 work_branch: null
-target_branch: null
+target_branch: main
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.target_branch: main
 ---
 ## Summary
 
