@@ -16249,9 +16249,20 @@ class Orchestrator:
             )
             return False
 
-        # Additional gate: the epic's OWN branch (``epic-<id>``) must be merged
-        # to ``project.default_branch`` before we auto-close.  Otherwise we'd
+        # Additional gate: the epic's OWN branch must be merged to its
+        # immediate target before we auto-close.  Otherwise we'd
         # close the task while its merge-train work is still pending.
+        #
+        # For nested epics: the target is the parent epic's branch.
+        # For root epics: the target is project.default_branch (typically main).
+        #
+        # This allows nested children to auto-close once landed on the
+        # immediate parent branch, without requiring the root epic to
+        # first land on main (breaking the cycle where parent can't close
+        # until child is Merged, but child can't be Merged until parent
+        # closes). Once the parent eventually lands on main and auto-closes,
+        # both parent and child will have transitioned to Merged.
+        #
         # No "stuck_epic" alert is raised here — the epic→main PR is
         # owned by ``_open_epic_main_prs`` and merging is the
         # operator's responsibility.
@@ -16262,6 +16273,22 @@ class Orchestrator:
             epic_branch = self._epic_branch_for_issue(epic)
         except Exception:
             return False
+        
+        # Resolve the immediate target for this epic (parent branch for nested,
+        # default branch for root)
+        epic_target_branch = target_branch  # default: main
+        if project:
+            try:
+                epic_target_branch = self._resolve_epic_target_branch(epic, project)
+            except EpicTargetResolutionError:
+                # If we can't resolve the target, default to main but this
+                # means we fail closed for nested epics
+                logger.debug(
+                    "Cannot resolve epic target branch for %s, using default %s",
+                    epic.identifier,
+                    target_branch,
+                )
+        
         try:
             epic_review = provider.find_pr_for_branch(slug, epic_branch)
         except Exception as exc:
@@ -16276,10 +16303,10 @@ class Orchestrator:
             or epic_review.state != "merged"
             or (
                 epic_review.target_branch
-                and epic_review.target_branch != target_branch
+                and epic_review.target_branch != epic_target_branch
             )
         ):
-            # Epic branch hasn't merged to main yet — still pending,
+            # Epic branch hasn't merged to its target yet — still pending,
             # not stuck.
             self._clear_stuck_epic_alert(epic.identifier)
             return False
