@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-08-04T23:22:46.227195Z'
+updated_at: '2026-08-04T23:22:51.802667Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -58,8 +58,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-705d8c260d82
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:22:42.840293+00:00'
+    applied_at: '2026-08-04T23:22:50.586561+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -220,5 +221,21 @@ author: oompah
 created: 2026-08-04 23:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:22
+---
+Audit PASS — Archived
+
+Implementation verified merged on main (commit 4e190113a). _apply_duplicate_detection now fetches only active states and defensively filters terminal records; the terminal-match needs:duplicate_detector path is absent. Focused test suites pass: 36/36 test_orchestrator_duplicate_detection, 141/141 test_focus. No subsequent revert detected. Auto-archive from Merged after 7 days is safe.
+
+Safe evidence:
+- implementation_commit: 4e190113ac1a070bec9f4d341020b369856a3c7e
+- commit_message: fix: ignore terminal tasks in duplicate detection
+- commit_on_main: true
+- test_orchestrator_duplicate_detection: 36 passed
+- test_focus: 141 passed
+- needs_duplicate_detector_in_orchestrator: absent
+- terminal_states_excluded_from_query: confirmed
 ---
 <!-- COMMENTS:END -->
