@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-748
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Break nested-epic rollup cycle between Done child epics and parent landing
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T03:28:17.791160Z'
+updated_at: '2026-08-04T03:43:18.671766Z'
 work_branch: null
 target_branch: null
 review_url: null
