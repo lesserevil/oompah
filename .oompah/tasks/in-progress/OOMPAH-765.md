@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:19:01.864059Z'
+updated_at: '2026-08-04T16:23:32.733415Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -26,6 +26,7 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-765
+oompah.agent_run_id: c97e7a73-ec45-4bc1-a474-7d01f357dcc7
 ---
 ## Summary
 
@@ -111,5 +112,15 @@ FAILED tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_t
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-04 16:23
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 16:23
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
