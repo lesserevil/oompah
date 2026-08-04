@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-04T14:14:40.580929Z'
+updated_at: '2026-08-04T14:15:00.454071Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -137,20 +137,26 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-742
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-742
   base_branch: epic-OOMPAH-740
   base_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
-  updated_at: '2026-08-04T13:55:12.919220+00:00'
+  head_sha: 494c39f8f06ec986bd4efb345ea59e359cf95aed
+  submitted_at: '2026-08-04T14:14:36.208595+00:00'
+  updated_at: '2026-08-04T14:14:36.208595+00:00'
 oompah.task_costs:
-  total_input_tokens: 1316
-  total_output_tokens: 2063
+  total_input_tokens: 6227047
+  total_output_tokens: 39597
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1316
       output_tokens: 2063
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 6225731
+      output_tokens: 37534
       cost_usd: 0.0
   runs:
   - profile: default
@@ -165,6 +171,12 @@ oompah.task_costs:
     output_tokens: 297
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:38:53.736980+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 6225731
+    output_tokens: 37534
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T14:14:51.748194+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-742__20260803T230137Z
@@ -454,5 +466,20 @@ author: oompah
 created: 2026-08-04 14:14
 ---
 Rebased OOMPAH-742 onto submitted OOMPAH-743 (f745082a0) and resolved the dashboard template conflict by normalizing bounded/redacted alerts before identity deduplication and actionability partitioning. The compact alert center remains the only actionable surface; diagnostics stay in expandable details. Focused reconciliation suite: 57 passed, including alert safety, dashboard contract/center/safety, credentials, scrolling, and retry recovery; terminal mutation scan passed. Local make test is blocked before collection by the managed uv launcher's DBus transient-scope error (exit 46), so the configured gate must run on the exact pushed head 494c39f8f.
+---
+author: oompah
+created: 2026-08-04 14:14
+---
+Rebased compact alert center onto OOMPAH-743 transcript safety; focused tests passed.
+---
+author: oompah
+created: 2026-08-04 14:14
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 78
+- Tokens: 6.2M in / 37.5K out [6.3M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 45s
+- Log: OOMPAH-742__20260804T135529Z.jsonl
 ---
 <!-- COMMENTS:END -->
