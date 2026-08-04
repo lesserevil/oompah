@@ -412,36 +412,37 @@ class WorkflowJobScheduler:
         # Stage every evaluated semantic cursor before publication. Job creation
         # remains bounded below, but an unselected changed task's older job can
         # no longer pass the generic claim fence in the interim.
-        for decision in all_decisions:
-            cursor = self.store.activate_schedule(
-                project_id=decision.project_id,
-                task_id=decision.task_id,
-                decision_revision=decision.decision_revision,
-                snapshot_generation=generation,
-            )
-            if not cursor.accepted:
-                stale += 1
-                continue
-            activated[(decision.project_id, decision.task_id)] = cursor
-        for decision in selected:
-            cursor = activated.get((decision.project_id, decision.task_id))
-            if cursor is None:
-                continue
-            specs = self._specs(decision, cursor)
-            write = self.store.reconcile_schedule(
-                project_id=decision.project_id,
-                task_id=decision.task_id,
-                snapshot_generation=generation,
-                job_generation=cursor.job_generation,
-                specs=specs,
-            )
-            if not write.accepted:
-                stale += 1
-                continue
-            applied += 1
-            created += write.created
-            replayed += write.replayed
-            superseded += write.superseded
+        with self.store.scheduling_batch():
+            for decision in all_decisions:
+                cursor = self.store.activate_schedule(
+                    project_id=decision.project_id,
+                    task_id=decision.task_id,
+                    decision_revision=decision.decision_revision,
+                    snapshot_generation=generation,
+                )
+                if not cursor.accepted:
+                    stale += 1
+                    continue
+                activated[(decision.project_id, decision.task_id)] = cursor
+            for decision in selected:
+                cursor = activated.get((decision.project_id, decision.task_id))
+                if cursor is None:
+                    continue
+                specs = self._specs(decision, cursor)
+                write = self.store.reconcile_schedule(
+                    project_id=decision.project_id,
+                    task_id=decision.task_id,
+                    snapshot_generation=generation,
+                    job_generation=cursor.job_generation,
+                    specs=specs,
+                )
+                if not write.accepted:
+                    stale += 1
+                    continue
+                applied += 1
+                created += write.created
+                replayed += write.replayed
+                superseded += write.superseded
         if not self.snapshot_generation_is_current(generation):
             return self._rejected_result(
                 generation, all_decisions, truncated=bounded_window
