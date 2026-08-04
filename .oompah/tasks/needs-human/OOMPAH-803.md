@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-803
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService
 parent: OOMPAH-769
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:29:57.981593Z'
+updated_at: '2026-08-04T21:36:23.102381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,31 @@ review_head: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-82e9f76863be-3: '2026-08-04T21:36:12.621185+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-803
+    target_state: Archived
+    evidence_fingerprint: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+    audit_ids:
+    - audit-82e9f76863be
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T21:36:12.621196+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-803
+    audit_id: audit-82e9f76863be
+    attempt_id: infrastructure-exhausted-audit-82e9f76863be-3
+    target_state: Archived
+    evidence_fingerprint: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+    status: Needs Human
+    audit_ids:
+    - audit-82e9f76863be
+    applied: true
+    created_at: '2026-08-04T21:36:12.621212+00:00'
+    applied_at: '2026-08-04T21:36:20.741272+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -27,7 +52,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,13 +114,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-803 (tried: origin/OOMPAH-803)'
       next_retry_at: '2026-08-04T21:30:24.081307+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-82e9f76863be-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T21:36:12.621078+00:00'
+      completed_at: '2026-08-04T21:36:12.621078+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:22:32.673831+00:00'
-    updated_at: '2026-08-04T21:29:44.081333+00:00'
+    updated_at: '2026-08-04T21:36:12.621078+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -238,5 +275,12 @@ author: oompah
 created: 2026-08-04 21:29
 ---
 In-flight audit workaround: this is a metadata-only duplicate retirement, so there is intentionally no implementation commit. Source OOMPAH-775 is now recorded as the canonical replacement. A temporary OOMPAH-803 ref will point at the current parent-epic code solely so the existing auditor can open a read-only workspace; it must not be interpreted as implementation and will be pruned after archival.
+---
+author: oompah
+created: 2026-08-04 21:36
+---
+Needs Human — Archived audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
