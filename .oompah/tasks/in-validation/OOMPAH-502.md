@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-502
 type: epic
-status: In Progress
+status: In Validation
 priority: 1
 title: Reduce agent wall-clock latency without weakening delivery gates
 parent: null
@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T23:14:48.888020Z'
+updated_at: '2026-08-04T23:16:00.393875Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
