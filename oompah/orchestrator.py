@@ -160,6 +160,16 @@ from oompah.storage_cleanup import (
     cleanup_owned_storage,
     inspect_storage_pressure,
 )
+from oompah.task_transition_service import (
+    TaskTransitionService,
+    TransitionAuthority,
+    TransitionDisposition,
+    TransitionIntent,
+    TransitionJournal,
+    TransitionOutcome,
+    issue_authority_version,
+    issue_exact_head,
+)
 from oompah.repo_hygiene import (
     HealthThresholds,
     OverdueArtifact,
@@ -1264,6 +1274,13 @@ class Orchestrator:
         )
         self.workflow_job_store = WorkflowJobStore(
             os.path.join(_state_dir, "workflow_jobs.sqlite3")
+        )
+        # Watchdog recovery and integration-gate completion share this
+        # project/task claim journal.  Their status writes therefore cannot
+        # race past one another or reuse evidence from an older lifecycle,
+        # assignment generation, integration record, or exact head.
+        self.task_transition_journal = TransitionJournal(
+            os.path.join(_state_dir, "task_transitions.sqlite3")
         )
         self.workflow_shadow = WorkflowShadowEvaluator(
             mode=config.workflow_engine_mode,
@@ -4035,6 +4052,130 @@ class Orchestrator:
             return asyncio.run_coroutine_threadsafe(request, loop).result()
         return asyncio.run(request)
 
+    def _request_task_status_transition_from_maintenance(
+        self,
+        *,
+        project_id: str | None,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        requested_status: str,
+        actor: str,
+        authority: TransitionAuthority,
+        reason_code: str,
+        idempotency_key: str,
+        originating_job: str,
+    ) -> TransitionOutcome:
+        """Apply one nonterminal maintenance status through the durable CAS.
+
+        Stalled-task recovery and integration-gate completion both run on
+        maintenance executors.  A shared :class:`TransitionJournal` gives
+        them one project/task claim, while the intent fences the exact issue
+        authority version, assignment generation, and tracker-owned head.
+        Brief owner contention is retried under the same idempotency key; an
+        actual evidence change is rejected by ``TaskTransitionService``.
+        """
+
+        scoped_project_id = str(
+            project_id or getattr(issue, "project_id", None) or "legacy"
+        ).strip()
+        assignment_generation = str(
+            getattr(issue, "assignment_id", None) or ""
+        ).strip() or None
+        intent = TransitionIntent(
+            project_id=scoped_project_id,
+            task_id=str(issue.identifier),
+            expected_status=issue.state,
+            expected_version=issue_authority_version(issue),
+            requested_status=requested_status,
+            actor=actor,
+            authority=authority,
+            reason_code=reason_code,
+            idempotency_key=idempotency_key,
+            originating_job=originating_job,
+            evidence_generation=assignment_generation,
+            exact_head=issue_exact_head(issue),
+        )
+        service = TaskTransitionService(
+            project_id=scoped_project_id,
+            tracker=tracker,
+            journal=self.task_transition_journal,
+        )
+
+        # A transition claim is normally held only for one tracker read/write
+        # round trip.  Retry short-lived contention with the same immutable
+        # intent so a gate completion cannot be stranded behind a watchdog
+        # observation (or vice versa).  Longer/ambiguous ownership remains a
+        # durable retryable outcome and fails closed.
+        outcome: TransitionOutcome | None = None
+        for attempt in range(20):
+            loop = self._dispatch_loop
+            if loop is not None and loop.is_running():
+                if self._running_loop() is loop:
+                    raise RuntimeError(
+                        "synchronous maintenance cannot block the dispatch loop "
+                        "for a task status transition"
+                    )
+                request = service.execute(intent)
+                outcome = asyncio.run_coroutine_threadsafe(request, loop).result()
+            else:
+                outcome = asyncio.run(service.execute(intent))
+            if outcome.disposition is not TransitionDisposition.WAITING:
+                return outcome
+            if attempt < 19:
+                time.sleep(0.01)
+        assert outcome is not None
+        return outcome
+
+    @staticmethod
+    def _task_status_transition_succeeded(outcome: TransitionOutcome) -> bool:
+        """Return whether a transition has a verified committed effect."""
+
+        return outcome.disposition in {
+            TransitionDisposition.APPLIED,
+            TransitionDisposition.ALREADY_APPLIED,
+            TransitionDisposition.RECOVERED,
+        }
+
+    def _apply_stalled_watchdog_transition(
+        self,
+        project_id: str | None,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        decision: Any,
+        requested_status: str,
+    ) -> bool:
+        """Generation-fenced status boundary injected into watchdog audits."""
+
+        expected_version = issue_authority_version(issue)
+        outcome = self._request_task_status_transition_from_maintenance(
+            project_id=project_id,
+            tracker=tracker,
+            issue=issue,
+            requested_status=requested_status,
+            actor="oompah-stalled-watchdog",
+            authority=TransitionAuthority.WATCHDOG,
+            reason_code="watchdog.stalled_recovery",
+            idempotency_key=(
+                f"stalled-watchdog:{issue.identifier}:"
+                f"{canonicalize_status(issue.state)}:{expected_version}:"
+                f"{canonicalize_status(requested_status)}"
+            ),
+            originating_job=(
+                f"stalled-task-watchdog:{getattr(decision, 'watchdog_run_id', 0)}"
+            ),
+        )
+        if self._task_status_transition_succeeded(outcome):
+            return True
+        logger.warning(
+            "Stalled-task watchdog transition rejected project=%s task=%s "
+            "disposition=%s reason=%s",
+            project_id,
+            issue.identifier,
+            outcome.disposition.value,
+            outcome.reason_code,
+        )
+        return False
+
     def _request_merged_via_coordinator(
         self,
         issue: Issue,
@@ -6020,6 +6161,7 @@ class Orchestrator:
         )
         self.review_capacity_store.close()
         self.workflow_job_store.close()
+        self.task_transition_journal.close()
 
     def _workflow_shadow_running_entry(
         self,
@@ -10551,6 +10693,77 @@ class Orchestrator:
                 repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
+
+        def _transition_repair_status(repair_status: str) -> bool:
+            """Commit the gate disposition against the persisted record."""
+
+            current = tracker.fetch_issue_detail(item.task_id)
+            if current is None:
+                self._arm_integration_delivery_alert(
+                    item.project_id,
+                    item.task_id,
+                    "the task disappeared before its gate status transition",
+                )
+                return False
+            try:
+                outcome = self._request_task_status_transition_from_maintenance(
+                    project_id=item.project_id,
+                    tracker=tracker,
+                    issue=current,
+                    requested_status=repair_status,
+                    actor="oompah-integration-gate",
+                    authority=TransitionAuthority.INTEGRATOR,
+                    reason_code="integration.gate_failure",
+                    idempotency_key=(
+                        f"integration-gate:{item.task_id}:{head_sha}:"
+                        f"{item.lease_owner or item.attempts}:{repair_status}"
+                    ),
+                    originating_job=(
+                        f"integration:{item.project_id}:{item.task_id}:"
+                        f"{item.lease_owner or item.attempts}"
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001 - blocked row is durable
+                reason = (
+                    "gate status transition failed before verification "
+                    f"({type(exc).__name__})"
+                )
+                self._arm_integration_delivery_alert(
+                    item.project_id,
+                    item.task_id,
+                    reason,
+                )
+                logger.warning(
+                    "Integration gate status transition failed project=%s "
+                    "task=%s status=%s: %s",
+                    item.project_id,
+                    item.task_id,
+                    repair_status,
+                    exc,
+                )
+                return False
+            if self._task_status_transition_succeeded(outcome):
+                return True
+            reason = (
+                "gate status transition was not committed "
+                f"({outcome.disposition.value}: {outcome.reason_code})"
+            )
+            self._arm_integration_delivery_alert(
+                item.project_id,
+                item.task_id,
+                reason,
+            )
+            logger.warning(
+                "Integration gate status transition deferred project=%s "
+                "task=%s status=%s disposition=%s reason=%s",
+                item.project_id,
+                item.task_id,
+                repair_status,
+                outcome.disposition.value,
+                outcome.reason_code,
+            )
+            return False
+
         # Classify the initial recovery state so the global alert can be
         # reconciled against live recovery without deriving actionability
         # from message text.  See OOMPAH-735.
@@ -10652,7 +10865,7 @@ class Orchestrator:
         # Handle exhausted repairs (needs_human transition)
         if state == "needs_human":
             repair_status = NEEDS_REBASE
-            tracker.update_issue(item.task_id, status=repair_status)
+            _transition_repair_status(repair_status)
             instruction = (
                 f"**Conflict repair exhausted**: Integration found a rebase conflict on "
                 f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
@@ -10692,7 +10905,7 @@ class Orchestrator:
             "error": OPEN,
             "epic_merge_failure": OPEN,
         }.get(result.status, OPEN)
-        tracker.update_issue(item.task_id, status=repair_status)
+        _transition_repair_status(repair_status)
         instruction = {
             "conflict": (
                 f"Integration found a rebase conflict on `{item.task_branch}`. "
@@ -19091,6 +19304,19 @@ class Orchestrator:
             return _reject("project_paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
+        integration_record = getattr(issue, "integration", None)
+        if (
+            canonicalize_status(issue.state) == OPEN
+            and str(getattr(integration_record, "state", "") or "").lower()
+            == "blocked"
+        ):
+            # A crash or pre-fix watchdog race can leave the tracker at Open
+            # while its current internal gate generation remains blocked.
+            # Without a direct-owner lease this otherwise looks like ordinary
+            # implementation work and can be dispatched twice.  The blocked
+            # integration record remains the authority until a submission or
+            # explicit retry replaces it.
+            return _reject("internal_gate_blocked")
         epic_review_repair = self._is_epic_review_repair_issue(
             issue,
             dispatch_gate=True,
@@ -21365,6 +21591,7 @@ class Orchestrator:
             projects_and_trackers,
             run_id=run_id,
             evidence_provider=self._collect_stalled_watchdog_evidence,
+            status_transitioner=self._apply_stalled_watchdog_transition,
         )
 
         self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
@@ -21521,10 +21748,11 @@ class Orchestrator:
     ) -> int:
         """Make watchdog-reopened tasks immediately eligible for dispatch.
 
-        ``run_watchdog_audit`` writes to the tracker directly, bypassing the
-        status API's normal in-memory reconciliation.  Re-fetch each requested
-        reopen to prove that the write succeeded before clearing suppression.
-        One coalescible refresh event wakes dispatch for the whole batch.
+        ``run_watchdog_audit`` commits through ``TaskTransitionService`` but
+        still runs outside the status API's in-memory reconciliation. Re-fetch
+        each requested reopen to prove that the transition succeeded before
+        clearing suppression. One coalescible refresh event wakes dispatch for
+        the whole batch.
         """
         recovered_ids: set[str] = set()
         for decision in result.decisions:

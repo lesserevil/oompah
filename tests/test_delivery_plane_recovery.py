@@ -109,6 +109,7 @@ def _blocked_row(orchestrator: Orchestrator, project: Project, issue: Issue):
 def _close(orchestrator: Orchestrator) -> None:
     orchestrator.integration_queue.close()
     orchestrator.coordination_store.close()
+    orchestrator.task_transition_journal.close()
     orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
     orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
@@ -773,6 +774,67 @@ def _blocked_row_for(orchestrator, project, issue):
     return row
 
 
+def test_combined_tree_gate_failure_uses_transition_service(tmp_path):
+    """The blocked record is persisted before its generation-fenced status."""
+
+    issue = _issue(state=READY_TO_INTEGRATE, integration_state="ready")
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    def set_metadata(identifier, key, value):
+        assert identifier == issue.identifier
+        assert key == "oompah.integration"
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    def update_issue(identifier, **fields):
+        assert identifier == issue.identifier
+        issue.state = fields["status"]
+
+    tracker.set_metadata_field.side_effect = set_metadata
+    tracker.update_issue.side_effect = update_issue
+    tracker.fetch_issue_detail.side_effect = lambda identifier: (
+        issue if identifier == issue.identifier else None
+    )
+
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="gate-generation-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        orchestrator._route_integration_failure(
+            claimed,
+            IntegrationExecutionResult(
+                status="ci_failure",
+                message="combined-tree gate failed at exact head",
+                expected_epic_sha="b" * 40,
+                rebased_task_sha="a" * 40,
+            ),
+        )
+
+        assert issue.integration.state == "blocked"
+        assert issue.integration.head_sha == "a" * 40
+        assert issue.state == NEEDS_CI_FIX
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier, status=NEEDS_CI_FIX
+        )
+        row = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert row is not None and row.state == "blocked"
+    finally:
+        _close(orchestrator)
+
+
 def test_retire_preserves_blocked_row_when_watchdog_reopens_task(tmp_path):
     """OOMPAH-806: an internal blocked gate must survive watchdog-driven Open.
 
@@ -803,6 +865,23 @@ def test_retire_preserves_blocked_row_when_watchdog_reopens_task(tmp_path):
         assert row_after is not None
         assert row_after.state == "blocked"
         assert row_after.head_sha == blocked.head_sha
+    finally:
+        _close(orchestrator)
+
+
+def test_open_task_with_blocked_gate_cannot_dispatch_without_direct_owner(tmp_path):
+    """Persisted gate authority prevents duplicate generic implementation."""
+
+    issue = _issue(state=OPEN, integration_state="blocked")
+    issue.project_id = "proj-1"
+    issue.description = "Already implemented; exact-head gate needs repair."
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        assert not orchestrator._has_live_owner_claim(issue.id, issue.project_id)
+        assert orchestrator._should_dispatch(issue) is False
+        assert orchestrator.state.reject_streak[issue.id][0] == (
+            "internal_gate_blocked"
+        )
     finally:
         _close(orchestrator)
 

@@ -1317,6 +1317,10 @@ def run_watchdog_audit(
     dry_run: bool = False,
     evidence_provider: Callable[..., Any] | None = None,
     evidence_by_task: Mapping[str, Any] | None = None,
+    status_transitioner: Callable[
+        [str | None, Any, Any, StalledTaskDecision, str], bool
+    ]
+    | None = None,
 ) -> WatchdogAuditResult:
     """Run a full stalled-task watchdog audit across all projects.
 
@@ -1334,6 +1338,11 @@ def run_watchdog_audit(
             tracker)`` and returning current machine evidence.
         evidence_by_task: Optional pre-collected evidence keyed by identifier;
             useful for deterministic callers and tests.
+        status_transitioner: Required mutation boundary for non-dry-run status
+            changes.  The callback receives ``(project_id, tracker, issue,
+            decision, requested_status)`` and returns whether a generation-
+            fenced transition committed.  The audit fails closed when no
+            boundary is supplied; it never writes tracker status directly.
 
     Returns:
         A :class:`WatchdogAuditResult` with full audit telemetry.
@@ -1449,28 +1458,58 @@ def run_watchdog_audit(
 
             comment_body = build_watchdog_comment(decision)
 
-            try:
-                # Post the evidence comment BEFORE the state change so the
-                # audit trail is always present even if the state update fails.
-                tracker.add_comment(identifier, comment_body, author="oompah")
-                logger.info(
-                    "Watchdog posted comment on %s (project=%s)",
-                    identifier, project_id,
-                )
-            except Exception as exc:
-                msg = f"Failed to post watchdog comment on {identifier}: {exc}"
-                logger.warning(msg)
-                result.errors.append(msg)
-                # Don't abort the state change — comment failure is non-fatal.
+            def _post_action_comment() -> None:
+                try:
+                    tracker.add_comment(identifier, comment_body, author="oompah")
+                    logger.info(
+                        "Watchdog posted comment on %s (project=%s)",
+                        identifier,
+                        project_id,
+                    )
+                except Exception as exc:
+                    msg = f"Failed to post watchdog comment on {identifier}: {exc}"
+                    logger.warning(msg)
+                    result.errors.append(msg)
+
+            # A rejected reopen must not leave an "already actioned" marker
+            # that suppresses a later valid generation.  TaskTransitionService
+            # is the durable pre-effect audit trail; post the prose marker only
+            # after its verified commit.  Archive keeps its legacy pre-request
+            # comment because terminal audit staging has a separate ledger.
+            if decision.action != "reopen":
+                _post_action_comment()
 
             if decision.action == "reopen":
+                if status_transitioner is None:
+                    msg = (
+                        f"Failed to reopen {identifier}: no task transition "
+                        "service is configured"
+                    )
+                    logger.warning(msg)
+                    result.errors.append(msg)
+                    continue
                 try:
-                    tracker.update_issue(identifier, status=OPEN)
+                    transitioned = status_transitioner(
+                        project_id,
+                        tracker,
+                        issue,
+                        decision,
+                        OPEN,
+                    )
+                    if not transitioned:
+                        msg = (
+                            f"Failed to reopen {identifier}: task transition "
+                            "was rejected or deferred"
+                        )
+                        logger.warning(msg)
+                        result.errors.append(msg)
+                        continue
                     logger.info(
                         "Watchdog reopened %s (project=%s) — %s",
                         identifier, project_id, decision.evidence,
                     )
                     result.actions_taken += 1
+                    _post_action_comment()
                 except Exception as exc:
                     msg = f"Failed to reopen {identifier}: {exc}"
                     logger.warning(msg)
