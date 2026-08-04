@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:37:29.489999Z'
+updated_at: '2026-08-04T16:37:41.254616Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
