@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:01:13.222689Z'
+updated_at: '2026-08-04T02:01:42.789127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-04 02:01
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-04 02:01
+---
+Understanding: I will inspect standalone Ready reconciliation, candidate ordering, dependency/head validation, authority claims, and capacity handling. I will implement bounded stable selection with priority/FIFO ordering and add regression tests for starvation, invalid candidates, capacity waits, and existing behavior.
 ---
 <!-- COMMENTS:END -->
