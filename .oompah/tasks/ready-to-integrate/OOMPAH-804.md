@@ -15,10 +15,11 @@ start_blocked_by: &id001
 - OOMPAH-781
 - OOMPAH-782
 - OOMPAH-791
+- OOMPAH-793
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:37:59.123703Z'
+updated_at: '2026-08-04T21:38:06.401677Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
