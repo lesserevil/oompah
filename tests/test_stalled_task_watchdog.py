@@ -183,6 +183,77 @@ class TestClassifyNeedsHuman:
         decision = classify_stalled_task("T-9", NEEDS_HUMAN, comments)
         assert decision.classification == "human_blocked"
 
+    def test_handoff_wording_alone_is_not_human_blocker(self):
+        """A required focus handoff is not proof that a human decision remains."""
+        comments = [_comment("oompah", "Focus handoff: needs human review of the branch.")]
+        decision = classify_stalled_task("T-9a", NEEDS_HUMAN, comments)
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_merged_review_overrides_stale_handoff(self):
+        comments = [
+            _comment("oompah", "Focus handoff: needs human review after the audit."),
+        ]
+        decision = classify_stalled_task(
+            "T-9b",
+            NEEDS_HUMAN,
+            comments,
+            evidence={"review": {"number": "692", "state": "merged"}},
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert "692" in decision.evidence
+
+    def test_missing_audit_branch_with_canonical_ref_is_technical(self):
+        decision = classify_stalled_task(
+            "T-9c",
+            NEEDS_HUMAN,
+            [_comment("oompah", "Focus handoff: needs human review.")],
+            evidence={"audit_branch": None, "canonical_ref": "main"},
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert "audit branch is missing" in decision.evidence
+
+    def test_provider_failure_is_not_human_blocked(self):
+        decision = classify_stalled_task(
+            "T-9d",
+            NEEDS_HUMAN,
+            [_comment("oompah", "Focus handoff: needs human review.")],
+            evidence={"provider": {"available": False, "error": "timeout"}},
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert "provider evidence failed" in decision.evidence
+
+    def test_ambiguous_scm_state_fails_closed(self):
+        decision = classify_stalled_task(
+            "T-9e",
+            NEEDS_HUMAN,
+            [_comment("oompah", "Focus handoff: needs human review.")],
+            evidence={"branch": {"scm_state": "ambiguous"}},
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_newer_completion_supersedes_older_question(self):
+        comments = [
+            _comment("oompah", "Should we use approach A?"),
+            _comment("oompah", "Completed and pushed the implementation."),
+        ]
+        comments[0]["created_at"] = "2026-08-03T00:00:00Z"
+        comments[1]["created_at"] = "2026-08-04T00:00:00Z"
+        decision = classify_stalled_task("T-9f", NEEDS_HUMAN, comments)
+        assert decision.classification == "actionable"
+
+    def test_newer_question_remains_current_after_older_completion(self):
+        comments = [
+            _comment("oompah", "Completed and pushed the implementation."),
+            _comment("human", "Should we use approach A?"),
+        ]
+        comments[0]["created_at"] = "2026-08-03T00:00:00Z"
+        comments[1]["created_at"] = "2026-08-04T00:00:00Z"
+        decision = classify_stalled_task("T-9g", NEEDS_HUMAN, comments)
+        assert decision.classification == "human_blocked"
+
 
 class TestClassifyNeedsCIFix:
     def test_no_evidence_insufficient(self):
@@ -394,6 +465,25 @@ class TestRunWatchdogAuditSafeReopen:
         comment_body = tracker.add_comment.call_args[0][1]
         assert WATCHDOG_COMMENT_MARKER in comment_body
 
+    def test_current_evidence_provider_overrides_handoff_comment(self):
+        issue = _make_issue("T-100a", NEEDS_HUMAN)
+        tracker = _make_tracker(
+            [issue],
+            {"T-100a": [_comment("oompah", "Focus handoff: needs human review.")]},
+        )
+
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=13,
+            evidence_provider=lambda _project_id, _issue, _tracker: {
+                "review": {"number": "692", "state": "merged"}
+            },
+        )
+
+        assert result.tasks_actionable == 1
+        assert result.actions_taken == 1
+        tracker.update_issue.assert_called_once_with("T-100a", status=OPEN)
+
     def test_safe_reopen_ci_fix_with_passing_comment(self):
         issue = _make_issue("T-101", NEEDS_CI_FIX)
         comments = [_comment("ci-bot", "All checks passed on the branch.")]
@@ -500,6 +590,37 @@ class TestRunWatchdogAuditIdempotency:
         tracker_a.update_issue.assert_called_once_with("A-1", status=OPEN)
         tracker_b.update_issue.assert_not_called()
 
+    def test_same_current_evidence_after_restart_is_idempotent(self):
+        first = classify_stalled_task(
+            "T-121", NEEDS_HUMAN, [], evidence={"review": {"state": "merged"}}, run_id=1
+        )
+        comments = [{"author": "oompah", "body": build_watchdog_comment(first)}]
+        decision = classify_stalled_task(
+            "T-121",
+            NEEDS_HUMAN,
+            comments,
+            evidence={"review": {"state": "merged"}},
+            run_id=2,
+        )
+        assert decision.already_actioned is True
+        assert decision.action == "none"
+
+    def test_new_current_evidence_after_restart_is_not_suppressed(self):
+        old = StalledTaskDecision(
+            task_id="T-122", project_id=None, stalled_status=NEEDS_HUMAN,
+            classification="actionable", action="reopen", evidence="old evidence",
+        )
+        decision = classify_stalled_task(
+            "T-122",
+            NEEDS_HUMAN,
+            [{"author": "oompah", "body": build_watchdog_comment(old)}],
+            evidence={"review": {"number": "692", "state": "merged"}},
+            run_id=3,
+        )
+        assert decision.already_actioned is False
+        assert decision.classification == "actionable"
+        assert "692" in decision.evidence
+
 
 class TestRunWatchdogAuditTelemetry:
     def test_audit_result_to_dict(self):
@@ -591,6 +712,45 @@ def _make_orchestrator(tmp_path, projects=None):
 
 
 class TestOrchestratorIntegration:
+    def test_collects_current_review_ci_and_audit_evidence(self, tmp_path):
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="T-300",
+            identifier="T-300",
+            title="stalled",
+            state=NEEDS_HUMAN,
+            work_branch="feature/T-300",
+            review_number="692",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            "oompah.terminal_audit": {
+                "pending_chain": [
+                    {"target_branch": "main", "branch_key": "audit/T-300"}
+                ]
+            }
+        }
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = {"number": "692", "state": "merged"}
+        provider.get_branch_head_sha.return_value = "a" * 40
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+
+        assert evidence["review"]["state"] == "merged"
+        assert evidence["branch"]["canonical_ref"] == "main"
+        assert evidence["ci"]["status"] == "passed"
+        assert evidence["audit"]["pending_chain"]
+
     def test_scheduler_watchdog_wakes_once_after_clearing_stale_completed(
         self, tmp_path
     ):

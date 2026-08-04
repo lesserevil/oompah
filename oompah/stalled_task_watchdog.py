@@ -51,6 +51,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from oompah.statuses import (
@@ -111,6 +112,25 @@ _HANDOFF_WITH_QUESTION_PATTERNS: tuple[re.Pattern, ...] = (
     re.compile(r"human.{0,20}needed", re.IGNORECASE),
     re.compile(r"waiting.{0,30}(response|input|approval|review)", re.IGNORECASE),
     re.compile(r"blocked.{0,30}(human|operator|you|team)", re.IGNORECASE),
+)
+
+# A handoff can contain words such as "human", "review", or "question"
+# without representing an unanswered product decision.  These patterns are
+# deliberately narrower than the legacy question patterns: they identify a
+# decision or authority that a human must actually make.
+_HUMAN_DECISION_PATTERNS: tuple[re.Pattern, ...] = (
+    re.compile(
+        r"\b(should we|which (?:option|approach|one)|choose|decide|decision|"
+        r"product requirement|architecture decision|requirements? (?:are|need)|"
+        r"approve|approval|authorize|authorization|authority|go ahead)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(waiting|blocked|need(?:s)?|requires?)\b.{0,45}\b(approval|"
+        r"authorization|authority|decision|answer|clarification|direction)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bhuman\b.{0,30}\b(review|input|help)\b", re.IGNORECASE),
 )
 
 #: Patterns that indicate a successful completion *without* a blocker.
@@ -179,6 +199,27 @@ class StalledTaskDecision:
     comment_posted: bool = False
     watchdog_run_id: int = 0
     already_actioned: bool = False
+
+
+@dataclass(frozen=True)
+class WatchdogEvidence:
+    """Current machine evidence used to classify a stalled task.
+
+    The watchdog receives this small, tracker-neutral envelope from the
+    orchestrator.  The nested values intentionally remain mappings/objects so
+    SCM and terminal-audit packages can evolve without coupling this module to
+    either provider implementation.  Missing values mean *unknown*, never
+    false.  In particular, a provider exception is represented explicitly in
+    ``provider`` instead of being inferred from an empty review list.
+    """
+
+    review: Any | None = None
+    branch: Any | None = None
+    audit: Any | None = None
+    ci: Any | None = None
+    provider: Any | None = None
+    issue: Any | None = None
+    errors: tuple[str, ...] = ()
 
 
 @dataclass
@@ -269,6 +310,25 @@ def _text_has_question(text: str) -> bool:
     return any(p.search(text) for p in _QUESTION_PATTERNS)
 
 
+def _text_has_human_decision(text: str) -> bool:
+    """Return True when *text* asks for a human decision or authority."""
+    return any(p.search(text) for p in _HUMAN_DECISION_PATTERNS)
+
+
+def _handoff_has_human_decision(text: str) -> bool:
+    """Return True for an explicit decision in a handoff, not mere review."""
+    if not _text_has_human_decision(text):
+        return False
+    # "Focus handoff: needs human review" is required routing syntax, not an
+    # unanswered decision.  Approval/authority/answer language remains
+    # actionable human-dependency evidence.
+    review_only = re.compile(
+        r"\bhuman\b.{0,30}\b(review|input|help)\b", re.IGNORECASE
+    )
+    without_review = review_only.sub("", text)
+    return _text_has_human_decision(without_review)
+
+
 def _text_has_handoff_question(text: str) -> bool:
     """Return True if *text* signals a focus handoff with a pending question."""
     return any(p.search(text) for p in _HANDOFF_WITH_QUESTION_PATTERNS)
@@ -309,6 +369,371 @@ def _get_comment_author(comment: dict) -> str:
         else comment.get("author", "")
         or ""
     )
+
+
+def _comment_time(comment: Mapping[str, Any]) -> datetime | None:
+    """Return a parsed comment timestamp when the tracker supplied one."""
+    for key in ("created_at", "created", "timestamp", "date", "updated_at"):
+        value = comment.get(key)
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            try:
+                return datetime.fromtimestamp(float(value), tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                continue
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _ordered_comments(comments: list[dict]) -> list[dict]:
+    """Return comments oldest-first, using timestamps when they are present."""
+    if not comments or not all(_comment_time(comment) is not None for comment in comments):
+        return list(comments)
+    return sorted(
+        comments,
+        key=lambda comment: _comment_time(comment)
+        or datetime.min.replace(tzinfo=timezone.utc),
+    )
+
+
+def _as_mapping(value: Any) -> dict[str, Any]:
+    """Coerce a provider/audit object into a shallow mapping for inspection."""
+    if isinstance(value, Mapping):
+        return dict(value)
+    # Test doubles and failed optional integrations often expose arbitrary
+    # attributes.  Treat those as unavailable rather than truthy evidence.
+    if value is not None and value.__class__.__module__ == "unittest.mock":
+        return {}
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            converted = to_dict()
+        except Exception:  # noqa: BLE001 - evidence must never break the audit
+            converted = None
+        if isinstance(converted, Mapping):
+            return dict(converted)
+    if value is None or isinstance(value, (str, bytes, int, float, bool)):
+        return {}
+    fields = (
+        "id", "number", "state", "review_state", "source_branch", "target_branch",
+        "head_sha", "merged", "merged_at", "branch", "branch_ref", "canonical_ref",
+        "exists", "branch_exists", "on_target", "on_canonical", "status", "verdict",
+        "failure_classification", "failure_reason", "failure", "error", "available",
+        "provider_available", "ci_status", "mergeable_state", "review_number",
+        "review_url", "review_head", "work_branch", "branch_name", "branch_key",
+    )
+    result: dict[str, Any] = {}
+    for field_name in fields:
+        try:
+            field_value = getattr(value, field_name, None)
+        except Exception:  # noqa: BLE001 - provider objects are external evidence
+            continue
+        if field_value is not None and not callable(field_value):
+            result[field_name] = field_value
+    return result
+
+
+def _nested_mapping(value: Any, *keys: str) -> dict[str, Any]:
+    """Return the first mapping-like child under *keys*."""
+    mapping = _as_mapping(value)
+    for key in keys:
+        child_mapping = _as_mapping(mapping.get(key))
+        if child_mapping:
+            return child_mapping
+    return {}
+
+
+def _latest_audit_mapping(audit: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract the newest attempt/result from a terminal-audit envelope."""
+    candidates: list[Any] = []
+    for key in ("pending_chain", "attempt_history", "attempts"):
+        raw = audit.get(key)
+        if isinstance(raw, list):
+            candidates.extend(raw)
+    for candidate in reversed(candidates):
+        candidate_mapping = _as_mapping(candidate)
+        attempts = candidate_mapping.get("attempts")
+        if isinstance(attempts, list) and attempts:
+            latest_attempt = _as_mapping(attempts[-1])
+            if latest_attempt:
+                return {**candidate_mapping, **latest_attempt}
+        if candidate_mapping:
+            return candidate_mapping
+    return {}
+
+
+def _first_value(*mappings: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
+    """Find the first non-empty value for *keys* across mappings."""
+    for mapping in mappings:
+        for key in keys:
+            value = mapping.get(key)
+            if value is not None and value != "":
+                return value
+    return None
+
+
+def _string_signal(value: Any) -> str:
+    """Stringify enum-like provider values by their wire value."""
+    raw = getattr(value, "value", value)
+    return str(raw).strip().lower().replace("-", "_") if raw not in (None, "") else ""
+
+
+def _normalise_watchdog_evidence(evidence: Any) -> WatchdogEvidence:
+    """Accept the public envelope or a plain mapping from integrations/tests."""
+    if isinstance(evidence, WatchdogEvidence):
+        return evidence
+    mapping = _as_mapping(evidence)
+    review = mapping.get("review") or mapping.get("scm_review")
+    if review is None:
+        review = {
+            key: mapping[key]
+            for key in (
+                "review_state", "state", "merged", "merged_pr", "is_merged",
+                "review_number", "review_url", "review_head",
+            )
+            if key in mapping
+        }
+    branch = mapping.get("branch") or mapping.get("scm_branch")
+    if branch is None:
+        branch = {
+            key: mapping[key]
+            for key in (
+                "canonical_ref", "canonical_branch", "target_ref", "target_branch",
+                "audit_branch", "branch_ref", "branch_exists", "exists", "on_target",
+                "on_canonical", "scm_state", "resolution",
+            )
+            if key in mapping
+        }
+    audit = mapping.get("audit") or mapping.get("terminal_audit")
+    if audit is None:
+        audit = {
+            key: mapping[key]
+            for key in (
+                "audit_verdict", "verdict", "failure_classification", "classification",
+                "failure_reason", "audit_branch", "canonical_ref", "pending_chain",
+            )
+            if key in mapping
+        }
+    provider = mapping.get("provider") or mapping.get("provider_status")
+    if provider is None:
+        provider = {
+            key: mapping[key]
+            for key in (
+                "provider_available", "available", "healthy", "provider_error",
+                "provider_failure", "scm_error", "technical_blocker", "error", "last_error",
+            )
+            if key in mapping
+        }
+    return WatchdogEvidence(
+        review=review,
+        branch=branch,
+        audit=audit,
+        ci=mapping.get("ci") or mapping.get("ci_status"),
+        provider=provider,
+        issue=mapping.get("issue") or mapping.get("tracker"),
+        errors=tuple(
+            str(error) for error in (mapping.get("errors") or ()) if str(error)
+        ),
+    )
+
+
+def _evidence_signals(evidence: Any) -> dict[str, Any]:
+    """Extract conservative, forge-neutral signals from current evidence."""
+    envelope = _normalise_watchdog_evidence(evidence)
+    review = _as_mapping(envelope.review)
+    branch = _as_mapping(envelope.branch)
+    audit = _as_mapping(envelope.audit)
+    ci = _as_mapping(envelope.ci)
+    provider = _as_mapping(envelope.provider)
+    issue = _as_mapping(envelope.issue)
+
+    if isinstance(envelope.ci, str):
+        ci = {"status": envelope.ci}
+    review_detail = _nested_mapping(review, "review", "current", "latest")
+    if review_detail:
+        review = {**review, **review_detail}
+    audit_detail = _nested_mapping(audit, "latest", "latest_attempt", "result")
+    if not audit_detail:
+        audit_detail = _latest_audit_mapping(audit)
+    if audit_detail:
+        audit = {**audit, **audit_detail}
+    branch_detail = _nested_mapping(branch, "branch", "scm", "current")
+    if branch_detail:
+        branch = {**branch, **branch_detail}
+
+    review_state = _string_signal(
+        _first_value(review, issue, keys=("review_state", "state", "status"))
+    )
+    audit_verdict = _string_signal(
+        _first_value(audit, keys=("verdict", "audit_verdict", "result"))
+    )
+    failure_classification = _string_signal(
+        _first_value(
+            audit,
+            provider,
+            keys=("failure_classification", "classification", "failure_type"),
+        )
+    )
+    ci_status = _string_signal(
+        _first_value(ci, review, keys=("ci_status", "status", "state", "verdict"))
+    )
+
+    merged_value = _first_value(
+        review, issue, keys=("merged", "is_merged", "merged_at", "merged_pr")
+    )
+    merged = bool(merged_value) or review_state == "merged"
+    provider_error = _first_value(
+        provider,
+        audit,
+        keys=(
+            "error", "provider_error", "provider_failure", "scm_error",
+            "technical_blocker", "failure_reason", "failure", "last_error",
+        ),
+    )
+    provider_available = _first_value(
+        provider, keys=("available", "provider_available", "healthy")
+    )
+    branch_exists = _first_value(branch, keys=("exists", "branch_exists", "present"))
+    canonical_ref = _first_value(
+        branch,
+        audit,
+        issue,
+        keys=("canonical_ref", "canonical_branch", "target_ref", "target_branch", "target"),
+    )
+    audit_branch = _first_value(
+        audit,
+        branch,
+        keys=("audit_branch", "branch", "branch_ref", "branch_key", "source_branch", "work_branch"),
+    )
+    branch_on_target = _first_value(
+        branch,
+        keys=("on_target", "on_canonical", "head_on_target", "implementation_on_main"),
+    )
+    scm_state = _string_signal(
+        _first_value(branch, provider, keys=("scm_state", "resolution", "state"))
+    )
+
+    return {
+        "review_state": review_state,
+        "merged": merged,
+        "ci_status": ci_status,
+        "audit_verdict": audit_verdict,
+        "failure_classification": failure_classification,
+        "provider_error": str(provider_error).strip() if provider_error else "",
+        "provider_available": provider_available,
+        "branch_exists": branch_exists,
+        "canonical_ref": str(canonical_ref).strip() if canonical_ref else "",
+        "audit_branch": str(audit_branch).strip() if audit_branch else "",
+        "branch_on_target": branch_on_target,
+        "scm_state": scm_state,
+        "errors": envelope.errors,
+        "review": review,
+    }
+
+
+def _current_evidence_decision(
+    task_id: str,
+    stalled_status: str,
+    evidence: Any,
+    *,
+    project_id: str | None,
+    run_id: int,
+) -> StalledTaskDecision | None:
+    """Return a decision from authoritative current evidence, if decisive."""
+    if evidence is None:
+        return None
+    signals = _evidence_signals(evidence)
+    details: list[str] = []
+
+    if signals["merged"]:
+        review_id = signals["review"].get("id") or signals["review"].get("number")
+        detail = (
+            f"current review {review_id} is merged"
+            if review_id
+            else "current review evidence is merged"
+        )
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "actionable", "reopen", detail,
+            watchdog_run_id=run_id,
+        )
+    if signals["audit_verdict"] in {"pass", "passed", "success", "successful"}:
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "actionable", "reopen",
+            "current terminal-audit evidence passed; the stalled handoff is superseded.",
+            watchdog_run_id=run_id,
+        )
+    if signals["branch_on_target"] is True:
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "actionable", "reopen",
+            "current branch evidence shows the implementation head is on the canonical target.",
+            watchdog_run_id=run_id,
+        )
+
+    technical_failures = {
+        "infrastructure_error", "external_capability", "no_auditor", "missing_evidence",
+        "provider_failure", "provider_error", "technical_blocker", "branch_missing",
+        "audit_branch_missing", "ci_failure", "conflict", "out_of_date",
+    }
+    if signals["provider_error"]:
+        details.append(f"provider evidence failed: {signals['provider_error']}")
+    if signals["provider_available"] is False:
+        details.append("SCM provider is unavailable")
+    if signals["failure_classification"] in technical_failures:
+        details.append(
+            f"terminal-audit failure is technical ({signals['failure_classification']})"
+        )
+    if signals["canonical_ref"] and not signals["audit_branch"]:
+        details.append(
+            f"audit branch is missing while canonical ref {signals['canonical_ref']} is resolvable"
+        )
+    if signals["scm_state"] in {"ambiguous", "unknown", "unavailable", "indeterminate"}:
+        details.append(f"SCM state is {signals['scm_state']}")
+    if signals["errors"]:
+        details.extend(str(error) for error in signals["errors"])
+    if details:
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "insufficient_evidence", "none",
+            "Current technical evidence requires machine/operator repair; "
+            + "; ".join(details),
+            watchdog_run_id=run_id,
+        )
+
+    canonical = canonicalize_status(stalled_status)
+    if canonical == NEEDS_CI_FIX and signals["ci_status"] in {
+        "passed", "pass", "green", "success", "successful"
+    }:
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "actionable", "reopen",
+            "current CI evidence is passing; safe to reopen the stalled task.",
+            watchdog_run_id=run_id,
+        )
+    if canonical == NEEDS_REBASE and (
+        signals["ci_status"] in {"passed", "pass", "green", "success", "successful"}
+        or (signals["branch_exists"] is True and signals["scm_state"] in {"clean", "resolved"})
+    ):
+        return StalledTaskDecision(
+            task_id, project_id, stalled_status, "actionable", "reopen",
+            "current SCM evidence shows the stalled branch/rebase condition is resolved.",
+            watchdog_run_id=run_id,
+        )
+    return None
+
+
+def _watchdog_comment_contains_evidence(comment: Mapping[str, Any], evidence: str) -> bool:
+    """Check whether a prior sentinel records the same decisive evidence."""
+    body = _get_comment_body(dict(comment))
+    marker = "**Evidence:**"
+    if marker not in body:
+        return False
+    recorded = body.split(marker, 1)[1].split("\n", 1)[0].strip()
+    return recorded == evidence.strip()
+
 
 
 def _last_watchdog_comment(comments: list[dict]) -> dict | None:
@@ -356,6 +781,8 @@ def classify_stalled_task(
     *,
     project_id: str | None = None,
     run_id: int = 0,
+    evidence: WatchdogEvidence | Mapping[str, Any] | None = None,
+    current_evidence: WatchdogEvidence | Mapping[str, Any] | None = None,
 ) -> StalledTaskDecision:
     """Classify a stalled task and decide on a remediation action.
 
@@ -366,15 +793,19 @@ def classify_stalled_task(
     Classification logic by state:
 
     **Needs Human**:
-    - If the last agent comment signals completion without any question →
-      ``actionable`` with action ``"reopen"`` (accidental stall).
-    - If any recent comment contains an explicit question or focus-handoff
-      that names a human blocker → ``human_blocked``.
-    - Otherwise → ``insufficient_evidence``.
+    - Current review/audit/branch evidence is evaluated first.  Merged or
+      landed work is ``actionable``; provider failures, missing technical
+      evidence, and ambiguous SCM state are ``insufficient_evidence``.
+    - Otherwise only the newest comment can establish a human blocker, and it
+      must contain an explicit product/authority decision.  A focus-handoff
+      marker alone is not enough.
+    - A newest completion comment without a decision is ``actionable``;
+      otherwise the result is ``insufficient_evidence``.
 
     **Needs CI Fix / Needs Rebase**:
-    - If a recent comment explicitly states CI passed / conflict resolved /
-      PR merged → ``actionable`` with action ``"reopen"``.
+    - Current CI/SCM evidence is preferred.  A recent comment stating CI
+      passed / conflict resolved / PR merged remains a compatibility fallback
+      and produces ``actionable`` with action ``"reopen"``.
     - Otherwise → ``insufficient_evidence`` (need SCM state to confirm).
 
     **Needs Answer**:
@@ -396,21 +827,44 @@ def classify_stalled_task(
     Args:
         task_id:        Issue identifier.
         stalled_status: The current status string of the task.
-        comments:       Ordered list of comment dicts (oldest-first).
+        comments:       Comment dicts; timestamps are used when available,
+                        otherwise the supplied order is treated as oldest-first.
         project_id:     Owning project identifier for logging.
         run_id:         Current watchdog run counter.
+        evidence:       Optional current tracker/SCM/audit evidence envelope.
+        current_evidence: Readable alias for ``evidence``.
 
     Returns:
         A :class:`StalledTaskDecision` describing the classification and
         recommended action.
     """
     canonical = canonicalize_status(stalled_status)
-    recent = comments[-_COMMENT_INSPECTION_WINDOW:] if comments else []
+    ordered = _ordered_comments(comments)
+    recent = ordered[-_COMMENT_INSPECTION_WINDOW:] if ordered else []
+
+    # Current tracker/SCM/audit evidence has precedence over prose.  The
+    # alias keeps integrations readable while preserving the short public
+    # ``evidence=`` spelling used by tests and callers.
+    supplied_evidence = current_evidence if current_evidence is not None else evidence
+    evidence_decision = _current_evidence_decision(
+        task_id,
+        stalled_status,
+        supplied_evidence,
+        project_id=project_id,
+        run_id=run_id,
+    )
 
     # ---- Idempotency check -----------------------------------------------
-    last_wc = _last_watchdog_comment(comments)
+    last_wc = _last_watchdog_comment(ordered)
     if last_wc is not None:
-        if not _has_changed_since_watchdog_comment(comments, last_wc):
+        unchanged = not _has_changed_since_watchdog_comment(ordered, last_wc)
+        if unchanged and evidence_decision is not None:
+            # A restart may discover new SCM/audit evidence without a new
+            # tracker comment.  Re-run only when that evidence differs from
+            # the sentinel we already recorded.
+            if not _watchdog_comment_contains_evidence(last_wc, evidence_decision.evidence):
+                return evidence_decision
+        if unchanged:
             return StalledTaskDecision(
                 task_id=task_id,
                 project_id=project_id,
@@ -421,6 +875,9 @@ def classify_stalled_task(
                 watchdog_run_id=run_id,
                 already_actioned=True,
             )
+
+    if evidence_decision is not None:
+        return evidence_decision
 
     # ---- Needs Answer -------------------------------------------------------
     if canonical == NEEDS_ANSWER:
@@ -436,17 +893,31 @@ def classify_stalled_task(
 
     # ---- Needs Human --------------------------------------------------------
     if canonical == NEEDS_HUMAN:
-        recent_texts = [_get_comment_body(c) for c in recent]
-        combined = "\n".join(recent_texts)
-
-        # Check for pending question / explicit human blocker
-        for c in reversed(recent):
-            body = _get_comment_body(c)
-            if not body.strip():
-                continue
-            if WATCHDOG_COMMENT_MARKER in body:
-                continue
-            if _text_has_handoff_question(body) or _text_has_question(body):
+        # Only the newest meaningful comment can describe the current
+        # decision.  Older questions are historical context once a newer
+        # completion or clarification supersedes them.  A focus-handoff
+        # marker by itself is intentionally not evidence of a human blocker.
+        latest = next(
+            (
+                comment for comment in reversed(recent)
+                if _get_comment_body(comment).strip()
+                and WATCHDOG_COMMENT_MARKER not in _get_comment_body(comment)
+            ),
+            None,
+        )
+        if latest is not None:
+            body = _get_comment_body(latest)
+            # A question-word or "please review" phrase in a handoff is not
+            # enough.  Require a question mark or the narrower decision
+            # vocabulary above so routing prose cannot become a blocker.
+            explicit_question = bool(re.search(r"\?\s*$", body, re.MULTILINE))
+            is_handoff = "focus handoff" in body.lower()
+            handoff_only = is_handoff and not _handoff_has_human_decision(body)
+            if (
+                (is_handoff and _handoff_has_human_decision(body))
+                or (not is_handoff and _text_has_human_decision(body))
+                or (explicit_question and not handoff_only)
+            ):
                 return StalledTaskDecision(
                     task_id=task_id,
                     project_id=project_id,
@@ -454,25 +925,12 @@ def classify_stalled_task(
                     classification="human_blocked",
                     action="none",
                     evidence=(
-                        "Recent comment contains an explicit question or "
-                        "focus-handoff noting a human dependency."
+                        "The newest comment contains an unanswered product or "
+                        "authority question; older handoff wording is superseded."
                     ),
                     watchdog_run_id=run_id,
                 )
-
-        # Check for accidental stall: last agent comment signals completion
-        # but no question was asked.
-        for c in reversed(recent):
-            body = _get_comment_body(c)
-            if not body.strip():
-                continue
-            if WATCHDOG_COMMENT_MARKER in body:
-                continue
-            if (
-                _text_has_completion_without_question(body)
-                and not _text_has_question(body)
-                and not _text_has_handoff_question(body)
-            ):
+            if _text_has_completion_without_question(body) and not explicit_question:
                 return StalledTaskDecision(
                     task_id=task_id,
                     project_id=project_id,
@@ -480,8 +938,8 @@ def classify_stalled_task(
                     classification="actionable",
                     action="reopen",
                     evidence=(
-                        "Last agent comment signals completion without a human question; "
-                        "the Needs Human transition appears accidental."
+                        "The newest comment signals completion without a current "
+                        "human decision; the Needs Human transition appears accidental."
                     ),
                     watchdog_run_id=run_id,
                 )
@@ -617,11 +1075,42 @@ def build_watchdog_comment(decision: StalledTaskDecision) -> str:
     return "\n".join(lines)
 
 
+def _tracker_issue_evidence(tracker: Any, issue: Any) -> WatchdogEvidence:
+    """Collect tracker-owned evidence without requiring a provider call."""
+    issue_mapping = _as_mapping(issue)
+    metadata: Mapping[str, Any] = {}
+    get_metadata = getattr(tracker, "get_metadata", None)
+    if callable(get_metadata):
+        try:
+            raw_metadata = get_metadata(str(getattr(issue, "identifier", "")))
+        except Exception:  # noqa: BLE001 - missing metadata is unknown evidence
+            raw_metadata = None
+        if isinstance(raw_metadata, Mapping):
+            metadata = raw_metadata
+    audit = metadata.get("oompah.terminal_audit") or metadata.get("terminal_audit")
+    return WatchdogEvidence(
+        issue=issue_mapping,
+        review={
+            key: issue_mapping[key]
+            for key in ("review_state", "review_number", "review_url", "review_head", "merged_at")
+            if issue_mapping.get(key) not in (None, "")
+        },
+        branch={
+            key: issue_mapping[key]
+            for key in ("work_branch", "branch_name", "target_branch")
+            if issue_mapping.get(key) not in (None, "")
+        },
+        audit=audit,
+    )
+
+
 def run_watchdog_audit(
     projects_and_trackers: list[tuple[str | None, Any]],
     *,
     run_id: int = 0,
     dry_run: bool = False,
+    evidence_provider: Callable[..., Any] | None = None,
+    evidence_by_task: Mapping[str, Any] | None = None,
 ) -> WatchdogAuditResult:
     """Run a full stalled-task watchdog audit across all projects.
 
@@ -635,6 +1124,10 @@ def run_watchdog_audit(
             ``project_id`` may be ``None`` for the legacy single-project mode.
         run_id: Monotonically increasing counter for correlation.
         dry_run: When True, classify but do not perform any tracker writes.
+        evidence_provider: Optional callback receiving ``(project_id, issue,
+            tracker)`` and returning current machine evidence.
+        evidence_by_task: Optional pre-collected evidence keyed by identifier;
+            useful for deterministic callers and tests.
 
     Returns:
         A :class:`WatchdogAuditResult` with full audit telemetry.
@@ -685,12 +1178,29 @@ def run_watchdog_audit(
                 result.decisions.append(decision)
                 continue
 
+            current_evidence: Any = None
+            if evidence_by_task is not None:
+                current_evidence = evidence_by_task.get(identifier)
+            if current_evidence is None:
+                current_evidence = _tracker_issue_evidence(tracker, issue)
+            if evidence_provider is not None:
+                try:
+                    provided_evidence = evidence_provider(project_id, issue, tracker)
+                    if provided_evidence is not None:
+                        current_evidence = provided_evidence
+                except Exception as exc:  # noqa: BLE001 - fail closed per task
+                    msg = f"Failed to collect current evidence for {identifier}: {exc}"
+                    logger.debug(msg)
+                    result.errors.append(msg)
+                    current_evidence = WatchdogEvidence(errors=("current evidence unavailable",))
+
             decision = classify_stalled_task(
                 identifier,
                 state,
                 comments,
                 project_id=project_id,
                 run_id=run_id,
+                current_evidence=current_evidence,
             )
             result.decisions.append(decision)
 
