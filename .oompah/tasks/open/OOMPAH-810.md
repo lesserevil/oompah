@@ -1,23 +1,25 @@
 ---
 id: OOMPAH-810
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Return completed auditor command results without stranding the ACP session
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-768
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-04T22:01:00.091773Z'
+updated_at: '2026-08-04T22:01:15.598992Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
