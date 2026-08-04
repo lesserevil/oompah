@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-455
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Make GitLab project edits use one intake alias and forge-aware identity resolution
 parent: OOMPAH-451
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-07-28T15:05:50.989321Z'
+updated_at: '2026-08-04T15:19:35.240499Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -48,6 +48,28 @@ oompah.task_costs:
     output_tokens: 15425
     cost_usd: 0.0
     recorded_at: '2026-07-28T13:43:28.511825+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-46f9be89689a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-455
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d157a76b965e6405e8848d7e03640eebf4e3b466fec3a116fba8fbaab4f000fc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T15:19:29.046464+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -285,5 +307,10 @@ author: oompah
 created: 2026-07-28 13:54
 ---
 Made project intake aliases deterministic and identity lookup forge-aware; GitLab Projects-page state-branch edits now succeed without GitHub credential calls. Added comprehensive CRUD/UI regressions and pushed commit 48a793f90.
+---
+author: oompah
+created: 2026-08-04 15:19
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
