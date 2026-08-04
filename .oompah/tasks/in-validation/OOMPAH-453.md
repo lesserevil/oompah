@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-453
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Route webhook lifecycle by forge and stop gh forwarder churn for GitLab projects
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-07-28T15:05:48.649276Z'
+updated_at: '2026-08-04T15:19:26.779518Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -35,6 +35,28 @@ oompah.task_costs:
     output_tokens: 7039
     cost_usd: 0.0
     recorded_at: '2026-07-28T13:11:27.569442+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-82794ee40c82
+    project_id: proj-14849f1b
+    task_id: OOMPAH-453
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 73d5dfe09464c9c772fb4d4aa89dc13e2941be6de2cd431e58cf48b7fe1c1074
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T15:19:20.787409+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -175,5 +197,10 @@ author: oompah
 created: 2026-07-28 13:23
 ---
 Routed webhook lifecycle by forge, stopped GitHub forwarder churn for GitLab projects, and added credential-aware GitLab hook health/recovery coverage.
+---
+author: oompah
+created: 2026-08-04 15:19
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
