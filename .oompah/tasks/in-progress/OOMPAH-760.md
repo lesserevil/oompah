@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:23:18.247919Z'
+updated_at: '2026-08-04T13:24:10.105503Z'
 work_branch: OOMPAH-760
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/712
@@ -110,7 +110,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a45ff3fb-b8fd-4d27-9ea7-97762b0e123c
+oompah.agent_run_id: 278349f1-bec5-4d83-8312-4ddc376f0ec2
 oompah.task_costs:
   total_input_tokens: 122
   total_output_tokens: 33007
@@ -345,5 +345,15 @@ author: oompah
 created: 2026-08-04 13:23
 ---
 YOLO: CI tests failed on MR #712. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-04 13:24
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 13:24
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
