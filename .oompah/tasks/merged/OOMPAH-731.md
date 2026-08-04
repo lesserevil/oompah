@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T02:03:38.292055Z'
+updated_at: '2026-08-04T02:03:45.144365Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -170,7 +170,8 @@ oompah.terminal_audit:
     evidence_fingerprint: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
     audit_ids:
     - audit-8dcbe9f79e40
-    kind: result
+    - audit-2e459c6f3eb8
+    kind: override
     applied: true
     retired_at: '2026-08-04T01:59:10.570394+00:00'
   oompah.terminal_audit_result_intents:
@@ -186,6 +187,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T01:19:00.601136+00:00'
     applied_at: '2026-08-04T01:19:06.159713+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-731
     audit_id: audit-8dcbe9f79e40
@@ -198,6 +200,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T01:59:10.570417+00:00'
     applied_at: '2026-08-04T01:59:19.306879+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-488c8ba18fc8
@@ -218,7 +221,7 @@ oompah.terminal_audit:
       recoverable non-mutating command-policy mismatches exhausted its session. OOMPAH-753
       tracks the audit-policy regression. No implementation work remains.
     created_at: '2026-08-04T02:03:29.182456+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
