@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:26:34.507327Z'
+updated_at: '2026-08-04T11:26:37.841308Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
