@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:42:01.135629Z'
+updated_at: '2026-08-04T02:51:17.555650Z'
 work_branch: OOMPAH-751
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/701
@@ -144,6 +144,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/701
 oompah.review_number: '701'
 oompah.work_branch: OOMPAH-751
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d9db7e8d585e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-751
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ba11b8de5f6c135f7ee7975472a91f584e924fa26b07595971fb9ffd0eb5764
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:51:08.897346+00:00'
+  - version: 1
+    audit_id: audit-47c87ef62776
+    project_id: proj-14849f1b
+    task_id: OOMPAH-751
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1ba11b8de5f6c135f7ee7975472a91f584e924fa26b07595971fb9ffd0eb5764
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:51:08.897346+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -331,5 +370,15 @@ author: oompah
 created: 2026-08-04 02:41
 ---
 Branch quality gate passed for `38bb88c85d869a232a90974a07bacb5d20cd37d6` using `make test` in 411.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 02:51
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 02:51
+---
+YOLO: merged PR #701.
 ---
 <!-- COMMENTS:END -->
