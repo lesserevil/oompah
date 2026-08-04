@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T14:43:43.446250Z'
+updated_at: '2026-08-04T14:50:49.367146Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -295,5 +295,10 @@ author: oompah
 created: 2026-08-04 14:43
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 14:50
+---
+UNDERSTANDING: Task previously implemented an atomic clear before applying a full_sync snapshot, but the clear targets pre-OOMPAH-742 element IDs (alerts-banner, alerts-list, cred-error-banner, agent-warnings) that no longer exist. After rebasing onto origin/main (which now includes OOMPAH-741, OOMPAH-742, OOMPAH-743 compact alert center + fact contract), I'll:\n1. Retarget _clearAllAlertAndHealthUI() to the current DOM: alert-center (attributes + list), diagnostic-facts, terminal-audit-health, quality-gate-health, repo-hygiene-health, auth-health-banner, running-agents.\n2. Add bounded try/finally around the clear+handleStateUpdate so a presentation exception does not leave a blank board and does not emit a warning loop.\n3. Add source-contract tests (tests/test_dashboard_full_sync_atomic_replacement.py) covering the required scenarios: transport-failure to zero, quality-gate replacement, dropped/reordered messages, epoch change, and repeated identical snapshots.
 ---
 <!-- COMMENTS:END -->
