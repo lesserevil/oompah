@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T00:46:12.927863Z'
+updated_at: '2026-08-04T00:46:52.123856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,10 @@ author: oompah
 created: 2026-08-04 00:46
 ---
 Understanding: bound integrated terminal-audit replay so historical ledger growth cannot delay Ready claims. I will trace _process_integration_queues and ledger scans, add the smallest durable/bounded scheduling change with regression coverage, verify focused integration tests, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-04 00:46
+---
+Discovery: _process_integration_queues materializes every queue row, then awaits _stage_integrated_task_audit for every integrated row before grouping/claiming Ready work. IntegrationQueue.items has no bounded/cursor scan, so replay is unbounded and repeats after restart. I am checking config and maintenance-status conventions for a durable cursor plus observable incomplete/stalled progress.
 ---
 <!-- COMMENTS:END -->
