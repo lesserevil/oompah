@@ -786,6 +786,7 @@ class TestSyntheticSlowJobs:
         does not hold up candidates from others.
     """
 
+    @pytest.mark.timeout(30)
     def test_heal_repos_always_runs_after_dispatch_needed(self, tmp_path):
         """Invariant: _maybe_heal_repos is always called after _handle_dispatch_needed
         completes within the same tick cycle.
@@ -819,11 +820,24 @@ class TestSyntheticSlowJobs:
         orch._run_step5b_maintenance = MagicMock(
             side_effect=lambda: orch._maybe_heal_repos()
         )
+        # This test exercises only the dispatch -> step-5b ordering contract.
+        # Do not launch unrelated durable lanes whose stores and executors would
+        # otherwise outlive the assertion under a loaded parallel suite.
+        orch.config.parallel_epic_children_enabled = False
+        orch.workflow_shadow.set_mode("off")
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         async def _run_tick_and_wait_for_maintenance() -> None:
-            await orch._tick()
-            if orch._maintenance_future is not None:
-                await orch._maintenance_future
+            try:
+                await orch._tick()
+                if orch._maintenance_future is not None:
+                    await orch._maintenance_future
+            finally:
+                # _drain_background_work owns every future, executor, and
+                # durable store created by this short-lived orchestrator.
+                await orch._drain_background_work()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(_run_tick_and_wait_for_maintenance())
