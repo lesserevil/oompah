@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T00:56:52.460158Z'
+updated_at: '2026-08-04T01:00:00.434626Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-08-04 00:56
 ---
 Verification update: focused new regressions pass, including 200 historical integrated rows with live Ready claim first, bounded replay cursor resumption across restart, and degraded signaling that ignores dependency-blocked Ready rows. Running directly affected parallel-epic, standalone Ready, queue, and config suites next.
+---
+author: oompah
+created: 2026-08-04 01:00
+---
+Verification: 171 affected tests pass across delivery recovery, parallel epic integration, queue storage, and configuration suites. The 200-history regression confirms the live Ready row is claimed before audit replay; cursor replay resumes after restart; dependency-blocked rows do not trigger false degraded claims. compileall and git diff --check also pass.
 ---
 <!-- COMMENTS:END -->
