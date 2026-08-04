@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:55:47.844924Z'
+updated_at: '2026-08-04T00:56:07.216113Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -110,9 +110,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-731
-  head_sha: 68d58d532cd282acce2941f54ea5efca8dce6752
-  submitted_at: '2026-08-03T19:07:48.413485+00:00'
-  updated_at: '2026-08-03T19:07:48.413485+00:00'
+  head_sha: a3bfbb3ea3b4d7beb6085e1607edcca464994ac4
+  submitted_at: '2026-08-04T00:56:02.498473+00:00'
+  updated_at: '2026-08-04T00:56:02.498473+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/696
 oompah.review_number: '696'
 oompah.work_branch: OOMPAH-731
@@ -449,5 +449,10 @@ author: oompah
 created: 2026-08-04 00:55
 ---
 Verification: 477 tests pass across test_epic_strategy.py, test_projects.py, test_worker_submission.py, test_epic_rebase_state.py, test_epic_staleness.py, and test_terminal_audit_enforcement.py. Branch successfully rebased onto origin/main and force-pushed (a3bfbb3ea). All conflict markers resolved, both sides' changes preserved.
+---
+author: oompah
+created: 2026-08-04 00:56
+---
+Rebased OOMPAH-731 onto origin/main, resolving 2 conflict zones in orchestrator.py: (1) preserved both OOMPAH-731's integration_retry alert clearing inside _clear_integration_delivery_alert AND HEAD's new _arm/_clear_integrated_audit_recovery_alert methods; (2) preserved both HEAD's _handle_revoked_submission_exit and OOMPAH-731's complete_direct_epic_maintenance_submission methods. Updated test_epic_strategy.py fixture assertion to account for OOMPAH-733's new oompah.target_branch recording order. 477 focused tests pass.
 ---
 <!-- COMMENTS:END -->
