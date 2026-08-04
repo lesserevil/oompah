@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:09:06.995495Z'
+updated_at: '2026-08-04T11:10:39.710193Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -24,14 +24,37 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
   head_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+  integrated_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
   submitted_at: '2026-08-04T11:08:47.725906+00:00'
-  updated_at: '2026-08-04T11:08:47.725906+00:00'
+  updated_at: '2026-08-04T11:10:31.273014+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-05216c09b110
+    project_id: proj-14849f1b
+    task_id: OOMPAH-755
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5bd0bccffae9ec9342d9b3d1d38979e143890d8ada8fb44591fadcf7c52a4f6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-epic-maintenance
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T11:10:33.553014+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -95,5 +118,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 18s
 - Log: OOMPAH-755__20260804T110605Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:10
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
