@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T17:01:42.410081Z'
+updated_at: '2026-08-04T17:05:47.581849Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -61,6 +61,31 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/714
 oompah.review_number: '714'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-6ded794f8821: '2026-08-04T17:05:37.648142+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    target_state: Done
+    evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    audit_ids:
+    - audit-d5e425f65f54
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T17:05:37.648154+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    audit_id: audit-d5e425f65f54
+    attempt_id: attempt-6ded794f8821
+    target_state: Done
+    evidence_fingerprint: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    status: In Validation
+    audit_ids:
+    - audit-d5e425f65f54
+    applied: true
+    created_at: '2026-08-04T17:05:37.648174+00:00'
+    applied_at: '2026-08-04T17:05:45.153364+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -68,7 +93,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-765
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -77,7 +102,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6ded794f8821
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -87,13 +112,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T17:01:34.065164+00:00'
       branch_key: epic-OOMPAH-765
+      verdict: pass
+      completed_at: '2026-08-04T17:05:37.647942+00:00'
+      ended_at: '2026-08-04T17:05:37.647942+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T17:00:39.012622+00:00'
-    updated_at: '2026-08-04T17:01:34.065164+00:00'
+    updated_at: '2026-08-04T17:05:37.647942+00:00'
   - version: 1
     audit_id: audit-17b3b9d996a9
     project_id: proj-14849f1b
@@ -385,5 +413,27 @@ author: oompah
 created: 2026-08-04 17:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 17:05
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+- merge_commit: f1e7925b7263f980517f943291102c8c83335ed2
+- pr_number: 714
+- target_branch: epic-OOMPAH-763
+- quality_gate_command: make test
+- quality_gate_duration_s: 428.7
+- workflow_facts_path: oompah/workflow_facts.py
+- work_decision_path: oompah/work_decision.py
+- workflow_shadow_path: oompah/workflow_shadow.py
+- test_files: tests/test_workflow_facts.py, tests/test_work_decision.py, tests/test_workflow_shadow.py, tests/test_workflow_shadow_integration.py
+- design_docs: plans/workflow-facts.md, plans/work-decision-evaluator.md, plans/workflow-shadow-evaluation.md
+- epic_commit_chain: cc490d183, e34e3c58b, 73f5aeb26, b0ec9eb4e, 96b878f74, 40e46bf8e, c7bfbcc3b
+- head_contained_in_target: true
 ---
 <!-- COMMENTS:END -->
