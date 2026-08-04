@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T02:10:39.834455Z'
+updated_at: '2026-08-04T02:11:40.625499Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -48,8 +48,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d9147546-5e8d-4f80-a41c-185645b3eac8
 oompah.task_costs:
-  total_input_tokens: 1381908
-  total_output_tokens: 11411
+  total_input_tokens: 1381914
+  total_output_tokens: 11640
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -59,6 +59,10 @@ oompah.task_costs:
     opus:
       input_tokens: 1330900
       output_tokens: 9091
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 229
       cost_usd: 0.0
   runs:
   - profile: default
@@ -91,6 +95,12 @@ oompah.task_costs:
     output_tokens: 1834
     cost_usd: 0.0
     recorded_at: '2026-08-04T01:41:37.091913+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 229
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T02:11:38.244107+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-734__20260803T190947Z
@@ -772,5 +782,15 @@ Safe evidence:
 - commit_before_comment: verified in TerminalTransitionCoordinator._apply_result_locked (oompah/terminal_transition_coordinator.py)
 - reserved_finalization_turn: verified in ApiAgentSession (oompah/api_agent.py)
 - finalization_health_fact: wired in terminal_audit_health.py, terminal_audit_enforcement.py, orchestrator.py, dashboard.html
+---
+author: oompah
+created: 2026-08-04 02:11
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 69, Tool calls: 51
+- Tokens: 6 in / 229 out [235 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 51s
+- Log: OOMPAH-734__20260804T015103Z.jsonl
 ---
 <!-- COMMENTS:END -->
