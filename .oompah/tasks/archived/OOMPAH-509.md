@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-08-04T21:36:48.819196Z'
+updated_at: '2026-08-04T21:38:47.768250Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -96,6 +96,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:28:54.022325+00:00'
     branch_key: epic-OOMPAH-502
+oompah.task_costs:
+  total_input_tokens: 14
+  total_output_tokens: 2602
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 14
+      output_tokens: 2602
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 2602
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:38:42.299708+00:00'
 ---
 ## Summary
 
@@ -175,5 +191,15 @@ Safe evidence:
 - makefile_targets: Makefile: test (parallel via PYTEST_WORKERS) and test-serial:405
 - contract_tests: tests/test_pytest_parallel.py verifies default 4, bounded 1..16, and worker env plumbing
 - docs: docs/testing.md documents OOMPAH_PYTEST_WORKERS and serial fallback
+---
+author: oompah
+created: 2026-08-04 21:38
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 13, Tool calls: 9
+- Tokens: 14 in / 2.6K out [2.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 34s
+- Log: OOMPAH-509__20260804T212921Z.jsonl
 ---
 <!-- COMMENTS:END -->
