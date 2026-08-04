@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-08-04T23:44:30.005834Z'
+updated_at: '2026-08-04T23:44:56.439744Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 310715ad-27ac-4a75-a8f1-dba49637df2a
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 390392
-  total_output_tokens: 8251
+  total_input_tokens: 390423
+  total_output_tokens: 13136
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -31,6 +31,10 @@ oompah.task_costs:
     opus:
       input_tokens: 110
       output_tokens: 3178
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 31
+      output_tokens: 4885
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -45,6 +49,12 @@ oompah.task_costs:
     output_tokens: 3178
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:04:58.585212+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 31
+    output_tokens: 4885
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:44:52.839247+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -282,5 +292,15 @@ Safe evidence:
 - granian_bootstrap_test_count: 21
 - test_exit_code: 0
 - key_methods_present: classify_failure_to_status, AuditResult, ResultRejection, ResultOutcome, apply_audit_result, _apply_result_locked
+---
+author: oompah
+created: 2026-08-04 23:44
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 46, Tool calls: 29
+- Tokens: 31 in / 4.9K out [4.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 28s
+- Log: OOMPAH-466__20260804T233835Z.jsonl
 ---
 <!-- COMMENTS:END -->
