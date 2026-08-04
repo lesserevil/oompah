@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-500
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Measure the pruned suite and enforce the no-network final gate
 parent: OOMPAH-490
@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-07-28T17:10:41.311949Z'
+updated_at: '2026-08-04T17:27:13.973587Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -49,6 +49,28 @@ oompah.task_costs:
     output_tokens: 6125
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:57:10.950953+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-918c86e4f6dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-500
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d27948d65fd9eb52dcecebc5812806cf7a7c0ee662ee20fd9d12fe4562290620
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:27:07.547079+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -209,5 +231,10 @@ author: oompah
 created: 2026-07-28 16:59
 ---
 Correction to comments #13-15: the final run created no additional Granian process, but the pre-existing PID 3361788 was still alive when the task was marked Done, so the contemporaneous 'zero leaks' statement was not accurate. I terminated that exact recorded orphan (TERM with bounded wait, then KILL because it did not exit) and verified no command containing the generated Granian E2E subprocess marker remains. Current process-leak count is now zero; the 4/4 targeted rerun demonstrates the consolidated current fixture does not reproduce the leak during a normal run.
+---
+author: oompah
+created: 2026-08-04 17:27
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
