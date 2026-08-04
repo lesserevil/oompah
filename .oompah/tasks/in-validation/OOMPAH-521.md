@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-521
 type: epic
-status: Merged
+status: In Validation
 priority: 0
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-07-28T21:32:51.574315Z'
+updated_at: '2026-08-04T21:34:24.549292Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -44,6 +44,28 @@ oompah.task_costs:
     output_tokens: 12423
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:21:41.634977+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fb69a2491a3b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-521
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 168332a1dae5a5f931cbf5f2dd6cfff21eb1353608aca2a641d1d5095ccaa723
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:18.368853+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -169,5 +191,10 @@ author: oompah
 created: 2026-07-28 21:30
 ---
 YOLO: merged PR #567.
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
