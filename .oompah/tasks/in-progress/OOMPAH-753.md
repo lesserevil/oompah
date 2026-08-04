@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:30:11.554846Z'
+updated_at: '2026-08-04T02:44:42.152820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-08-04 02:30
 ---
 IMPLEMENTATION: Modified auditor.py::check_auditor_command() to classify non-mutating validator requests outside the project contract as RECOVERABLE (not fatal). Key changes: (1) Security checks (path escapes, credentials) happen first and remain fatal, (2) State-changing mutations and dangerous constructs (process control, shell redirects) are fatal, (3) Non-mutating commands outside contract return recoverable denials with allowed alternatives, (4) git rev-list unsupported flags return recoverable errors. Added regression test test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable.
+---
+author: oompah
+created: 2026-08-04 02:44
+---
+VERIFICATION: All auditor tests passing (66 tests). Changes implemented and committed. Fixed mutation detection for system() calls and getline operations. Refined contract mismatch logic: make targets outside contract now return recoverable denials, while other unknown commands remain fatal for safety.
 ---
 <!-- COMMENTS:END -->
