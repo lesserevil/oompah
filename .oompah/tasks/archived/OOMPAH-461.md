@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-461
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Add the canonical In Validation lifecycle status
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-08-04T21:47:35.466343Z'
+updated_at: '2026-08-04T22:08:55.776019Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -37,6 +37,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T18:09:00.904036+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f217328aa10f: '2026-08-04T22:08:52.475390+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-461
+    target_state: Archived
+    evidence_fingerprint: 603fd80a9bad2eada8423644a7b3bd6255b543e038c29cb2024917936cb5085e
+    audit_ids:
+    - audit-4de729228280
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T22:08:52.475403+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-461
+    audit_id: audit-4de729228280
+    attempt_id: attempt-f217328aa10f
+    target_state: Archived
+    evidence_fingerprint: 603fd80a9bad2eada8423644a7b3bd6255b543e038c29cb2024917936cb5085e
+    status: Archived
+    audit_ids:
+    - audit-4de729228280
+    applied: false
+    created_at: '2026-08-04T22:08:52.475420+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -44,7 +68,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-461
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -68,7 +92,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f217328aa10f
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,13 +103,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T21:47:08.830102+00:00'
       branch_key: epic-OOMPAH-457
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T22:08:52.475218+00:00'
+      ended_at: '2026-08-04T22:08:52.475218+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:17.768456+00:00'
-    updated_at: '2026-08-04T21:47:08.830102+00:00'
+    updated_at: '2026-08-04T22:08:52.475218+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1df8059d192d
