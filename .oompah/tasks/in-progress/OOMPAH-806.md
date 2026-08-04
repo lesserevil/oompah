@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:33:05.600729Z'
+updated_at: '2026-08-04T22:38:16.257073Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -333,5 +333,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: error, Duration: 4m 0s
 - Log: OOMPAH-806__20260804T222853Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:38
+---
+Repaired the failed exact-head submission by reconciling the root epic with merged OOMPAH-805 reliability fixes and the combined-tree fixture stabilization, then patch-equivalently rebasing OOMPAH-806 to 30dc2b2075a48c6c542da55a46ad0285f492d527. The three prior suite-only failures passed together for 25 consecutive iterations; the combined changed-file and fixture slice passed 496/496. The prior blocked queue row was cancelled by the deployed watchdog race this task fixes, so this head is being freshly submitted.
 ---
 <!-- COMMENTS:END -->
