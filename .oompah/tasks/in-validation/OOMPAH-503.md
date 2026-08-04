@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-503
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Limit automatic duplicate detection to nonterminal tasks
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:05:59.013552Z'
-updated_at: '2026-07-28T17:58:54.648344Z'
+updated_at: '2026-08-04T18:28:04.095540Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 29
     cost_usd: 0.0
     recorded_at: '2026-07-28T17:44:16.234874+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-705d8c260d82
+    project_id: proj-14849f1b
+    task_id: OOMPAH-503
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 697eae34dcb1e9831f6ef66f84ad0630845ad65c6288d74fb7a2285a880f6f2f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:27:57.286099+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -97,5 +119,10 @@ author: oompah
 created: 2026-07-28 17:53
 ---
 Restored after patch-equivalent commit 91d6c4344 was verified on the rebased epic branch; terminal-task duplicate filtering remains fully implemented.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
