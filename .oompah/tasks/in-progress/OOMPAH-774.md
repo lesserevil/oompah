@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-774
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Build replayable fixtures for historical stuck-task incidents
 parent: OOMPAH-764
@@ -12,13 +12,15 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:46.269128Z'
-updated_at: '2026-08-04T14:05:15.874374Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T14:28:09.195411Z'
+work_branch: epic-OOMPAH-764--task-OOMPAH-774
+target_branch: epic-OOMPAH-764
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.target_branch: epic-OOMPAH-764
+oompah.work_branch: epic-OOMPAH-764--task-OOMPAH-774
 ---
 ## Summary
 
