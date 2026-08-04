@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:11:28.818638Z'
+updated_at: '2026-08-04T11:11:44.903319Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -24,18 +24,12 @@ oompah.agent_run_id: 651a4bbc-adc0-4b49-9173-8518aad547b7
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  head_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
-  submitted_at: '2026-08-04T11:08:47.725906+00:00'
-  updated_at: '2026-08-04T11:10:51.250932+00:00'
-  last_error: 'could not recover integration worktrees: git worktree add failed: Preparing
-    worktree (checking out ''epic-OOMPAH-740'')
-
-    fatal: ''epic-OOMPAH-740'' is already used by worktree at ''/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740'''
+  updated_at: '2026-08-04T11:11:40.984867+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   version: 1
@@ -156,5 +150,10 @@ author: oompah
 created: 2026-08-04 11:11
 ---
 Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-04 11:11
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

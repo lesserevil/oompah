@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:10:21.585323Z'
+updated_at: '2026-08-04T11:11:46.743486Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-08-04 11:10
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-04 11:11
+---
+Task-specific recovery attempt: an authenticated project-owner terminal override to Merged was attempted for EXOCOMP-128 after independently confirming PR 21 target epic-EXOCOMP-127 and merge commit 2476a392 reachability. Live revision 5368e236 still rejected it with the old root-parent gate: 'parent epic EXOCOMP-127 could not be verified; parent review must land on its configured target branch first.' No tracker mutation occurred. This confirms the target-relative fix does not cover the terminal transition validator/override path; do not bypass it by editing task files.
 ---
 <!-- COMMENTS:END -->

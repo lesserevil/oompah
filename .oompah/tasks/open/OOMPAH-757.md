@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:11:32.097478Z'
+updated_at: '2026-08-04T11:11:43.802870Z'
 work_branch: null
 target_branch: null
 review_url: null
