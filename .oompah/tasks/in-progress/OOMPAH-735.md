@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:02:06.182650Z'
+updated_at: '2026-08-04T03:02:42.086038Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -319,5 +319,10 @@ author: oompah
 created: 2026-08-04 03:02
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 03:02
+---
+Understanding: Frontend focus will ensure the dashboard operator-alert area renders only actionable warning/error records from structured alert fields, while preserving task-local recovery progress. I will inspect current payload/rendering contracts, add accessibility-safe UI behavior and focused regression tests, then hand off any backend recovery-state work to feature focus.
 ---
 <!-- COMMENTS:END -->
