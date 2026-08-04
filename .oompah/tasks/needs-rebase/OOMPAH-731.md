@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-731
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- merge-conflict
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:32:26.902901Z'
+updated_at: '2026-08-04T00:32:56.757259Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -413,5 +414,10 @@ author: oompah
 created: 2026-08-04 00:32
 ---
 Branch quality gate passed for `68d58d532cd282acce2941f54ea5efca8dce6752` using `make test` in 411.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 00:32
+---
+YOLO: Merge conflict detected on MR #696. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
