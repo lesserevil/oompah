@@ -9,11 +9,12 @@ children: []
 blocked_by:
 - OOMPAH-806
 - OOMPAH-814
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-814
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T23:57:16.097101Z'
+updated_at: '2026-08-04T23:57:51.131923Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -80,6 +81,7 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-807
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T21:39:15.159731+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
