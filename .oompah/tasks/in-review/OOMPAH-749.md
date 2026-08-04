@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-749
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Bound historical audit replay so Ready integration claims cannot starve
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:07:44.596310Z'
+updated_at: '2026-08-04T03:20:57.955319Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/703
 review_number: null
 review_head: null
 merged_at: null
@@ -153,6 +153,7 @@ oompah.integration:
   head_sha: 713f7908041162620b6a2c587d2aac1c14bc3104
   submitted_at: '2026-08-04T01:00:46.555314+00:00'
   updated_at: '2026-08-04T01:00:46.555314+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/703
 ---
 ## Summary
 
