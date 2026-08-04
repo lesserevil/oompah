@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-779
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Run WorkDecision in shadow mode and expose divergence diagnostics
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-04T14:05:43.020707Z'
+updated_at: '2026-08-04T15:51:45.084048Z'
 work_branch: null
 target_branch: null
 review_url: null
