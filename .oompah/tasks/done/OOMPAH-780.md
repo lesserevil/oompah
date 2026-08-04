@@ -13,8 +13,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:57.339751Z'
-updated_at: '2026-08-04T15:41:22.934562Z'
-work_branch: null
+updated_at: '2026-08-04T16:48:14.582783Z'
+work_branch: epic-OOMPAH-766
 target_branch: null
 review_url: null
 review_number: null
@@ -63,6 +63,7 @@ oompah.terminal_audit:
   version: 1
   pending_chain: []
   attempt_history: []
+oompah.work_branch: epic-OOMPAH-766
 ---
 ## Summary
 
