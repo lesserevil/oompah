@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:27:44.580978Z'
+updated_at: '2026-08-04T11:34:46.701955Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -335,5 +335,10 @@ author: oompah
 created: 2026-08-04 11:27
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 11:34
+---
+Understanding: Reviewing prior gate failure. The task is already implemented (structured dashboard alert contract in oompah/dashboard_alerts.py applied to orchestrator alerts, repo hygiene, terminal-audit health, auth health, quality-gate lifecycle, and REST/WebSocket enrichment). The gate reported a single unrelated failure — tests/test_long_tick_regression.py::TestSyntheticSlowJobs::test_heal_repos_always_runs_after_dispatch_needed — which asserts tick phase ordering (dispatch_needed → heal_repos). My changes only touch the alert normalization boundary in get_snapshot(); they do not modify _tick(), _handle_dispatch_needed, _run_step5b_maintenance, or _maybe_heal_repos. Locally the test passes 10/10 in isolation and inside the file (14/14 passed). Confirming this is a flaky race in the maintenance-future await path and re-verifying focused suites before resubmit.
 ---
 <!-- COMMENTS:END -->
