@@ -7,17 +7,19 @@ title: Cut integration delivery over to shared decisions and durable jobs
 parent: OOMPAH-768
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:10.953215Z'
-updated_at: '2026-08-04T13:59:10.953215Z'
+updated_at: '2026-08-04T14:06:11.951314Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
