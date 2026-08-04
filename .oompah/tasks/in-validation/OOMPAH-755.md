@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:17:18.906542Z'
+updated_at: '2026-08-04T11:26:34.507327Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -32,6 +32,30 @@ oompah.integration:
   updated_at: '2026-08-04T11:11:40.984867+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0b39ae84a239: '2026-08-04T11:26:32.996305+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-755
+    target_state: Done
+    evidence_fingerprint: 18f4d6cd9d7bd47402eccdbfaaedbf03e78d0d803a8a5a94f10c5002258f4c78
+    audit_ids:
+    - audit-4d23d9e26034
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T11:26:32.996318+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-755
+    audit_id: audit-4d23d9e26034
+    attempt_id: attempt-0b39ae84a239
+    target_state: Done
+    evidence_fingerprint: 18f4d6cd9d7bd47402eccdbfaaedbf03e78d0d803a8a5a94f10c5002258f4c78
+    status: Done
+    audit_ids:
+    - audit-4d23d9e26034
+    applied: false
+    created_at: '2026-08-04T11:26:32.996336+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -56,7 +80,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-755
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -65,7 +89,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0b39ae84a239
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -75,13 +99,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T11:16:48.877328+00:00'
       branch_key: epic-OOMPAH-740
+      verdict: pass
+      completed_at: '2026-08-04T11:26:32.996133+00:00'
+      ended_at: '2026-08-04T11:26:32.996133+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Open
     created_at: '2026-08-04T11:15:56.050934+00:00'
-    updated_at: '2026-08-04T11:16:48.877328+00:00'
+    updated_at: '2026-08-04T11:26:32.996133+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0b39ae84a239
