@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:19:53.474047Z'
+updated_at: '2026-08-04T01:20:16.446730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,13 +73,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 65703f40-c7a2-45a1-a059-e4803db01ee5
 oompah.task_costs:
-  total_input_tokens: 832
-  total_output_tokens: 2620
+  total_input_tokens: 2106086
+  total_output_tokens: 15231
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 832
       output_tokens: 2620
+      cost_usd: 0.0
+    opus:
+      input_tokens: 2105254
+      output_tokens: 12611
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +98,12 @@ oompah.task_costs:
     output_tokens: 236
     cost_usd: 0.0
     recorded_at: '2026-08-04T01:01:36.116118+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 2105254
+    output_tokens: 12611
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T01:20:09.098402+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-746__20260804T004146Z
@@ -104,6 +114,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-746
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:42:31.995844+00:00'
+  - run_id: OOMPAH-746__20260804T011233Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: ci_fix
+    source_branch: OOMPAH-746
+    source_sha: 3ed0f959e02e00dc9aa4c5563daa469f2a907c09
+    completed_at: '2026-08-04T01:20:09.105561+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -369,5 +387,20 @@ author: oompah
 created: 2026-08-04 01:19
 ---
 Verification / operator reconciliation: Commit 3ed0f959e is pushed to origin/OOMPAH-746. Gate-like focused run passed 44/44 dashboard and snapshot tests with four xdist workers; terminal-audit suite passed 38/38; git diff --check passed. make terminal-audit-scan could not provision the task venv because the Snap uv launcher failed its DBus transient-scope setup. An advisory oompah coordinate send to OOMPAH-734 then returned ERROR 500: task handoff operation failed. Per spawned-worker handoff security, I did not retry that operation or submit the task; an operator must reconcile the handoff capability/state and rearm submission for pushed head 3ed0f959e.
+---
+author: oompah
+created: 2026-08-04 01:20
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 87
+- Tokens: 2.1M in / 12.6K out [2.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 58s
+- Log: OOMPAH-746__20260804T011233Z.jsonl
+---
+author: oompah
+created: 2026-08-04 01:20
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
