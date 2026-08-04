@@ -2003,6 +2003,124 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def reclaim_abandoned(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        lease_owner: str,
+        lease_seconds: float,
+        expected_phase: str | None = None,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Rotate one known-abandoned lease without changing its attempt.
+
+        This is intentionally narrower than :meth:`recover_abandoned`.  A
+        restart recovery path that has proved one exact worker is gone may
+        take over only that job/token pair; it cannot disturb unrelated jobs
+        which happen to share a process-level ``lease_owner`` string.  The
+        checkpoint and phase are retained so an already-produced result can
+        be replayed instead of launching another provider attempt.
+        """
+
+        identifier = _required_text(job_id, "job_id")
+        previous_token = _required_text(lease_token, "lease_token")
+        owner = _required_text(lease_owner, "lease_owner")
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+        phase = (
+            _required_text(expected_phase, "expected_phase")
+            if expected_phase is not None
+            else None
+        )
+        timestamp = float(self._clock() if now is None else now)
+        replacement_token = uuid.uuid4().hex
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._row_locked(identifier)
+                if (
+                    str(existing["state"]) != WorkflowJobState.RUNNING.value
+                    or str(existing["lease_token"] or "") != previous_token
+                    or (phase is not None and str(existing["phase"]) != phase)
+                ):
+                    raise WorkflowJobLeaseLost(
+                        f"workflow job lease is not reclaimable: {identifier}"
+                    )
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET lease_owner = ?, lease_token = ?, lease_expires_at = ?,
+                           updated_at = ?
+                     WHERE job_id = ? AND state = ? AND lease_token = ?
+                    """,
+                    (
+                        owner,
+                        replacement_token,
+                        timestamp + float(lease_seconds),
+                        timestamp,
+                        identifier,
+                        WorkflowJobState.RUNNING.value,
+                        previous_token,
+                    ),
+                )
+                row = self._row_locked(identifier)
+                self._append_event_locked(
+                    row,
+                    "reclaimed",
+                    payload={"previous_lease_owner": existing["lease_owner"]},
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def cancel_owned(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        reason: str,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Cancel one running job only while the caller owns its exact lease."""
+
+        identifier = _required_text(job_id, "job_id")
+        message = _required_text(reason, "reason")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._owned_row_locked(identifier, lease_token, now=timestamp)
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, phase = 'complete', lease_owner = NULL,
+                           lease_token = NULL, lease_expires_at = NULL,
+                           retry_at = NULL, last_error = ?, updated_at = ?,
+                           completed_at = ?
+                     WHERE job_id = ?
+                    """,
+                    (
+                        WorkflowJobState.CANCELLED.value,
+                        message,
+                        timestamp,
+                        timestamp,
+                        identifier,
+                    ),
+                )
+                row = self._row_locked(identifier)
+                self._append_event_locked(
+                    row, "cancelled", payload={"reason": message}, now=timestamp
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def claim_next(
         self,
         *,
