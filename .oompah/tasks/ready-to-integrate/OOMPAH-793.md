@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:53:17.460071Z'
+updated_at: '2026-08-04T20:53:23.462703Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,10 @@ author: oompah
 created: 2026-08-04 20:53
 ---
 Repair pushed at a744be37d. Cherry-picked OOMPAH-805's event-driven fixes, then fixed the combined-tree closed-store regression and the two gate failures: owned Granian shutdown now proves process reaping and port release with a 30s two-lifecycle budget; GitHub claim-protocol orchestrators drain pools/stores before event-loop close. Verification: all four exact failures pass 10/10 repeated runs; the four affected modules pass with four-worker loadgroup xdist (119 passed); branch and canonical managed checkout are clean and exact-head aligned.
+---
+author: oompah
+created: 2026-08-04 20:53
+---
+Repaired full-gate fixture races at a744be37d; 40/40 repeated exact cases and 119/119 affected-module xdist tests pass. Resubmitting the clean new head for combined-tree integration.
 ---
 <!-- COMMENTS:END -->
