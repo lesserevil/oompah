@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-783
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Implement the durable workflow worker and resumable external-effect saga
 parent: OOMPAH-766
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T14:05:54.609801Z'
+updated_at: '2026-08-04T15:41:57.962186Z'
 work_branch: null
 target_branch: null
 review_url: null
