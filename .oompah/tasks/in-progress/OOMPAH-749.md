@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T00:52:06.829572Z'
+updated_at: '2026-08-04T00:56:52.460158Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-04 00:52
 ---
 Implementation: added state-filtered/keyset queue scans with opaque cursors; added configurable integration audit batch and Ready-claim timeout; moved integrated audit replay after live Ready/integrating groups; persisted cursor after each audit staging; added integration queue progress metrics and an idempotent degraded alert for overdue eligible Ready rows. Next I am adding regression coverage for restart/cursor bounds, live claim precedence, and dependency-blocked rows.
+---
+author: oompah
+created: 2026-08-04 00:56
+---
+Verification update: focused new regressions pass, including 200 historical integrated rows with live Ready claim first, bounded replay cursor resumption across restart, and degraded signaling that ignores dependency-blocked Ready rows. Running directly affected parallel-epic, standalone Ready, queue, and config suites next.
 ---
 <!-- COMMENTS:END -->
