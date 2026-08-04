@@ -8,10 +8,12 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
+- needs:feature
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:36:38.746311Z'
+updated_at: '2026-08-04T12:37:02.918122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -242,5 +244,14 @@ author: oompah
 created: 2026-08-04 12:36
 ---
 Continuation verification after rebase: python3 -m pytest -q tests/test_orchestrator_duplicate_detection.py::TestFocusHandoff tests/test_task_handoff.py tests/test_focus.py passed (224 passed in 12.57s). make test-setup could not provision the task-private venv because the installed snap uv failed to create a transient DBus scope; the already-provisioned Python test runtime was used for the focused suite. The prior run's full make test result remains 15,306 passed, but acceptance-specific gaps remain untested as noted above.
+---
+author: oompah
+created: 2026-08-04 12:36
+---
+Focus handoff: docs
+Outcome: recovered the prior implementation, rebased it cleanly onto origin/main, audited it against the issue acceptance criteria, and pushed commit 5bc692b04 on branch OOMPAH-760. No documentation change is warranted for this runtime-only bug.
+Evidence: changed files are oompah/acp_tools.py, oompah/focus.py, oompah/models.py, oompah/orchestrator.py, oompah/server.py, and tests/test_orchestrator_duplicate_detection.py. Focused handoff/capability/focus tests passed: 224 passed in 12.57s.
+Remaining work and risks: feature implementation must close restart recovery for a structured comment persisted while the task remains In Progress, require authenticated Oompah authorship for backfill, and add the exact docs -> feature race plus late/forced exit, retry/normal dispatch, restart-between-writes, already-completed, duplicate, and exactly-once successor tests. Re-run the focused suites and make test on the final head.
+Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->
