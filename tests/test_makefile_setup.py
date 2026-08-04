@@ -163,6 +163,10 @@ def test_quality_gate_fails_closed_with_incomplete_trusted_runtime(tmp_path):
 
 def test_non_gate_test_setup_still_installs_declared_dependencies():
     """Normal test setup retains the uv-managed dependency installation."""
+    environment = os.environ.copy()
+    # The assertion below deliberately covers the developer default, rather
+    # than a managed worker's task-private override.
+    environment.pop("OOMPAH_TASK_VENV", None)
     result = subprocess.run(
         [
             "/usr/bin/make",
@@ -173,6 +177,7 @@ def test_non_gate_test_setup_still_installs_declared_dependencies():
             "test-setup",
         ],
         cwd=ROOT,
+        env=environment,
         capture_output=True,
         text=True,
         check=True,
