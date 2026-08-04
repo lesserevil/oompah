@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T22:01:59.810867Z'
+updated_at: '2026-08-04T22:02:06.744422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,7 +50,18 @@ oompah.terminal_audit:
       source: api
     reason: '[REDACTED]'
     created_at: '2026-08-04T22:01:55.501074+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-793
+    target_state: Done
+    evidence_fingerprint: 8400b10bbea40f39b77a4f9f75576effcfef31fc57912cc18515aeae812ae021
+    audit_ids:
+    - audit-8b63c91a6c05
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T22:02:04.259317+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +69,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-793
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +94,7 @@ oompah.terminal_audit:
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T21:28:44.378297+00:00'
-    updated_at: '2026-08-04T21:35:31.640539+00:00'
+    updated_at: '2026-08-04T22:02:04.259278+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7e65eccae518
@@ -346,5 +357,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 5s
 - Log: OOMPAH-793__20260804T213608Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:02
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
