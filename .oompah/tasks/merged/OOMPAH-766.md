@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T17:01:02.419543Z'
+updated_at: '2026-08-04T17:01:07.723524Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -74,8 +74,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-48e0b754331c
-    applied: false
+    applied: true
     created_at: '2026-08-04T17:00:58.978184+00:00'
+    applied_at: '2026-08-04T17:01:06.584649+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -369,5 +370,23 @@ author: oompah
 created: 2026-08-04 16:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 17:01
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- target_branch: epic-OOMPAH-763
+- merge_commit: c2501e4ffdac5dd93f027b7f4e696818098d90c5
+- review_head: fd480f6bd8aeab2763b927bee841ffae52a345e1
+- merged_into_target: yes (both merge commit and review head are ancestors of origin/epic-OOMPAH-763)
+- pr_number: 713
+- source_branch: epic-OOMPAH-766
+- branch_gate: make test passed in 616.3s at review head
+- artifacts: oompah/workflow_jobs.py (1818 LOC), oompah/workflow_worker.py (690 LOC), oompah/workflow_scheduler.py (386 LOC), oompah/task_transition_service.py (1402 LOC), oompah/work_decision.py (1204 LOC), oompah/workflow_facts.py (1067 LOC), oompah/workflow_shadow.py (491 LOC), plus tests/test_workflow_jobs.py (610 LOC) and neighboring suites
+- test_coverage: tests cover concurrent claimers, exact-generation fencing, checkpoint restart replay, lease expiry/reclaim, retry exhaustion, cross-project isolation, bulk supersession scoping, schema migration and rejection
 ---
 <!-- COMMENTS:END -->
