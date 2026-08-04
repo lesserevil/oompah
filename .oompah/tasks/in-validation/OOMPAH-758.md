@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:13:22.145794Z'
+updated_at: '2026-08-04T12:14:01.788569Z'
 work_branch: OOMPAH-758
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/709
@@ -96,18 +96,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-758
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8ae9b9f500a2
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+      created_at: '2026-08-04T12:13:59.497912+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T12:13:59.497912+00:00'
+      branch_key: OOMPAH-758
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-04T12:13:11.213280+00:00'
+    updated_at: '2026-08-04T12:13:59.497912+00:00'
   - version: 1
     audit_id: audit-ea12b4d7896e
     project_id: proj-14849f1b
@@ -125,7 +139,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-04T12:13:11.213280+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-8ae9b9f500a2
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    created_at: '2026-08-04T12:13:59.497912+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T12:13:59.497912+00:00'
+    branch_key: OOMPAH-758
 ---
 ## Summary
 
