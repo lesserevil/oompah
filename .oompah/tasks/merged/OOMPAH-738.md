@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-04T00:04:46.477080Z'
+updated_at: '2026-08-04T00:18:28.245102Z'
 work_branch: OOMPAH-738
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/695
@@ -126,6 +126,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-dd774216a711: '2026-08-04T00:02:56.706320+00:00'
+    attempt-46d193eb7986: '2026-08-04T00:18:22.590012+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-738
@@ -136,6 +137,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T00:02:56.706332+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-738
+    target_state: Merged
+    evidence_fingerprint: c9037f2963016cf770d38c93a1acdaf552366bfd2b90070641e921a4aef5a6d5
+    audit_ids:
+    - audit-bb0db8f2d45d
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T00:18:22.590029+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-738
@@ -149,6 +159,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T00:02:56.706350+00:00'
     applied_at: '2026-08-04T00:03:03.026288+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-738
+    audit_id: audit-bb0db8f2d45d
+    attempt_id: attempt-46d193eb7986
+    target_state: Merged
+    evidence_fingerprint: c9037f2963016cf770d38c93a1acdaf552366bfd2b90070641e921a4aef5a6d5
+    status: Merged
+    audit_ids:
+    - audit-bb0db8f2d45d
+    applied: false
+    created_at: '2026-08-04T00:18:22.590049+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -210,7 +231,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-738
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,7 +240,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-46d193eb7986
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -229,13 +250,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T00:04:34.834555+00:00'
       branch_key: OOMPAH-738
+      verdict: pass
+      completed_at: '2026-08-04T00:18:22.589853+00:00'
+      ended_at: '2026-08-04T00:18:22.589853+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T23:15:50.105767+00:00'
-    updated_at: '2026-08-04T00:04:34.834555+00:00'
+    updated_at: '2026-08-04T00:18:22.589853+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8b7a918b3ab4
@@ -615,5 +639,20 @@ author: oompah
 created: 2026-08-04 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 00:18
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 5f89417c5547bb74e5c842ff59fc901b57b3831f
+- merge_commit: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+- pr_number: 695
+- gate_result: 15219 passed, 7 skipped, 1 xfailed in 408.19s
+- implementation_files_changed: oompah/orchestrator.py, oompah/server.py, oompah/terminal_transition_coordinator.py
+- tests_added_or_modified: tests/test_provider_retirement.py, tests/test_terminal_override.py, tests/test_terminal_status_interfaces.py, tests/test_orchestrator_duplicate_detection.py, tests/test_release_pick_validation.py, tests/test_storage_cleanup.py, tests/test_task_cost_telemetry.py
 ---
 <!-- COMMENTS:END -->
