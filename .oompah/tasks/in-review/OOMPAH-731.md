@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:56:40.837934Z'
+updated_at: '2026-08-04T00:57:13.893816Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
