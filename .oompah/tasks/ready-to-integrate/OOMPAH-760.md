@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:00:19.073282Z'
+updated_at: '2026-08-04T13:01:12.427575Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,13 +111,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: a45ff3fb-b8fd-4d27-9ea7-97762b0e123c
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2071
+  total_input_tokens: 122
+  total_output_tokens: 33007
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2071
+      cost_usd: 0.0
+    opus:
+      input_tokens: 112
+      output_tokens: 30936
       cost_usd: 0.0
   runs:
   - profile: default
@@ -126,6 +130,12 @@ oompah.task_costs:
     output_tokens: 2071
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:29:29.598893+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 112
+    output_tokens: 30936
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T13:01:10.029563+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-760__20260804T112834Z
@@ -310,5 +320,15 @@ author: oompah
 created: 2026-08-04 13:00
 ---
 Reject unidentified handoff comments and add regression tests for the OOMPAH-757 docs -> feature race, restart-between-writes, forced/late termination, duplicate mutation idempotence, already-completed focus, and explicit needs:feature routing. Combined with the prior handoff authority transition, focus completion is durable before the tracker is dispatchable and the successor focus starts exactly once.
+---
+author: oompah
+created: 2026-08-04 13:01
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 94
+- Tokens: 112 in / 30.9K out [31.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 15s
+- Log: OOMPAH-760__20260804T123803Z.jsonl
 ---
 <!-- COMMENTS:END -->
