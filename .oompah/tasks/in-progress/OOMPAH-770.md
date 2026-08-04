@@ -13,10 +13,11 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-765
 - OOMPAH-766
-labels: []
+labels:
+- rebase-requested
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-04T21:54:21.052162Z'
+updated_at: '2026-08-04T23:51:17.214227Z'
 work_branch: null
 target_branch: null
 review_url: null
