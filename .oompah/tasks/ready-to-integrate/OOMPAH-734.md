@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:40:29.462194Z'
+updated_at: '2026-08-04T01:41:25.795091Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -109,9 +109,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-734
-  head_sha: 17f0b2a29f70585105efbe3990ea7db1537c0986
-  submitted_at: '2026-08-03T21:11:19.480490+00:00'
-  updated_at: '2026-08-03T21:11:19.480490+00:00'
+  base_branch: main
+  head_sha: 199812413bb8d69f7485075f4e06d7b2c66c5ad5
+  submitted_at: '2026-08-04T01:41:21.872058+00:00'
+  updated_at: '2026-08-04T01:41:21.872058+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/698
 oompah.review_number: '698'
 oompah.work_branch: OOMPAH-734
@@ -619,5 +620,10 @@ Verification: focused suites all green after rebase.
 - tests/test_terminal_transition_coordinator.py, test_terminal_audit_enforcement.py, test_terminal_audit_health.py, test_terminal_audit_observability.py, test_auditor_result_api.py, test_auditor_dispatch.py, test_auditor_termination_cleanup.py: 342 passed
 - adjacent: tests/test_terminal_override.py, test_dashboard_terminal_audit_health.py, test_terminal_audit.py: 76 passed
 Force-pushed OOMPAH-734 to 199812413. Branch is 4 commits ahead of main.
+---
+author: oompah
+created: 2026-08-04 01:41
+---
+Rebased OOMPAH-734 onto main and resolved two merge conflicts. In terminal_audit_enforcement.py the enforcement init combined the main-branch _lifecycle_lock/_lifecycle_state_lock (from OOMPAH-737/738) with OOMPAH-734's finalization_failure_counts instrumentation — both are independent attributes needed for their respective concerns. In terminal_transition_coordinator.py the owner override path was aligned with the OOMPAH-734 commit-before-comment ordering: tracker status is written before the human-readable comment, so a comment failure cannot leave the tracker mid-transition and the persisted override intent covers restart reconciliation. Focused suites (test_terminal_transition_coordinator, test_terminal_audit_enforcement, test_terminal_audit_health, test_terminal_audit_observability, test_auditor_result_api, test_auditor_dispatch, test_auditor_termination_cleanup, test_terminal_override, test_dashboard_terminal_audit_health, test_terminal_audit) all pass (418 tests).
 ---
 <!-- COMMENTS:END -->
