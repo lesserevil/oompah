@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
 children: []
@@ -12,9 +12,10 @@ labels:
 - focus-complete:frontend
 - focus-complete:docs
 - ci-fix
+- merge-conflict
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:34:28.776387Z'
+updated_at: '2026-08-04T01:34:56.956021Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -581,5 +582,10 @@ author: oompah
 created: 2026-08-04 01:34
 ---
 Branch quality gate passed for `17f0b2a29f70585105efbe3990ea7db1537c0986` using `make test` in 408.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 01:34
+---
+YOLO: Merge conflict detected on MR #698. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
