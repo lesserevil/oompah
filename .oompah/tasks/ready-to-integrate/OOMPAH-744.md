@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:00:34.109613Z'
+updated_at: '2026-08-04T15:01:14.489029Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -82,13 +82,17 @@ oompah.integration:
   submitted_at: '2026-08-04T15:00:22.914116+00:00'
   updated_at: '2026-08-04T15:00:22.914116+00:00'
 oompah.task_costs:
-  total_input_tokens: 30
-  total_output_tokens: 2441
+  total_input_tokens: 130
+  total_output_tokens: 41239
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 30
       output_tokens: 2441
+      cost_usd: 0.0
+    opus:
+      input_tokens: 100
+      output_tokens: 38798
       cost_usd: 0.0
   runs:
   - profile: default
@@ -103,6 +107,12 @@ oompah.task_costs:
     output_tokens: 447
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:41:04.161294+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 100
+    output_tokens: 38798
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T15:01:09.273138+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-744__20260803T230325Z
@@ -322,5 +332,15 @@ author: oompah
 created: 2026-08-04 15:00
 ---
 Delivered atomic alert/health UI replacement on the rebased head. Retargeted _clearAllAlertAndHealthUI to current template IDs (post OOMPAH-741/742/743), added bounded _recordPresentationReplacementFailure, and phased clear/state/board try-catch in _applyFullSyncMessage. 8 new source-contract + Node-runtime tests plus 250+ focused adjacent tests pass.
+---
+author: oompah
+created: 2026-08-04 15:01
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 134, Tool calls: 94
+- Tokens: 100 in / 38.8K out [38.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 43s
+- Log: OOMPAH-744__20260804T144401Z.jsonl
 ---
 <!-- COMMENTS:END -->

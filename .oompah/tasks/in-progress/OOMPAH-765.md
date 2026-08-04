@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -15,14 +15,16 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T14:04:13.707021Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T15:01:32.949706Z'
+work_branch: epic-OOMPAH-765
+target_branch: epic-OOMPAH-763
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.target_branch: epic-OOMPAH-763
+oompah.work_branch: epic-OOMPAH-765
 ---
 ## Summary
 
