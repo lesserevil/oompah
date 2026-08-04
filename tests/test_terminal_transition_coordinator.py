@@ -2730,7 +2730,55 @@ class _StatusFailingTracker(_MemoryTracker):
         raise RuntimeError("status write failed")
 
 
+class _OrderingTracker(_MemoryTracker):
+    def __init__(self) -> None:
+        super().__init__()
+        self.events: list[str] = []
+
+    def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
+        self.events.append("metadata")
+        super().set_metadata_field(identifier, key, value)
+
+    def update_issue(self, identifier: str, **kwargs: Any) -> None:
+        self.events.append("status")
+        super().update_issue(identifier, **kwargs)
+
+    def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
+        self.events.append("comment")
+        return super().add_comment(identifier, text, author)
+
+
 class TestApplyCommentAndStatusFailures:
+    def test_terminal_status_is_accepted_before_result_comment(self) -> None:
+        tracker = _OrderingTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker, post_comments=True)
+
+        outcome = _run(coord.apply_audit_result(issue, _pass_result(record), PROJECT_ID))
+
+        assert outcome.success is True
+        assert outcome.posted_comment is True
+        assert tracker.events.index("metadata") < tracker.events.index("status")
+        assert tracker.events.index("status") < tracker.events.index("comment")
+
+    def test_status_failure_never_publishes_result_comment(self) -> None:
+        tracker = _StatusFailingTracker()
+        record = _pending_record(target=TargetState.DONE)
+        _seed_metadata(tracker, [record])
+        with tracker._lock:
+            tracker._statuses[TASK_ID] = IN_VALIDATION
+        issue = Issue(id=TASK_ID, identifier=TASK_ID, title="T", state=IN_VALIDATION)
+        coord = TerminalTransitionCoordinator(
+            tracker=tracker, project_store=_LockStore(), post_comments=True
+        )
+
+        outcome = _run(coord.apply_audit_result(issue, _pass_result(record), PROJECT_ID))
+
+        assert outcome.success is True
+        assert outcome.posted_comment is False
+        assert tracker.comment_calls == []
+
     def test_comment_failure_does_not_lose_audit_completion(self) -> None:
         tracker = _CommentFailingTracker()
         record = _pending_record(target=TargetState.DONE)
@@ -2773,6 +2821,41 @@ class TestApplyCommentAndStatusFailures:
         assert intents[0]["audit_id"] == record.audit_id
         assert intents[0]["status"] == DONE
         assert intents[0]["applied"] is False
+
+    def test_owner_override_revokes_auditor_authority_before_status(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_done_record()
+        _seed_metadata(tracker, [record])
+        revoked: list[tuple[str, str]] = []
+        coordinator = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=_LockStore(),
+            post_comments=False,
+            revoke_auditor_authority=lambda project, task: revoked.append(
+                (project, task)
+            ),
+        )
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                _fingerprint(),
+                "Owner approved this transition.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert revoked == [(PROJECT_ID, TASK_ID)]
 
 
 # ---------------------------------------------------------------------------

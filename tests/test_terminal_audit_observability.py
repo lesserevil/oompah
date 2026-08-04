@@ -318,6 +318,34 @@ def test_snapshot_discards_running_gauge_after_last_auditor_exits(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_snapshot_exposes_finalization_failure_separately(tmp_path: Path) -> None:
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._refresh_terminal_audit_health(
+            [],
+            scan_complete=True,
+            scan_error_count=0,
+            finalization_failure_count=1,
+        )
+
+        snapshot = orchestrator.get_snapshot()
+        health = snapshot["terminal_audit_health"]
+        assert health["finalization_failure_count"] == 1
+        assert health["transport_failure_count"] == 0
+        assert health["policy_incompatibility_count"] == 0
+        assert any(
+            str(alert["source"]).endswith("finalization_failures")
+            for alert in snapshot["alerts"]
+        )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_restart_reconciles_stale_no_candidate_alert_from_cancelled_metadata(
     tmp_path: Path,
 ) -> None:

@@ -76,6 +76,11 @@ class AuditHealthObservation:
     issue_created_at: datetime | str | None
     record: TerminalAuditRecord | None
     quarantined: bool = False
+    # Durable result/intent failures are tracked separately from provider
+    # transport and local auditor-policy failures.  A non-zero value means a
+    # verdict was produced (or the finalization boundary was exhausted) but
+    # the authoritative terminal status has not been acknowledged yet.
+    finalization_failure_count: int = 0
 
 
 @dataclass
@@ -91,6 +96,7 @@ class TerminalAuditHealth:
     launch_failure_count: int = 0
     transport_failure_count: int = 0
     policy_incompatibility_count: int = 0
+    finalization_failure_count: int = 0
     retry_exhausted_count: int = 0
     quarantined_count: int = 0
     stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS
@@ -104,6 +110,7 @@ class TerminalAuditHealth:
             self.launch_failure_count
             + self.transport_failure_count
             + self.policy_incompatibility_count
+            + self.finalization_failure_count
         )
 
     @property
@@ -112,6 +119,7 @@ class TerminalAuditHealth:
             self.launch_failure_count
             or self.transport_failure_count
             or self.policy_incompatibility_count
+            or self.finalization_failure_count
             or self.stale_pending_count
             or self.stale_in_validation_count
             or self.retry_exhausted_count
@@ -130,6 +138,7 @@ class TerminalAuditHealth:
             "launch_failure_count": self.launch_failure_count,
             "transport_failure_count": self.transport_failure_count,
             "policy_incompatibility_count": self.policy_incompatibility_count,
+            "finalization_failure_count": self.finalization_failure_count,
             "failure_count": self.failure_count,
             "retry_exhausted_count": self.retry_exhausted_count,
             "quarantined_count": self.quarantined_count,
@@ -157,6 +166,7 @@ class TerminalAuditHealth:
             "launch_failure_count",
             "transport_failure_count",
             "policy_incompatibility_count",
+            "finalization_failure_count",
             "retry_exhausted_count",
             "quarantined_count",
             "stale_after_seconds",
@@ -224,6 +234,8 @@ def _failure_kind(attempt: AuditAttempt) -> str | None:
         return "transport"
     if classification == FailureClassification.POLICY_INCOMPATIBILITY:
         return "policy"
+    if classification == FailureClassification.FINALIZATION_FAILURE:
+        return "finalization"
     if any(phrase in low for phrase in _LAUNCH_PHRASES):
         return "launch"
     if any(phrase in low for phrase in _TRANSPORT_PHRASES):
@@ -264,6 +276,7 @@ def build_terminal_audit_health(
     launch_failures = 0
     transport_failures = 0
     policy_incompatibilities = 0
+    finalization_failures = 0
     exhausted = 0
     quarantined = 0
     oldest: datetime | None = None
@@ -287,6 +300,15 @@ def build_terminal_audit_health(
             observation = raw_observation
             record = observation.record
 
+        if observation.finalization_failure_count:
+            count = max(0, int(observation.finalization_failure_count))
+            finalization_failures += count
+            increment(
+                observation.project_id,
+                "finalization_failure_count",
+                count,
+            )
+
         if observation.quarantined:
             quarantined += 1
             increment(observation.project_id, "quarantined_count")
@@ -294,6 +316,10 @@ def build_terminal_audit_health(
 
         if record is None:
             # In Validation task with no usable metadata — stale validation signal
+            if observation.finalization_failure_count:
+                # A completed verdict waiting for status acknowledgement is a
+                # finalization failure, not missing audit metadata.
+                continue
             issue_ts = _parse_timestamp(observation.issue_created_at)
             if issue_ts is not None:
                 age = (current_time - issue_ts).total_seconds()
@@ -359,6 +385,9 @@ def build_terminal_audit_health(
                 elif kind == "policy":
                     policy_incompatibilities += 1
                     increment(observation.project_id, "policy_incompatibility_count")
+                elif kind == "finalization":
+                    finalization_failures += 1
+                    increment(observation.project_id, "finalization_failure_count")
 
     oldest_at: str | None = _timestamp(oldest) if oldest is not None else None
     oldest_age: int | None = (
@@ -375,6 +404,7 @@ def build_terminal_audit_health(
         launch_failure_count=launch_failures,
         transport_failure_count=transport_failures,
         policy_incompatibility_count=policy_incompatibilities,
+        finalization_failure_count=finalization_failures,
         retry_exhausted_count=exhausted,
         quarantined_count=quarantined,
         stale_after_seconds=stale_after_seconds,
@@ -431,6 +461,21 @@ def terminal_audit_health_alerts(
                 "stopped by the local read-only tool policy."
             ),
             "Update the auditor tool catalog or prompt contract; this is not a provider transport outage.",
+        )
+
+    if health.finalization_failure_count:
+        add(
+            "finalization_failures",
+            "error",
+            "Terminal-audit verdict finalization is incomplete",
+            (
+                f"{health.finalization_failure_count} terminal-audit verdict(s) "
+                "are waiting for durable status finalization."
+            ),
+            (
+                "Restore tracker writes or restart audit enforcement; do not "
+                "infer an outcome from a comment alone."
+            ),
         )
 
     if health.retry_exhausted_count:

@@ -1159,3 +1159,169 @@ class TestToolPolicy:
         )
         assert response.startswith("Error:")
         assert "restricted to an auditor session" in response
+
+    def test_api_auditor_final_turn_commits_once_and_stops_session(self, tmp_path):
+        """Acceptance on the boundary turn must not consume another model turn."""
+        from oompah.api_agent import ApiAgentSession
+
+        target = _target()
+        calls = 0
+        handler_calls = []
+
+        async def fake_call(_messages):
+            nonlocal calls
+            calls += 1
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "submit-1",
+                                    "function": {
+                                        "name": AUDITOR_RESULT_TOOL_NAME,
+                                        "arguments": json.dumps(_valid_args(target)),
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ]
+            }
+
+        session = ApiAgentSession(
+            base_url="https://example.test",
+            api_key="key",
+            model="model",
+            workspace_path=str(tmp_path),
+            max_turns=1,
+            enabled_tools={AUDITOR_RESULT_TOOL_NAME},
+            action_policy=auditor_policy(task_identifier=target.task_id),
+            audit_target=target,
+            audit_result_handler=lambda result: (
+                handler_calls.append(result) or {"accepted": True}
+            ),
+        )
+        session._call_api = fake_call
+
+        result = asyncio.run(session.run_task("inspect and submit"))
+
+        assert result.status == "succeeded"
+        assert result.turns == 1
+        assert calls == 1
+        assert len(handler_calls) == 1
+
+    def test_api_auditor_reserves_finalization_after_last_ordinary_verdict(
+        self, tmp_path, monkeypatch
+    ):
+        """A prose verdict on the last ordinary turn cannot end the session."""
+        from oompah.api_agent import ApiAgentSession
+
+        target = _target()
+        payloads = []
+        handler_calls = []
+
+        def fake_post(_url, _headers, body, _ssl_ctx):
+            payload = json.loads(body)
+            payloads.append(payload)
+            if len(payloads) == 1:
+                return {
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "content": "Audit PASS — Done",
+                                "tool_calls": None,
+                            },
+                        }
+                    ]
+                }
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "submit-final",
+                                    "function": {
+                                        "name": AUDITOR_RESULT_TOOL_NAME,
+                                        "arguments": json.dumps(_valid_args(target)),
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ]
+            }
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+        session = ApiAgentSession(
+            base_url="https://example.test",
+            api_key="key",
+            model="model",
+            workspace_path=str(tmp_path),
+            max_turns=2,
+            enabled_tools={"read_file", AUDITOR_RESULT_TOOL_NAME},
+            action_policy=auditor_policy(task_identifier=target.task_id),
+            audit_target=target,
+            audit_result_handler=lambda result: (
+                handler_calls.append(result) or {"accepted": True}
+            ),
+        )
+
+        result = asyncio.run(session.run_task("inspect and submit"))
+
+        assert result.status == "succeeded"
+        assert result.turns == 2
+        assert len(handler_calls) == 1
+        assert payloads[0]["tool_choice"] == "auto"
+        assert payloads[1]["tool_choice"]["function"]["name"] == (
+            AUDITOR_RESULT_TOOL_NAME
+        )
+        assert [
+            tool["function"]["name"] for tool in payloads[1]["tools"]
+        ] == [AUDITOR_RESULT_TOOL_NAME]
+        assert "reserved audit-finalization turn" in payloads[1]["messages"][-1][
+            "content"
+        ]
+
+    def test_api_auditor_prose_verdict_cannot_mask_uncommitted_exit(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+
+        target = _target()
+        handler_calls = []
+
+        async def fake_call(_messages):
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": "Audit PASS — Done",
+                            "tool_calls": None,
+                        },
+                    }
+                ]
+            }
+
+        session = ApiAgentSession(
+            base_url="https://example.test",
+            api_key="key",
+            model="model",
+            workspace_path=str(tmp_path),
+            max_turns=1,
+            enabled_tools={AUDITOR_RESULT_TOOL_NAME},
+            action_policy=auditor_policy(task_identifier=target.task_id),
+            audit_target=target,
+            audit_result_handler=lambda result: handler_calls.append(result),
+        )
+        session._call_api = fake_call
+
+        result = asyncio.run(session.run_task("inspect and submit"))
+
+        assert result.status == "max_turns"
+        assert handler_calls == []

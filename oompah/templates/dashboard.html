@@ -3317,6 +3317,11 @@ function renderTerminalAuditHealth(health) {
       health.transport_failure_count + ' transport failure(s)'
     );
   }
+  if (health.finalization_failure_count > 0) {
+    parts.push(
+      health.finalization_failure_count + ' uncommitted audit finalization failure(s)'
+    );
+  }
   if (health.retry_exhausted_count > 0) {
     parts.push(health.retry_exhausted_count + ' audit(s) with exhausted retries');
   }

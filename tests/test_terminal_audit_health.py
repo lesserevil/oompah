@@ -77,6 +77,7 @@ def _obs(
     issue_identifier: str = "TASK-1",
     issue_created_at: datetime | None = None,
     quarantined: bool = False,
+    finalization_failure_count: int = 0,
 ) -> AuditHealthObservation:
     return AuditHealthObservation(
         project_id=project_id,
@@ -84,6 +85,7 @@ def _obs(
         issue_created_at=issue_created_at or NOW,
         record=record,
         quarantined=quarantined,
+        finalization_failure_count=finalization_failure_count,
     )
 
 
@@ -101,6 +103,23 @@ class TestEmptyBacklog:
         assert health.in_progress_count == 0
         alerts = terminal_audit_health_alerts(health)
         assert alerts == [], f"Expected no alerts, got: {alerts}"
+
+    def test_uncommitted_finalization_is_distinct_and_actionable(self):
+        health = build_terminal_audit_health(
+            [_obs(record=None, finalization_failure_count=1)],
+            now=NOW,
+        )
+
+        assert health.finalization_failure_count == 1
+        assert health.transport_failure_count == 0
+        assert health.policy_incompatibility_count == 0
+        assert health.stale_in_validation_count == 0
+        alerts = terminal_audit_health_alerts(health)
+        finalization = next(
+            alert for alert in alerts if alert["source"].endswith("finalization_failures")
+        )
+        assert "durable status" in finalization["detail"]
+        assert "comment" in finalization["action"]
 
     def test_empty_health_to_dict_has_expected_keys(self):
         health = TerminalAuditHealth()

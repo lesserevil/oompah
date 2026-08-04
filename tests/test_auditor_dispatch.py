@@ -16,6 +16,12 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
 )
+from oompah.orchestrator import auditor_turn_budget
+
+
+def test_auditor_budget_reserves_one_non_starvable_finalization_turn() -> None:
+    assert auditor_turn_budget(100, auditor=True) == 101
+    assert auditor_turn_budget(100, auditor=False) == 100
 
 
 class _Selector:

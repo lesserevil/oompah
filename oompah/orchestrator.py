@@ -196,6 +196,26 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
+
+
+_TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+
+# A structured verdict is a durable authority hand-off, not ordinary model
+# work.  Reserve one provider turn for submit_audit_result after the ordinary
+# configured budget has been consumed.  The coordinator remains idempotent,
+# so a provider retry cannot apply the terminal transition twice.
+AUDITOR_FINALIZATION_TURN_RESERVE = 1
+
+
+def auditor_turn_budget(ordinary_turns: int, *, auditor: bool) -> int:
+    """Return the provider budget with a non-starvable auditor finalization turn."""
+
+    budget = max(1, int(ordinary_turns))
+    if auditor:
+        budget += AUDITOR_FINALIZATION_TURN_RESERVE
+    return budget
+
+
 from oompah.archived_audit_requests import request_archived_audit
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
@@ -1278,6 +1298,7 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
+            revoke_auditor_authority=self._revoke_auditor_authority,
             clear_audit_alert=self.clear_terminal_audit_alert,
             validate_terminal_transition=self._validate_terminal_transition,
         )
@@ -1929,6 +1950,9 @@ class Orchestrator:
                 ],
                 scan_complete=bool(result.get("scan_complete", True)),
                 scan_error_count=int(result.get("scan_error_count", 0)),
+                finalization_failure_count=sum(
+                    self._terminal_audit_enforcement.finalization_failure_counts.values()
+                ),
             )
             for entry in self._terminal_audit_enforcement.state.grandfathered:
                 metrics.record_grandfathered(
@@ -2279,12 +2303,34 @@ class Orchestrator:
         self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
         self._sync_terminal_audit_observability_alerts()
 
+    @staticmethod
+    def _uncommitted_terminal_result_intents(
+        document: Any,
+        project_id: str | None,
+        task_id: str,
+    ) -> int:
+        """Count only durable, identity-matched result intents still pending."""
+
+        unknown = getattr(document, "unknown_fields", {})
+        raw_intents = unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+        if not isinstance(raw_intents, list):
+            return 0
+        return sum(
+            1
+            for raw in raw_intents
+            if isinstance(raw, Mapping)
+            and raw.get("applied", True) is False
+            and raw.get("project_id") == str(project_id or "")
+            and raw.get("task_id") == str(task_id)
+        )
+
     def _refresh_terminal_audit_health(
         self,
         observations: list[AuditHealthObservation],
         *,
         scan_complete: bool,
         scan_error_count: int,
+        finalization_failure_count: int = 0,
     ) -> None:
         """Replace the derived audit-health alerts after a queue scan.
 
@@ -2303,6 +2349,10 @@ class Orchestrator:
             scan_complete=scan_complete,
             scan_error_count=scan_error_count,
         )
+        if finalization_failure_count:
+            health.finalization_failure_count += max(
+                0, int(finalization_failure_count)
+            )
         self._audit_health = health
         # Update the raw metrics so callers reading _audit_metrics still work.
         self._audit_metrics.update({
@@ -2311,6 +2361,7 @@ class Orchestrator:
             "launch_failure_count": health.launch_failure_count,
             "transport_failure_count": health.transport_failure_count,
             "policy_incompatibility_count": health.policy_incompatibility_count,
+            "finalization_failure_count": health.finalization_failure_count,
             "retry_exhausted_count": health.retry_exhausted_count,
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
             "stale_in_validation_count": health.stale_in_validation_count,
@@ -6641,6 +6692,13 @@ class Orchestrator:
                     self._tick_pool, store.read, issue.identifier
                 )
                 record = AuditorDispatchLane.pending_record(document.pending_chain)
+                finalization_failure_count = (
+                    self._uncommitted_terminal_result_intents(
+                        document,
+                        issue.project_id,
+                        issue.identifier,
+                    )
+                )
                 # Collect a health observation for this In Validation task regardless
                 # of whether it has a pending record.  The observation is used by
                 # _refresh_terminal_audit_health() to compute backlog age and stale-
@@ -6652,6 +6710,7 @@ class Orchestrator:
                         issue_created_at=issue.created_at,
                         record=record,
                         quarantined=document.is_quarantined,
+                        finalization_failure_count=finalization_failure_count,
                     )
                 )
                 if record is None:
@@ -9119,6 +9178,38 @@ class Orchestrator:
             self._alerts = [
                 alert for alert in self._alerts if alert.get("source") != source
             ]
+
+    def _revoke_auditor_authority(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Stop every live auditor before an owner takes terminal authority."""
+
+        matching: list[str] = []
+        for issue_id, entry in list(self.state.running.items()):
+            issue = getattr(entry, "issue", None)
+            if not getattr(entry, "is_auditor", False):
+                continue
+            if str(getattr(issue, "project_id", "") or "") != str(project_id):
+                continue
+            if str(getattr(entry, "identifier", "") or "") != str(task_id):
+                continue
+            entry.authority_revoked = True
+            entry.authority_revocation_reason = "owner override acquired terminal authority"
+            entry.forced_exit_reason = "authority_revoked"
+            entry.forced_exit_error = entry.authority_revocation_reason
+            matching.append(issue_id)
+
+        # The coordinator invokes this from its serialized project operation,
+        # which may run in a worker thread.  The termination helper marshals
+        # onto the provider/session loop and fences the exact runtime entry.
+        for issue_id in matching:
+            self._schedule_running_termination(
+                issue_id,
+                cleanup_workspace=False,
+                task_name_prefix="retire-revoked-auditor",
+            )
 
     def _revoke_inactive_standalone_delivery_authorities(
         self,
@@ -29384,7 +29475,8 @@ class Orchestrator:
         worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
-        max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        ordinary_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        max_turns = auditor_turn_budget(ordinary_turns, auditor=forced_auditor)
 
         # Select focus first so its (optional) model/provider overrides
         # participate in resolution. See plans/per-focus-models.md and
@@ -30123,7 +30215,8 @@ class Orchestrator:
         # next dispatch candidate (next model in the role's priority list)
         # instead of being booked as a terminal worker exit.
         startup_failover = False
-        max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        ordinary_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        max_turns = auditor_turn_budget(ordinary_turns, auditor=forced_auditor)
 
         if forced_auditor:
             focus = select_reserved_focus(AUDITOR_FOCUS_NAME)
@@ -32670,9 +32763,11 @@ class Orchestrator:
     ) -> bool:
         """Persist an auditor exit only if no structured result won the race.
         
-        Transient failures (crash, timeout, transport error) are classified as
-        INFRASTRUCTURE_ERROR to distinguish them from terminal audit failures.
-        The attempt is marked for retry with the next candidate.
+        Transient crashes/timeouts are classified as infrastructure errors.
+        A normal or max-turn exit without a structured coordinator result is
+        a finalization failure, while exhausted command-policy denials retain
+        their own classification. The attempt is marked for retry with the
+        next candidate.
         """
 
         if not entry.audit_attempt_id:
@@ -32695,6 +32790,20 @@ class Orchestrator:
                 # The result coordinator already completed (or superseded)
                 # this target. Never overwrite that decision with a crash.
                 return False
+            submitted_attempt = next(
+                (
+                    attempt
+                    for attempt in target.attempts
+                    if attempt.attempt_id == entry.audit_attempt_id
+                ),
+                None,
+            )
+            if submitted_attempt is not None and submitted_attempt.verdict is not None:
+                # Nonterminal ERROR/infrastructure results are still
+                # structured coordinator submissions. Their persisted
+                # classification owns the attempt even though the audit stays
+                # pending for a retry.
+                return False
             rotation = next(
                 (
                     attempt.candidate_rotation_count
@@ -32706,6 +32815,8 @@ class Orchestrator:
             failure_classification = (
                 FailureClassification.POLICY_INCOMPATIBILITY
                 if reason == "auditor_policy_denial_exhausted"
+                else FailureClassification.FINALIZATION_FAILURE
+                if reason in {"normal", "max_turns"}
                 else FailureClassification.INFRASTRUCTURE_ERROR
             )
             updated = AuditorDispatchLane.finish_attempt(

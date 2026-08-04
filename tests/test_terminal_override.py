@@ -620,10 +620,10 @@ async def test_metadata_failure_precedes_comment_and_status(
 
 
 @pytest.mark.asyncio
-async def test_comment_failure_precedes_status_write(
+async def test_comment_failure_follows_status_write(
     coordinator, tracker, project_id, task_id, fingerprint, owner_identity
 ):
-    """A missing durable comment prevents applying the terminal target."""
+    """A comment failure cannot undo the authoritative terminal target."""
     issue = Issue(
         id=task_id,
         identifier=task_id,
@@ -651,9 +651,9 @@ async def test_comment_failure_precedes_status_write(
     assert result.success is False
     assert result.error_code == "comment_failed"
     assert result.posted_comment is False
-    assert tracker.status_updates == []
-    # The audit record is intentionally durable even though application waits
-    # for the comment, allowing a later retry or human recovery.
+    assert tracker.status_updates == [(task_id, DONE)]
+    # The override record remains durable so recovery can reconcile the
+    # post-status comment/finalization failure without repeating authority.
     stored = tracker.get_metadata(task_id)[METADATA_KEY]
     assert stored["oompah.terminal_override_records"]
 
