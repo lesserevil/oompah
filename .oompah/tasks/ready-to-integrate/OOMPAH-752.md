@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-752
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Select standalone Ready delivery fairly before claiming task authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:15:01.338659Z'
+updated_at: '2026-08-04T02:15:23.795189Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5e9e1235-5a50-4579-a336-777b297df5da
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1899
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-752
     source_sha: 18e18a6b63b2f9a522b17c0132dac0f5a0d9e487
     completed_at: '2026-08-04T01:59:43.055027+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-752
+  head_sha: 45fd50c6f56f22d8195ee2cb67ab84c57918d5ac
+  submitted_at: '2026-08-04T02:15:14.140879+00:00'
+  updated_at: '2026-08-04T02:15:14.140879+00:00'
 ---
 ## Summary
 
@@ -162,5 +170,10 @@ author: oompah
 created: 2026-08-04 02:15
 ---
 Completion: delivered fair standalone Ready selection on the pushed branch. Candidates are staged without unselected authority claims, ordered by priority and submitted-at FIFO, invalid rows fall through within the snapshot, and capacity waits remain informational and retry-safe. Existing review adoption, exact-head fencing, dependency ordering, restart/retry, gate, and per-project reservation behavior are preserved. Final focused verification: 60 passed.
+---
+author: oompah
+created: 2026-08-04 02:15
+---
+Fair standalone Ready delivery selection with priority/FIFO ordering, bounded fallback, and truthful capacity waits; 60 focused tests pass.
 ---
 <!-- COMMENTS:END -->
