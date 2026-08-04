@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-496
 type: chore
-status: Merged
+status: In Validation
 priority: 2
 title: Consolidate removed draft-epic and epic-strategy UI contracts
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-07-28T17:10:45.710930Z'
+updated_at: '2026-08-04T17:26:36.698896Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -36,6 +36,28 @@ oompah.task_costs:
     output_tokens: 3230
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:03:53.321132+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d98d3a4af4ba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-496
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89b900d705681485e5a047701580def68e7c2765bc07eedb8c959717e156d346
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:26:30.466347+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -233,5 +255,10 @@ author: oompah
 created: 2026-07-28 16:15
 ---
 Consolidated retired draft-epic and epic-strategy UI regression contracts; baseline 59 tests reduced to 8, focused suite passes, and commit bba2829f0 is pushed.
+---
+author: oompah
+created: 2026-08-04 17:26
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
