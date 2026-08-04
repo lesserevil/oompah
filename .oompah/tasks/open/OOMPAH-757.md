@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:26:01.263049Z'
+updated_at: '2026-08-04T11:26:28.164488Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,25 @@ author: oompah
 created: 2026-08-04 11:25
 ---
 Understanding: This is a backend bug, not a documentation gap. The fix must add durable, service-authored canonical landing mappings for authorized conflict-resolved epic rebases, validate freshness/completeness/epic identity, and preserve fail-closed review readiness. In the assigned docs focus I will locate the concrete implementation and test surfaces, confirm whether any documentation change is warranted, then leave a Focus handoff: docs comment and route to needs:feature without changing behavior.
+---
+author: oompah
+created: 2026-08-04 11:26
+---
+Operator recovery for OOMPAH-760: persisted focus-complete:docs from the trusted Oompah-authored HANDOFF so this task cannot select Technical Writer again. Returning the current repeated docs run to Open; needs:feature remains present, so the next fresh dispatch should select Feature Developer/backend implementation. No repository or task implementation state was changed.
+---
+author: oompah
+created: 2026-08-04 11:26
+---
+Discovery: The failure seam is concrete. oompah/integration.py IntegrationRecord v2 stores only one task's base/head/integrated SHAs. oompah/orchestrator.py complete_direct_epic_maintenance_submission validates and records the rebase helper's published epic head, but records no per-child old-to-canonical commit ranges. Landing consumers _child_has_durable_landing_evidence, _trusted_completion_evidence_landed, and _child_landing_evidence_block_reason ultimately call _reported_commit_landed_on_refs, which accepts ancestry or complete git-cherry patch equivalence only; a validated conflict-resolved rewrite with changed patch IDs therefore cannot pass. docs/task-epic-workflow.md already states the correct user-facing invariant (positive landing evidence before rollup review), so no documentation correction is warranted before the backend evidence contract exists.
+---
+author: oompah
+created: 2026-08-04 11:26
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 22
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 53s
+- Log: OOMPAH-757__20260804T112441Z.jsonl
 ---
 <!-- COMMENTS:END -->

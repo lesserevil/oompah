@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:26:08.262288Z'
+updated_at: '2026-08-04T11:26:14.292013Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,22 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: bb6e8c860a59e485f7fe05ccb24c81ede6c25855a124e618d66b211dbe3fab1d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T11:26:05.807958+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 126ce6a7-92fe-42bd-a40d-50838b098d5d
-  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
-  claimed_at: '2026-08-04T11:24:43.469437+00:00'
-  claim_expires_at: '2026-08-04T11:54:43.469437+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed the supplied peer corpus; no active nonterminal\
+    \ task covers this retry-dispatch authority regression. Closest candidates, OOMPAH-10\
+    \ and OOMPAH-270, are archived and address unrelated tracker-sync and git-lock\
+    \ issues.\nFocus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: Reviewed the supplied peer corpus; no active\
+    \ nonterminal task covers this retry-dispatch authority regression. Closest candidates,\
+    \ OOMPAH-10 and OOMPAH-270, are archived and address unrelated tracker-sync and\
+    \ git-lock issues."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -52,6 +60,16 @@ oompah.task_costs:
     output_tokens: 294
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:26:05.806108+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-759__20260804T112522Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-759
+    source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    completed_at: '2026-08-04T11:26:05.823955+00:00'
 ---
 ## Summary
 

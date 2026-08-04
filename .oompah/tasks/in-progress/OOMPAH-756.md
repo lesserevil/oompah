@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:12:33.435354Z'
+updated_at: '2026-08-04T11:26:26.261348Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,23 @@ PLAN:
 5. Add comprehensive tests for restart scenarios, branch presence/deletion, wrong targets, unreachable merges, and parent landing timing
 
 RELEVANT CODE: orchestrator.py - _epic_auto_close_check, _label_merged_epics, review readiness, terminal_transition_coordinator, and nested target resolution
+---
+author: oompah
+created: 2026-08-04 11:26
+---
+DISCOVERY: The issue is in _reconcile_stale_in_review_tasks (line 21455). This function handles In Review issues whose PR is no longer open. However, it has no special handling for nested epic parents.
+
+The problem:
+1. Nested epic EXOCOMP-128 is in IN_REVIEW with parent EXOCOMP-127
+2. PR 21 merged epic-EXOCOMP-128 to epic-EXOCOMP-127 (parent branch, not main)
+3. _reconcile_stale_in_review_tasks checks if the epic branch merged to the default target (main) using _merged_branches or find_pr_for_branch
+4. It doesn't recognize that the epic HAS merged to its target-relative destination (parent branch)
+5. Meanwhile, _label_merged_epics should catch this, but only if _resolve_epic_target_branch succeeds and _epic_branch_landed_on_target finds the merged PR
+
+SOLUTION: Make _reconcile_stale_in_review_tasks target-relative for nested epics:
+- When processing an IN_REVIEW epic with a parent, resolve its target branch (parent's branch)
+- Check if the epic's branch merged to that target using _epic_branch_landed_on_target
+- If yes, route through coordinator to mark it MERGED
+- This complements _label_merged_epics and handles restart/cache race scenarios
 ---
 <!-- COMMENTS:END -->
