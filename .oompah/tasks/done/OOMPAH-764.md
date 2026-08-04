@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:49:07.862185Z'
+updated_at: '2026-08-04T21:26:20.832822Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -219,5 +219,10 @@ author: oompah
 created: 2026-08-04 14:49
 ---
 Branch quality gate passed for `73f5aeb26fc91f62a0bd9ac5ba544582b761f811` using `make test` in 441.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 21:26
+---
+Rollup repair: branch epic-OOMPAH-764 at 73f5aeb26 is an exact Git ancestor of parent branch epic-OOMPAH-763 at f1e7925b7, so the epic is landed rather than merely done-on-branch. Revalidating as Merged to restore truthful nested-epic evidence. OOMPAH-791 owns the systemic LandingFact/auto-close fix that prevents recurrence.
 ---
 <!-- COMMENTS:END -->
