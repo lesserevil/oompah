@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-04T22:58:53.879578Z'
+updated_at: '2026-08-04T22:59:19.269760Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,11 @@ Live reproduction on 2026-08-04: OOMPAH-791 was submitted/queued at f8f9d382c43d
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 22:59
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+<!-- COMMENTS:END -->
