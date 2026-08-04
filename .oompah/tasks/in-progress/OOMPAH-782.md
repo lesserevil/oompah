@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:50:31.961105Z'
+updated_at: '2026-08-04T20:51:00.145035Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ created: 2026-08-04 20:50
 ---
 Verification update: after final classification coverage, focused suites pass 172 passed, 2 skipped. Terminal mutation scan passed: 8 identified, 8 explicitly allowlisted. passes (8/8 allowlisted) and make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-782'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-782' exits successfully. The Makefile terminal-audit target could not initialize its task venv because the environment's uv setup hit a DBus kernel-thread error; the underlying scanner passes directly.
+---
+author: oompah
+created: 2026-08-04 20:51
+---
+Verification final: added regression coverage for a deleted source after merge; the exact-head LandingFact still drives terminal Merged. Focused review/decision/fact/reason/queue/forge/capacity/UI suites now pass 173 passed, 2 skipped. Git diff check and compile checks pass.
 ---
 <!-- COMMENTS:END -->
