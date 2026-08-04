@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T00:07:16.969314Z'
+updated_at: '2026-08-04T00:08:28.996071Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -273,5 +273,10 @@ author: oompah
 created: 2026-08-04 00:07
 ---
 Verification update: make test was attempted on e3f2f2750 but stopped before collection because the task-private venv is absent and sandboxed uv cannot create a DBus transient scope (kernel-thread rejection). Fallback full pytest collected 15,246 tests; it exposed only the known OOMPAH-675 order-dependent xdist timeout regressions. Those exact tests pass in isolation (3/3), as do the 149 directly affected tests. scripts/find_terminal_mutations.py oompah also passed (8 allowlisted mutations).
+---
+author: oompah
+created: 2026-08-04 00:08
+---
+Completion: pushed 2361ecf83 (OOMPAH-745: Cover dashboard alert experience). Delivered deterministic headless-Chrome alert coverage plus the one-visible-surface contract, updated legacy regression expectations, and documented operator behavior. Final focused verification: 149 passed; terminal mutation scan passed; branch is clean and up to date with origin. The attempted Makefile gate is blocked only by the sandboxed uv transient-scope error, while the fallback broad-suite timeout flake is recorded above and passes in isolation.
 ---
 <!-- COMMENTS:END -->
