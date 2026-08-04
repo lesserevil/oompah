@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-04T00:09:58.279064Z'
+updated_at: '2026-08-04T00:12:59.952036Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -822,6 +822,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-03T23:58:57.819848+00:00'
     updated_at: '2026-08-04T00:08:06.201306+00:00'
+  - version: 1
+    audit_id: audit-e58553fbb0d7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-04T00:12:56.078817+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
