@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T12:10:06.246634Z'
+updated_at: '2026-08-04T12:23:35.797421Z'
 work_branch: OOMPAH-756
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/708
@@ -100,6 +100,31 @@ oompah.work_branch: OOMPAH-756
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-d508382b5496: '2026-08-04T12:23:27.329319+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-756
+    target_state: Done
+    evidence_fingerprint: cb6e410c1f567309cc0ac850c322361c63885a30eccb18f3ad0dfdd70c2170c4
+    audit_ids:
+    - audit-54f8209d9e47
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T12:23:27.329331+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-756
+    audit_id: audit-54f8209d9e47
+    attempt_id: attempt-d508382b5496
+    target_state: Done
+    evidence_fingerprint: cb6e410c1f567309cc0ac850c322361c63885a30eccb18f3ad0dfdd70c2170c4
+    status: In Validation
+    audit_ids:
+    - audit-54f8209d9e47
+    applied: true
+    created_at: '2026-08-04T12:23:27.329349+00:00'
+    applied_at: '2026-08-04T12:23:33.611117+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -107,7 +132,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-756
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,7 +160,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d508382b5496
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -146,13 +171,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T12:09:59.115945+00:00'
       branch_key: OOMPAH-756
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T12:23:27.329158+00:00'
+      ended_at: '2026-08-04T12:23:27.329158+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T11:54:17.062020+00:00'
-    updated_at: '2026-08-04T12:09:59.115945+00:00'
+    updated_at: '2026-08-04T12:23:27.329158+00:00'
   - version: 1
     audit_id: audit-2f19fb64b177
     project_id: proj-14849f1b
@@ -400,5 +428,21 @@ author: oompah
 created: 2026-08-04 12:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 12:23
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 1263f924583e55b0ef7b77f0e074bdeab55f344f
+- new_tests: 8 passed (test_nested_epic_stale_in_review.py)
+- orchestrator_merged_tests: 165 passed
+- epic_auto_close_tests: 29 passed
+- terminal_coordinator_tests: 152 passed, 1 xfailed
+- branch_gate: make test passed in 439.6s
+- merged_pr: PR #708 merged to main (YOLO)
 ---
 <!-- COMMENTS:END -->
