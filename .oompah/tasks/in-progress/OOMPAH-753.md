@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:04:54.060103Z'
+updated_at: '2026-08-04T04:07:02.135232Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -309,5 +309,10 @@ author: oompah
 created: 2026-08-04 04:04
 ---
 Implementation: Restored the established read-only policy wording in the fatal mutating/compound auditor denial while preserving its non-recoverable classification, reason metadata, and fail-closed behavior. This is a one-message compatibility fix in oompah/auditor.py; the existing provider-retirement regression test directly covers it.
+---
+author: oompah
+created: 2026-08-04 04:07
+---
+Verification: PASS. The 4-worker gate harness reports 44/44 passing for tests/test_auditor_contract.py plus tests/test_provider_retirement.py, including the formerly failing Claude catalog assertion. The full neighboring tests/test_orchestrator_handlers.py module passed twice under 4 workers (279/279 on the recorded run), including test_heal_failure_does_not_raise_from_tick; the prior isolated repo-heal failure did not recur. git diff --check also passes. Per project guidance, the orchestrator will rerun the complete make test branch gate for the pushed head.
 ---
 <!-- COMMENTS:END -->
