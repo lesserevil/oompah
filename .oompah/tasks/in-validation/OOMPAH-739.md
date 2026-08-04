@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:50:11.683153Z'
+updated_at: '2026-08-04T00:50:54.554432Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -239,18 +239,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-739
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: a69a5687969a595e95d067aa7551349d2e3dc0de8ff05637606550fe1fb714bb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-bd7faddf226e
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a69a5687969a595e95d067aa7551349d2e3dc0de8ff05637606550fe1fb714bb
+      created_at: '2026-08-04T00:50:47.768824+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T00:50:47.768824+00:00'
+      branch_key: OOMPAH-739
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-04T00:50:08.559190+00:00'
+    updated_at: '2026-08-04T00:50:47.768824+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ca080198b28b
@@ -281,6 +295,19 @@ oompah.terminal_audit:
     started_at: '2026-08-03T23:56:32.962924+00:00'
     branch_key: OOMPAH-739
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-bd7faddf226e
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a69a5687969a595e95d067aa7551349d2e3dc0de8ff05637606550fe1fb714bb
+    created_at: '2026-08-04T00:50:47.768824+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T00:50:47.768824+00:00'
+    branch_key: OOMPAH-739
 ---
 ## Summary
 
@@ -606,5 +633,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 9s
 - Log: OOMPAH-739__20260804T004110Z.jsonl
+---
+author: oompah
+created: 2026-08-04 00:50
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
