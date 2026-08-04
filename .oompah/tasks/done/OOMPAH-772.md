@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-772
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Encode the canonical task lifecycle and invariants
 parent: OOMPAH-764
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:41.045890Z'
-updated_at: '2026-08-04T14:18:50.696019Z'
+updated_at: '2026-08-04T14:20:49.841289Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-772
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -29,6 +29,31 @@ oompah.integration:
   head_sha: cc490d183dfbb610acfe6541c1a86dfc66a2e2d2
   submitted_at: '2026-08-04T14:18:44.593231+00:00'
   updated_at: '2026-08-04T14:18:44.593231+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1afa403ae582
+    project_id: proj-14849f1b
+    task_id: OOMPAH-772
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 771cd3475303e0eafab35554af55512c687c87e9fa8c826333c9677dea7e19ad
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct owner independently verified the focused test, lint, format, secret-scan,
+      clean-worktree, pushed-head, fast-forward ancestry, and exact parent-branch
+      containment evidence. Automatic integration is backlogged behind the existing
+      single quality-gate queue, so this owner override records the already-landed
+      result without interrupting other work.
+    created_at: '2026-08-04T14:20:46.705976+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
