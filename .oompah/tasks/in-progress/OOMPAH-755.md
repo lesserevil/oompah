@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:06:02.971107Z'
+updated_at: '2026-08-04T11:06:24.039717Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-04 11:06
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-08-04 11:06
+---
+Understanding: I will rebase the shared epic-OOMPAH-740 branch directly onto origin/main, preserve every epic commit while resolving only genuine conflicts, run focused checks plus make test, force-push with --force-with-lease, and verify the remote head contains OOMPAH-735.
 ---
 <!-- COMMENTS:END -->
