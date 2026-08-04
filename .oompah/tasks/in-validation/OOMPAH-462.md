@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-462
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Define terminal-audit records, enums, and evidence fingerprints
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:04.307001Z'
-updated_at: '2026-07-28T21:16:05.960092Z'
+updated_at: '2026-08-04T21:33:31.793773Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -35,6 +35,28 @@ oompah.task_costs:
     output_tokens: 7385
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:26:59.093848+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6b9006f15a83
+    project_id: proj-14849f1b
+    task_id: OOMPAH-462
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4938a2872c71425da5737f22cb3f00bacdfc4b570002961834975899f6070517
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:26.272147+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -207,5 +229,10 @@ author: oompah
 created: 2026-07-28 18:39
 ---
 Added tracker-neutral terminal-audit enums and versioned records with strict serialization and deterministic SHA-256 evidence fingerprints; tests and full equivalent gate pass.
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
