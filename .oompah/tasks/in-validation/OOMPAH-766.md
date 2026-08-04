@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: Needs Human
+status: In Validation
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:54:25.171429Z'
+updated_at: '2026-08-04T16:54:52.812425Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
