@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:10:39.710193Z'
+updated_at: '2026-08-04T11:10:56.961145Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -24,15 +24,18 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: integrated
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
   head_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
-  integrated_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
   submitted_at: '2026-08-04T11:08:47.725906+00:00'
-  updated_at: '2026-08-04T11:10:31.273014+00:00'
+  updated_at: '2026-08-04T11:10:51.250932+00:00'
+  last_error: 'could not recover integration worktrees: git worktree add failed: Preparing
+    worktree (checking out ''epic-OOMPAH-740'')
+
+    fatal: ''epic-OOMPAH-740'' is already used by worktree at ''/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740'''
 oompah.terminal_audit:
   queued_comment_posted: true
   version: 1
@@ -123,5 +126,13 @@ author: oompah
 created: 2026-08-04 11:10
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 11:10
+---
+Integration could not verify `epic-OOMPAH-740`: could not recover integration worktrees: git worktree add failed: Preparing worktree (checking out 'epic-OOMPAH-740')
+fatal: 'epic-OOMPAH-740' is already used by worktree at '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740'
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
