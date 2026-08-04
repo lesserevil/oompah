@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T23:01:21.820032Z'
+updated_at: '2026-08-04T23:02:38.245801Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -108,19 +108,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-806
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ec54f223cafe
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
+      created_at: '2026-08-04T23:02:36.902300+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T23:02:36.902300+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-806
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T23:01:11.209732+00:00'
-  attempt_history: []
+    updated_at: '2026-08-04T23:02:36.902300+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ec54f223cafe
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
+    created_at: '2026-08-04T23:02:36.902300+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T23:02:36.902300+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-806
 ---
 ## Summary
 
