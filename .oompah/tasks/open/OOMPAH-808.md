@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T22:03:10.865207Z'
+updated_at: '2026-08-04T22:04:22.463702Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -25,17 +25,17 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Duplicate screening worker was terminated.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 4f73a16a-ea7e-4bd6-8da1-bc9faea9c2a5
+  claim_owner: f75f2e47-c230-48b7-9af8-09eea50f8e9b
+  claimed_at: '2026-08-04T22:04:13.796769+00:00'
+  claim_expires_at: '2026-08-04T22:34:13.796769+00:00'
   retry_count: 0
-  retry_after: '2026-08-04T22:03:09.560651+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: af142af5-069d-42b4-b385-53b2fa37352b
+oompah.agent_run_id: 26d87f4c-7517-4448-92c1-b294733741d2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-808
 oompah.integration:
   version: 2
