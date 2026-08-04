@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:52:42.569875Z'
+updated_at: '2026-08-04T21:53:22.649460Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-04 21:52
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 21:53
+---
+Understanding: I will trace WorkDecision evaluation, dispatch, recovery jobs, and bounded full-sync paths; implement a single totality/liveness controller that assigns exactly one allowed disposition and enqueues reason-coded remediation; then add focused regression coverage for stalls, graph impossibility, restart convergence, and idempotency.
 ---
 <!-- COMMENTS:END -->
