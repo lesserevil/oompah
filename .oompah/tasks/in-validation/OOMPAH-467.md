@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-467
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Add explicit authorized owner overrides for terminal audits
 parent: OOMPAH-457
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-07-28T21:17:45.681123Z'
+updated_at: '2026-08-04T21:34:15.139835Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -57,6 +57,28 @@ oompah.task_costs:
     output_tokens: 3182
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:28:25.664562+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d43b7e380fae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-467
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 20d75f9e7132cb80450b23a66164d07b41dd5da2198afb708b14d17e041f8a34
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:08.258393+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -435,5 +457,10 @@ author: oompah
 created: 2026-07-28 20:31
 ---
 Implemented and verified explicit authorized owner overrides for terminal audits; pushed on epic-OOMPAH-457.
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
