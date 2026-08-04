@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:38:50.076956Z'
+updated_at: '2026-08-04T15:39:16.812890Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -94,7 +94,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-451
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,13 +137,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-451 (tried: origin/epic-OOMPAH-451, origin/OOMPAH-451)'
       next_retry_at: '2026-08-04T15:39:04.291804+00:00'
+    - version: 1
+      attempt_id: attempt-740bdd35afc7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f94586f4c9bd8064b7231df299d8b94ebac70190a3c18e373cdb4e2c4f67f348
+      created_at: '2026-08-04T15:39:05.793095+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T15:39:05.793095+00:00'
+      branch_key: epic-OOMPAH-451
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T15:22:35.004302+00:00'
-    updated_at: '2026-08-04T15:38:44.291833+00:00'
+    updated_at: '2026-08-04T15:39:05.793095+00:00'
   - version: 1
     audit_id: audit-c1c7f0c558af
     project_id: proj-14849f1b
@@ -212,6 +226,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-451 (tried: origin/epic-OOMPAH-451, origin/OOMPAH-451)'
     next_retry_at: '2026-08-04T15:39:04.291804+00:00'
+  - version: 1
+    attempt_id: attempt-740bdd35afc7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f94586f4c9bd8064b7231df299d8b94ebac70190a3c18e373cdb4e2c4f67f348
+    created_at: '2026-08-04T15:39:05.793095+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T15:39:05.793095+00:00'
+    branch_key: epic-OOMPAH-451
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 62
   total_output_tokens: 1584
@@ -321,5 +349,19 @@ author: oompah
 created: 2026-08-04 15:38
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-451 (tried: origin/epic-OOMPAH-451, origin/OOMPAH-451). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 15:39
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-04 15:39
+---
+Run #3 [attempt=3, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 7s
 ---
 <!-- COMMENTS:END -->
