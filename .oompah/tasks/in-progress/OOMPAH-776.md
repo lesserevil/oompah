@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:49.998013Z'
-updated_at: '2026-08-04T14:45:08.886779Z'
+updated_at: '2026-08-04T14:59:31.839499Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-776
 target_branch: epic-OOMPAH-769
 review_url: null
@@ -33,3 +33,11 @@ Create the project-scoped TaskTransitionService foundation. Define TransitionInt
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 14:59
+---
+Implementation complete on the private task branch: added immutable TransitionIntent/Outcome contracts, a SQLite append-only journal with atomic idempotency registration and durable per-task claims, stable authority versioning that excludes benign metadata churn, status/generation/head fencing, verified and restart-recoverable tracker effects, and a TerminalTransitionCoordinator adapter that never writes terminal targets directly. Coverage includes idempotent replay, conflicting keys, cross-service concurrency, stale status/version/generation/head, project isolation, illegal edges, failures before and after effects, terminal staging/recovery, restart, append-only enforcement, expired claims, and corruption. 202 focused/adjacent tests passed, the final 38 service tests passed, Ruff/format/diff/secret checks are clean, and the terminal mutation scan passes.
+---
+<!-- COMMENTS:END -->
