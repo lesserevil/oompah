@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:39:52.740195Z'
+updated_at: '2026-08-04T16:41:57.262842Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -230,5 +230,10 @@ author: oompah
 created: 2026-08-04 16:39
 ---
 Understanding: The CI failure is a flaky assertion in test_tick_does_not_await_epic_maintenance. Root cause: _handle_dispatch_needed is mocked as bare AsyncMock() which returns an AsyncMock instance whose .items() call yields a coroutine. When tick's total_ms > 2000ms under CI parallel load, _tick() executes _dispatch_detail = ' '.join(f'{k}={v:.0f}' for k, v in dispatch_timings.items()). Iterating the coroutine raises TypeError, propagating out of await orch._tick() and failing the test. The sibling test test_tick_sets_epic_maintenance_future already fixed this by using AsyncMock(return_value={}) and documents the exact contract. Plan: apply the same minimal fix to test_tick_does_not_await_epic_maintenance.
+---
+author: oompah
+created: 2026-08-04 16:41
+---
+Discovery + Implementation: Confirmed root cause. AsyncMock() returns an AsyncMock instance whose child attribute .items() is a coroutine, not an iterable. When _tick() total_ms > 2000 (easily reached under CI parallel load in a quality-gate sandbox), the slow-tick diagnostic code path 'for k, v in dispatch_timings.items()' raises TypeError: 'coroutine' object is not iterable, which propagates out of await orch._tick() and fails the assertion. Fix: mirror the sibling test test_tick_sets_epic_maintenance_future by using AsyncMock(return_value={}) with the same explanatory comment. Verified: 14/14 TestRunStep5cEpicMaintenance tests pass; 279/279 test_orchestrator_handlers.py tests pass with parallel workers.
 ---
 <!-- COMMENTS:END -->
