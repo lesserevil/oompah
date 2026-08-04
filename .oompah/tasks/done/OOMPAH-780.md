@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-780
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Implement the durable workflow-job store, leases, retries, and checkpoints
 parent: OOMPAH-766
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:57.339751Z'
-updated_at: '2026-08-04T15:40:55.421306Z'
+updated_at: '2026-08-04T15:41:15.738319Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,6 +29,30 @@ oompah.integration:
   head_sha: 713c0cbadc9f06797498f8a8bf65e73452e4ed86
   submitted_at: '2026-08-04T15:40:50.075520+00:00'
   updated_at: '2026-08-04T15:40:50.075520+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-36dd5d14af30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-780
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3c2652bd9b49830e07976955331c899d4073b4a12cccea3989bdd987f0a090bc
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner exact-head integration: commit 713c0cbadc9f06797498f8a8bf65e73452e4ed86
+      was proven a descendant and fast-forwarded to epic-OOMPAH-766. Verification:
+      195 workflow/job/transition tests, ruff check/format, terminal mutation scan,
+      secret scan, and diff check passed.'
+    created_at: '2026-08-04T15:41:11.602641+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
