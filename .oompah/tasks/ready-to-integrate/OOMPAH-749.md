@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-749
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Bound historical audit replay so Ready integration claims cannot starve
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:32:38.402052Z'
+updated_at: '2026-08-04T03:33:03.664709Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -150,9 +150,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-749
-  head_sha: 713f7908041162620b6a2c587d2aac1c14bc3104
-  submitted_at: '2026-08-04T01:00:46.555314+00:00'
-  updated_at: '2026-08-04T01:00:46.555314+00:00'
+  base_branch: main
+  head_sha: 94dfee47b6cbacbfb5f06c6cf7758babec8e9eec
+  submitted_at: '2026-08-04T03:32:58.856970+00:00'
+  updated_at: '2026-08-04T03:32:58.856970+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/703
 oompah.review_number: '703'
 oompah.work_branch: OOMPAH-749
@@ -279,5 +280,10 @@ author: oompah
 created: 2026-08-04 03:32
 ---
 Rebase complete on origin/main (65c94e191). Conflicts resolved in oompah/config.py (kept both integration_recovery_freshness_seconds from OOMPAH-735 and integration_audit_batch_size + integration_ready_claim_timeout_seconds from OOMPAH-749) and oompah/orchestrator.py (kept OOMPAH-731 direct rebase recovery block and replaced the unconditional all_items query + integrated-audit loop with OOMPAH-749's bounded-lane ready/integrating query + counters). Focused tests: test_delivery_plane_recovery.py + test_integration_queue.py + test_config.py (148 passed). Adjacent suites: test_integration_conflict_repair + test_integration_executor + test_integration_record + test_integration_retry_alert_recovery + test_dashboard_integration_recovery_filter + test_standalone_ready_to_integrate (98 passed). Force-pushed 94dfee47b.
+---
+author: oompah
+created: 2026-08-04 03:33
+---
+Rebased OOMPAH-749 onto origin/main. Resolved conflicts in oompah/config.py (kept both integration_recovery_freshness_seconds from OOMPAH-735 and integration_audit_batch_size + integration_ready_claim_timeout_seconds from OOMPAH-749) and oompah/orchestrator.py (preserved OOMPAH-731 direct-rebase recovery block and OOMPAH-749 bounded-lane ready/integrating query with counters). Focused + adjacent tests pass (246 tests).
 ---
 <!-- COMMENTS:END -->
