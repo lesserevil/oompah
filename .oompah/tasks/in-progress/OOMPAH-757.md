@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:32:12.536356Z'
+updated_at: '2026-08-04T11:51:54.928526Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -286,5 +286,40 @@ Analyzed codebase to identify implementation points:
    - Serves EXOCOMP-130 recovery case explicitly
 
 Relevant files: oompah/integration.py (schema), oompah/orchestrator.py (consumers + validation), tests/test_landing_evidence.py (new)
+---
+author: oompah
+created: 2026-08-04 11:51
+---
+**Implementation Phase 1: Security-Hardened Evidence Schema**
+
+Completed:
+1. Added CanonicalLandingEvidence dataclass to oompah/integration.py with:
+   - Cryptographic SHA256 fingerprinting for tampering detection
+   - Fail-closed validation: all fields required, fingerprint validated on instantiation
+   - Frozen/immutable after creation (frozen=True) to prevent post-creation tampering
+   - Epic branch validation to prevent cross-epic injection attacks
+   - Evidence freshness checks (configurable age limit, default 24h)
+   - Safe parsing via parse_canonical_landing_evidence() that returns None for invalid data
+   
+2. Added CanonicalLandingEvidence.from_dict() and .to_dict() for serialization
+   - Non-trusting parse: any missing field = None (fail-closed)
+   - Fingerprint verification on every parse (detects storage tampering)
+   
+3. Integrated evidence into IntegrationRecord.canonical_landing_evidence field
+   - Evidence stored as dict in tracker metadata
+   - Invalid evidence silently dropped on load (fail-closed)
+   - Backward compatible: old records without evidence field work normally
+
+4. Comprehensive security test suite (33 tests, all passing):
+   - Git SHA validation (format, length, hex characters)
+   - Fingerprint computation (deterministic, changes with any parameter)
+   - Tampering detection (fingerprint mismatches block instantiation)
+   - Freshness validation (stale evidence rejected)
+   - Epic branch injection prevention
+   - Parsing robustness (malformed data returns None)
+   - Serialization round-trips
+   - IntegrationRecord integration
+
+Next: Update complete_direct_epic_maintenance_submission() to create and persist evidence during epic rebase completion.
 ---
 <!-- COMMENTS:END -->

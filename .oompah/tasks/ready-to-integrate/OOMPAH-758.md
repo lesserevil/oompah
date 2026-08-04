@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-758
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Atomically fence direct epic maintenance from ordinary integration enqueue
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:51:34.750257Z'
+updated_at: '2026-08-04T11:51:49.374712Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-758
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:15:15.842179+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-758
+  head_sha: 940b471c0b7fcec020b7b1f126e498903f4328af
+  submitted_at: '2026-08-04T11:51:45.307913+00:00'
+  updated_at: '2026-08-04T11:51:45.307913+00:00'
 ---
 ## Summary
 
@@ -214,5 +222,10 @@ The fix correctly implements atomic fencing of direct epic maintenance from ordi
 2. complete_direct_epic_maintenance_submission() cancels stale concurrent rows before terminal transition
 3. Ensures exactly one Done-only lifecycle with zero ordinary rows
 4. All existing functionality preserved
+---
+author: oompah
+created: 2026-08-04 11:51
+---
+Atomically fenced direct epic maintenance from ordinary integration queue to fix OOMPAH-755 regression. Added guards in _sync_ready_integration_submissions() to skip direct tasks and atomic row cancellation in complete_direct_epic_maintenance_submission() before terminal transition. All 340+ tests pass.
 ---
 <!-- COMMENTS:END -->
