@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:44:34.992823Z'
+updated_at: '2026-08-04T20:50:01.456623Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -250,5 +250,17 @@ author: oompah
 created: 2026-08-04 20:44
 ---
 Workaround for OOMPAH-806: the stalled-task watchdog incorrectly reopened this exact failed integration generation because unrelated external CI was green. Restoring Needs CI Fix manually; direct owner retains repair authority. OOMPAH-805 is producing the real deterministic gate-fixture fix that will create the required new head.
+---
+author: oompah
+created: 2026-08-04 20:50
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #61)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing; safe to reopen the stalled task.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
