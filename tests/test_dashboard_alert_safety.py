@@ -11,13 +11,15 @@ def _dashboard() -> str:
     )
 
 
-def test_agent_bar_alerts_are_single_line_and_width_bounded() -> None:
+def test_compact_alert_center_replaces_agent_bar_alert_summary() -> None:
     html = _dashboard()
     css = html.split("</style>", 1)[0]
 
-    assert "white-space: nowrap" in css
-    assert "text-overflow: ellipsis" in css
-    assert "max-width: min(42vw, 36rem)" in css
+    assert 'id="agent-warnings"' not in html
+    assert 'id="alert-center"' in html
+    assert ".alert-center-list" in css
+    assert "max-height: 35vh" in css
+    assert "overflow-y: auto" in css
 
 
 def test_alert_renderer_has_defensive_limits_and_escaped_collapsed_diagnostics() -> None:
@@ -26,12 +28,14 @@ def test_alert_renderer_has_defensive_limits_and_escaped_collapsed_diagnostics()
     assert "ALERT_RENDER_SUMMARY_MAX = 240" in html
     assert "ALERT_RENDER_DIAGNOSTIC_MAX = 4000" in html
     assert "normalizeAlertForRender" in html
-    assert "Array.isArray(alerts) ? alerts : []" in html
+    assert "Array.isArray(state.alerts) ? state.alerts : []" in html
+    assert "rawAlerts.map(normalizeAlertForRender)" in html
     assert "[alert.summary, ALERT_RENDER_SUMMARY_MAX]" in html
     assert "[alert.title, ALERT_RENDER_TITLE_MAX]" in html
     assert '<details class="alert-diagnostics">' in html
     assert "esc(diagnostic)" in html
     assert "Diagnostic details (truncated)" in html
+    assert ".alert-center .alert-diagnostics" in html
 
 
 def test_expanded_alert_order_keeps_explanation_and_action_before_transcript() -> None:

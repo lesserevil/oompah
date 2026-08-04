@@ -3924,16 +3924,15 @@ function handleStateUpdate(state) {
   // Update HTTP auth state (used by mutations to conditionally omit actor)
   httpAuthEnabled = (state.http_auth && state.http_auth.enabled) || false;
 
-  // Normalize at the renderer boundary so an older cache or direct caller
-  // cannot put an unbounded transcript into the compact, always-visible
-  // alert summary. Dedupe before partitioning so legacy and structured
-  // producers cannot render the same stable condition twice.
-  const alerts = Array.isArray(state.alerts) ? state.alerts : [];
-  // State normally arrives projected by the server. Normalize once more at
-  // the renderer boundary so an older cache or direct caller cannot put an
-  // unbounded transcript into an always-visible surface.
-  const safeAlerts = (Array.isArray(alerts) ? alerts : []).map(normalizeAlertForRender);
-  const alertFacts = dedupeAlertFacts(safeAlerts);
+  // OOMPAH-735 and OOMPAH-741: automatic recovery and normal operating
+  // status remain available in diagnostics, but only a current operator
+  // action enters the alert center. Normalize at the renderer boundary so an
+  // older cache or direct caller cannot put an unbounded transcript into the
+  // compact, always-visible summary. Dedupe before partitioning so legacy
+  // and structured producers cannot render the same stable condition twice.
+  const rawAlerts = Array.isArray(state.alerts) ? state.alerts : [];
+  const alerts = rawAlerts.map(normalizeAlertForRender);
+  const alertFacts = dedupeAlertFacts(alerts);
   const actionableAlerts = alertFacts.filter(function(alert) {
     return alert.action_required !== false;
   });
