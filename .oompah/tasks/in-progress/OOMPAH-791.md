@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:42:00.345798Z'
+updated_at: '2026-08-04T20:56:52.267896Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-04 20:42
 ---
 Implementation: added EpicFactCollector/EpicWorkflowController and target-relative epic actions. Enriched containment facts now validate acyclic ownership, resolve nested targets from immediate parent identity, and collect child plus epic landing requests. Epic decisions require normal child Done plus exact landing, use nested landing without parent status, and schedule bounded rollup/landing jobs through WorkflowJobScheduler. GitLandingCollector now records durable patch-equivalence proof for rebased sources and preserves prior proof after ref deletion. Added real-Git nested, deleted-ref, and rebase regression coverage.
+---
+author: oompah
+created: 2026-08-04 20:56
+---
+Verification: focused shared workflow, epic, lifecycle, shadow, and strategy suites pass (277 tests in the latest run; earlier shared-facts run 109/109). Real-Git coverage proves multi-level nested rollups, immediate-parent landing while parent remains Open, deleted source refs across controller restart via the landing ledger, patch-equivalent rebases, and containment-cycle fail-closed behavior. Enforce-mode orchestrator gates and target resolution passed the existing epic suites.
 ---
 <!-- COMMENTS:END -->
