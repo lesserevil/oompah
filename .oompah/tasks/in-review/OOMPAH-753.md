@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:15:41.384611Z'
+updated_at: '2026-08-04T04:15:55.261005Z'
 work_branch: null
 target_branch: null
 review_url: null
