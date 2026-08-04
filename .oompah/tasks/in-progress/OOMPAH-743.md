@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:00:08.547871Z'
+updated_at: '2026-08-04T14:03:02.741347Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-08-04 14:00
 ---
 Discovery: The rebase conflict came from OOMPAH-741 introducing dashboard_alerts.normalize_alerts as the canonical actionability/deduplication contract while the prior OOMPAH-743 commit added a parallel alert sanitizer. I reconciled the interfaces by retaining OOMPAH-741's canonical contract and layering transcript-aware redaction/bounds beneath it. Integration retry production, snapshot normalization, and REST/WebSocket enrichment now share that path; the renderer remains a separate defensive boundary.
+---
+author: oompah
+created: 2026-08-04 14:03
+---
+Implementation: Reconciled the alert sanitizer with OOMPAH-741's dashboard fact contract instead of replacing its actionability fields. Added bounded/redacted payload projection, one-line compact aliases, separately bounded diagnostics, structured integration failure fields, producer/snapshot/API defense in depth, renderer-side Unicode/control normalization and limits, no-wrap agent-bar styling, escaped native details rendering with explanation/remediation first, and a reusable EXOCOMP-147 rebase transcript fixture.
 ---
 <!-- COMMENTS:END -->
