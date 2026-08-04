@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-509
 type: feature
-status: In Validation
+status: Archived
 priority: 2
 title: Parallelize pytest safely on isolated workers
 parent: OOMPAH-502
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-08-04T21:29:17.886233Z'
+updated_at: '2026-08-04T21:36:41.308053Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -21,6 +21,30 @@ merged_at: null
 oompah.work_branch: epic-OOMPAH-502
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-ada7fba12612: '2026-08-04T21:36:37.983879+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-509
+    target_state: Archived
+    evidence_fingerprint: 2170d2dcb816c9a09f0d0baf964fc1c30a6bb78365e2d4f12521507b50d6c355
+    audit_ids:
+    - audit-83c5b2c0ec81
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T21:36:37.983890+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-509
+    audit_id: audit-83c5b2c0ec81
+    attempt_id: attempt-ada7fba12612
+    target_state: Archived
+    evidence_fingerprint: 2170d2dcb816c9a09f0d0baf964fc1c30a6bb78365e2d4f12521507b50d6c355
+    status: Archived
+    audit_ids:
+    - audit-83c5b2c0ec81
+    applied: false
+    created_at: '2026-08-04T21:36:37.983908+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -28,7 +52,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-509
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -37,7 +61,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ada7fba12612
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -47,13 +71,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:28:54.022325+00:00'
       branch_key: epic-OOMPAH-502
+      verdict: pass
+      completed_at: '2026-08-04T21:36:37.983705+00:00'
+      ended_at: '2026-08-04T21:36:37.983705+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:28:52.300310+00:00'
-    updated_at: '2026-08-04T21:28:54.022325+00:00'
+    updated_at: '2026-08-04T21:36:37.983705+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ada7fba12612
