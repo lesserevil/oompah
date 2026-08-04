@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:48:41.581176Z'
+updated_at: '2026-08-04T12:49:38.751873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2bde1058-827e-416f-abe3-81c9ef4efd64
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48714
   total_output_tokens: 2281
@@ -98,9 +98,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-757
-  head_sha: a4945efdb056563f620c297e143fd2040a50dbe0
-  submitted_at: '2026-08-04T12:04:00.904660+00:00'
-  updated_at: '2026-08-04T12:04:00.904660+00:00'
+  head_sha: 0d92e522f6010a24da1b5d5de8a79fd9010157fa
+  submitted_at: '2026-08-04T12:49:30.253299+00:00'
+  updated_at: '2026-08-04T12:49:30.253299+00:00'
 ---
 ## Summary
 
@@ -570,5 +570,15 @@ author: oompah
 created: 2026-08-04 12:48
 ---
 Verification: Reproduced the remote-head failure locally (1 failed with the shadowed-method TypeError), then confirmed the repaired test passes. Focused neighboring run completed with 367 passed and 1 expected xfail across test_canonical_landing_evidence.py, test_epic_strategy.py, test_epic_terminal_audit_contract.py, test_nested_epic_cycle_fix.py, test_yolo_watchdog.py, and test_merged_labels_scope.py. make terminal-audit-scan also passed (8/8 mutations allowlisted), and git diff --check is clean.
+---
+author: oompah
+created: 2026-08-04 12:49
+---
+Completion: Fixed the 51-test branch-gate cascade by separating the canonical IntegrationRecord evidence validator from the established child/epic branch-containment method. The same OOMPAH-757 branch is pushed at 0d92e522f6010a24da1b5d5de8a79fd9010157fa, clean and up to date with origin. Focused result: 367 passed, 1 expected xfail; terminal mutation scan passed. GitHub has no original PR or Actions run to recheck because Oompah's pre-review gate prevented review creation; submission will rerun that gate for this new head.
+---
+author: oompah
+created: 2026-08-04 12:49
+---
+Fixed CI method shadowing by renaming the canonical IntegrationRecord evidence validator, updated its focused tests, verified 367 passing neighboring tests plus the terminal mutation scan, and pushed clean head 0d92e522f.
 ---
 <!-- COMMENTS:END -->
