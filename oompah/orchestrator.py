@@ -77,7 +77,11 @@ from oompah.duplicate_screening import (
     owner_resolution_record,
     save_record as save_duplicate_screening_record,
 )
-from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
+from oompah.integration import (
+    IntegrationRecord,
+    classify_conflict_repair_failure,
+    is_direct_epic_maintenance_issue,
+)
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
     IntegrationExecutionResult,
@@ -7093,6 +7097,11 @@ class Orchestrator:
             alert for alert in self._alerts if alert.get("source") != source
         ]
 
+        retry_source = f"integration_retry:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != retry_source
+        ]
+
     def _arm_integrated_audit_recovery_alert(
         self,
         project_id: str,
@@ -10153,6 +10162,35 @@ class Orchestrator:
                 self.integration_queue.items(project_id=project.id),
             )
 
+        # A direct rebase can publish and persist its Ready record immediately
+        # before a process restart, after which no queue row exists to drive
+        # completion.  Reconcile those exact published heads here; this path
+        # never reruns the rebase and is idempotent once terminal auditing owns
+        # the task.
+        for project in self.project_store.list_all():
+            issues = project_issue_snapshots.get(str(project.id))
+            if issues is None:
+                continue
+            for issue in issues:
+                if not is_direct_epic_maintenance_issue(issue):
+                    continue
+                if canonicalize_status(issue.state) != READY_TO_INTEGRATE:
+                    continue
+                record = getattr(issue, "integration", None)
+                if record is None or str(record.state).lower() != "ready":
+                    continue
+                completion = await self.complete_direct_epic_maintenance_submission(
+                    issue,
+                    record,
+                    project.id,
+                )
+                if completion is not None and not completion[0]:
+                    logger.info(
+                        "Deferred direct epic maintenance recovery for %s: %s",
+                        issue.identifier,
+                        completion[1],
+                    )
+
         all_items = self.integration_queue.items()
 
         # Crash recovery: a git integration can finish just before audit
@@ -12898,8 +12936,9 @@ class Orchestrator:
             epic_branch = self.project_store.epic_branch_name(target_epic).lower()
         except Exception:  # noqa: BLE001 - fallback only affects classification
             epic_branch = f"epic-{target_epic}".lower()
-        title = (issue.title or "").strip().lower()
-        return title.startswith("rebase ") and epic_branch in title
+        return is_direct_epic_maintenance_issue(issue) and epic_branch in (
+            issue.title or ""
+        ).strip().lower()
 
     @staticmethod
     def _epic_rebase_helper_target(issue: Issue) -> str | None:
@@ -14924,6 +14963,75 @@ class Orchestrator:
                 workspace.path,
             )
             return workspace.path, None
+
+        # Auto-filed epic rebases are maintenance on the shared branch itself.
+        # They must never receive a private child branch: doing so makes the
+        # worker publish one ref while submission/integration validates another
+        # and can invalidate the successful rebase it just performed.
+        if self._is_epic_rebase_task(issue):
+            _assert_authority()
+            parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is None and parent_id:
+                parent_epic = Issue(
+                    id=parent_id,
+                    identifier=parent_id,
+                    title=parent_id,
+                    issue_type="epic",
+                    project_id=issue.project_id,
+                )
+            if parent_epic is None:
+                raise ProjectError(
+                    f"Cannot allocate direct epic maintenance workspace for "
+                    f"{issue.identifier}: parent epic is unavailable"
+                )
+            epic_branch = self._epic_branch_for_issue(parent_epic)
+            issue.work_branch = epic_branch
+            issue.branch_name = epic_branch
+            wp = self._authority_guarded_call(
+                authority_check,
+                self.project_store.create_epic_worktree,
+                issue.project_id,
+                parent_epic.identifier,
+            )
+            if persist_dispatch_metadata:
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    existing = getattr(issue, "integration", None)
+                    old_sha = (
+                        getattr(existing, "base_sha", None)
+                        if existing is not None
+                        else None
+                    ) or self._worktree_head(wp)
+                    tracker.set_metadata_field(
+                        issue.identifier,
+                        "oompah.work_branch",
+                        epic_branch,
+                    )
+                    tracker.set_metadata_field(
+                        issue.identifier,
+                        "oompah.integration",
+                        IntegrationRecord(
+                            state="working",
+                            task_branch=epic_branch,
+                            base_branch=epic_branch,
+                            base_sha=old_sha,
+                            updated_at=datetime.now(timezone.utc).isoformat(),
+                        ).to_dict(),
+                    )
+                    issue.integration = IntegrationRecord(
+                        state="working",
+                        task_branch=epic_branch,
+                        base_branch=epic_branch,
+                        base_sha=old_sha,
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                    )
+                except Exception as exc:  # noqa: BLE001 - setup must fail closed
+                    raise ProjectError(
+                        f"Could not persist direct epic maintenance branch for "
+                        f"{issue.identifier}: {exc}"
+                    ) from exc
+            return _finish_workspace(wp, parent_epic)
 
         if self._is_epic_review_repair_issue(issue):
             _assert_authority()
@@ -31810,6 +31918,145 @@ class Orchestrator:
         
         self._notify_observers()
 
+    async def complete_direct_epic_maintenance_submission(
+        self,
+        current: Issue,
+        record: IntegrationRecord,
+        project_id: str | None,
+        *,
+        summary: str | None = None,
+    ) -> tuple[bool, str, IntegrationRecord | None] | None:
+        """Complete a directly-published epic rebase through terminal audit.
+
+        Returns ``None`` for ordinary tasks.  Direct rebase helpers never enter
+        the child integration queue: their submitted head is the authoritative
+        parent epic ref, which is reconciled under the project lock before the
+        helper is staged for audited ``Done``.  Refusal is deliberately
+        non-destructive and returns an actionable diagnostic for dirty,
+        divergent, recovery, or concurrent states.
+        """
+
+        if not is_direct_epic_maintenance_issue(current):
+            return None
+        if not project_id:
+            return False, "direct epic maintenance requires a managed project", None
+        parent_id = str(getattr(current, "parent_id", None) or "").strip()
+        published_sha = str(getattr(record, "head_sha", None) or "").strip().lower()
+        if not parent_id or not published_sha:
+            return False, "direct epic publication evidence is incomplete", None
+
+        project = self.project_store.get(project_id)
+        if project is None:
+            return False, f"managed project {project_id} is unavailable", None
+        epic_branch = self.project_store.epic_branch_name(parent_id)
+        reconciliation = await asyncio.to_thread(
+            self.project_store.reconcile_published_epic_worktree,
+            project_id,
+            parent_id,
+            published_sha,
+            expected_old_sha=(getattr(record, "base_sha", None) or None),
+            maintenance_identifier=current.identifier,
+        )
+        if not reconciliation.completed:
+            message = (
+                "Direct epic rebase was not completed: "
+                f"{reconciliation.status}: {reconciliation.reason or 'evidence is incomplete'}"
+            )
+            tracker = self._tracker_for_project(project_id)
+            blocked = replace(
+                record,
+                state="blocked",
+                task_branch=epic_branch,
+                base_branch=epic_branch,
+                last_error=message,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            tracker.set_metadata_field(
+                current.identifier,
+                "oompah.integration",
+                blocked.to_dict(),
+            )
+            tracker.update_issue(current.identifier, status=NEEDS_REBASE)
+            tracker.add_comment(current.identifier, message, author="oompah")
+            self._clear_integration_delivery_alert(project_id, current.identifier)
+            self.state.completed.discard(current.id)
+            return False, message, blocked
+
+        tracker = self._tracker_for_project(project_id)
+        existing = getattr(current, "integration", None)
+        already_recorded = (
+            existing is not None
+            and existing.state == "integrated"
+            and str(existing.integrated_sha or existing.head_sha or "").lower()
+            == published_sha
+        )
+        integrated = record
+        if not already_recorded:
+            integrated = IntegrationRecord(
+                state="integrated",
+                task_branch=epic_branch,
+                base_branch=epic_branch,
+                base_sha=(
+                    getattr(record, "base_sha", None)
+                    or reconciliation.old_sha
+                ),
+                head_sha=published_sha,
+                integrated_sha=published_sha,
+                attempts=getattr(record, "attempts", 0),
+                submitted_at=getattr(record, "submitted_at", None),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                dependency_heads=dict(getattr(record, "dependency_heads", {}) or {}),
+            )
+            tracker.set_metadata_field(
+                current.identifier,
+                "oompah.integration",
+                integrated.to_dict(),
+            )
+            if summary:
+                tracker.add_comment(current.identifier, summary, author="oompah")
+
+        self._clear_integration_delivery_alert(project_id, current.identifier)
+        current.project_id = project_id
+        current.work_branch = epic_branch
+        current.branch_name = epic_branch
+        try:
+            transition = await self.request_terminal_transition(
+                current_issue=current,
+                requested_target=TargetState.DONE,
+                trigger_identity=ContributorIdentity(
+                    "oompah-epic-maintenance",
+                    "service",
+                ),
+                project_id=project_id,
+                evidence_fingerprint=compute_issue_evidence_fingerprint(
+                    current,
+                    str(project_id),
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - retry terminal audit safely
+            return False, f"published epic head reconciled but audit staging failed: {exc}", integrated
+        if not transition.success and transition.reason != "already completed":
+            return (
+                False,
+                "published epic head reconciled but audited Done could not be "
+                f"staged: {transition.reason or 'unknown coordinator failure'}",
+                integrated,
+            )
+        self.state.completed.add(current.id)
+        self._clear_reopen_count(current.id)
+        self._cancel_retry_for_issue(
+            issue_id=current.id,
+            identifier=current.identifier,
+            project_id=project_id,
+            reason="direct epic maintenance submitted and handed to terminal audit",
+        )
+        logger.info(
+            "Completed direct epic maintenance task %s at published epic head %s",
+            current.identifier,
+            published_sha,
+        )
+        return True, "published epic head reconciled and handed to audited Done", integrated
+
     def _finish_epic_review_repair(
         self,
         tracker,
@@ -32771,11 +33018,28 @@ class Orchestrator:
                     current
                     and canonicalize_status(current.state) == READY_TO_INTEGRATE
                 ):
-                    self._accept_worker_submission(
-                        entry,
-                        current,
-                        project_id,
-                    )
+                    if is_direct_epic_maintenance_issue(current):
+                        # Direct epic rebase helpers publish the parent ref and
+                        # are completed through audited Done.  They must not
+                        # enter the ordinary child integration queue.
+                        direct_result = await self.complete_direct_epic_maintenance_submission(
+                            current,
+                            current.integration
+                            or self._capture_worker_submission_record(
+                                entry,
+                                current,
+                                project_id,
+                            ),
+                            project_id,
+                        )
+                        if direct_result is not None and not direct_result[0]:
+                            self.state.completed.discard(issue_id)
+                    else:
+                        self._accept_worker_submission(
+                            entry,
+                            current,
+                            project_id,
+                        )
                 elif (
                     current
                     and canonicalize_status(current.state) == IN_VALIDATION

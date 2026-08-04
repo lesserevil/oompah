@@ -598,8 +598,13 @@ class TestYoloNotifyConflictEpicBranch:
         )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = self._epic()
-        existing = MagicMock(id="TASK-18.r", state="In Progress",
-                             title="Rebase epic-TASK-18 onto dev")
+        existing = MagicMock(
+            id="TASK-18.r",
+            identifier="TASK-18.r",
+            parent_id="TASK-18",
+            state="In Progress",
+            title="Rebase epic-TASK-18 onto dev",
+        )
         with patch.object(orch, "_fetch_epic_children", return_value=[existing]):
             orch._project_trackers[project.id] = tracker
             orch._yolo_notify_conflict(project, provider, "org/repo", "42")

@@ -60,6 +60,23 @@ def validate_submission_branch(issue: object, task_branch: object) -> str:
     return submitted
 
 
+def is_direct_epic_maintenance_issue(issue: object) -> bool:
+    """Return whether an issue is the auto-filed shared-epic rebase helper.
+
+    These tasks intentionally publish the parent epic branch from their own
+    assigned checkout.  The title/parent shape is the durable classification
+    available to submission callers, and keeps ordinary epic children on the
+    normal integration queue.
+    """
+
+    parent = str(getattr(issue, "parent_id", None) or "").strip()
+    title = str(getattr(issue, "title", None) or "").strip().lower()
+    if not parent or not title.startswith("rebase "):
+        return False
+    epic_branch = "epic-" + re.sub(r"[^A-Za-z0-9._-]+", "_", parent).strip("._-")
+    return bool(epic_branch) and epic_branch.lower() in title
+
+
 @dataclass(frozen=True)
 class IntegrationRecord:
     """Versioned tracker record describing one task's integration state."""

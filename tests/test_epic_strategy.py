@@ -1368,6 +1368,52 @@ class TestWorkspaceAllocation:
         )
         orch.project_store.create_worktree.assert_not_called()
 
+    def test_direct_rebase_helper_uses_canonical_epic_worktree_and_branch(
+        self, tmp_path
+    ):
+        """An auto-filed rebase publishes the shared epic ref directly."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+        parent = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        issue = _make_issue(
+            identifier="TASK-REBASE",
+            title="Rebase epic-epic-1 onto main",
+            parent_id="epic-1",
+            state=NEEDS_REBASE,
+            priority=0,
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            wp, epic_ret = orch._create_workspace_for_issue(issue)
+
+        assert wp == "/wt/epic-1"
+        assert epic_ret is not None
+        assert epic_ret.identifier == "epic-1"
+        assert issue.work_branch == "epic-epic-1"
+        assert issue.branch_name == "epic-epic-1"
+        orch.project_store.create_epic_worktree.assert_called_once_with(
+            "proj-1", "epic-1"
+        )
+        orch.project_store.create_worktree.assert_not_called()
+        # _prepare_epic_rebase_helper_target records the resolved target first
+        assert tracker.set_metadata_field.call_args_list[0].args == (
+            "TASK-REBASE",
+            "oompah.target_branch",
+            "main",
+        )
+        assert tracker.set_metadata_field.call_args_list[1].args == (
+            "TASK-REBASE",
+            "oompah.work_branch",
+            "epic-epic-1",
+        )
+        integration = tracker.set_metadata_field.call_args_list[2].args[2]
+        assert integration["task_branch"] == "epic-epic-1"
+        assert integration["base_branch"] == "epic-epic-1"
+
     def test_shared_mode_uses_shared_worktree_for_parent_with_missing_epic_label(
         self, tmp_path
     ):

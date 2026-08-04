@@ -118,6 +118,69 @@ def test_submit_endpoint_accepts_the_assigned_task_worktree_and_enqueues_it(
     )
 
 
+def test_direct_epic_rebase_submission_skips_child_queue_and_stages_audit(tmp_path):
+    issue = Issue(
+        id="EXOCOMP-244",
+        identifier="EXOCOMP-244",
+        title="Rebase epic-EXOCOMP-135 onto main",
+        state="Needs Rebase",
+        project_id="proj-1",
+        parent_id="EXOCOMP-135",
+        work_branch="epic-EXOCOMP-135",
+        integration=IntegrationRecord(
+            state="working",
+            task_branch="epic-EXOCOMP-135",
+            base_branch="epic-EXOCOMP-135",
+            base_sha="1" * 40,
+        ),
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    integrated = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-EXOCOMP-135",
+        base_branch="epic-EXOCOMP-135",
+        base_sha="1" * 40,
+        head_sha="2" * 40,
+        integrated_sha="2" * 40,
+    )
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.project_store.list_all.return_value = []
+    orch.config.parallel_epic_children_enabled = True
+    orch.complete_direct_epic_maintenance_submission = AsyncMock(
+        return_value=(True, "published epic head reconciled", integrated)
+    )
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.integration_queue = queue
+
+    try:
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            response = client.post(
+                "/api/v1/issues/EXOCOMP-244/submit",
+                json={
+                    "project_id": "proj-1",
+                    "task_branch": "epic-EXOCOMP-135",
+                    "head_sha": "2" * 40,
+                    "remote_head_sha": "2" * 40,
+                    "worktree_clean": True,
+                    "summary": "Rebased and force-pushed the epic",
+                },
+            )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["state"] == "In Validation"
+        assert response.json()["integration"]["integrated_sha"] == "2" * 40
+        orch.complete_direct_epic_maintenance_submission.assert_awaited_once()
+        assert queue.items(project_id="proj-1", epic_id="EXOCOMP-135") == []
+    finally:
+        queue.close()
+
+
 def test_submit_endpoint_rejects_wrong_checkout_without_mutating_queue(tmp_path):
     issue = _issue()
     issue.parent_id = "EPIC-1"
