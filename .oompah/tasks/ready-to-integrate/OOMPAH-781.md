@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:46:15.115415Z'
+updated_at: '2026-08-04T20:46:35.365581Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -61,16 +61,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 85e821e6-3fe4-41e2-a4c3-34d2d51ca7b3
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T20:26:42.094071+00:00'
+  head_sha: eba03a422200a1b47bb89b8edf7c2387450f0761
+  submitted_at: '2026-08-04T20:46:19.357618+00:00'
+  updated_at: '2026-08-04T20:46:19.357618+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -170,5 +172,10 @@ author: oompah
 created: 2026-08-04 20:46
 ---
 Completion: delivered and pushed eba03a422. Terminal audits now materialize exact evidence-bound durable jobs with queued/running/finalizing/retry-wait/action-required dispositions; candidate launch/rotation/recovery, coordinator finalization, result acknowledgement, and exhaustion are lease-fenced and restart-safe. Added 209 lines of focused lifecycle/restart/security tests; branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-04 20:46
+---
+Durable terminal-audit workflow phases, lease ownership, retry/recovery, and non-starvable finalization are implemented and tested.
 ---
 <!-- COMMENTS:END -->
