@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T23:31:52.571783Z'
+updated_at: '2026-08-04T23:32:00.697262Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -117,7 +117,18 @@ oompah.terminal_audit:
       source: api
     reason: '[REDACTED]'
     created_at: '2026-08-04T23:31:49.293779+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-806
+    target_state: Done
+    evidence_fingerprint: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
+    audit_ids:
+    - audit-e95e35ff5779
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T23:31:58.174379+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -125,7 +136,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-806
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -150,7 +161,7 @@ oompah.terminal_audit:
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T23:01:11.209732+00:00'
-    updated_at: '2026-08-04T23:02:36.902300+00:00'
+    updated_at: '2026-08-04T23:31:58.174355+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ec54f223cafe
@@ -427,5 +438,12 @@ author: oompah
 created: 2026-08-04 23:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:31
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
