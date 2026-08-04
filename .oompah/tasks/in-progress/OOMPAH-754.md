@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:07:33.046963Z'
+updated_at: '2026-08-04T11:14:01.712685Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-08-04 11:07
 ---
 DISCOVERY: Found the bug in _detect_and_repair_integration_queue_staleness_block (oompah/orchestrator.py:10365). Current implementation checks only ready_items[0] (lines 10389-10391) and returns False if first item has no unsatisfied deps, missing repairable heads when blocked on nonterminal deps. Fix: iterate all Ready items, identify topological heads (those without nonterminal Ready predecessors), check their terminal-unreachable deps, and file repair for first eligible head.
+---
+author: oompah
+created: 2026-08-04 11:14
+---
+IMPLEMENTATION: Modified _detect_and_repair_integration_queue_staleness_block to scan all Ready items instead of only ready_items[0]. Key changes: (1) Build ready_task_ids set for topological filtering, (2) iterate all Ready items identifying those with unsatisfied deps, (3) skip items whose unsatisfied deps include nonterminal items in the queue, (4) find first eligible item with terminal-unreachable deps for repair. Added test test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible verifying detector correctly skips blocked items and repairs eligible downstream heads. All 34 tests in test_parallel_epic_children.py and 20 in test_integration_queue.py pass.
 ---
 <!-- COMMENTS:END -->
