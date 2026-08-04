@@ -78,7 +78,8 @@ def test_alert_transitions_reflow_the_same_board_container() -> None:
     html = _dashboard_html()
     body = _state_update_body(html)
 
-    assert "const alerts = Array.isArray(state.alerts) ? state.alerts : [];" in body
+    assert "const rawAlerts = Array.isArray(state.alerts) ? state.alerts : [];" in body
+    assert "const alerts = rawAlerts.map(normalizeAlertForRender);" in body
     assert "const actionableAlerts" in body
     assert "renderAlertCenter(actionableAlerts);" in body
     assert "renderDiagnosticFacts(diagnosticAlerts);" in body

@@ -191,15 +191,28 @@ def test_alert_center_runtime_handles_empty_mixed_and_dynamic_alert_sets() -> No
     html = _dashboard_html()
     helpers = "\n".join(
         [
-            re.search(
-                r"const ALERT_SEVERITY_RANK = [^;]+;", html
-            ).group(0),
+            *(
+                re.search(rf"const {name} = [^;]+;", html).group(0)
+                for name in (
+                    "ALERT_RENDER_TITLE_MAX",
+                    "ALERT_RENDER_SUMMARY_MAX",
+                    "ALERT_RENDER_EXPLANATION_MAX",
+                    "ALERT_RENDER_ACTION_MAX",
+                    "ALERT_RENDER_SOURCE_MAX",
+                    "ALERT_RENDER_DIAGNOSTIC_MAX",
+                    "ALERT_RENDER_TRUNCATION_MARKER",
+                    "ALERT_SEVERITY_RANK",
+                )
+            ),
             *(
                 _function(html, name)
                 for name in (
+                    "alertSafeText",
+                    "alertBoundedText",
                     "alertPrimaryText",
                     "alertDetailText",
                     "alertActionText",
+                    "alertDiagnosticText",
                     "renderAlertItem",
                     "getAlertSeverity",
                     "getHighestAlertSeverity",
