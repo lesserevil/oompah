@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:31.446905Z'
-updated_at: '2026-08-04T17:34:07.732251Z'
+updated_at: '2026-08-04T17:34:28.326362Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -21,13 +21,17 @@ merged_at: null
 oompah.agent_run_id: 777ea576-66d6-4ceb-94fa-f8d04ef072bc
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 505166
-  total_output_tokens: 3230
+  total_input_tokens: 505191
+  total_output_tokens: 9175
   total_cost_usd: 0.0
   by_model:
     fable:
       input_tokens: 505166
       output_tokens: 3230
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 25
+      output_tokens: 5945
       cost_usd: 0.0
   runs:
   - profile: default
@@ -36,6 +40,12 @@ oompah.task_costs:
     output_tokens: 3230
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:03:53.321132+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 25
+    output_tokens: 5945
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:34:24.680874+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -346,5 +356,15 @@ Safe evidence:
 - backend_shared_only_module: tests/test_epic_strategy.py (100+ tests preserved)
 - previous_state: Merged
 - archive_trigger: Aged Merged auto-archive (closed 7 days ago)
+---
+author: oompah
+created: 2026-08-04 17:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 31, Tool calls: 19
+- Tokens: 25 in / 5.9K out [6.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 6s
+- Log: OOMPAH-496__20260804T173129Z.jsonl
 ---
 <!-- COMMENTS:END -->
