@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T14:06:23.984931Z'
+updated_at: '2026-08-04T18:23:59.471871Z'
 work_branch: null
 target_branch: null
 review_url: null
