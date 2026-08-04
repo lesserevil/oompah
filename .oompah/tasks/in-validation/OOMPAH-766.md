@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:50:43.150982Z'
+updated_at: '2026-08-04T16:51:27.675537Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -37,18 +37,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-766
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7de0b06f8d3c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+      created_at: '2026-08-04T16:51:20.064565+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T16:51:20.064565+00:00'
+      branch_key: epic-OOMPAH-766
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
+    updated_at: '2026-08-04T16:51:20.064565+00:00'
   - version: 1
     audit_id: audit-48e0b754331c
     project_id: proj-14849f1b
@@ -66,7 +80,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T16:50:31.930408+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-7de0b06f8d3c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    created_at: '2026-08-04T16:51:20.064565+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T16:51:20.064565+00:00'
+    branch_key: epic-OOMPAH-766
 ---
 ## Summary
 
@@ -94,5 +121,10 @@ author: oompah
 created: 2026-08-04 16:50
 ---
 YOLO: merged PR #713.
+---
+author: oompah
+created: 2026-08-04 16:51
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
