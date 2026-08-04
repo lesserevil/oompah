@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-08-04T23:25:29.584145Z'
+updated_at: '2026-08-04T23:26:15.194807Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -23,8 +23,8 @@ merged_at: null
 oompah.agent_run_id: 866d7df0-012f-4eef-8449-99bbc0c6f997
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
-  total_input_tokens: 1335127
-  total_output_tokens: 30390
+  total_input_tokens: 1335481
+  total_output_tokens: 39951
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -34,6 +34,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 960740
       output_tokens: 20436
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 354
+      output_tokens: 9561
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +64,12 @@ oompah.task_costs:
     output_tokens: 11651
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:21:17.693779+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 354
+    output_tokens: 9561
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:26:11.592461+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -557,5 +567,15 @@ Safe evidence:
 - [REDACTED-credential-key]: passed
 - files_changed: oompah/mcp_gateway.py, oompah/server.py, tests/test_mcp_gateway.py
 - key_tests: test_authenticated_mcp_client_can_initialize_list_and_call_protected_api, test_mcp_transport_rejects_missing_or_invalid_credentials_before_dispatch, test_external_internal_marker_headers_cannot_bypass_rest_authentication
+---
+author: oompah
+created: 2026-08-04 23:26
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 43
+- Tokens: 354 in / 9.6K out [9.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 28m 28s
+- Log: OOMPAH-524__20260804T225801Z.jsonl
 ---
 <!-- COMMENTS:END -->
