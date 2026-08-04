@@ -97,6 +97,35 @@ def _make_issue(identifier: str = "TASK-1", state: str = "Open") -> Issue:
     )
 
 
+@pytest.fixture(autouse=True)
+def _stateful_transition_tracker_harness(monkeypatch):
+    """Back legacy recovery mocks with the fresh snapshot used by CAS."""
+
+    original = Orchestrator._transition_issue_status
+    bound: dict[int, dict[str, Issue]] = {}
+
+    def transition(orch, issue, requested_status, **kwargs):
+        tracker = kwargs.get("tracker") or orch._tracker_for_issue(issue)
+        issues = bound.setdefault(id(tracker), {})
+        issues[str(issue.id)] = issue
+        issues[str(issue.identifier)] = issue
+        tracker.fetch_issue_detail.side_effect = lambda identifier: issues.get(
+            str(identifier)
+        )
+        tracker.fetch_issue_states_by_ids.side_effect = lambda identifiers: [
+            issues[str(identifier)]
+            for identifier in identifiers
+            if str(identifier) in issues
+        ]
+        if tracker.update_issue.side_effect is None:
+            tracker.update_issue.side_effect = lambda identifier, **fields: setattr(
+                issues[str(identifier)], "state", fields["status"]
+            ) if fields.get("status") is not None else None
+        return original(orch, issue, requested_status, **kwargs)
+
+    monkeypatch.setattr(Orchestrator, "_transition_issue_status", transition)
+
+
 # ---------------------------------------------------------------------------
 # (1-3) Combined stale-loop + orphan reset scenario
 # ---------------------------------------------------------------------------
@@ -612,7 +641,12 @@ class TestEdgeCasesAndMutations:
         orphan2.project_id = "proj-1"
 
         # First reset succeeds, second fails
-        tracker.update_issue.side_effect = [None, RuntimeError("fail on second")]
+        def _update(identifier, **fields):
+            if identifier == "TASK-partial-2":
+                raise RuntimeError("fail on second")
+            orphan1.state = fields.get("status", orphan1.state)
+
+        tracker.update_issue.side_effect = _update
 
         posted_events: list[DispatchEvent] = []
 

@@ -175,7 +175,19 @@ def _make_tracker(issues: list[Issue] | None = None) -> MagicMock:
         )
 
     t.fetch_issue_detail.side_effect = _fetch_issue_detail
-    t.update_issue = MagicMock()
+    def _update_issue(identifier: str, **fields) -> None:
+        issue = next(
+            (
+                candidate
+                for candidate in _issues
+                if identifier in {str(candidate.id), str(candidate.identifier)}
+            ),
+            None,
+        )
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    t.update_issue = MagicMock(side_effect=_update_issue)
     t.close_issue = MagicMock()
     t.reopen_issue = MagicMock()
     t.add_comment = MagicMock()
@@ -183,6 +195,32 @@ def _make_tracker(issues: list[Issue] | None = None) -> MagicMock:
     t.get_metadata = MagicMock(return_value={})
     t.create_issue = MagicMock()
     return t
+
+
+def _bind_dispatch_tracker(tracker: MagicMock) -> None:
+    """Make dispatch point reads and status writes share one mutable snapshot."""
+
+    def _issues() -> list[Issue]:
+        value = tracker.fetch_issue_states_by_ids.return_value
+        return list(value) if isinstance(value, list) else []
+
+    def _detail(identifier: str) -> Issue | None:
+        return next(
+            (
+                issue
+                for issue in _issues()
+                if identifier in {str(issue.id), str(issue.identifier)}
+            ),
+            None,
+        )
+
+    def _update(identifier: str, **fields) -> None:
+        issue = _detail(identifier)
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    tracker.fetch_issue_detail.side_effect = _detail
+    tracker.update_issue.side_effect = _update
 
 
 def _make_running_entry(
@@ -438,6 +476,7 @@ class TestGitHubClaimProtocol:
 
         # Return the same issue on pre-dispatch state recheck
         tracker.fetch_issue_states_by_ids.return_value = [issue]
+        _bind_dispatch_tracker(tracker)
         # get_metadata returns our run ID (confirm claim)
         tracker.get_metadata.return_value = {}  # overridden per test
 
@@ -528,6 +567,7 @@ class TestGitHubClaimProtocol:
         issue = _native_issue("OVA-10", "OVA-10")
         tracker = _make_tracker([issue])
         tracker.fetch_issue_states_by_ids.return_value = [issue]
+        _bind_dispatch_tracker(tracker)
         written_ids: list[str] = []
 
         def _capture_set(identifier, key, value):
@@ -639,27 +679,28 @@ class TestGitHubClaimProtocol:
 class TestMarkNeedsHumanGitHub:
     """``_mark_needs_human`` routes to GitHub tracker correctly."""
 
-    def test_calls_mark_needs_human_when_available(self, tmp_path):
-        """If the tracker has mark_needs_human, it is called directly."""
+    def test_routes_available_protocol_through_transition_service(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_5", "acme/tasks#5", "5")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(tracker, "acme/tasks#5", "Please review manually.")
 
-        tracker.mark_needs_human.assert_called_once_with(
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "acme/tasks#5", status="Needs Human"
+        )
+        tracker.add_comment.assert_called_once_with(
             "acme/tasks#5", "Please review manually.", author="oompah"
         )
-        tracker.update_issue.assert_not_called()
-        tracker.add_comment.assert_not_called()
 
-    def test_falls_back_to_update_and_comment_when_mark_not_present(self, tmp_path):
-        """Trackers without mark_needs_human get update_issue + add_comment."""
+    def test_transition_service_updates_status_and_comment(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock(spec=["update_issue", "add_comment"])
-        # No mark_needs_human attribute
-        assert not hasattr(tracker, "mark_needs_human")
-
+        issue = _native_tracker_issue("TASK-100")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         orch._mark_needs_human(tracker, "TASK-100", "Human needed.")
 
         tracker.update_issue.assert_called_once()
@@ -669,30 +710,35 @@ class TestMarkNeedsHumanGitHub:
         tracker.add_comment.assert_called_once()
 
     def test_custom_author_is_forwarded(self, tmp_path):
-        """The author kwarg is passed through to mark_needs_human."""
+        """The author kwarg is passed to the actionable handoff comment."""
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_6", "acme/tasks#6", "6")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(
             tracker, "acme/tasks#6", "Review needed.", author="bot"
         )
 
-        tracker.mark_needs_human.assert_called_once_with(
+        tracker.add_comment.assert_called_once_with(
             "acme/tasks#6", "Review needed.", author="bot"
         )
+        tracker.mark_needs_human.assert_not_called()
 
-    def test_github_tracker_mark_needs_human_uses_tracker_method(self, tmp_path):
-        """Trackers with mark_needs_human receive that protocol method."""
+    def test_github_tracker_never_bypasses_transition_service(self, tmp_path):
         orch = _make_orch(tmp_path)
-        tracker = MagicMock()
+        issue = _github_issue("GH_7", "acme/tasks#7", "7")
+        issue.state = "In Progress"
+        tracker = _make_tracker([issue])
         tracker.mark_needs_human = MagicMock()
 
         orch._mark_needs_human(tracker, "acme/tasks#7", "Need a human.")
 
-        tracker.mark_needs_human.assert_called_once()
-        # native tracker path logic must not be involved
-        # (we just verify the correct method was called, no file I/O)
+        tracker.mark_needs_human.assert_not_called()
+        tracker.update_issue.assert_called_once_with(
+            "acme/tasks#7", status="Needs Human"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1160,6 +1206,7 @@ class TestMixedProjectDispatch:
         gh = _github_issue("GH_10", "acme/tasks#10", "10", project_id="proj-gh")
         gh_tracker = _make_tracker([gh])
         gh_tracker.fetch_issue_states_by_ids.return_value = [gh]
+        _bind_dispatch_tracker(gh_tracker)
         native_tracker = _make_tracker()
 
         # Confirm GitHub claim

@@ -96,6 +96,7 @@ def _close_orchestrator(orch: Orchestrator) -> None:
     orch.integration_queue.close()
     orch.coordination_store.close()
     orch.review_capacity_store.close()
+    orch.task_transition_journal.close()
     orch._tick_pool.shutdown(wait=True, cancel_futures=True)
     orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
@@ -163,10 +164,20 @@ def _make_orchestrator(
     provider_store: ProviderStore | None = None,
     state_name: str = "service-state.json",
 ) -> Orchestrator:
+    def _apply_update(identifier: str, **fields: Any) -> None:
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is not None and fields.get("status") is not None:
+            issue.state = str(fields["status"])
+
+    if (
+        isinstance(tracker.update_issue, mock.Mock)
+        and tracker.update_issue.side_effect is None
+    ):
+        tracker.update_issue.side_effect = _apply_update
     project_store = mock.MagicMock()
     project_store.list_all.return_value = [project]
-    project_store.get.side_effect = (
-        lambda project_id: project if str(project_id) == project.id else None
+    project_store.get.side_effect = lambda project_id: (
+        project if str(project_id) == project.id else None
     )
     project_lock = threading.RLock()
     project_store.project_write_lock.return_value = project_lock
@@ -204,7 +215,7 @@ def harness(tmp_path, monkeypatch):
         None,
     )
     provider = mock.MagicMock(spec=SCMProvider)
-    provider.get_branch_head_sha.return_value = "abc123"
+    provider.get_branch_head_sha.return_value = "a" * 40
     provider.find_pr_for_branch.return_value = None
     provider.create_review.return_value = _review("TASK-1")
     provider_store = ProviderStore(str(tmp_path / "providers.json"))
@@ -254,9 +265,7 @@ def test_standalone_gate_does_not_hold_shared_queue_driver(harness):
         blocked_standalone_reconciliation
     )
     orch._sync_ready_integration_submissions = mock.MagicMock()
-    orch.project_store.list_all.side_effect = (
-        lambda: (shared_queue_started.set() or [])
-    )
+    orch.project_store.list_all.side_effect = lambda: shared_queue_started.set() or []
     orch._handle_reconcile = mock.AsyncMock()
     orch._handle_review_check = mock.AsyncMock()
     orch._handle_dispatch_needed = tick_dispatch_mock()
@@ -297,9 +306,7 @@ def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness)
     tracker.fetch_issues_by_states.return_value = [task]
 
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     orch._alerts.append(
         {
             "level": "warning",
@@ -495,9 +502,7 @@ def test_legacy_quality_gate_facade_uses_generation_fallback(harness):
     task = _issue("TASK-LEGACY", branch="feature/legacy")
     tracker.fetch_issues_by_states.return_value = [task]
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
 
     class LegacyGate:
         def __init__(self):
@@ -520,9 +525,7 @@ def test_mocked_exact_quality_gate_facade_does_not_fall_back(harness):
     task = _issue("TASK-MOCKED-OWNER", branch="feature/mocked-owner")
     tracker.fetch_issues_by_states.return_value = [task]
     orch._reconcile_standalone_ready_to_integrate_tasks()
-    authority = orch._standalone_delivery_authorities[
-        (project.id, task.identifier)
-    ]
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     exact = mock.MagicMock(spec=BranchQualityGate)
     exact.cancel_owner.return_value = 1
     orch._branch_quality_gate = exact
@@ -642,12 +645,8 @@ def test_standalone_delivery_selects_priority_then_submitted_fifo(harness):
         mock.call(project, high_old, "TASK-HIGH-OLD", "trunk"),
         mock.call(project, high_new, "TASK-HIGH-NEW", "trunk"),
     ]
-    assert provider.create_review.call_args_list[0].args[1].startswith(
-        "TASK-HIGH-OLD:"
-    )
-    assert provider.create_review.call_args_list[1].args[1].startswith(
-        "TASK-HIGH-NEW:"
-    )
+    assert provider.create_review.call_args_list[0].args[1].startswith("TASK-HIGH-OLD:")
+    assert provider.create_review.call_args_list[1].args[1].startswith("TASK-HIGH-NEW:")
 
 
 def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness):
@@ -667,10 +666,8 @@ def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness
         "TASK-UNSELECTED",
         submitted_at="2026-08-01T02:00:00Z",
     )
-    provider.get_branch_head_sha.side_effect = (
-        lambda _repo, branch: None
-        if branch == invalid.work_branch
-        else "abc123"
+    provider.get_branch_head_sha.side_effect = lambda _repo, branch: (
+        None if branch == invalid.work_branch else "abc123"
     )
     provider.list_open_reviews.return_value = []
     provider.create_review.return_value = _review(
@@ -687,7 +684,10 @@ def test_invalid_old_candidate_falls_through_without_claiming_later_rows(harness
     assert provider.create_review.call_count == 1
     assert (project.id, invalid.identifier) in orch._standalone_delivery_authorities
     assert (project.id, valid.identifier) in orch._standalone_delivery_authorities
-    assert (project.id, unselected.identifier) not in orch._standalone_delivery_authorities
+    assert (
+        project.id,
+        unselected.identifier,
+    ) not in orch._standalone_delivery_authorities
     assert "not present on the remote" in next(
         alert["message"]
         for alert in _delivery_alerts(orch)
@@ -705,9 +705,7 @@ def test_dependency_blocked_candidate_does_not_claim_or_block_next(harness):
     )
     blocker = _issue("TASK-BLOCKER")
     blocker.state = OPEN
-    blocked.blocked_by = [
-        BlockerRef(id=blocker.id, identifier=blocker.identifier)
-    ]
+    blocked.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
     next_task = _issue(
         "TASK-NEXT",
         submitted_at="2026-08-01T01:00:00Z",
@@ -953,13 +951,14 @@ def test_finish_dependency_resolution_is_isolated_per_project(harness):
         ),
         None,
     )
-    orch.project_store.list_all.return_value = [project_one, project_two]
-    orch.project_store.get.side_effect = (
-        lambda project_id: {
-            project_one.id: project_one,
-            project_two.id: project_two,
-        }.get(str(project_id))
+    tracker_two.update_issue.side_effect = lambda identifier, **fields: setattr(
+        tracker_two.fetch_issue_detail(identifier), "state", fields["status"]
     )
+    orch.project_store.list_all.return_value = [project_one, project_two]
+    orch.project_store.get.side_effect = lambda project_id: {
+        project_one.id: project_one,
+        project_two.id: project_two,
+    }.get(str(project_id))
     orch._project_trackers[project_two.id] = tracker_two
     provider.create_review.return_value = _review("TASK-PROJECT-TWO", review_id="908")
 
@@ -1002,10 +1001,7 @@ def test_existing_open_review_is_reused_idempotently(harness):
     # the branch cannot bypass the configured branch gate.
     gate.assert_called_once_with(project, task, "TASK-3", "trunk")
     tracker.update_issue.assert_called_once_with("TASK-3", status=IN_REVIEW)
-    assert [
-        call.args[:3]
-        for call in tracker.set_metadata_field.call_args_list
-    ] == [
+    assert [call.args[:3] for call in tracker.set_metadata_field.call_args_list] == [
         ("TASK-3", "oompah.review_url", "https://github.com/org/repo/pull/99"),
         ("TASK-3", "oompah.review_number", "99"),
         ("TASK-3", "oompah.work_branch", "TASK-3"),
@@ -1629,7 +1625,9 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     # process performs lookup + final open-review adoption CAS.
     provider.find_pr_for_branch.side_effect = [None, None, created, created]
     provider.create_review.return_value = created
-    monkeypatch.setattr("oompah.orchestrator.detect_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider", lambda *_a, **_k: provider
+    )
 
     tracker_one = mock.MagicMock()
     task_one = _issue("TASK-7")
@@ -1713,10 +1711,8 @@ def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
     project.status_label_authorized_logins = ["owner"]
     tracker.fetch_issue_detail.return_value = task
     tracker.get_metadata.return_value = {}
-    tracker.update_issue.side_effect = (
-        lambda _identifier, **fields: setattr(task, "state", fields["status"])
-        if "status" in fields
-        else None
+    tracker.update_issue.side_effect = lambda _identifier, **fields: (
+        setattr(task, "state", fields["status"]) if "status" in fields else None
     )
 
     def override_then_fail(*_args):
@@ -1743,9 +1739,9 @@ def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     assert task.state == MERGED
-    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
-        MERGED
-    ]
+    assert [
+        call.kwargs.get("status") for call in tracker.update_issue.call_args_list
+    ] == [MERGED]
     provider.create_review.assert_not_called()
     assert not _delivery_alerts(orch)
 
@@ -1759,10 +1755,8 @@ def test_owner_override_during_passing_gate_cancels_review_creation(harness):
     project.status_label_authorized_logins = ["owner"]
     tracker.fetch_issue_detail.return_value = task
     tracker.get_metadata.return_value = {}
-    tracker.update_issue.side_effect = (
-        lambda _identifier, **fields: setattr(task, "state", fields["status"])
-        if "status" in fields
-        else None
+    tracker.update_issue.side_effect = lambda _identifier, **fields: (
+        setattr(task, "state", fields["status"]) if "status" in fields else None
     )
 
     def override_then_pass(*_args):
@@ -1790,9 +1784,9 @@ def test_owner_override_during_passing_gate_cancels_review_creation(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     assert task.state == MERGED
-    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
-        MERGED
-    ]
+    assert [
+        call.kwargs.get("status") for call in tracker.update_issue.call_args_list
+    ] == [MERGED]
     provider.create_review.assert_not_called()
     assert not _delivery_alerts(orch)
 

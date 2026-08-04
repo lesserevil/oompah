@@ -324,6 +324,19 @@ async def test_project_scopes_native_issue_before_authority_compare(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_invalid_detail_proxy_falls_back_to_exact_point_read(tmp_path):
+    tracker = FakeTracker(_issue())
+    tracker.fetch_issue_detail = lambda _identifier: object()
+    tracker.fetch_issue_states_by_ids = lambda _identifiers: [replace(tracker.issue)]
+    service = _service(tmp_path, tracker)
+
+    outcome = await service.execute(_intent(tracker.issue))
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
 async def test_nonterminal_write_holds_shared_project_lock(tmp_path):
     lock = threading.RLock()
 
@@ -485,6 +498,26 @@ async def test_open_audit_request_rejects_non_maintenance_authority(tmp_path):
         "transition.maintenance_audit_authority_required"
     )
     assert tracker.updates == []
+
+
+@pytest.mark.asyncio
+async def test_terminal_request_may_enter_audit_via_validation_edge(tmp_path):
+    issue = _issue(state="In Progress")
+    tracker = FakeTracker(issue)
+    adapter = FakeTerminalAdapter(tracker)
+    service = _service(tmp_path, tracker, terminal_adapter=adapter)
+    intent = _intent(
+        issue,
+        requested_status="Done",
+        exact_head="a" * 40,
+        evidence_generation="generation-1",
+    )
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.STAGED
+    assert tracker.issue.state == "In Validation"
+    assert adapter.calls == 1
 
 
 @pytest.mark.asyncio

@@ -51,7 +51,6 @@ from oompah.tracker import TrackerProtocol
 from oompah.workflow_contract import (
     CANONICAL_STATUSES,
     TransitionRequirement,
-    is_valid_transition,
     transition_rule,
 )
 
@@ -551,8 +550,9 @@ class TransitionJournal:
         *,
         clock: Callable[[], float] = time.time,
     ) -> None:
-        self.path = os.path.abspath(path)
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        self.path = path if path == ":memory:" else os.path.abspath(path)
+        if self.path != ":memory:":
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         self._clock = clock
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(self.path, check_same_thread=False, timeout=10)
@@ -957,6 +957,28 @@ class TaskTransitionService:
             issue = await operation(task_id)
         else:
             issue = await asyncio.to_thread(operation, task_id)
+        if issue is not None and not isinstance(issue, Issue):
+            # Some compatibility adapters expose an incomplete detail method
+            # but a correct point-read API.  Never hash an arbitrary proxy or
+            # mock as lifecycle authority; fall back to the narrow state read
+            # and fail closed when neither yields a concrete Issue.
+            point_read = getattr(self.tracker, "fetch_issue_states_by_ids", None)
+            if not callable(point_read):
+                return None
+            if inspect.iscoroutinefunction(point_read):
+                candidates = await point_read([task_id])
+            else:
+                candidates = await asyncio.to_thread(point_read, [task_id])
+            issue = next(
+                (
+                    candidate
+                    for candidate in (candidates or [])
+                    if isinstance(candidate, Issue)
+                    and task_id
+                    in {str(candidate.id), str(candidate.identifier)}
+                ),
+                None,
+            )
         if issue is not None and not issue.project_id:
             issue.project_id = self.project_id
         return issue
@@ -1171,7 +1193,13 @@ class TaskTransitionService:
                     outcome,
                 )
                 return outcome
-            if not is_valid_transition(observed_status, intent.requested_status):
+            direct_rule = transition_rule(observed_status, intent.requested_status)
+            staging_rule = (
+                transition_rule(observed_status, IN_VALIDATION)
+                if intent.requested_status in TERMINAL_TARGETS
+                else None
+            )
+            if direct_rule is None and staging_rule is None:
                 outcome = self._outcome(
                     transition_id,
                     intent,
@@ -1213,8 +1241,20 @@ class TaskTransitionService:
                 )
                 return outcome
 
-            rule = transition_rule(observed_status, intent.requested_status)
-            requirements = rule.requirements if rule else frozenset()
+            # A terminal request is not a direct tracker edge: the terminal
+            # coordinator first stages the task in In Validation, then an
+            # auditor applies the requested target.  Accept callers whose
+            # current state has either the explicit terminal edge or the
+            # staging edge, and retain the evidence requirements from both.
+            # This lets legacy completion paths such as In Progress -> Done
+            # enter audit without permitting Open -> Merged, while preserving
+            # Merged's exact-head and containment requirements.
+            requirements = frozenset(
+                requirement
+                for rule in (direct_rule, staging_rule)
+                if rule is not None
+                for requirement in rule.requirements
+            )
             if (
                 TransitionRequirement.IMPLEMENTATION_GENERATION in requirements
                 and not intent.evidence_generation
