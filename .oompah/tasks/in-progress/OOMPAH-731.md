@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:52:24.411783Z'
+updated_at: '2026-08-04T00:55:47.844924Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -433,5 +433,21 @@ author: oompah
 created: 2026-08-04 00:35
 ---
 Understanding: This is a merge conflict resolution task. The OOMPAH-731 branch has 2 commits on top of f035aa3e6 that need to be rebased onto origin/main. The branch adds direct epic rebase completion logic to prevent self-invalidating submission (EXOCOMP-244 bug). Main has moved significantly ahead with 22 commits from OOMPAH-724 through OOMPAH-739, several overlapping with our changed paths (orchestrator.py, server.py, integration.py, projects.py). Starting rebase now.
+---
+author: oompah
+created: 2026-08-04 00:55
+---
+Discovery: Found 2 conflict zones in oompah/orchestrator.py during rebase onto origin/main (27 commits ahead).
+
+Conflict 1 (~line 7100): HEAD added _arm_integrated_audit_recovery_alert and _clear_integrated_audit_recovery_alert methods after _clear_integration_delivery_alert; OOMPAH-731 added retry_source clearing inside _clear_integration_delivery_alert. Resolution: kept both — OOMPAH-731's retry clearing goes inside the existing method, HEAD's two new methods follow after.
+
+Conflict 2 (~line 31752): HEAD added _handle_revoked_submission_exit (EXOCOMP-172 late-mutation detection); OOMPAH-731 added complete_direct_epic_maintenance_submission (core epic rebase completion path). Resolution: kept both methods in order.
+
+Post-rebase: one test failure in test_epic_strategy.py — OOMPAH-733 added _prepare_epic_rebase_helper_target which now records oompah.target_branch before workspace creation, shifting set_metadata_field call indices in the OOMPAH-731 fixture test. Updated test to assert the new first call (target_branch=main) and shift remaining indices accordingly.
+---
+author: oompah
+created: 2026-08-04 00:55
+---
+Verification: 477 tests pass across test_epic_strategy.py, test_projects.py, test_worker_submission.py, test_epic_rebase_state.py, test_epic_staleness.py, and test_terminal_audit_enforcement.py. Branch successfully rebased onto origin/main and force-pushed (a3bfbb3ea). All conflict markers resolved, both sides' changes preserved.
 ---
 <!-- COMMENTS:END -->
