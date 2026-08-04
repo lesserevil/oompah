@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: In Validation
+status: Archived
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-08-04T23:34:30.353013Z'
+updated_at: '2026-08-04T23:41:28.879840Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -46,6 +46,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T22:02:03.075494+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-04e4215c2556: '2026-08-04T23:41:25.498958+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-531
+    target_state: Archived
+    evidence_fingerprint: ad9fed55b0801ba2f2b18563060d9c0886ed4609bdd48d0ef4c488c46a04c335
+    audit_ids:
+    - audit-6f439353f931
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:41:25.498966+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-531
+    audit_id: audit-6f439353f931
+    attempt_id: attempt-04e4215c2556
+    target_state: Archived
+    evidence_fingerprint: ad9fed55b0801ba2f2b18563060d9c0886ed4609bdd48d0ef4c488c46a04c335
+    status: Archived
+    audit_ids:
+    - audit-6f439353f931
+    applied: false
+    created_at: '2026-08-04T23:41:25.498975+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -53,7 +77,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-531
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -62,7 +86,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-04e4215c2556
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -72,13 +96,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T23:33:49.010342+00:00'
       branch_key: epic-OOMPAH-528
+      verdict: pass
+      completed_at: '2026-08-04T23:41:25.498845+00:00'
+      ended_at: '2026-08-04T23:41:25.498845+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T22:36:38.202855+00:00'
-    updated_at: '2026-08-04T23:33:49.010342+00:00'
+    updated_at: '2026-08-04T23:41:25.498845+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-04e4215c2556
