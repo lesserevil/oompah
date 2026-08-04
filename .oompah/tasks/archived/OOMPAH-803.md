@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T22:10:08.464361Z'
+updated_at: '2026-08-04T22:10:35.234609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -451,5 +451,10 @@ created: 2026-08-04 22:10
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: [REDACTED]
+---
+author: oompah
+created: 2026-08-04 22:10
+---
+Owner override applied after the launched auditor produced no negative verdict and stopped on policy incompatibility. The temporary origin/OOMPAH-803 ref at 6561d52e5a879375ea3587582f335419ed49310e was then deleted; it contained no implementation and is no longer needed. Canonical work remains OOMPAH-775; OOMPAH-807 owns revisionless metadata-only audit support.
 ---
 <!-- COMMENTS:END -->

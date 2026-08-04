@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-808
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T22:08:03.812550Z'
+updated_at: '2026-08-04T22:10:52.970492Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 26d87f4c-7517-4448-92c1-b294733741d2
+oompah.agent_run_id: 76b7829b-681e-4e55-a791-4004eb6e577c
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-808
 oompah.integration:
   version: 2
@@ -156,5 +156,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 24s
 - Log: OOMPAH-808__20260804T220457Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:10
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
