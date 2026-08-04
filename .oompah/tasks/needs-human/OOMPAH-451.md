@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-451
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Restore GitLab parity stranded after the OOMPAH-318 epic merge
 parent: null
@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:45:16.959541Z'
+updated_at: '2026-08-04T15:45:26.450367Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -71,8 +71,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-24a26411808a
-    applied: false
+    applied: true
     created_at: '2026-08-04T15:45:14.970804+00:00'
+    applied_at: '2026-08-04T15:45:24.355908+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -411,5 +412,12 @@ author: oompah
 created: 2026-08-04 15:39
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-451 (tried: origin/epic-OOMPAH-451, origin/OOMPAH-451). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 15:45
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
