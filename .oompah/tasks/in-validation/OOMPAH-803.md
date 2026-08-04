@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:25:16.080567Z'
+updated_at: '2026-08-04T21:25:35.399755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,19 @@ author: oompah
 created: 2026-08-04 21:23
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-803 (tried: origin/OOMPAH-803). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 21:25
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-04 21:25
+---
+Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 5s
 ---
 <!-- COMMENTS:END -->
