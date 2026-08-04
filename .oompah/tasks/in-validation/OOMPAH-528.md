@@ -14,11 +14,10 @@ children:
 - OOMPAH-534
 blocked_by: []
 labels:
-- needs:feature
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:12:21.231807Z'
+updated_at: '2026-08-04T23:12:24.601166Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
