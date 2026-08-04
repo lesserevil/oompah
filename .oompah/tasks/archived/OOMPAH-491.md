@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-491
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-08-04T20:21:55.909907Z'
+updated_at: '2026-08-04T20:30:29.641367Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -55,6 +55,30 @@ oompah.task_costs:
     recorded_at: '2026-08-04T18:18:58.011780+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-65f9630d57e2: '2026-08-04T20:30:25.017031+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-491
+    target_state: Archived
+    evidence_fingerprint: 812123744863a985526ca74f836141213395a48d8118814a1179041f55b36c20
+    audit_ids:
+    - audit-ae44e735f0af
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T20:30:25.017043+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-491
+    audit_id: audit-ae44e735f0af
+    attempt_id: attempt-65f9630d57e2
+    target_state: Archived
+    evidence_fingerprint: 812123744863a985526ca74f836141213395a48d8118814a1179041f55b36c20
+    status: Archived
+    audit_ids:
+    - audit-ae44e735f0af
+    applied: false
+    created_at: '2026-08-04T20:30:25.017060+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -62,7 +86,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-491
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,7 +130,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-65f9630d57e2
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -117,13 +141,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T20:21:46.821536+00:00'
       branch_key: epic-OOMPAH-490
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-04T20:30:25.016877+00:00'
+      ended_at: '2026-08-04T20:30:25.016877+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T17:25:47.367647+00:00'
-    updated_at: '2026-08-04T20:21:46.821536+00:00'
+    updated_at: '2026-08-04T20:30:25.016877+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-be11ca23afad
