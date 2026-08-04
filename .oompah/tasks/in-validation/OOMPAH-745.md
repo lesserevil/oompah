@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:39:02.340849Z'
+updated_at: '2026-08-04T16:51:13.433781Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -86,8 +86,8 @@ oompah.integration:
     OOMPAH-742: 494c39f8f06ec986bd4efb345ea59e359cf95aed
     OOMPAH-743: f745082a0eedbc0ff899222e7643ef590216000d
 oompah.task_costs:
-  total_input_tokens: 188
-  total_output_tokens: 48424
+  total_input_tokens: 198
+  total_output_tokens: 48855
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -95,8 +95,8 @@ oompah.task_costs:
       output_tokens: 47141
       cost_usd: 0.0
     unknown:
-      input_tokens: 37
-      output_tokens: 1283
+      input_tokens: 47
+      output_tokens: 1714
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -123,6 +123,12 @@ oompah.task_costs:
     output_tokens: 1283
     cost_usd: 0.0
     recorded_at: '2026-08-04T16:37:19.215244+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 431
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T16:51:03.647155+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-745__20260803T230737Z
@@ -158,7 +164,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-745
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -182,7 +188,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-dd929426a6ae
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -193,13 +199,17 @@ oompah.terminal_audit:
       started_at: '2026-08-04T16:38:49.186821+00:00'
       branch_key: epic-OOMPAH-740--task-OOMPAH-745
       candidate_rotation_count: 1
+      failure_classification: finalization_failure
+      ended_at: '2026-08-04T16:51:06.795354+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-08-04T16:51:26.795313+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T16:24:28.373263+00:00'
-    updated_at: '2026-08-04T16:38:49.186821+00:00'
+    updated_at: '2026-08-04T16:51:06.795354+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ea3d0a66f695
@@ -219,7 +229,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-dd929426a6ae
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -230,6 +240,10 @@ oompah.terminal_audit:
     started_at: '2026-08-04T16:38:49.186821+00:00'
     branch_key: epic-OOMPAH-740--task-OOMPAH-745
     candidate_rotation_count: 1
+    failure_classification: finalization_failure
+    ended_at: '2026-08-04T16:51:06.795354+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-08-04T16:51:26.795313+00:00'
 ---
 ## Summary
 
@@ -554,5 +568,20 @@ author: oompah
 created: 2026-08-04 16:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 16:51
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 151, Tool calls: 69
+- Tokens: 10 in / 431 out [441 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 7s
+- Log: OOMPAH-745__20260804T163906Z.jsonl
+---
+author: oompah
+created: 2026-08-04 16:51
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
