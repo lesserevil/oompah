@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T17:01:07.723524Z'
+updated_at: '2026-08-04T17:01:24.577212Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -269,6 +269,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T16:56:04.564185+00:00'
     branch_key: epic-OOMPAH-766
+oompah.task_costs:
+  total_input_tokens: 48
+  total_output_tokens: 1123
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 48
+      output_tokens: 1123
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 1123
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:01:22.183806+00:00'
 ---
 ## Summary
 
@@ -388,5 +404,15 @@ Safe evidence:
 - branch_gate: make test passed in 616.3s at review head
 - artifacts: oompah/workflow_jobs.py (1818 LOC), oompah/workflow_worker.py (690 LOC), oompah/workflow_scheduler.py (386 LOC), oompah/task_transition_service.py (1402 LOC), oompah/work_decision.py (1204 LOC), oompah/workflow_facts.py (1067 LOC), oompah/workflow_shadow.py (491 LOC), plus tests/test_workflow_jobs.py (610 LOC) and neighboring suites
 - test_coverage: tests cover concurrent claimers, exact-generation fencing, checkpoint restart replay, lease expiry/reclaim, retry exhaustion, cross-project isolation, bulk supersession scoping, schema migration and rejection
+---
+author: oompah
+created: 2026-08-04 17:01
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 26
+- Tokens: 48 in / 1.1K out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 13s
+- Log: OOMPAH-766__20260804T165617Z.jsonl
 ---
 <!-- COMMENTS:END -->
