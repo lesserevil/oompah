@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:05:10.989269Z'
+updated_at: '2026-08-04T22:08:17.094860Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-04 22:05
 ---
 Landing-order coordination: OOMPAH-796 now finish-depends on this task because both legitimately touch orchestrator.py and workflow_contract.py. Finish and submit the transition-authority repair first; OOMPAH-796 will rebase and run combined focused tests afterward.
+---
+author: oompah
+created: 2026-08-04 22:08
+---
+Final acceptance check before submission: run_watchdog_audit currently posts the [watchdog:stalled_task] action comment before the TaskTransitionService CAS. If CAS returns WAITING/rejected, ensure that sentinel does not make the next sweep classify already_actioned and suppress a required retry. Add a deterministic regression proving deferred/failed generation CAS remains retryable later, while an actually applied winner stays idempotent. Passing transition routing tests alone are insufficient if the comment becomes premature durable authority.
 ---
 <!-- COMMENTS:END -->
