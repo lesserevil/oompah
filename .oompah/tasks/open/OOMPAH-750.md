@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T00:47:39.836567Z'
+updated_at: '2026-08-04T00:48:52.407942Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,78 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: de09fa5b7e244e1be1585a6fb3ce8f55415afaf2edb7900a917d67eaa2eca6ae
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T00:48:42.362254+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 861a4621-a700-41ac-a705-0eb71f168daa
-  claim_owner: b6e50576-eec3-4dce-bc89-fe685f70768e
-  claimed_at: '2026-08-04T00:47:28.217551+00:00'
-  claim_expires_at: '2026-08-04T01:17:28.217551+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: The stalled-task watchdog evidence-preference bug is\
+    \ specific and not covered by any task in the corpus. All 34 similarity candidates\
+    \ address different concerns: epic/task workflow improvements, release delivery\
+    \ infrastructure, dashboard UI, error deduplication, tracker robustness, and recovery\
+    \ mechanics. No existing task describes using comment wording as proof of task\
+    \ blockage or the evidence-ordering problem that OOMPAH-750 targets. This is a\
+    \ unique bug fix work item.\n**Understanding the duplicate screening task:**\n\
+    \nOOMPAH-750 describes a specific bug in the stalled-task watchdog where it incorrectly\
+    \ classifies tasks as `human_blocked` based solely on the presence of handoff-syntax\
+    \ comments, even when current evidence (merged PRs, passing gates, resolvable\
+    \ branches, technical failures) clearly shows the task is actionable. The fix\
+    \ requires the watchdog to evaluate current tracker/audit/branch/CI/provider evidence\
+    \ *before* considering comment wording, and never allow comment wording alone\
+    \ to prove human blockage.\n\n**Reviewing the supplied task corpus:**\n\nI've\
+    \ systematically reviewed all 34 non-terminal similarity candidates and the core\
+    \ tasks in the corpus:\n\n- **OOMPAH-156\u2013212** (Archived): These address\
+    \ error deduplication, UI controls, intake normalization, epic workflows, release-addendum\
+    \ infrastructure, dashboard filtering, and recovery mechanics. None describe watchdog\
+    \ classification logic or evidence-preference issues.\n- **OOMPAH-10, OOMPAH-12**:\
+    \ Tracker sync robustness and native task creation; not watchdog-related.\n- **OOMPAH-1,\
+    \ OOMPAH-2, OOMPAH-18, OOMPAH-20**: CI/release/docs fixes; unrelated to watchdog\
+    \ classification.\n- **OOMPAH-100**: Webhook error (archived as duplicate of OOMPAH-58);\
+    \ unrelated.\n\nNo task in the corpus addresses:\n1. Stalled-task watchdog decision\
+    \ logic\n2. Handoff-comment misinterpretation as proof of human blockage\n3. Preference\
+    \ of current evidence (merged PRs, CI state, branch state) over comment wording\n\
+    4. False positive human_blocked classifications causing recovery failures\n\n\
+    The bug is narrowly scoped to watchdog maintenance telemetry and is not described\
+    \ by any existing open or recently-closed task.\n\n---\n\nFocus handoff: duplicate_detector\n\
+    \nDuplicate preflight verdict: no_duplicate\n\nMatches: none\n\nEvidence: The\
+    \ stalled-task watchdog evidence-preference bug is specific and not covered by\
+    \ any task in the corpus. All 34 similarity candidates address different concerns:\
+    \ epic/task workflow improvements"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 484d8670-f993-4d87-8fe9-874896cd1f26
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1312
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1312
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1312
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T00:48:42.361821+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-750__20260804T004746Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-750
+    source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+    completed_at: '2026-08-04T00:48:42.364373+00:00'
 ---
 ## Summary
 
@@ -60,5 +118,15 @@ author: oompah
 created: 2026-08-04 00:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 00:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 6s
+- Log: OOMPAH-750__20260804T004746Z.jsonl
 ---
 <!-- COMMENTS:END -->

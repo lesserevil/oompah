@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:48:02.306885Z'
+updated_at: '2026-08-04T00:49:09.877397Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9801b577-295b-46fd-9377-c197d9c7f3d1
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 1522726
   total_output_tokens: 66758
@@ -129,9 +129,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-739
-  head_sha: fbfa32b13993fb061db18f0712f0864bf3719e23
-  submitted_at: '2026-08-03T22:30:25.103731+00:00'
-  updated_at: '2026-08-03T22:30:25.103731+00:00'
+  base_branch: main
+  head_sha: aca4bd09e2f69f5b8c5a1818c1b6ddc61d941e96
+  submitted_at: '2026-08-04T00:48:53.146246+00:00'
+  updated_at: '2026-08-04T00:48:53.146246+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/694
 oompah.review_number: '694'
 oompah.work_branch: OOMPAH-739
@@ -568,5 +569,25 @@ author: oompah
 created: 2026-08-04 00:48
 ---
 Implementation: strengthened the recovered lifecycle implementation with direct compatibility coverage for deleted source branches landing by fast-forward, merge commit, and patch-equivalent rebase; exact historical forge reviews with stale/missing local refs; and transient forge failures that defer rather than mutate. Existing recovery tests cover Merged parent/child preservation, one-time unlanded repair, OOMPAH-447 review fencing, and snapshot reset.
+---
+author: oompah
+created: 2026-08-04 00:48
+---
+Completion: durable parent landing verification and recovery deferral are complete, with regression coverage for deleted refs, merge/fast-forward/rebased landings, forge cache/outage behavior, recovery snapshots, unlanded one-time repair, and reused-branch sibling fencing. Focused checks passed (109 + 263); branch aca4bd09e is pushed and clean.
+---
+author: oompah
+created: 2026-08-04 00:49
+---
+Preserved verified nested epic Merged state across deleted source branches with durable landing evidence and recovery regression coverage.
+---
+author: oompah
+created: 2026-08-04 00:49
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 42
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 9s
+- Log: OOMPAH-739__20260804T004110Z.jsonl
 ---
 <!-- COMMENTS:END -->
