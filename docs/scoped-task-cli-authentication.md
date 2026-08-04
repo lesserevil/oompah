@@ -107,7 +107,10 @@ triple that was granted; a mismatch fails closed:
 Genuine failed operations are recorded on the grant via
 `record_task_handoff_failure` and consumed by the orchestrator when the worker
 exits — a worker whose handoff failed is held for a human rather than silently
-retried.
+retried. An advisory `coordination-send` is the exception: if its recipient
+was suggested but is no longer authorized when the send is revalidated, the
+endpoint returns a structured policy-denial response without recording a
+handoff failure. The worker can still comment on and submit its own task.
 
 Spawned workers also receive the non-secret `OOMPAH_TASK_HANDOFF_TASK_ID`
 assignment identifier. The endpoint uses it only for auth-health classification:
@@ -117,6 +120,23 @@ intentional policy event. The target is never resolved, so this applies even
 when it is non-running or unknown. Authorization still fails closed. For
 read-only peer inspection, use `oompah task coordinate peers <task-id>` or
 `oompah task coordinate inbox <task-id>`.
+
+### Advisory coordination-send races
+
+Peer suggestions are dynamic: a peer can leave the suggested set between a
+worker listing peers and sending a message (for example, when its lifecycle
+state changes). The send must fail closed for that recipient, without
+persisting or delivering the message, but this expected policy result must not
+be treated as a task-handoff authentication failure or a worker-exit failure.
+It must be a structured non-500 response so the worker can continue its own
+comment and submission workflow.
+
+This exception does not weaken scope enforcement. Arbitrary recipients,
+cross-project recipients, expired or wrong-task capabilities, and mutations of
+another task remain denied without disclosing whether the target exists. A
+recipient that remains authorized but is not running uses the normal durable
+inbox fallback; idempotency still returns the original durable message on a
+retry.
 
 ## Live least-privilege probe
 
