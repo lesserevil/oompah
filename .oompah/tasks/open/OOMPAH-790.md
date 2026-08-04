@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-790
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Build a stateful reference model and generative workflow harness
 parent: OOMPAH-767
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:16.097978Z'
-updated_at: '2026-08-04T17:58:06.163080Z'
+updated_at: '2026-08-04T17:59:14.450530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,13 +22,17 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-790
   base_branch: epic-OOMPAH-767
+  base_sha: fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1
   head_sha: fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1
   submitted_at: '2026-08-04T17:57:59.423194+00:00'
-  updated_at: '2026-08-04T17:57:59.423194+00:00'
+  updated_at: '2026-08-04T17:59:07.672221+00:00'
+  last_error: epic worktree head a681ec2fc005f339063b3b8e2a139b8ae0b3c379 differs
+    from the published epic head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1; refusing
+    to reset a preserved recovery snapshot
 ---
 ## Summary
 
@@ -63,5 +67,12 @@ author: oompah
 created: 2026-08-04 17:58
 ---
 Resubmitted exact verified head fee2b7a57 after creating the previously absent parent epic branch epic-OOMPAH-767.
+---
+author: oompah
+created: 2026-08-04 17:59
+---
+Integration could not verify `OOMPAH-790`: epic worktree head a681ec2fc005f339063b3b8e2a139b8ae0b3c379 differs from the published epic head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
