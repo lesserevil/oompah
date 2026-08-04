@@ -5,13 +5,16 @@ status: Backlog
 priority: 1
 title: Migrate every workflow domain to shared decisions and durable jobs
 parent: OOMPAH-763
-children: []
+children:
+- OOMPAH-781
+- OOMPAH-782
+- OOMPAH-788
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-04T13:55:59.817364Z'
+updated_at: '2026-08-04T13:59:11.568915Z'
 work_branch: null
 target_branch: null
 review_url: null

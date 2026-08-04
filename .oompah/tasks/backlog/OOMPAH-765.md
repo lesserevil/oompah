@@ -5,13 +5,16 @@ status: Backlog
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
-children: []
+children:
+- OOMPAH-777
+- OOMPAH-779
+- OOMPAH-786
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T13:55:54.087142Z'
+updated_at: '2026-08-04T13:59:08.242098Z'
 work_branch: null
 target_branch: null
 review_url: null

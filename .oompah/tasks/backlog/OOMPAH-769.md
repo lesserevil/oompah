@@ -5,13 +5,16 @@ status: Backlog
 priority: 1
 title: Make one transition service the only task-status writer
 parent: OOMPAH-763
-children: []
+children:
+- OOMPAH-775
+- OOMPAH-776
+- OOMPAH-778
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-04T13:56:01.554943Z'
+updated_at: '2026-08-04T13:58:54.542374Z'
 work_branch: null
 target_branch: null
 review_url: null

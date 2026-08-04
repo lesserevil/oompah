@@ -5,13 +5,16 @@ status: Backlog
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
-children: []
+children:
+- OOMPAH-780
+- OOMPAH-783
+- OOMPAH-785
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T13:55:56.148047Z'
+updated_at: '2026-08-04T13:59:06.572379Z'
 work_branch: null
 target_branch: null
 review_url: null
