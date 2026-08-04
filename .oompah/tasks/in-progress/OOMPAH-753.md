@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:02:03.063201Z'
+updated_at: '2026-08-04T04:04:31.014134Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -299,5 +299,10 @@ author: oompah
 created: 2026-08-04 04:02
 ---
 Understanding: The existing OOMPAH-753 review head fails the full branch gate in two tests after recoverable auditor-denial changes. I will synchronize the same branch, inspect the exact assertions and CI/PR evidence, reproduce both focused failures, apply only the minimal compatibility fixes, run focused Makefile-backed tests, push the repair, verify check reruns, and submit the task.
+---
+author: oompah
+created: 2026-08-04 04:04
+---
+Discovery: The provider-retirement failure reproduces in both serial and 4-worker gate modes. OOMPAH-753 changed the fatal mutation denial text in oompah/auditor.py so it no longer contains the established 'read-only' policy wording asserted by tests/test_provider_retirement.py; the command still correctly fails closed and invokes the fatal denial handler. The repo-heal test passes in both focused modes and its code was untouched by this branch, so the recorded gate occurrence is not reproducible from the exact head; I will stress it with its neighboring module while making only the confirmed compatibility repair.
 ---
 <!-- COMMENTS:END -->
