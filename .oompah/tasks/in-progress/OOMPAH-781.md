@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T21:04:37.756967Z'
+updated_at: '2026-08-04T21:06:43.615794Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -269,5 +269,10 @@ author: oompah
 created: 2026-08-04 21:02
 ---
 Discovery: reproduced the integration failure. Reconciling 402 workflow decisions performs a separately committed SQLite transaction per task and exceeds the 5-second gate timeout; the regression is independent of audit semantics but occurs on this combined branch. The YOLO orphan-label test passes alone, indicating an order/shared-state failure to isolate before changing it.
+---
+author: oompah
+created: 2026-08-04 21:06
+---
+Implementation: scheduler reconciliation now writes each durable decision snapshot in one transaction, preserving cursor/job/event atomicity while avoiding per-row commit latency. Added regression coverage proving a failed multi-task snapshot leaves no stale cursor or job; the existing 402-history-row case now passes in 0.75s.
 ---
 <!-- COMMENTS:END -->
