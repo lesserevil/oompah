@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-08-04T18:05:21.824873Z'
+updated_at: '2026-08-04T18:05:28.790300Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -66,8 +66,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-83dd4686cc21
-    applied: false
+    applied: true
     created_at: '2026-08-04T18:05:18.010586+00:00'
+    applied_at: '2026-08-04T18:05:27.163621+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -260,5 +261,22 @@ author: oompah
 created: 2026-08-04 18:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 18:05
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 14a319df71780c96d2b5918ebbb50ba84662241e
+- merge_on_main: true
+- scenario_test_count: 4
+- context_manager_present: _granian_server (contextlib.contextmanager)
+- cleanup_bounded: stop_owned_process(timeout_s=8) + communicate(timeout=2) in finally
+- parity_suite_untouched_by_task: tests/test_granian_parity.py last touched by OOMPAH-652 / TASK-472.5, not OOMPAH-494
+- lifecycle_suite_untouched_by_task: tests/test_ws_lifecycle.py last touched by OOMPAH-691 (and older), not OOMPAH-494
+- files_changed_in_task_commit: 1 (tests/test_granian_e2e.py, +246/-361)
 ---
 <!-- COMMENTS:END -->
