@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T21:32:59.335111Z'
+updated_at: '2026-08-04T21:33:02.887948Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ Test results:
 - test_workflow_facts + test_workflow_jobs + test_workflow_scheduler + test_work_decision (146/146)
 - test_epic_strategy + test_epic_auto_close + test_epic_staleness + test_nested_epic_cycle_fix + test_nested_epic_stale_in_review (286/286)
 - test_workflow_shadow + test_workflow_shadow_integration + test_orchestrator_handlers (304/304)
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Migrated epic and nested-epic rollup to LandingFact-driven jobs. Added EpicFactCollector/EpicWorkflowController with acyclic containment validation, target-relative epic workflow facts, shared decisions routing epic gates without parent-status cycles, durable patch-equivalence evidence through GitLandingCollector, and immediate-parent landing enforcement. Real-Git coverage for multi-level nested rollups, deleted source refs, and patch-equivalent rebases. Fixed pre-existing test timeout on 402-job SQLite throughput test. All 762 focused-suite tests pass.
 ---
 <!-- COMMENTS:END -->
