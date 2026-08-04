@@ -13,8 +13,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:23:55.905002Z'
-work_branch: null
+updated_at: '2026-08-04T21:24:14.358159Z'
+work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
 review_number: null
@@ -39,6 +39,7 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 8f1095d7-edf5-4423-bdee-85244b8786fd
+oompah.work_branch: epic-OOMPAH-769--task-OOMPAH-775
 ---
 ## Summary
 
@@ -56,5 +57,10 @@ author: oompah
 created: 2026-08-04 21:22
 ---
 Prerequisite OOMPAH-776 is Done and the later duplicate OOMPAH-803 has been archived. Promoting the canonical task so the server can dispatch the remaining OOMPAH-769 boundary work.
+---
+author: oompah
+created: 2026-08-04 21:24
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
