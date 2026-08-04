@@ -20197,6 +20197,7 @@ class Orchestrator:
         result = run_watchdog_audit(
             projects_and_trackers,
             run_id=run_id,
+            evidence_provider=self._collect_stalled_watchdog_evidence,
         )
 
         self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
@@ -20204,6 +20205,128 @@ class Orchestrator:
             result,
             dict(projects_and_trackers),
         )
+
+    def _collect_stalled_watchdog_evidence(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+    ) -> dict[str, Any]:
+        """Collect current tracker, SCM, review, CI, and audit evidence.
+
+        Comment prose is intentionally absent from this payload.  The
+        stalled-task classifier receives it separately and only consults the
+        newest comment when these machine signals are non-decisive.  Provider
+        failures are recorded as technical evidence so an unavailable forge
+        cannot be mistaken for a human decision.
+        """
+        evidence: dict[str, Any] = {
+            "issue": {
+                key: getattr(issue, key, None)
+                for key in (
+                    "identifier", "state", "issue_type", "work_branch", "branch_name",
+                    "target_branch", "review_number", "review_url", "review_head",
+                    "merged_at", "head_sha",
+                )
+                if getattr(issue, key, None) not in (None, "")
+            }
+        }
+        metadata: dict[str, Any] = {}
+        try:
+            raw_metadata = tracker.get_metadata(issue.identifier)
+            if isinstance(raw_metadata, dict):
+                metadata = raw_metadata
+        except Exception as exc:  # noqa: BLE001 - fail closed, do not block audit
+            evidence.setdefault("errors", []).append(
+                f"tracker metadata unavailable: {type(exc).__name__}"
+            )
+        audit = metadata.get("oompah.terminal_audit") or metadata.get("terminal_audit")
+        if audit is not None:
+            evidence["audit"] = audit
+
+        project = None
+        if project_id and self.project_store:
+            try:
+                project = self.project_store.get(project_id)
+            except Exception:  # noqa: BLE001 - legacy/partial project stores
+                project = None
+        if project is None:
+            return evidence
+
+        default_branch = str(getattr(project, "default_branch", "") or "").strip()
+        branch = str(
+            getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+            or getattr(issue, "identifier", "")
+        ).strip()
+        canonical_ref = default_branch or str(
+            getattr(issue, "target_branch", None) or ""
+        ).strip()
+        evidence["branch"] = {
+            "branch": branch,
+            "canonical_ref": canonical_ref,
+        }
+
+        try:
+            provider = detect_provider(
+                str(getattr(project, "repo_url", "") or ""),
+                access_token=getattr(project, "access_token", None),
+            )
+            if provider is None:
+                evidence["provider"] = {
+                    "available": False,
+                    "error": "SCM provider could not be resolved",
+                }
+                return evidence
+            provider_available = bool(provider.is_available())
+            evidence["provider"] = {"available": provider_available}
+            if not provider_available:
+                evidence["provider"]["error"] = "SCM provider is unavailable"
+                return evidence
+
+            repo = extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+            review = None
+            review_number = str(getattr(issue, "review_number", None) or "").strip()
+            if review_number:
+                review = provider.get_review(repo, review_number)
+            if review is None and branch:
+                review = provider.find_pr_for_branch(repo, branch)
+
+            # The review cache is fresh for the current scheduler tick.  It
+            # also lets merged-branch evidence survive providers that no
+            # longer return a closed PR from the branch lookup endpoint.
+            cached_reviews = list(
+                (getattr(self, "_reviews_cache", {}) or {}).get(project_id, []) or []
+            )
+            if review is None:
+                review = next(
+                    (
+                        item for item in cached_reviews
+                        if (review_number and str(getattr(item, "id", "")) == review_number)
+                        or (branch and str(getattr(item, "source_branch", "")) == branch)
+                    ),
+                    None,
+                )
+            if review is not None:
+                evidence["review"] = review
+            elif branch and branch in set(getattr(self, "_merged_branches", set()) or set()):
+                evidence["review"] = {"state": "merged", "source_branch": branch}
+
+            branch_head = provider.get_branch_head_sha(repo, branch) if branch else None
+            evidence["branch"]["head_sha"] = branch_head
+            if branch and branch_head is None:
+                # SCM providers intentionally return None for both a missing
+                # ref and a transport failure.  Preserve that ambiguity.
+                evidence["branch"]["scm_state"] = "ambiguous"
+            if branch:
+                evidence["ci"] = {
+                    "status": provider.get_branch_ci_status(repo, branch),
+                }
+        except Exception as exc:  # noqa: BLE001 - provider failures are evidence
+            evidence.setdefault("provider", {})["error"] = (
+                f"SCM evidence collection failed: {type(exc).__name__}"
+            )
+        return evidence
 
     def _reconcile_stalled_watchdog_reopens(
         self,
