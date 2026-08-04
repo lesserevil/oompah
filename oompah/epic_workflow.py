@@ -30,7 +30,7 @@ from oompah.workflow_facts import (
     WorkflowFactCollector,
     WorkflowFacts,
 )
-from oompah.workflow_jobs import WorkflowJob, WorkflowJobStore
+from oompah.workflow_jobs import WorkflowJob, WorkflowJobSpec, WorkflowJobStore
 from oompah.workflow_scheduler import WorkflowJobScheduler, WorkflowReconcileResult
 
 
@@ -45,6 +45,7 @@ class EpicAction(str, Enum):
     """Durable epic actions exposed to workers and restart reconciliation."""
 
     READINESS = "epic_readiness"
+    ROLLUP_RECONCILIATION = "rollup_reconciliation"
     CHILD_LANDING_VERIFICATION = "child_landing_verification"
     ROLLUP_REVIEW_CREATION = "rollup_review_creation"
     TARGET_RESOLUTION = "epic_target_resolution"
@@ -410,6 +411,63 @@ class EpicWorkflowController:
         return batch, self.scheduler.reconcile(
             batch.decisions, snapshot_generation=generation
         )
+
+    def schedule_action(
+        self,
+        *,
+        task_id: str,
+        action: EpicAction | str,
+        generation: str | None = None,
+        expected_evidence_revision: str | None = None,
+        expected_head_sha: str | None = None,
+        priority: int = 100,
+        max_attempts: int = 5,
+    ) -> WorkflowJob:
+        """Materialize an explicit epic maintenance action idempotently.
+
+        Rebase/repair, terminal validation, cleanup, and restart recovery may
+        be requested by different maintenance loops.  They all enter the same
+        job ledger with the same task/generation fence, so a restart cannot
+        duplicate an external effect or revive superseded work.
+        """
+
+        normalized_action = EpicAction(action)
+        project_id = _required_text(self.collector.project_id, "project_id")
+        identifier = _required_text(task_id, "task_id")
+        job_generation = generation or (
+            f"epic-maintenance:{self.store.allocate_snapshot_generation()}"
+        )
+        key = ":".join((project_id, identifier, normalized_action.value, job_generation))
+        return self.store.enqueue(
+            WorkflowJobSpec(
+                project_id=project_id,
+                task_id=identifier,
+                generation=job_generation,
+                action=normalized_action.value,
+                idempotency_key=key,
+                phase="intent",
+                expected_evidence_revision=expected_evidence_revision,
+                expected_head_sha=expected_head_sha,
+                priority=priority,
+                max_attempts=max_attempts,
+            )
+        )
+
+    def reconcile_after_restart(
+        self,
+        tasks: Sequence[Issue],
+        *,
+        lease_owner: str | None = None,
+        recovery_limit: int = 1000,
+    ) -> tuple[int, EpicDecisionBatch, WorkflowReconcileResult]:
+        """Recover abandoned epic work before rebuilding current decisions."""
+
+        recovered = self.store.recover_abandoned(
+            lease_owner=lease_owner,
+            limit=recovery_limit,
+        )
+        batch, scheduled = self.reconcile(tasks)
+        return recovered, batch, scheduled
 
     def projections(self) -> tuple[EpicProjection, ...]:
         jobs = self.store.list_jobs(limit=self.decision_limit)
