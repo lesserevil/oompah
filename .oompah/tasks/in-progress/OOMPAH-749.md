@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T00:45:47.173411Z'
+updated_at: '2026-08-04T00:46:12.927863Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ author: oompah
 created: 2026-08-04 00:45
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-04 00:46
+---
+Understanding: bound integrated terminal-audit replay so historical ledger growth cannot delay Ready claims. I will trace _process_integration_queues and ledger scans, add the smallest durable/bounded scheduling change with regression coverage, verify focused integration tests, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
