@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T01:46:36.342014Z'
+updated_at: '2026-08-04T01:48:17.762287Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -226,18 +226,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-731
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-abc5190c3a90
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
+      created_at: '2026-08-04T01:48:10.646274+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T01:48:10.646274+00:00'
+      branch_key: OOMPAH-731
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:01:55.615178+00:00'
+    updated_at: '2026-08-04T01:48:10.646274+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-107b8c9afe7f
@@ -258,6 +272,19 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-04T01:18:51.870479+00:00'
+  - version: 1
+    attempt_id: attempt-abc5190c3a90
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
+    created_at: '2026-08-04T01:48:10.646274+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T01:48:10.646274+00:00'
+    branch_key: OOMPAH-731
 ---
 ## Summary
 
@@ -652,5 +679,15 @@ created: 2026-08-04 01:19
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-04 01:48
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 01:48
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

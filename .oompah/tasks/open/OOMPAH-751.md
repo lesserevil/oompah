@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:46:23.326515Z'
+updated_at: '2026-08-04T01:48:31.412930Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 2f733d40f8ef116556b2dfd652bf5659d4526315156e002142c846059300d610
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 228aa7a7-5443-41fe-a9ec-a02306c2c74f
+  claim_owner: 1c23f4c6-4c13-43af-86f6-1edf14468b70
+  claimed_at: '2026-08-04T01:48:19.602196+00:00'
+  claim_expires_at: '2026-08-04T02:18:19.602196+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 4f0597bb-1ee4-4047-967c-ed64442c8041
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Live reproduction: OOMPAH-746 completed and pushed repair head 3ed0f959, then se
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 01:48
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 01:48
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
