@@ -7095,6 +7095,12 @@ class Orchestrator:
                     or not record.head_sha
                 ):
                     continue
+                # Direct epic maintenance tasks are completed through terminal
+                # audit and must never enter the ordinary child integration queue.
+                # Skip them here; they are recovered in the direct-specific
+                # restart path below this loop.
+                if is_direct_epic_maintenance_issue(issue):
+                    continue
                 automatic_retry = (
                     str(record.state or "").strip().lower() == "ready"
                 )
@@ -32942,6 +32948,19 @@ class Orchestrator:
         current.project_id = project_id
         current.work_branch = epic_branch
         current.branch_name = epic_branch
+        
+        # Cancel any stale concurrent ordinary integration rows created by
+        # background sync before this direct path acquired authority.  Direct
+        # epic maintenance tasks must never enter the ordinary child queue.
+        # This atomically ensures the task has exactly one Done-only lifecycle.
+        await asyncio.to_thread(
+            self.integration_queue.cancel,
+            project_id,
+            current.identifier,
+            reason="Cancelled stale ordinary row before direct epic completion",
+            expected_head_sha=published_sha,
+        )
+        
         try:
             transition = await self.request_terminal_transition(
                 current_issue=current,

@@ -533,3 +533,73 @@ def test_submit_endpoint_rejects_generated_worktree_helper_evidence():
     assert "git rm" in message
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
+
+
+def test_direct_epic_submission_avoids_ordinary_queue_enqueue(tmp_path):
+    """Test that direct epic submission does not call _enqueue_worker_submission.
+    
+    Regression test for OOMPAH-758: direct epic maintenance tasks must not
+    enter the ordinary child integration queue through api_submit_issue.
+    """
+    issue = Issue(
+        id="DIRECT-TASK",
+        identifier="DIRECT-TASK",
+        title="Rebase epic-EPIC-PARENT onto main",
+        state="Needs Rebase",
+        project_id="proj-1",
+        parent_id="EPIC-PARENT",
+        work_branch="epic-EPIC-PARENT",
+        integration=IntegrationRecord(
+            state="working",
+            task_branch="epic-EPIC-PARENT",
+            base_branch="epic-EPIC-PARENT",
+            base_sha="a" * 40,
+        ),
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    integrated = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-EPIC-PARENT",
+        base_branch="epic-EPIC-PARENT",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+        integrated_sha="b" * 40,
+    )
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.project_store.list_all.return_value = []
+    orch.config.parallel_epic_children_enabled = True
+    orch.complete_direct_epic_maintenance_submission = AsyncMock(
+        return_value=(True, "published epic head reconciled", integrated)
+    )
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.integration_queue = queue
+
+    try:
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            response = client.post(
+                "/api/v1/issues/DIRECT-TASK/submit",
+                json={
+                    "project_id": "proj-1",
+                    "task_branch": "epic-EPIC-PARENT",
+                    "head_sha": "b" * 40,
+                    "remote_head_sha": "b" * 40,
+                    "worktree_clean": True,
+                    "summary": "Rebased and ready",
+                },
+            )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["state"] == "In Validation"
+        # Verify complete_direct_epic_maintenance_submission was called
+        orch.complete_direct_epic_maintenance_submission.assert_awaited_once()
+        # Verify queue is empty - no rows created
+        queue_items = queue.items(project_id="proj-1")
+        assert queue_items == []
+    finally:
+        queue.close()
