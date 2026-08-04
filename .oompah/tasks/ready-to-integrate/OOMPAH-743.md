@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-743
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:08:09.216422Z'
+updated_at: '2026-08-04T14:08:30.301545Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -46,16 +46,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d0b56b50-a47c-4c03-967a-05ec328dbfda
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-743
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-743
   base_branch: epic-OOMPAH-740
   base_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
-  updated_at: '2026-08-04T13:53:11.992054+00:00'
+  head_sha: f745082a0eedbc0ff899222e7643ef590216000d
+  submitted_at: '2026-08-04T14:08:18.516002+00:00'
+  updated_at: '2026-08-04T14:08:18.516002+00:00'
 oompah.task_costs:
   total_input_tokens: 46297
   total_output_tokens: 288
@@ -227,5 +229,10 @@ author: oompah
 created: 2026-08-04 14:08
 ---
 Completion: Rebased and reconciled OOMPAH-743 onto OOMPAH-741 at exact pushed head f745082a0. Delivered canonical bounded/redacted alert facts without losing actionability, structured integration failures, sanitized expandable diagnostics, defensive renderer limits/escaping/no-wrap presentation, and the EXOCOMP-147 fixture. Post-rebase evidence: 432 focused alert/security/health/integration tests and 149 snapshot/WebSocket/API tests pass; check-secrets and diff checks pass.
+---
+author: oompah
+created: 2026-08-04 14:08
+---
+Rebased the bounded alert transcript fix onto the structured dashboard fact contract; compact summaries are redacted and bounded at producer/API/renderer boundaries, sanitized diagnostics remain available in accessible details, and EXOCOMP-147 plus security/Unicode regressions are covered.
 ---
 <!-- COMMENTS:END -->
