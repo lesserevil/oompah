@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:59:21.025842Z'
+updated_at: '2026-08-04T12:15:15.789211Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-04 11:59
 ---
 Discovery: the preserved checkpoint correctly identifies the core fault: final retry validation compared the post-write In Progress status to the captured Open generation. The fix needs a two-snapshot CAS—pre-write generation/status authority, then post-write intended-active status plus unchanged task/project/assignment/branch/head. Audit also found pre-start exits after the status write (shared claim/terminal/read failures) must explicitly transfer or recover ownership; merely rearming the original Open generation can later self-cancel against In Progress and strand the task.
+---
+author: oompah
+created: 2026-08-04 12:15
+---
+Implementation: retry entries now durably record dispatcher-authored status and assignment intents while retaining the exact pre-write authority generation. Final CAS accepts only the intended active state/new run ID plus unchanged task/project/branch/head authority; mismatches report structured dimensions. Pre-start abort recovery restores the captured dispatchable status, or keeps a persisted retry owner when rollback is temporarily unavailable. Timer, reconciliation, and restart paths now recover the same claim without overriding submission, cancellation, terminal, or operator authority.
 ---
 <!-- COMMENTS:END -->
