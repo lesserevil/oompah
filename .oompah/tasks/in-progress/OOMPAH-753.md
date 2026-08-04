@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:04:31.014134Z'
+updated_at: '2026-08-04T04:04:54.060103Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -304,5 +304,10 @@ author: oompah
 created: 2026-08-04 04:04
 ---
 Discovery: The provider-retirement failure reproduces in both serial and 4-worker gate modes. OOMPAH-753 changed the fatal mutation denial text in oompah/auditor.py so it no longer contains the established 'read-only' policy wording asserted by tests/test_provider_retirement.py; the command still correctly fails closed and invokes the fatal denial handler. The repo-heal test passes in both focused modes and its code was untouched by this branch, so the recorded gate occurrence is not reproducible from the exact head; I will stress it with its neighboring module while making only the confirmed compatibility repair.
+---
+author: oompah
+created: 2026-08-04 04:04
+---
+Implementation: Restored the established read-only policy wording in the fatal mutating/compound auditor denial while preserving its non-recoverable classification, reason metadata, and fail-closed behavior. This is a one-message compatibility fix in oompah/auditor.py; the existing provider-retirement regression test directly covers it.
 ---
 <!-- COMMENTS:END -->
