@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T14:50:49.367146Z'
+updated_at: '2026-08-04T14:58:10.293383Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -300,5 +300,10 @@ author: oompah
 created: 2026-08-04 14:50
 ---
 UNDERSTANDING: Task previously implemented an atomic clear before applying a full_sync snapshot, but the clear targets pre-OOMPAH-742 element IDs (alerts-banner, alerts-list, cred-error-banner, agent-warnings) that no longer exist. After rebasing onto origin/main (which now includes OOMPAH-741, OOMPAH-742, OOMPAH-743 compact alert center + fact contract), I'll:\n1. Retarget _clearAllAlertAndHealthUI() to the current DOM: alert-center (attributes + list), diagnostic-facts, terminal-audit-health, quality-gate-health, repo-hygiene-health, auth-health-banner, running-agents.\n2. Add bounded try/finally around the clear+handleStateUpdate so a presentation exception does not leave a blank board and does not emit a warning loop.\n3. Add source-contract tests (tests/test_dashboard_full_sync_atomic_replacement.py) covering the required scenarios: transport-failure to zero, quality-gate replacement, dropped/reordered messages, epoch change, and repeated identical snapshots.
+---
+author: oompah
+created: 2026-08-04 14:58
+---
+DISCOVERY/IMPLEMENTATION: Rebased onto origin/main (which now integrates OOMPAH-741/742/743). Found the prior atomic-clear was targeting retired IDs (alerts-banner, cred-error-banner, agent-warnings) removed by OOMPAH-742. Retargeted _clearAllAlertAndHealthUI() to the current template: alert-center (attributes + list + count + severity + live), diagnostic-facts, terminal-audit-health, quality-gate-health, repo-hygiene-health (+ inventory/overdue/errors), auth-health-banner (+ planes/details), running-agents. Added the bounded _recordPresentationReplacementFailure() helper (ring buffer capped at 5 entries with loop-guarded try/catch so a failed diagnostics path cannot re-enter itself) and split the try in _applyFullSyncMessage() into three phases (clear/state/board) so a fault in one phase does not abandon the recovery watermark or leave the operator with a blank board.
 ---
 <!-- COMMENTS:END -->
