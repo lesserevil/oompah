@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:22:59.048730Z'
+updated_at: '2026-08-04T21:23:03.690820Z'
 work_branch: null
 target_branch: null
 review_url: null
