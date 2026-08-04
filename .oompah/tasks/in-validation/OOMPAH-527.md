@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-527
 type: feature
-status: Merged
+status: In Validation
 priority: 2
 title: Derive GitLab webhook callback URL from the GitLab route
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T20:16:36.783511Z'
-updated_at: '2026-07-28T20:45:26.488736Z'
+updated_at: '2026-08-04T21:35:09.330900Z'
 work_branch: OOMPAH-527
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/566
@@ -37,6 +37,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/566
 oompah.review_number: '566'
 oompah.work_branch: OOMPAH-527
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5c9c253f2b19
+    project_id: proj-14849f1b
+    task_id: OOMPAH-527
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc976c08d8f00714fb7c187903eaaca77c99ac6070b4523bd3cc3599fef43c89
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:35:04.279280+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -226,5 +248,10 @@ author: oompah
 created: 2026-07-28 20:45
 ---
 Live verification after merge/restart: GitLabHookManager is running from main at 148184aa3. For nodevirt, route resolution selected http://10.28.32.135:8090/api/v1/webhooks/gitlab and reports webhook_url_source=route. Hook creation is safely deferred because nodevirt has no webhook_secret; polling fallback remains active and status reports the actionable missing-secret error.
+---
+author: oompah
+created: 2026-08-04 21:35
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
