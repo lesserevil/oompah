@@ -1220,6 +1220,18 @@ class TestGitHubReviewQueueState:
         assert review is not None
         assert review.state == "merged"
         assert review.head_sha == "a" * 40
+        assert provider.last_review_fetch_ok is True
+
+    def test_get_review_distinguishes_confirmed_missing_from_provider_failure(self):
+        missing = GitHubProvider(access_token="t")
+        missing._api = lambda *args, **kwargs: self._FakeResponse({}, status_code=404)
+        unavailable = GitHubProvider(access_token="t")
+        unavailable._api = lambda *args, **kwargs: self._FakeResponse({}, status_code=503)
+
+        assert missing.get_review("x/y", "11") is None
+        assert missing.last_review_fetch_ok is True
+        assert unavailable.get_review("x/y", "11") is None
+        assert unavailable.last_review_fetch_ok is False
 
     # ------------------------------------------------------------------
     # Merge queue: when GitHub takes a PR over from auto-merge into the
@@ -3604,6 +3616,7 @@ class TestGitLabListOpenReviews:
             "reviewers": [{"username": "bob", "name": "Bob"}],
             "has_conflicts": False,
             "diverged_commits_count": 0,
+            "sha": "a" * 40,
             "head_pipeline": None,
             "changes_count": 5,
         }
@@ -3627,6 +3640,7 @@ class TestGitLabListOpenReviews:
         assert r.draft is False
         assert r.has_conflicts is False
         assert r.needs_rebase is False
+        assert r.head_sha == "a" * 40
 
     def test_returns_empty_on_401(self):
         p = _GL.provider()
@@ -3965,22 +3979,38 @@ class TestGitLabGetReview:
         assert result.author == "eve"
         assert result.source_branch == "fix/something"
         assert result.labels == ["bug", "wontfix"]
+        assert p.last_review_fetch_ok is True
 
     def test_returns_none_on_404(self):
         p = _GL.provider()
         p._api = lambda m, path, **kw: _GL.r(code=404)
         assert p.get_review("g/p", "999") is None
+        assert p.last_review_fetch_ok is True
 
     def test_returns_none_on_401(self):
         p = _GL.provider()
         p._api = lambda m, path, **kw: _GL.r(code=401)
         assert p.get_review("g/p", "42") is None
+        assert p.last_review_fetch_ok is False
 
     def test_returns_none_on_network_error(self):
         import httpx
         p = _GL.provider()
         p._api = mock.MagicMock(side_effect=httpx.HTTPError("net"))
         assert p.get_review("g/p", "42") is None
+        assert p.last_review_fetch_ok is False
+
+    def test_rebase_and_conflict_evidence_is_preserved(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            self._mr(has_conflicts=False, diverged_commits_count=2)
+        )
+
+        result = p.get_review("g/p", "42")
+
+        assert result is not None
+        assert result.needs_rebase is True
+        assert result.has_conflicts is False
 
     def test_draft_flag_preserved(self):
         p = _GL.provider()
