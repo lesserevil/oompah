@@ -11,8 +11,11 @@ import subprocess
 import time
 from unittest import mock
 
+import pytest
+
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
+from oompah.integration_executor import IntegrationExecutionResult
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner
@@ -154,6 +157,186 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
         asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
         assert not any(
             alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_integrated_audit_replay_is_bounded_and_resumes_after_restart(tmp_path):
+    issue = _issue()
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    orchestrator.config.integration_audit_batch_size = 2
+    for index in range(3):
+        task_id = f"HIST-{index}"
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=task_id,
+            task_branch=f"epic-EPIC-1--task-{task_id}",
+            head_sha=(f"{index + 1:01x}" * 40),
+            priority=index,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner=f"worker-{index}",
+            dependency_map={task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project.id,
+            task_id,
+            lease_owner=f"worker-{index}",
+        )
+
+    staged = mock.AsyncMock()
+    orchestrator._stage_integrated_task_audit = staged
+    try:
+        first = asyncio.run(orchestrator._replay_integrated_audit_batch())
+        assert first["replayed"] == 2
+        assert first["deferred"] is True
+        assert [call.args[0].task_id for call in staged.await_args_list] == [
+            "HIST-0",
+            "HIST-1",
+        ]
+    finally:
+        _close(orchestrator)
+
+    restarted, _project, _tracker = _make_harness(tmp_path, issue)
+    restarted.config.integration_audit_batch_size = 2
+    resumed_staged = mock.AsyncMock()
+    restarted._stage_integrated_task_audit = resumed_staged
+    try:
+        resumed = asyncio.run(restarted._replay_integrated_audit_batch())
+        assert resumed["replayed"] == 1
+        assert resumed["deferred"] is False
+        assert [
+            call.args[0].task_id for call in resumed_staged.await_args_list
+        ] == ["HIST-2"]
+        assert restarted._maintenance_cursors.get("integration_audit") is None
+    finally:
+        _close(restarted)
+
+
+@pytest.mark.timeout(30)
+def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
+    issue = _issue(identifier="LIVE-READY", integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    orchestrator.config.integration_audit_batch_size = 32
+    for index in range(200):
+        task_id = f"HIST-{index:03d}"
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=task_id,
+            task_branch=f"epic-EPIC-1--task-{task_id}",
+            head_sha=(f"{index + 1:x}" * 40),
+            priority=index,
+            submitted_at=f"2026-07-{(index % 28) + 1:02d}T00:00:00+00:00",
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner=f"history-worker-{index}",
+            dependency_map={task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project.id,
+            task_id,
+            lease_owner=f"history-worker-{index}",
+        )
+
+    events: list[str] = []
+    original_claim_next = orchestrator.integration_queue.claim_next
+
+    def record_claim(*args, **kwargs):
+        events.append("claim")
+        return original_claim_next(*args, **kwargs)
+
+    orchestrator.integration_queue.claim_next = record_claim
+    orchestrator._integration_dependency_map = mock.MagicMock(
+        return_value={issue.identifier: ()}
+    )
+    orchestrator._integration_satisfied_dependencies = mock.MagicMock(
+        return_value=set()
+    )
+    orchestrator._execute_integration_item = mock.MagicMock(
+        return_value=IntegrationExecutionResult(
+            status="integrated",
+            message="integrated",
+            expected_epic_sha="b" * 40,
+            rebased_task_sha="c" * 40,
+            integrated_sha="d" * 40,
+        )
+    )
+
+    async def record_audit(item):
+        events.append(f"audit:{item.task_id}")
+
+    orchestrator._stage_integrated_task_audit = record_audit
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    try:
+        asyncio.run(orchestrator._process_integration_queues())
+        assert events[0] == "claim"
+        assert events[1] == "audit:LIVE-READY"
+        assert orchestrator._maintenance_status["integration_queue"][
+            "audit_replayed"
+        ] == 32
+        assert orchestrator.integration_queue.items(
+            states=("integrating",),
+        ) == []
+        assert orchestrator.integration_queue.items(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            states=("integrated",),
+        )[-1].task_id == issue.identifier
+    finally:
+        _close(orchestrator)
+
+
+def test_dependency_blocked_ready_row_is_not_reported_as_claim_stall(tmp_path):
+    issue = _issue(identifier="BLOCKED", integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    row = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+        submitted_at="2020-01-01T00:00:00+00:00",
+    )
+    try:
+        orchestrator._record_integration_queue_progress(
+            queue_items=[row],
+            eligible_ready_count=0,
+            oldest_eligible_submitted_at=None,
+            claimed_count=0,
+            audit_progress={"batch_size": 1, "replayed": 0},
+        )
+        assert orchestrator._maintenance_status["integration_queue"][
+            "status"
+        ] == "healthy"
+        assert not any(
+            alert.get("source") == "integration_queue_progress"
+            for alert in orchestrator._alerts
+        )
+
+        orchestrator._record_integration_queue_progress(
+            queue_items=[row],
+            eligible_ready_count=1,
+            oldest_eligible_submitted_at=row.submitted_at,
+            claimed_count=0,
+            audit_progress={"batch_size": 1, "replayed": 0},
+        )
+        assert orchestrator._maintenance_status["integration_queue"][
+            "status"
+        ] == "degraded"
+        assert any(
+            alert.get("source") == "integration_queue_progress"
             for alert in orchestrator._alerts
         )
     finally:

@@ -139,6 +139,35 @@ def test_expired_lease_recovers_after_restart(tmp_path):
     assert recovered.attempts == 2
 
 
+def test_integrated_history_scan_is_bounded_and_resumes_after_restart(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    for index in range(5):
+        task_id = f"HIST-{index}"
+        _enqueue(store, task_id, priority=index)
+        claimed = store.claim_next(
+            project_id="p1",
+            epic_id="E-1",
+            lease_owner=f"worker-{index}",
+            dependency_map={task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert store.complete("p1", task_id, lease_owner=f"worker-{index}")
+
+    first_batch = store.items(states=("integrated",), limit=2)
+    assert [item.task_id for item in first_batch] == ["HIST-0", "HIST-1"]
+    cursor = store.cursor_for(first_batch[-1])
+    assert [item.task_id for item in store.items(states=("ready",))] == []
+    store.close()
+
+    reopened = IntegrationQueueStore(str(path))
+    resumed = reopened.items(states=("integrated",), limit=2, after=cursor)
+    assert [item.task_id for item in resumed] == ["HIST-2", "HIST-3"]
+    assert reopened.get("p1", "HIST-2") == resumed[0]
+    reopened.close()
+
+
 def test_concurrent_claimers_only_receive_one_lease(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     _enqueue(store, "A")
