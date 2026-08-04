@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T21:00:31.051522Z'
+updated_at: '2026-08-04T21:01:00.020294Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-04 21:00
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 21:01
+---
+Understanding: I will investigate the two combined-tree gate failures on the current durable terminal-audit branch, isolate whether they are ordering/state leaks introduced by the change, add focused regression coverage, then run affected suites, push, and resubmit the corrected head.
 ---
 <!-- COMMENTS:END -->
