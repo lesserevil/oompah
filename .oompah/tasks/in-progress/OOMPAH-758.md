@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:18:17.249315Z'
+updated_at: '2026-08-04T11:19:28.447454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-04 11:18
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-04 11:19
+---
+Task-specific recovery update: the reconciler safely cancelled OOMPAH-755's obsolete ordinary integration row after the tracker reopened, clearing the integration alert. A normal authenticated transition back to Done then succeeded and created audit audit-4d23d9e26034; OOMPAH-755 is now In Validation with an active independent Completion Auditor. This restores the in-flight helper without bypassing terminal auditing, while this task remains necessary to make enqueue exclusion and direct completion atomic.
 ---
 <!-- COMMENTS:END -->
