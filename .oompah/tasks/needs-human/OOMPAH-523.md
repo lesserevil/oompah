@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:52:09.380663Z'
+updated_at: '2026-08-04T23:53:07.949790Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -752,5 +752,20 @@ author: oompah
 created: 2026-08-04 23:52
 ---
 The parent epic OOMPAH-521 merged from epic-OOMPAH-521, but this task was In Progress with work branch epic-OOMPAH-521--task-OOMPAH-523. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-04 23:53
+---
+Implementation: verified the recovered OOMPAH-523 implementation is already on this branch via fb9526679 and 2c090848a (both ancestors of HEAD). The current server middleware covers FastAPI/mounts/WebSocket, uses strict Basic parsing and exact raw-path exemptions, redacts Authorization downstream, wires credentials through both startup paths, and keeps forge validation intact; no additional source change was necessary.
+---
+author: oompah
+created: 2026-08-04 23:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 48
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 18s
+- Log: OOMPAH-523__20260804T235005Z.jsonl
 ---
 <!-- COMMENTS:END -->
