@@ -231,7 +231,7 @@ STATUS_CONTRACTS: Mapping[str, StatusContract] = MappingProxyType(
             frozenset({WorkflowOwner.PROJECT_OWNER}),
             _reassessment(
                 ReassessmentTrigger.OWNER_PROMOTION,
-                None,
+                "prioritization_visibility",
                 "awaiting_owner_promotion",
             ),
             blocked_by="project_owner_priority",
@@ -267,7 +267,7 @@ STATUS_CONTRACTS: Mapping[str, StatusContract] = MappingProxyType(
             frozenset({WorkflowOwner.REQUESTOR}),
             _reassessment(
                 ReassessmentTrigger.REQUESTOR_RESPONSE,
-                None,
+                "requestor_visibility",
                 "awaiting_requestor_answer",
             ),
             waiting=True,
@@ -280,7 +280,7 @@ STATUS_CONTRACTS: Mapping[str, StatusContract] = MappingProxyType(
             frozenset({WorkflowOwner.OPERATOR}),
             _reassessment(
                 ReassessmentTrigger.OPERATOR_ACTION,
-                None,
+                "operator_visibility",
                 "awaiting_operator_action",
             ),
             waiting=True,
@@ -857,6 +857,10 @@ def validate_workflow_contract(
             and contract.reassessment.trigger == ReassessmentTrigger.NEVER
         ):
             errors.append(f"non-final status {status!r} has no reassessment path")
+        if not contract.lifecycle_final and not contract.reassessment.slo_key:
+            errors.append(
+                f"non-final status {status!r} has no bounded reassessment SLO"
+            )
     for source, targets in valid_transitions.items():
         if source in targets:
             errors.append(f"implicit self-transition for {source!r}")
