@@ -944,8 +944,9 @@ _AUDITOR_COMMAND_MUTATION_RE = re.compile(
     r"(?:\b(?:rm|mv|cp|mkdir|rmdir|touch|tee|install|truncate|chmod|chown|"
     r"sed\s+(?:-[^-\s]*i|--in-place)|perl\s+-i|git\s+(?:add|commit|push|"
     r"pull|fetch|checkout|switch|reset|restore|rebase|merge|cherry-pick|"
-    r"tag|clean|apply|update-ref|branch\s+(?:-(?:d|D|m|M)|--(?:delete|move|copy)))(?=\s|$)|(?:bash|sh|zsh|fish|"
-    r"env|eval|xargs)\b)|(?:>>?|<<?)|[;&|`]"
+    r"tag|clean|apply|update-ref|branch\s+(?:-(?:d|D|m|M)|--(?:delete|move|copy)))(?=\s|$)|"
+    r"(?:bash|sh|zsh|fish|"
+    r"env|eval|xargs|system|getline)\b)|(?:>>?|<<?)|[;&|`]"
     r"|(?:\$)|(?:\s--(?:fix|delete)(?:\s|=|$)|\s--output(?:=|\s|$)|"
     r"\s-(?:delete|exec(?:dir)?|ok(?:dir)?)(?:\s|$))"
     r")",
@@ -961,7 +962,7 @@ _AUDITOR_STATE_CHANGE_RE = re.compile(
     r"sed\s+(?:-[^-\s]*i|--in-place)|perl\s+-i|git\s+(?:add|commit|push|"
     r"pull|fetch|checkout|switch|reset|restore|rebase|merge|cherry-pick|"
     r"tag|clean|apply|update-ref|branch\s+(?:-(?:d|D|m|M)|--(?:delete|move|copy)))(?=\s|$)|"
-    r"(?:bash|sh|zsh|fish|env|eval|xargs)\b)"
+    r"(?:bash|sh|zsh|fish|env|eval|xargs|system|getline)\b)"
     r"|(?:`|\$)"
     r"|(?:\s--(?:fix|delete)(?:\s|=|$)|\s--output(?:=|\s|$)|"
     r"\s-(?:delete|exec(?:dir)?|ok(?:dir)?)(?:\s|$)))",
@@ -1235,37 +1236,43 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     # Contract validation: check if command matches the project's validation targets
     if not normalized or not command_regex.fullmatch(normalized):
         # Command is outside the validation contract.
-        # Check if it's a safe read-only command or an unsafe mismatch.
+        # Only return recoverable for specific safe patterns to avoid passing through
+        # dangerous constructs that the mutation regex might miss (e.g., system() inside
+        # awk strings). For everything else, return fatal.
         
-        # Non-matching commands are recoverable if they're read-only (no mutations)
-        # Mutations were already checked above and returned fatal if needed
-        if not _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
-            # Pure read-only command outside contract: recoverable with alternatives
-            validation_targets = _get_auditor_validation_targets(project_id)
-            make_targets_str = ", ".join(f"make {t}" for t in validation_targets)
-            return AuditorCommandDenial(
-                "Error: auditor capability policy permits only read-only repository "
-                "inspection and configured test commands; command denied. "
-                f"Allowed validation targets: {make_targets_str}. "
-                "Alternatively, use search_files and bounded read_file for inspection. "
-                "The command was not executed. "
-                f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
-                recoverable=True,
-                reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
-            )
+        tokens = _auditor_shell_tokens(normalized)
+        if tokens:
+            first_token = tokens[0].lower()
+            
+            # make <target> commands are recoverable outside contract (typically non-mutating by convention)
+            if first_token == "make" and len(tokens) >= 2:
+                # make target command outside contract: recoverable
+                validation_targets = _get_auditor_validation_targets(project_id)
+                make_targets_str = ", ".join(f"make {t}" for t in validation_targets)
+                return AuditorCommandDenial(
+                    "Error: auditor capability policy permits only read-only repository "
+                    "inspection and configured test commands; command denied. "
+                    f"Allowed validation targets: {make_targets_str}. "
+                    "Alternatively, use search_files and bounded read_file for inspection. "
+                    "The command was not executed. "
+                    f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+                    recoverable=True,
+                    reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+                )
+            
+            # Compound read-only pipeline outside contract: recoverable, suggest splitting
+            if _AUDITOR_COMPOUND_RE.search(normalized):
+                return AuditorCommandDenial(
+                    "Error: auditor capability policy rejected unsupported read-only "
+                    "shell syntax; run each inspection separately or use search_files "
+                    "and bounded read_file calls. The command was not executed. "
+                    f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+                    recoverable=True,
+                    reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+                )
         
-        # Compound read-only pipeline outside contract: recoverable, suggest splitting
-        if _AUDITOR_COMPOUND_RE.search(normalized):
-            return AuditorCommandDenial(
-                "Error: auditor capability policy rejected unsupported read-only "
-                "shell syntax; run each inspection separately or use search_files "
-                "and bounded read_file calls. The command was not executed. "
-                f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
-                recoverable=True,
-                reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
-            )
-        
-        # Fallback (should not reach here, but be defensive)
+        # For everything else outside the contract: deny with fatal
+        # (conservative approach to avoid passing through dangerous constructs)
         return (
             "Error: auditor capability policy permits only read-only repository "
             "inspection and configured test commands; command denied"
