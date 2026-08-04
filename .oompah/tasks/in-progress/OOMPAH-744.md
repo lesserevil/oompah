@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T14:58:10.293383Z'
+updated_at: '2026-08-04T14:58:24.128936Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ author: oompah
 created: 2026-08-04 14:58
 ---
 DISCOVERY/IMPLEMENTATION: Rebased onto origin/main (which now integrates OOMPAH-741/742/743). Found the prior atomic-clear was targeting retired IDs (alerts-banner, cred-error-banner, agent-warnings) removed by OOMPAH-742. Retargeted _clearAllAlertAndHealthUI() to the current template: alert-center (attributes + list + count + severity + live), diagnostic-facts, terminal-audit-health, quality-gate-health, repo-hygiene-health (+ inventory/overdue/errors), auth-health-banner (+ planes/details), running-agents. Added the bounded _recordPresentationReplacementFailure() helper (ring buffer capped at 5 entries with loop-guarded try/catch so a failed diagnostics path cannot re-enter itself) and split the try in _applyFullSyncMessage() into three phases (clear/state/board) so a fault in one phase does not abandon the recovery watermark or leave the operator with a blank board.
+---
+author: oompah
+created: 2026-08-04 14:58
+---
+VERIFICATION:\n\n- New test file tests/test_dashboard_full_sync_atomic_replacement.py adds 8 focused source-contract + Node-runtime tests covering:\n  * The atomic clear runs before handleStateUpdate/renderBoard inside the same synchronous frame\n  * Every current template ID (alert-center*, diagnostic-facts*, terminal/quality/repo-hygiene/auth panels, running-agents) is targeted\n  * Bounded diagnostics — ring buffer clamped, loop-guarded record path, no re-emission cascade\n  * Shared stable identity/ordering (dedupeAlertFacts) used by both incremental and full paths\n  * Runtime stub simulates a stale board and asserts every list container empties + alert-center attributes reset (data-alert-signature dropped, data-alert-count reset)\n  * State-render fault path: DOM stays clean, delivery watermark still committed, single console.warn, ring buffer records the phase\n  * Two identical snapshots produce the same signature — no duplicated announcement, no doubled alert-item DOM\n\n- Focused suites: 8/8 new + 67/67 dashboard alert/health/websocket_liveness + 75/75 ws_full_sync/ws_fault_injection/orchestrator_full_sync/websocket_authenticated_bootstrap + 107/107 board/tracker reconciliation and integration recovery = 257 tests passing.
 ---
 <!-- COMMENTS:END -->
