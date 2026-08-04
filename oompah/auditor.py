@@ -1151,6 +1151,20 @@ def _build_auditor_command_regex(validation_targets: list[str] | None = None) ->
 def check_auditor_command(command: str, project_id: str | None = None) -> str | None:
     """Return a denial for commands outside the read/test allowlist.
     
+    Denials are classified as recoverable (contract mismatch) or fatal (security
+    violation). Recoverable denials do not consume the auditor's policy budget.
+    
+    Security violations checked first (always fatal):
+    - Path escapes (absolute paths, parent traversal, /home, etc.)
+    - Credential file access (.env, .git/config, private keys, etc.)
+    - State-changing mutations (rm, git commit/push, etc.)
+    - File redirection to write/append files (>, >>)
+    - Process control (eval, xargs, etc.)
+    
+    Contract mismatches checked after security (recoverable if read-only):
+    - Commands outside the project's validation contract
+    - Compound read-only syntax (pipes, semicolons) without mutations
+    
     Parameters
     ----------
     command : str
@@ -1161,29 +1175,13 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     """
 
     normalized = str(command or "").strip()
+    
+    # Early return for read-only inspection commands recognized as supported
     if _is_read_only_inspection_command(normalized):
         return _recoverable_read_only_denial()
     
-    # Build the regex dynamically based on project configuration
-    command_regex = _build_auditor_command_regex(
-        _get_auditor_validation_targets(project_id)
-    )
-    
-    if not normalized or not command_regex.fullmatch(normalized):
-        return (
-            "Error: auditor capability policy permits only read-only repository "
-            "inspection and configured test commands; command denied"
-        )
-    
-    # Special validation for git rev-list: ensure only safe flags and operands are used
-    tokens = _auditor_shell_tokens(normalized)
-    if tokens and len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
-        # Check if this is a safe git rev-list command
-        if not _is_safe_git_rev_list_command(normalized):
-            # If rev-list was used but with unsupported flags, return recoverable error
-            # instead of fatal denial, as it's still a read-only operation
-            return _recoverable_read_only_denial()
-    
+    # Security checks: HIGH-SEVERITY violations always fatal, checked first
+    # before contract validation to prevent bypassing security via contract mismatches.
     if _AUDITOR_PATH_ESCAPE_RE.search(normalized):
         return (
             "Error: auditor capability policy denied a path outside the "
@@ -1194,6 +1192,87 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
             "Error: auditor capability policy denied access to a credential-like "
             "file"
         )
+    
+    # Check for state-changing mutations and dangerous constructs that must be
+    # denied regardless of contract configuration
+    if _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
+        has_state_change = _AUDITOR_STATE_CHANGE_RE.search(normalized)
+        has_file_redirection = _AUDITOR_FILE_REDIRECTION_RE.search(normalized)
+        has_compound = _AUDITOR_COMPOUND_RE.search(normalized)
+        
+        # If it's a compound read-only shell pipeline without state changes or
+        # file redirection, it's unsupported syntax but not a security violation.
+        # This will be fatal or recoverable depending on contract matching below.
+        if has_compound and not has_state_change and not has_file_redirection:
+            # Don't return yet; check contract below and handle accordingly
+            pass
+        else:
+            # Actual mutation, file redirection, or process control: always fatal
+            return AuditorCommandDenial(
+                "Error: auditor capability policy denied a mutating or compound "
+                "shell command; auditors cannot edit, commit, push, merge, or change state",
+                reason="auditor_mutating_shell_command",
+            )
+    
+    # Build the contract regex based on project configuration
+    command_regex = _build_auditor_command_regex(
+        _get_auditor_validation_targets(project_id)
+    )
+    
+    # Special validation for git rev-list: ensure only safe flags are used.
+    # This must happen regardless of contract matching because the contract
+    # allows "git rev-list" but only with safe flags and operands.
+    # Unsupported but read-only flags (like --graph, --pretty) return recoverable
+    # errors since they are still inspection operations. Truly dangerous syntax
+    # (compound commands, redirection, command substitution) is caught earlier
+    # in the mutation and security checks.
+    tokens = _auditor_shell_tokens(normalized)
+    if tokens and len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
+        if not _is_safe_git_rev_list_command(normalized):
+            # git rev-list with unsupported flags: recoverable (still read-only)
+            return _recoverable_read_only_denial()
+    
+    # Contract validation: check if command matches the project's validation targets
+    if not normalized or not command_regex.fullmatch(normalized):
+        # Command is outside the validation contract.
+        # Check if it's a safe read-only command or an unsafe mismatch.
+        
+        # Non-matching commands are recoverable if they're read-only (no mutations)
+        # Mutations were already checked above and returned fatal if needed
+        if not _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
+            # Pure read-only command outside contract: recoverable with alternatives
+            validation_targets = _get_auditor_validation_targets(project_id)
+            make_targets_str = ", ".join(f"make {t}" for t in validation_targets)
+            return AuditorCommandDenial(
+                "Error: auditor capability policy permits only read-only repository "
+                "inspection and configured test commands; command denied. "
+                f"Allowed validation targets: {make_targets_str}. "
+                "Alternatively, use search_files and bounded read_file for inspection. "
+                "The command was not executed. "
+                f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+                recoverable=True,
+                reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+            )
+        
+        # Compound read-only pipeline outside contract: recoverable, suggest splitting
+        if _AUDITOR_COMPOUND_RE.search(normalized):
+            return AuditorCommandDenial(
+                "Error: auditor capability policy rejected unsupported read-only "
+                "shell syntax; run each inspection separately or use search_files "
+                "and bounded read_file calls. The command was not executed. "
+                f"[reason={AUDITOR_READ_ONLY_SYNTAX_REASON}]",
+                recoverable=True,
+                reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
+            )
+        
+        # Fallback (should not reach here, but be defensive)
+        return (
+            "Error: auditor capability policy permits only read-only repository "
+            "inspection and configured test commands; command denied"
+        )
+    
+    # Command matches contract: check for unsupported read-only syntax
+    # (This is the same check as before, but only for contract-matching commands)
     if _AUDITOR_COMMAND_MUTATION_RE.search(normalized):
         if (
             _AUDITOR_COMPOUND_RE.search(normalized)
@@ -1208,11 +1287,7 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
                 recoverable=True,
                 reason=AUDITOR_READ_ONLY_SYNTAX_REASON,
             )
-        return AuditorCommandDenial(
-            "Error: auditor capability policy denied a mutating or compound "
-            "shell command; auditors cannot edit, commit, push, merge, or change state",
-            reason="auditor_mutating_shell_command",
-        )
+    
     return None
 
 

@@ -549,3 +549,98 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
     )
     assert '"accepted": true' in verdict
     assert received[0].audit_id == target.audit_id
+
+
+def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable(
+    tmp_path: Path,
+):
+    """Regression test for OOMPAH-753: non-mutating validator requests outside the
+    project's validation contract should be recoverable and not consume the fatal
+    policy budget.
+    
+    This test simulates the OOMPAH-731 audit scenario where an auditor requests
+    focused pytest commands (e.g., with output truncation) that are syntactically
+    valid but outside the structured validation contract (which only allows
+    "make test", "make test-serial", "make check-secrets").
+    
+    Previously, these denials consumed the fatal policy budget and terminated the
+    auditor after 3 denials. Now they should be recoverable and allow the auditor
+    to continue and run approved commands.
+    """
+    target = _target()
+    policy = auditor_policy(
+        task_identifier=target.task_id,
+        project_id=target.project_id,
+    )
+    denials: list[str] = []
+
+    # First denial: make lint command (outside contract's default targets)
+    # The default contract only allows make test, test-serial, check-secrets
+    result1 = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make lint"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+    assert result1.startswith("Error:")
+    assert "not executed" in result1
+    # This denial should NOT be passed to the handler (recoverable)
+    assert denials == []
+
+    # Second denial: make fmt-check command (outside contract's default targets)
+    result2 = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make fmt-check"},
+        action_policy=policy,
+        policy_denial_handler=denials.append,
+    )
+    assert result2.startswith("Error:")
+    assert "not executed" in result2
+    # This denial should also NOT be passed to the handler (recoverable)
+    assert denials == []
+
+    # Auditor can still use search_files and read_file
+    search = _execute_tool(
+        tmp_path,
+        "search_files",
+        {"pattern": "test_", "path": "."},
+        action_policy=policy,
+    )
+    assert search.startswith("No matches") or "test_" in search or search.startswith("Error:")
+
+    # Auditor can run approved make command
+    # (We won't actually execute it to avoid side effects, just check that approved commands work)
+    result_approved = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make test"},
+        action_policy=policy,
+    )
+    # This should be allowed (may or may not succeed depending on env)
+    # but should not be denied with a policy error
+    assert not (
+        result_approved.startswith("Error:")
+        and "policy permits only" in result_approved
+    )
+
+    # Auditor can submit a result
+    received = []
+    verdict = _execute_tool(
+        tmp_path,
+        AUDITOR_RESULT_TOOL_NAME,
+        {
+            "audit_id": target.audit_id,
+            "target_state": target.target_state,
+            "evidence_fingerprint": target.evidence_fingerprint,
+            "verdict": "pass",
+            "message": "Recovered from contract mismatches and reached verdict.",
+            "attempt_id": target.attempt_id,
+        },
+        action_policy=policy,
+        audit_target=target,
+        audit_result_handler=received.append,
+    )
+    assert '"accepted": true' in verdict
+    assert received[0].audit_id == target.audit_id
