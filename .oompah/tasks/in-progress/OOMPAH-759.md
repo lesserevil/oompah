@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-759
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Preserve focus-handoff authority across Open-to-In-Progress retry dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:26:14.292013Z'
+updated_at: '2026-08-04T11:28:09.752289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a798bad4-2dbf-41e6-b33d-d7993d3820b4
+oompah.agent_run_id: 22b47f7f-2eaa-4c32-afc3-6ec342b0f110
 oompah.task_costs:
   total_input_tokens: 46969
   total_output_tokens: 294
@@ -112,5 +112,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 7s
 - Log: OOMPAH-759__20260804T112522Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:28
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
