@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:13:24.433025Z'
+updated_at: '2026-08-04T11:13:32.149558Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 0573b37ff17b0c122b129b6a275735dc1ff12972ba88bd0ebb35fbda1b011277
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T11:13:08.530823+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: a6b3c663-f92c-4a05-bc27-f427dcfc8319
-  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
-  claimed_at: '2026-08-04T11:12:15.186273+00:00'
-  claim_expires_at: '2026-08-04T11:42:15.186273+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: No active peer task matches this issue. Closest related\
+    \ tasks\u2014OOMPAH-162, OOMPAH-165, and OOMPAH-168\u2014are terminal Archived\
+    \ tasks addressing different epic-landing behavior.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence:\
+    \ No active peer task matches this issue. Closest related tasks\u2014OOMPAH-162,\
+    \ OOMPAH-165, and OOMPAH-168\u2014are terminal Archived tasks addressing different\
+    \ epic-landing behavior."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
