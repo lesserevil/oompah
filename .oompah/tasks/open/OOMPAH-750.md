@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T00:46:06.960272Z'
+updated_at: '2026-08-04T00:46:17.530608Z'
 work_branch: null
 target_branch: null
 review_url: null
