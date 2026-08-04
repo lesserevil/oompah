@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T14:06:20.999849Z'
+updated_at: '2026-08-04T20:20:53.321148Z'
 work_branch: null
 target_branch: null
 review_url: null

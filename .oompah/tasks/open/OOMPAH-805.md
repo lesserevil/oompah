@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:18:59.284253Z'
+updated_at: '2026-08-04T20:21:05.401614Z'
 work_branch: null
 target_branch: null
 review_url: null
