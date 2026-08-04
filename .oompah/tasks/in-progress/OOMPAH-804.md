@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T20:33:53.291368Z'
+updated_at: '2026-08-04T20:34:02.493084Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 14s
 - Log: OOMPAH-804__20260804T202423Z.jsonl
+---
+author: oompah
+created: 2026-08-04 20:34
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
