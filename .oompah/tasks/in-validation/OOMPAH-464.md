@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-464
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Persist the upgrade grandfather baseline and recover pending audits
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:06.169316Z'
-updated_at: '2026-07-28T21:16:10.635716Z'
+updated_at: '2026-08-04T21:33:49.598871Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -37,6 +37,28 @@ oompah.task_costs:
     output_tokens: 7564
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:57:15.087815+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bbdd18e64e5c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-464
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 45ebe8b84d7a75b3b6bf4c866519c50b75e9e293221cd667d23d1697e016a015
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:43.966727+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -191,5 +213,10 @@ author: oompah
 created: 2026-07-28 19:16
 ---
 Persisted terminal-audit grandfather baseline and recovered pending audits with duplicate-safe, fail-closed enforcement
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
