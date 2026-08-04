@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:51:13.433781Z'
+updated_at: '2026-08-04T16:52:09.404416Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -157,6 +157,31 @@ oompah.work_contributors:
     completed_at: '2026-08-04T16:08:13.207316+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-e1f46d62a09b-2: '2026-08-04T16:51:59.855753+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-745
+    target_state: Done
+    evidence_fingerprint: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+    audit_ids:
+    - audit-e1f46d62a09b
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T16:51:59.855761+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-745
+    audit_id: audit-e1f46d62a09b
+    attempt_id: no-auditor-audit-e1f46d62a09b-2
+    target_state: Done
+    evidence_fingerprint: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+    status: Needs Human
+    audit_ids:
+    - audit-e1f46d62a09b
+    applied: true
+    created_at: '2026-08-04T16:51:59.855772+00:00'
+    applied_at: '2026-08-04T16:52:07.148485+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -164,7 +189,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-745
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -203,13 +228,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-04T16:51:06.795354+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-04T16:51:26.795313+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-e1f46d62a09b-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-04T16:51:59.855654+00:00'
+      completed_at: '2026-08-04T16:51:59.855654+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T16:24:28.373263+00:00'
-    updated_at: '2026-08-04T16:51:06.795354+00:00'
+    updated_at: '2026-08-04T16:51:59.855654+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ea3d0a66f695
@@ -583,5 +620,12 @@ author: oompah
 created: 2026-08-04 16:51
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 16:52
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
