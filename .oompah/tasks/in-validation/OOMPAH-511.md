@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-08-04T16:32:17.703762Z'
+updated_at: '2026-08-04T16:32:50.013041Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -134,6 +134,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T16:26:01.168349+00:00'
     branch_key: epic-OOMPAH-511
+oompah.task_costs:
+  total_input_tokens: 45
+  total_output_tokens: 8447
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 45
+      output_tokens: 8447
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 45
+    output_tokens: 8447
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T16:32:43.897811+00:00'
 ---
 ## Summary
 
@@ -213,5 +229,15 @@ Safe evidence:
 - children: OOMPAH-512, OOMPAH-513, OOMPAH-514
 - task_file_location: oompah/state/proj-14849f1b:.oompah/tasks/in-validation/OOMPAH-511.md
 - worktree_status: clean
+---
+author: oompah
+created: 2026-08-04 16:32
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 52, Tool calls: 39
+- Tokens: 45 in / 8.4K out [8.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 38s
+- Log: OOMPAH-511__20260804T162616Z.jsonl
 ---
 <!-- COMMENTS:END -->
