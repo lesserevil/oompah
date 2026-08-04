@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:32:26.844891Z'
+updated_at: '2026-08-04T03:32:38.402052Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -274,5 +274,10 @@ author: oompah
 created: 2026-08-04 03:24
 ---
 Understanding: This branch has 1 commit (713f79080) for bounded integrated audit replay. Rebasing onto origin/main which has advanced with commits from OOMPAH-731, 734, 735, 747, 750, 751, 752 – many overlap files (orchestrator.py etc). Starting rebase now.
+---
+author: oompah
+created: 2026-08-04 03:32
+---
+Rebase complete on origin/main (65c94e191). Conflicts resolved in oompah/config.py (kept both integration_recovery_freshness_seconds from OOMPAH-735 and integration_audit_batch_size + integration_ready_claim_timeout_seconds from OOMPAH-749) and oompah/orchestrator.py (kept OOMPAH-731 direct rebase recovery block and replaced the unconditional all_items query + integrated-audit loop with OOMPAH-749's bounded-lane ready/integrating query + counters). Focused tests: test_delivery_plane_recovery.py + test_integration_queue.py + test_config.py (148 passed). Adjacent suites: test_integration_conflict_repair + test_integration_executor + test_integration_record + test_integration_retry_alert_recovery + test_dashboard_integration_recovery_filter + test_standalone_ready_to_integrate (98 passed). Force-pushed 94dfee47b.
 ---
 <!-- COMMENTS:END -->
