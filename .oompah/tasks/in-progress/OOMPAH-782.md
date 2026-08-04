@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T21:14:24.778697Z'
+updated_at: '2026-08-04T21:15:18.991740Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: aa7f9192-c94f-40ce-9ed7-1f429bb98b56
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-782
 oompah.integration:
   version: 2
@@ -273,5 +273,22 @@ FAILED tests/test_integration_workflow.py::test_hundreds_of_history_rows_do_not_
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-04 21:15
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #64)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing; safe to reopen the stalled task.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-04 21:15
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
