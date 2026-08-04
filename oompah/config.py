@@ -649,6 +649,12 @@ class ServiceConfig:
     # environment-only operational setting so a forgotten lease cannot strand
     # work indefinitely.
     owner_claim_ttl_hours: int = 48
+    # Unified workflow-engine rollout. ``off`` preserves legacy behavior,
+    # ``shadow`` evaluates and compares without mutation, and ``enforce`` is
+    # reserved for the durable scheduler cutover. Environment-only.
+    workflow_engine_mode: str = "off"
+    workflow_shadow_scan_limit: int = 100
+    workflow_diagnostic_max_bytes: int = 64 * 1024
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -782,6 +788,17 @@ class ServiceConfig:
             int(self.worktree_cleanup_interval_seconds), 1
         )
         self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
+        from oompah.workflow_shadow import normalize_workflow_engine_mode
+
+        self.workflow_engine_mode = normalize_workflow_engine_mode(
+            self.workflow_engine_mode
+        )
+        self.workflow_shadow_scan_limit = min(
+            max(int(self.workflow_shadow_scan_limit), 1), 1000
+        )
+        self.workflow_diagnostic_max_bytes = max(
+            int(self.workflow_diagnostic_max_bytes), 1024
+        )
         self.storage_cleanup_interval_seconds = max(
             int(self.storage_cleanup_interval_seconds), 60
         )
@@ -1264,6 +1281,15 @@ class ServiceConfig:
             ),
             owner_claim_ttl_hours=_parse_positive_env_int(
                 "OOMPAH_OWNER_CLAIM_TTL_HOURS", 48
+            ),
+            workflow_engine_mode=_env_str(
+                "OOMPAH_WORKFLOW_ENGINE_MODE", None, "off"
+            ),
+            workflow_shadow_scan_limit=_env_int(
+                "OOMPAH_WORKFLOW_SHADOW_SCAN_LIMIT", None, 100
+            ),
+            workflow_diagnostic_max_bytes=_env_int(
+                "OOMPAH_WORKFLOW_DIAGNOSTIC_MAX_BYTES", None, 64 * 1024
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(
