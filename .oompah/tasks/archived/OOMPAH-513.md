@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:16:43.939778Z'
-updated_at: '2026-08-04T16:37:07.240643Z'
+updated_at: '2026-08-04T16:37:13.878967Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -70,8 +70,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-0342e550bca6
-    applied: false
+    applied: true
     created_at: '2026-08-04T16:37:03.655554+00:00'
+    applied_at: '2026-08-04T16:37:12.536606+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -316,5 +317,29 @@ author: oompah
 created: 2026-08-04 16:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 16:37
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merged_commit: 6533e235e262d76334032d4aa8c5d5865b75acb2
+- commit_subject: OOMPAH-511: keep managed task writes on state branches
+- commit_on_main: true
+- guard_symbol: OompahMarkdownTracker.allow_default_branch_task_writes / _prepare_default_branch_for_write
+- guard_locations: oompah/oompah_md_tracker.py:309,324,1921,2189,2204; oompah/orchestrator.py:3674,3756
+- regression_test_file: tests/test_managed_tracker_state_branch_guard.py
+- regression_test_size_lines: 345
+- parametrized_mutation_families: 11 (create,update,archive,comment,label,parent,dependency,attachments,metadata,raw body,external import index)
+- prior_focused_test_summary: 269 focused pass; 11/11 guard mutations fail when guard neutralized
+- prior_full_gate_summary: make test 12,630 passed / 7 skipped
+- task_current_folder: .oompah/tasks/in-validation/OOMPAH-513.md
+- task_previous_state: Merged
+- task_pending_target_state: Archived
+- task_pending_audit_id: audit-0342e550bca6
+- task_pending_fingerprint: 496e9b108ae923b9c395f7ae515961784c0e3c82537d52faecc566300573aa20
 ---
 <!-- COMMENTS:END -->
