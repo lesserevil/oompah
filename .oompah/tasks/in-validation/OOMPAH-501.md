@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-501
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Prevent premature epic rollup PR/MR creation from child close handoffs
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T14:01:32.048881Z'
-updated_at: '2026-07-28T14:33:57.895798Z'
+updated_at: '2026-08-04T15:19:53.679904Z'
 work_branch: OOMPAH-501
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/559
@@ -44,6 +44,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/559
 oompah.review_number: '559'
 oompah.work_branch: OOMPAH-501
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a28eb8c2fd5c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-501
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3a7042512afa0042d377c8ed4aab396cfd49714b4b10e2a09e8369f1f7871c82
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T15:19:47.180174+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -238,5 +260,10 @@ author: oompah
 created: 2026-07-28 14:33
 ---
 Deployed from merged PR #559 (merge commit 637b2392a7). Restarted Oompah through make restart; service is running on PID 2011441. Closed premature PR #558 while preserving epic-OOMPAH-451. Remote CI passed on Python 3.11, 3.12, and 3.13; local verification was 12,344 passed, 7 skipped plus make check-secrets and git diff --check.
+---
+author: oompah
+created: 2026-08-04 15:19
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
