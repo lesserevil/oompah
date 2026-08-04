@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:43:44.821479Z'
+updated_at: '2026-08-04T16:44:34.345907Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -30,13 +30,17 @@ oompah.work_branch: epic-OOMPAH-765
 oompah.agent_run_id: c97e7a73-ec45-4bc1-a474-7d01f357dcc7
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-765
   base_branch: epic-OOMPAH-763
   head_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
   submitted_at: '2026-08-04T16:43:17.687981+00:00'
-  updated_at: '2026-08-04T16:43:17.687981+00:00'
+  updated_at: '2026-08-04T16:44:27.962400+00:00'
+  last_error: 'could not recover integration worktrees: git worktree add failed: Preparing
+    worktree (checking out ''epic-OOMPAH-765'')
+
+    fatal: ''epic-OOMPAH-765'' is already used by worktree at ''/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-765'''
 oompah.task_costs:
   total_input_tokens: 83
   total_output_tokens: 22845
@@ -280,5 +284,13 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 20m 17s
 - Log: OOMPAH-765__20260804T162335Z.jsonl
+---
+author: oompah
+created: 2026-08-04 16:44
+---
+Integration could not verify `epic-OOMPAH-765`: could not recover integration worktrees: git worktree add failed: Preparing worktree (checking out 'epic-OOMPAH-765')
+fatal: 'epic-OOMPAH-765' is already used by worktree at '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-765'
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
