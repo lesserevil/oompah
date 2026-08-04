@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-497
 type: task
-status: In Validation
+status: Archived
 priority: 2
 title: Assign canonical ownership for overlapping Release Delivery UI tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:32.426575Z'
-updated_at: '2026-08-04T17:39:06.873100Z'
+updated_at: '2026-08-04T17:44:40.130029Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -58,6 +58,30 @@ oompah.task_costs:
     recorded_at: '2026-08-04T17:38:35.872103+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-c302bbcd9154: '2026-08-04T17:44:36.761185+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-497
+    target_state: Archived
+    evidence_fingerprint: d4f16d42c71537f6461e60a49f42121e81888930f4686972fe159197fc8df6c5
+    audit_ids:
+    - audit-2da954a8db6d
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T17:44:36.761197+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-497
+    audit_id: audit-2da954a8db6d
+    attempt_id: attempt-c302bbcd9154
+    target_state: Archived
+    evidence_fingerprint: d4f16d42c71537f6461e60a49f42121e81888930f4686972fe159197fc8df6c5
+    status: Archived
+    audit_ids:
+    - audit-2da954a8db6d
+    applied: false
+    created_at: '2026-08-04T17:44:36.761213+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -65,7 +89,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-497
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -93,7 +117,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c302bbcd9154
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -104,13 +128,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T17:38:56.585957+00:00'
       branch_key: epic-OOMPAH-490
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T17:44:36.761028+00:00'
+      ended_at: '2026-08-04T17:44:36.761028+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T17:26:39.965464+00:00'
-    updated_at: '2026-08-04T17:38:56.585957+00:00'
+    updated_at: '2026-08-04T17:44:36.761028+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9c508d0e6fdf
