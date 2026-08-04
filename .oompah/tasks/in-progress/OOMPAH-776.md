@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-776
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Implement TransitionIntent, transition journal, and TaskTransitionService
 parent: OOMPAH-769
@@ -12,14 +12,16 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:49.998013Z'
-updated_at: '2026-08-04T14:05:21.302729Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T14:45:08.886779Z'
+work_branch: epic-OOMPAH-769--task-OOMPAH-776
+target_branch: epic-OOMPAH-769
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.target_branch: epic-OOMPAH-769
+oompah.work_branch: epic-OOMPAH-769--task-OOMPAH-776
 ---
 ## Summary
 

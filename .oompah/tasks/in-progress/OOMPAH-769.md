@@ -18,14 +18,16 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-04T14:04:08.690284Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T14:44:48.916082Z'
+work_branch: epic-OOMPAH-769
+target_branch: epic-OOMPAH-763
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.target_branch: epic-OOMPAH-763
+oompah.work_branch: epic-OOMPAH-769
 ---
 ## Summary
 
