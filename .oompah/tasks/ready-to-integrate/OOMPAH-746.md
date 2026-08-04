@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:20:16.446730Z'
+updated_at: '2026-08-04T01:47:31.948417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 65703f40-c7a2-45a1-a059-e4803db01ee5
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 2106086
   total_output_tokens: 15231
@@ -127,9 +127,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-746
-  head_sha: ad5f2dff5e7f9227bd86d5e39c187affc4294d39
-  submitted_at: '2026-08-04T01:00:31.045844+00:00'
-  updated_at: '2026-08-04T01:00:31.045844+00:00'
+  head_sha: 3ed0f959e02e00dc9aa4c5563daa469f2a907c09
+  submitted_at: '2026-08-04T01:47:20.534789+00:00'
+  updated_at: '2026-08-04T01:47:20.534789+00:00'
 ---
 ## Summary
 
@@ -402,5 +402,10 @@ author: oompah
 created: 2026-08-04 01:20
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-08-04 01:47
+---
+Operator recovery after advisory coordination race: resubmitting clean pushed repair head 3ed0f959e. The original branch implementation remains intact; this head adds the isolated dashboard snapshot timing regression fix and focused verification recorded on the task. Root coordination race is tracked by OOMPAH-751.
 ---
 <!-- COMMENTS:END -->
