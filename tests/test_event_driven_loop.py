@@ -617,18 +617,37 @@ class TestRunEventDrivenLoop:
         posted without yielding should result in fewer than 5+1=6 ticks.
         """
         orch = self._make_orch_with_mocked_tick(tmp_path)
+        burst_processed = asyncio.Event()
+        tick_count = [0]
+
+        # Wrap _tick to track when the burst has been processed.
+        original_tick = orch._tick
+
+        async def _tracked_tick():
+            tick_count[0] += 1
+            await original_tick()
+            # After at least one tick following the burst, signal completion.
+            # We expect: 1 (startup) + 1-2 (burst + any additional) ticks.
+            if tick_count[0] >= 2:
+                burst_processed.set()
+
+        orch._tick = _tracked_tick
 
         async def _run_and_stop():
             async def _feed_burst():
-                # Wait for loop to start.
+                # Wait for loop to start and run startup tick.
                 await asyncio.sleep(0.01)
                 # Post 5 events without yielding between them.
                 for _ in range(5):
                     orch._post_event(
                         DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
                     )
-                # Give the loop time to process them.
-                await asyncio.sleep(0.08)
+                # Wait for burst to be processed instead of using fixed sleep.
+                # Timeout after 2 seconds to catch hung loops.
+                try:
+                    await asyncio.wait_for(burst_processed.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    pass  # Proceed to shutdown even if burst didn't complete
                 orch._stopping = True
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
 
@@ -637,11 +656,11 @@ class TestRunEventDrivenLoop:
         event_loop.run_until_complete(_run_and_stop())
         # Without coalescing we'd expect 1 (startup) + 5 (individual events) = 6.
         # With coalescing the burst collapses: expect at most 3 total ticks.
-        assert orch._tick.call_count < 6, (
-            f"Expected coalescing to reduce tick count below 6, got {orch._tick.call_count}"
+        assert tick_count[0] < 6, (
+            f"Expected coalescing to reduce tick count below 6, got {tick_count[0]}"
         )
         # But the loop must have run at least once (startup + some event tick).
-        assert orch._tick.call_count >= 2
+        assert tick_count[0] >= 2
 
 
     def test_run_stops_when_stopping_is_set(self, tmp_path, event_loop):

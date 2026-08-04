@@ -86,6 +86,16 @@ class CheckpointQueue:
         )
 
         self._lock = threading.RLock()
+        # Serializes the flush_fn call so a concurrent caller with pending==0
+        # blocks until any in-flight flush completes before returning.  Without
+        # this the manual-flush and timer-flush paths can race: the timer
+        # thread cancels timers and sets pending=0 under _lock, releases _lock,
+        # then starts flush_fn; a concurrent flush() caller then sees
+        # pending==0 and returns immediately, incorrectly signalling "flushed"
+        # while the timer's git commit is still in flight.  Held only around
+        # the flush_fn call and its counters, never re-entered inside
+        # flush_fn (which acquires the tracker's _write_lock instead).
+        self._flush_serial = threading.Lock()
         self._pending: int = 0
         self._debounce_timer: Any | None = None  # threading.Timer instance
         self._max_delay_timer: Any | None = None  # threading.Timer instance
@@ -159,44 +169,53 @@ class CheckpointQueue:
             Number of mutations that were flushed.  Zero when there was nothing
             pending (idempotent call).
         """
-        with self._lock:
-            count = self._pending
-            if count == 0:
-                return 0
+        # Serialize the entire flush operation.  Callers who race to observe
+        # pending==0 must still wait behind any in-flight flush_fn so the
+        # observable state (git commit, last_push_at) is fully durable before
+        # flush() returns.  Held OUTSIDE the queue's _lock so schedule() from
+        # other threads keeps running while a flush is in progress; released
+        # BEFORE flush() returns so callers see the completed commit state.
+        with self._flush_serial:
+            with self._lock:
+                count = self._pending
+                if count == 0:
+                    return 0
 
-            # Cancel both timers while holding the lock.
-            if self._debounce_timer is not None:
-                self._debounce_timer.cancel()
-                self._debounce_timer = None
-            if self._max_delay_timer is not None:
-                self._max_delay_timer.cancel()
-                self._max_delay_timer = None
+                # Cancel both timers while holding the lock.
+                if self._debounce_timer is not None:
+                    self._debounce_timer.cancel()
+                    self._debounce_timer = None
+                if self._max_delay_timer is not None:
+                    self._max_delay_timer.cancel()
+                    self._max_delay_timer = None
 
-            self._pending = 0
-            self._first_pending_at = None
+                self._pending = 0
+                self._first_pending_at = None
 
-        # Run the flush function OUTSIDE the _lock to avoid nested-lock
-        # deadlocks with OompahMarkdownTracker._write_lock.
-        try:
-            logger.debug(
-                "Checkpoint flushing %d mutation(s) (reason=%s)", count, reason
-            )
-            self._flush_fn()
-            self._last_push_at = datetime.now(timezone.utc).isoformat()
-            logger.debug(
-                "Checkpoint flushed: %d mutation(s) committed (reason=%s)",
-                count,
-                reason,
-            )
-            return count
-        except Exception:
-            self._push_failures += 1
-            logger.exception(
-                "Checkpoint flush FAILED (reason=%s); push_failures=%d",
-                reason,
-                self._push_failures,
-            )
-            raise
+            # Run the flush function OUTSIDE the _lock to avoid nested-lock
+            # deadlocks with OompahMarkdownTracker._write_lock.  Still held
+            # inside _flush_serial so concurrent flush() callers wait for the
+            # commit+push to finish.
+            try:
+                logger.debug(
+                    "Checkpoint flushing %d mutation(s) (reason=%s)", count, reason
+                )
+                self._flush_fn()
+                self._last_push_at = datetime.now(timezone.utc).isoformat()
+                logger.debug(
+                    "Checkpoint flushed: %d mutation(s) committed (reason=%s)",
+                    count,
+                    reason,
+                )
+                return count
+            except Exception:
+                self._push_failures += 1
+                logger.exception(
+                    "Checkpoint flush FAILED (reason=%s); push_failures=%d",
+                    reason,
+                    self._push_failures,
+                )
+                raise
 
     def shutdown(self) -> None:
         """Flush any pending mutations and cancel timers for graceful shutdown."""
