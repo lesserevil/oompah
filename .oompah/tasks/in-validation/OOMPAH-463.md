@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-463
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Persist terminal-audit state through the tracker metadata contract
 parent: OOMPAH-457
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:05.235115Z'
-updated_at: '2026-07-28T21:16:08.309172Z'
+updated_at: '2026-08-04T21:33:39.589826Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -37,6 +37,28 @@ oompah.task_costs:
     output_tokens: 5192
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:41:59.044747+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cabe006dc997
+    project_id: proj-14849f1b
+    task_id: OOMPAH-463
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ff00e333901ab04a54eebd37cb848bdd4f2409383af296b196505ef67969f8d4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:33.972125+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -149,5 +171,10 @@ author: oompah
 created: 2026-07-28 18:53
 ---
 Persisted tracker-neutral terminal-audit metadata with locking, no-op writes, quarantine/redaction, and adapter contract tests.
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
