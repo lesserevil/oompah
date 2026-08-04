@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:48:25.126176Z'
+updated_at: '2026-08-04T00:52:58.029900Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,33 @@ The fix needs to:
 5. Add comprehensive tests for epic branch resolution, nested epics, deleted branches, and ambiguity
 
 Key files: terminal_audit.py (fingerprint computation), projects.py (branch resolution), terminal_transition_coordinator.py (metadata persistence)
+---
+author: oompah
+created: 2026-08-04 00:52
+---
+**Implementation**: Added epic branch resolution to terminal-audit evidence fingerprinting.
+
+Changes made:
+1. Added _resolve_epic_branch_names() helper to compute canonical epic branch names:
+   - Standalone epics: origin/epic-<issue-id>
+   - Nested epics: origin/epic-<parent-id> (shared), then epic-<issue-id>
+
+2. Modified compute_issue_evidence_fingerprint() to resolve epic branches when work_branch is absent, maintaining precedence:
+   - source_branch (explicit)
+   - work_branch (explicit)
+   - integration.task_branch (from integration record)
+   - branch_name (from issue)
+   - Epic branch resolution (new, when issue_type == 'epic')
+
+3. Added 10 comprehensive tests covering:
+   - Epic branch resolution for standalone/nested epics
+   - Non-epic issues don't trigger epic resolution
+   - Explicit branches take precedence
+   - Integration records are respected
+   - Fallback through candidate hierarchy
+
+Test results: All 38 tests in test_terminal_audit.py pass, plus 129 terminal_transition_coordinator tests and 5 fingerprint canonicalization tests.
+
+This enables EXOCOMP-130 scenario resolution where work_branch is absent but canonical epic branch exists.
 ---
 <!-- COMMENTS:END -->
