@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:34.097786Z'
-updated_at: '2026-08-04T22:19:30.786248Z'
+updated_at: '2026-08-04T22:19:38.731198Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -71,8 +71,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-a3decb2d7ba3
-    applied: false
+    applied: true
     created_at: '2026-08-04T22:19:27.127957+00:00'
+    applied_at: '2026-08-04T22:19:36.220760+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -438,5 +439,21 @@ author: oompah
 created: 2026-08-04 21:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 22:19
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- test_http_auth_result: 53 passed in 9.54s (exit 0)
+- test_config_auth_result: 5 passed, 112 deselected in 0.22s (exit 0)
+- test_docs_auth_result: 8 passed in 0.93s (exit 0)
+- test_server_auth_result: 73 passed in 2.05s (exit 0)
+- passlib_in_server_extras: passlib[bcrypt]>=1.7.4 and bcrypt>=3.1.0,<5 in [server] and [dev], not in base dependencies
+- gitignore_patterns: .htpasswd and .htpasswd.* present in .gitignore
+- key_files: oompah/http_auth.py, oompah/config.py (htpasswd_file:757, env_file_dir:762), oompah/__main__.py:308, oompah/bootstrap.py:239, tests/test_http_auth.py, .env.example (OOMPAH_HTPASSWD_FILE:515)
 ---
 <!-- COMMENTS:END -->
