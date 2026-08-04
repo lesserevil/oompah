@@ -18,6 +18,8 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -42,6 +44,11 @@ from oompah.stalled_task_watchdog import (
     classify_stalled_task,
     is_stalled_status,
     run_watchdog_audit,
+)
+from oompah.integration import IntegrationRecord
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionDisposition,
 )
 
 
@@ -2200,6 +2207,112 @@ class TestGateFailureFencesWatchdogReopen:
         assert decision.classification == "insufficient_evidence"
         assert decision.action == "none"
         assert decision.evidence_head == _OOMPAH_814_HEAD
+
+    def test_watchdog_and_gate_completion_have_one_generation_winner(
+        self, tmp_path
+    ):
+        """A stale watchdog observation cannot race past a blocked gate CAS."""
+
+        head = "a" * 40
+        current = Issue(
+            id="issue-806-race",
+            identifier="T-806-race",
+            title="gate race",
+            state="Ready to Integrate",
+            project_id="project-1",
+            assignment_id="implementation-generation-1",
+            head_sha=head,
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="feature/T-806-race",
+                head_sha=head,
+                last_error="combined-tree gate failed",
+            ),
+        )
+
+        class ConcurrentTracker:
+            def __init__(self, issue):
+                self.issue = issue
+                self.lock = threading.Lock()
+                self.updates = []
+
+            def fetch_issue_detail(self, identifier):
+                with self.lock:
+                    assert identifier == self.issue.identifier
+                    return replace(self.issue)
+
+            def update_issue(self, identifier, **fields):
+                with self.lock:
+                    assert identifier == self.issue.identifier
+                    self.updates.append((identifier, fields["status"]))
+                    self.issue = replace(self.issue, state=fields["status"])
+
+        tracker = ConcurrentTracker(current)
+        orch = _make_orchestrator(tmp_path)
+        stale_watchdog_issue = replace(
+            current,
+            state=NEEDS_CI_FIX,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="feature/T-806-race",
+                head_sha=head,
+            ),
+        )
+        gate_issue = replace(current)
+        barrier = threading.Barrier(3)
+
+        def watchdog_transition():
+            barrier.wait()
+            return orch._request_task_status_transition_from_maintenance(
+                project_id="project-1",
+                tracker=tracker,
+                issue=stale_watchdog_issue,
+                requested_status=OPEN,
+                actor="oompah-stalled-watchdog",
+                authority=TransitionAuthority.WATCHDOG,
+                reason_code="watchdog.stalled_recovery",
+                idempotency_key="race:watchdog",
+                originating_job="watchdog:race",
+            )
+
+        def gate_transition():
+            barrier.wait()
+            return orch._request_task_status_transition_from_maintenance(
+                project_id="project-1",
+                tracker=tracker,
+                issue=gate_issue,
+                requested_status=NEEDS_CI_FIX,
+                actor="oompah-integration-gate",
+                authority=TransitionAuthority.INTEGRATOR,
+                reason_code="integration.gate_failure",
+                idempotency_key="race:gate",
+                originating_job="integration:race",
+            )
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                watchdog_future = pool.submit(watchdog_transition)
+                gate_future = pool.submit(gate_transition)
+                barrier.wait()
+                watchdog_outcome = watchdog_future.result(timeout=5)
+                gate_outcome = gate_future.result(timeout=5)
+
+            assert gate_outcome.disposition is TransitionDisposition.APPLIED
+            assert watchdog_outcome.disposition is TransitionDisposition.REJECTED
+            assert watchdog_outcome.reason_code in {
+                "transition.stale_status",
+                "transition.stale_version",
+            }
+            assert tracker.issue.state == NEEDS_CI_FIX
+            assert tracker.updates == [("T-806-race", NEEDS_CI_FIX)]
+        finally:
+            orch.task_transition_journal.close()
+            orch.integration_queue.close()
+            orch.coordination_store.close()
+            orch.review_capacity_store.close()
+            orch.workflow_job_store.close()
+            orch._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 # ---------------------------------------------------------------------------

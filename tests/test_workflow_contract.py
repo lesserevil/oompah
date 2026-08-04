@@ -147,6 +147,22 @@ def test_key_safety_edges_require_domain_evidence():
     assert TransitionRequirement.CONTAINMENT_EVIDENCE in merged
 
 
+def test_gate_routing_and_watchdog_recovery_are_version_fenced_edges():
+    """Internal gates may override Open; repaired stalled work may reopen."""
+
+    for source, target in (
+        (OPEN, NEEDS_CI_FIX),
+        (OPEN, NEEDS_REBASE),
+        (NEEDS_CI_FIX, OPEN),
+        (NEEDS_REBASE, OPEN),
+    ):
+        rule = transition_rule(source, target)
+        assert rule is not None
+        assert rule.requirements == frozenset(
+            {TransitionRequirement.EXPECTED_VERSION}
+        )
+
+
 def test_final_statuses_have_no_automatic_reassessment_path():
     for status in LIFECYCLE_FINAL_STATUSES:
         contract = STATUS_CONTRACTS[status]
