@@ -17,11 +17,11 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:58:23.024933Z'
+updated_at: '2026-08-04T16:58:27.554503Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/714
+review_number: '714'
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
@@ -57,6 +57,8 @@ oompah.task_costs:
     output_tokens: 22845
     cost_usd: 0.0
     recorded_at: '2026-08-04T16:43:42.184185+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/714
+oompah.review_number: '714'
 ---
 ## Summary
 
