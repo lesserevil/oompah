@@ -104,14 +104,16 @@ class WorkflowActionError(RuntimeError):
         *,
         category: WorkflowFailureCategory | str = WorkflowFailureCategory.UNKNOWN,
         retryable: bool = True,
-        retry_delay_seconds: float = 0,
+        retry_delay_seconds: float | None = None,
     ) -> None:
         super().__init__(message)
         self.category = WorkflowFailureCategory(category)
         self.retryable = bool(retryable)
-        if retry_delay_seconds < 0:
+        if retry_delay_seconds is not None and retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
-        self.retry_delay_seconds = float(retry_delay_seconds)
+        self.retry_delay_seconds = (
+            float(retry_delay_seconds) if retry_delay_seconds is not None else None
+        )
 
 
 class WorkflowActionTimedOut(WorkflowActionError):
@@ -130,6 +132,20 @@ class WorkflowActionInterrupted(WorkflowActionError):
             category=WorkflowFailureCategory.TRANSIENT,
             retryable=True,
         )
+
+
+class WorkflowActionSuperseded(WorkflowActionError):
+    """Signal that fresh domain evidence terminally fenced this action."""
+
+    def __init__(self, message: str, *, replacement_generation: str) -> None:
+        super().__init__(
+            message,
+            category=WorkflowFailureCategory.STALE_EVIDENCE,
+            retryable=False,
+        )
+        self.replacement_generation = str(replacement_generation or "").strip()
+        if not self.replacement_generation:
+            raise ValueError("replacement_generation is required")
 
 
 @dataclass(slots=True)
@@ -387,7 +403,7 @@ class DurableWorkflowWorker:
                 retryable=failure.retryable,
                 retry_delay_seconds=(
                     failure.retry_delay_seconds
-                    if failure.retry_delay_seconds
+                    if failure.retry_delay_seconds is not None
                     else self.retry_delay_seconds
                 ),
             )
@@ -456,69 +472,88 @@ class DurableWorkflowWorker:
                     "workflow evidence changed after job enqueue",
                     superseded.attempts,
                 )
+            resume_checkpoint = dict(context.job.checkpoint or {})
+            resume_checkpoint["revalidation"] = self._revalidation_checkpoint(
+                revalidation
+            )
             await self._checkpoint(
                 context,
                 phase="revalidated",
-                checkpoint={
-                    "revalidation": self._revalidation_checkpoint(revalidation)
-                },
+                checkpoint=resume_checkpoint,
             )
 
-            observation = await self._bounded("inspect", handler.inspect(context))
-            context.check_interrupted()
-            if not isinstance(observation, EffectObservation):
-                raise WorkflowActionError(
-                    "handler returned an invalid effect observation",
-                    category=WorkflowFailureCategory.PERMANENT,
-                    retryable=False,
+            saved_effect = resume_checkpoint.get("effect")
+            saved_verification = resume_checkpoint.get("verification")
+            if isinstance(saved_effect, Mapping) and isinstance(
+                saved_verification, Mapping
+            ):
+                effect = EffectResult(dict(saved_effect))
+                verification = VerificationResult(
+                    True, dict(saved_verification)
                 )
-            if observation.applied:
-                effect = self._effect_result(observation)
             else:
-                await self._checkpoint(
-                    context,
-                    phase="effect_pending",
-                    checkpoint={
-                        "revalidation": self._revalidation_checkpoint(revalidation),
-                        "effect_observed": False,
-                    },
+                observation = await self._bounded(
+                    "inspect", handler.inspect(context)
                 )
-                effect = await self._bounded("apply", handler.apply(context))
-                await self._notify("effect_returned", context.job)
                 context.check_interrupted()
-                if not isinstance(effect, EffectResult):
+                if not isinstance(observation, EffectObservation):
                     raise WorkflowActionError(
-                        "handler returned an invalid effect result",
+                        "handler returned an invalid effect observation",
                         category=WorkflowFailureCategory.PERMANENT,
                         retryable=False,
                     )
+                if observation.applied:
+                    effect = self._effect_result(observation)
+                else:
+                    await self._checkpoint(
+                        context,
+                        phase="effect_pending",
+                        checkpoint={
+                            "revalidation": self._revalidation_checkpoint(
+                                revalidation
+                            ),
+                            "effect_observed": False,
+                        },
+                    )
+                    effect = await self._bounded("apply", handler.apply(context))
+                    await self._notify("effect_returned", context.job)
+                    context.check_interrupted()
+                    if not isinstance(effect, EffectResult):
+                        raise WorkflowActionError(
+                            "handler returned an invalid effect result",
+                            category=WorkflowFailureCategory.PERMANENT,
+                            retryable=False,
+                        )
 
-            verification = await self._bounded(
-                "verify", handler.verify(context, effect)
-            )
-            await self._notify("verify_returned", context.job)
-            context.check_interrupted()
-            if not isinstance(verification, VerificationResult):
-                raise WorkflowActionError(
-                    "handler returned an invalid verification result",
-                    category=WorkflowFailureCategory.PERMANENT,
-                    retryable=False,
+                verification = await self._bounded(
+                    "verify", handler.verify(context, effect)
                 )
-            if not verification.verified:
-                raise WorkflowActionError(
-                    verification.reason or "external effect is not yet verifiable",
-                    category=WorkflowFailureCategory.TRANSIENT,
-                    retryable=True,
+                await self._notify("verify_returned", context.job)
+                context.check_interrupted()
+                if not isinstance(verification, VerificationResult):
+                    raise WorkflowActionError(
+                        "handler returned an invalid verification result",
+                        category=WorkflowFailureCategory.PERMANENT,
+                        retryable=False,
+                    )
+                if not verification.verified:
+                    raise WorkflowActionError(
+                        verification.reason
+                        or "external effect is not yet verifiable",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                    )
+                await self._checkpoint(
+                    context,
+                    phase="effect_verified",
+                    checkpoint={
+                        "revalidation": self._revalidation_checkpoint(
+                            revalidation
+                        ),
+                        "effect": dict(effect.receipt),
+                        "verification": dict(verification.receipt),
+                    },
                 )
-            await self._checkpoint(
-                context,
-                phase="effect_verified",
-                checkpoint={
-                    "revalidation": self._revalidation_checkpoint(revalidation),
-                    "effect": dict(effect.receipt),
-                    "verification": dict(verification.receipt),
-                },
-            )
 
             intent = await self._bounded(
                 "build_transition", handler.build_transition(context, verification)
@@ -621,6 +656,21 @@ class DurableWorkflowWorker:
                 WorkflowJobState.RUNNING,
                 "workflow job lease was lost",
                 context.job.attempts,
+            )
+        except WorkflowActionSuperseded as exc:
+            superseded = await asyncio.to_thread(
+                self.store.supersede,
+                context.job.job_id,
+                generation=context.job.generation,
+                replacement_generation=exc.replacement_generation,
+                reason=str(exc),
+            )
+            return WorkflowRunResult(
+                WorkflowRunDisposition.SUPERSEDED,
+                superseded.job_id,
+                superseded.state,
+                str(exc),
+                superseded.attempts,
             )
         except WorkflowActionError as exc:
             return await self._fail(context, exc)
