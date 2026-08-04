@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:46:35.365581Z'
+updated_at: '2026-08-04T20:46:59.658503Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -177,5 +177,15 @@ author: oompah
 created: 2026-08-04 20:46
 ---
 Durable terminal-audit workflow phases, lease ownership, retry/recovery, and non-starvable finalization are implemented and tested.
+---
+author: oompah
+created: 2026-08-04 20:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 147
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 24s
+- Log: OOMPAH-781__20260804T202650Z.jsonl
 ---
 <!-- COMMENTS:END -->
