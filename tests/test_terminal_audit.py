@@ -1,6 +1,7 @@
 """Tests for tracker-neutral terminal-audit records and evidence."""
 
 from dataclasses import replace
+from unittest.mock import Mock
 
 import pytest
 
@@ -14,7 +15,10 @@ from oompah.terminal_audit import (
     TerminalAuditRecord,
     Verdict,
     compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
+    _resolve_epic_branch_names,
 )
+from oompah.models import Issue
 
 
 def _fingerprint(**overrides: object) -> EvidenceFingerprint:
@@ -202,3 +206,178 @@ class TestEvidenceFingerprint:
         )
 
         assert unrelated.evidence_fingerprint == baseline
+
+
+class TestEpicBranchResolution:
+    """Tests for resolving canonical epic branch names (OOMPAH-746)."""
+
+    def test_resolve_epic_branch_for_standalone_epic(self) -> None:
+        """A standalone epic should try its own epic branch."""
+        branches = _resolve_epic_branch_names("EPIC-42", parent_id=None, issue_type="epic")
+        assert branches == ["epic-EPIC-42"]
+
+    def test_resolve_epic_branch_for_nested_epic(self) -> None:
+        """A nested epic should try parent's branch first, then its own."""
+        branches = _resolve_epic_branch_names(
+            "CHILD-1", parent_id="EPIC-42", issue_type="epic"
+        )
+        assert branches == ["epic-EPIC-42", "epic-CHILD-1"]
+
+    def test_resolve_epic_branch_for_non_epic_issue(self) -> None:
+        """Non-epic issues should not produce any epic branch names."""
+        branches = _resolve_epic_branch_names("TASK-1", parent_id=None, issue_type="task")
+        assert branches == []
+
+        branches = _resolve_epic_branch_names("TASK-1", parent_id=None, issue_type="")
+        assert branches == []
+
+    def test_epic_branch_resolution_is_empty_without_identifier(self) -> None:
+        """Empty or missing issue identifier should not produce branches."""
+        branches = _resolve_epic_branch_names("", parent_id=None, issue_type="epic")
+        assert branches == []
+
+    def test_compute_fingerprint_uses_work_branch_when_set(self) -> None:
+        """When work_branch is explicitly set, it should be used (not epic branch)."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Test epic",
+            description="Epic description",
+            work_branch="epic-custom-name",
+            issue_type="epic",
+        )
+        
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        # Fingerprint should reflect the explicit work_branch
+        fp2 = compute_evidence_fingerprint(
+            requirements_text="Epic description",
+            project_id="proj-1",
+            task_id="EPIC-42",
+            source_branch="epic-custom-name",
+        )
+        assert fp == fp2
+
+    def test_compute_fingerprint_resolves_epic_branch_when_work_branch_absent(self) -> None:
+        """When work_branch is absent for an epic, use canonical epic branch."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Test epic",
+            description="Epic description",
+            work_branch=None,
+            issue_type="epic",
+        )
+        
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        # Should use the resolved epic-EPIC-42 branch name
+        fp_expected = compute_evidence_fingerprint(
+            requirements_text="Epic description",
+            project_id="proj-1",
+            task_id="EPIC-42",
+            source_branch="epic-EPIC-42",
+        )
+        assert fp == fp_expected
+
+    def test_compute_fingerprint_for_nested_epic_without_work_branch(self) -> None:
+        """Nested epic without work_branch should try parent branch first."""
+        issue = Issue(
+            id="CHILD-1",
+            identifier="CHILD-1",
+            title="Nested epic",
+            description="Child epic description",
+            parent_id="EPIC-42",
+            work_branch=None,
+            issue_type="epic",
+        )
+        
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        # Should use the parent's epic branch (first candidate)
+        fp_expected = compute_evidence_fingerprint(
+            requirements_text="Child epic description",
+            project_id="proj-1",
+            task_id="CHILD-1",
+            source_branch="epic-EPIC-42",
+        )
+        assert fp == fp_expected
+
+    def test_compute_fingerprint_respects_integration_record(self) -> None:
+        """Integrated task evidence takes precedence over epic branch resolution."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Integrated epic",
+            description="Description",
+            work_branch=None,
+            issue_type="epic",
+        )
+        
+        # Add integration record with explicit task_branch
+        issue.integration = Mock(
+            task_branch="epic-EPIC-42",
+            head_sha="abc123",
+            base_branch="main",
+            base_sha="def456",
+            state="integrated",
+            integrated_sha="ghi789",
+        )
+        
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        # For integrated state, should use integrated_sha/branch
+        fp_expected = compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="EPIC-42",
+            source_branch="main",
+            source_sha="ghi789",
+            target_branch="main",
+            target_sha="ghi789",
+            contributors=[ContributorIdentity("epic-EPIC-42", "git-branch")],
+        )
+        assert fp == fp_expected
+
+    def test_compute_fingerprint_prefers_explicit_work_branch_over_epic_branch(self) -> None:
+        """Explicit work_branch takes precedence over epic branch resolution."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with explicit branch",
+            description="Description",
+            work_branch="custom-epic-branch",
+            issue_type="epic",
+        )
+        
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        # Should use explicit work_branch, not epic branch
+        fp_expected = compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="EPIC-42",
+            source_branch="custom-epic-branch",
+        )
+        assert fp == fp_expected
+
+    def test_compute_fingerprint_falls_back_through_candidates(self) -> None:
+        """Branch resolution tries candidates in order: source_branch, work_branch, integration, branch_name, epic."""
+        issue = Issue(
+            id="TASK-99",
+            identifier="TASK-99",
+            title="Task",
+            description="Description",
+        )
+        
+        # Only issue_type and identifier set, should not trigger epic resolution
+        # for non-epic tasks
+        fp = compute_issue_evidence_fingerprint(issue, "proj-1")
+        
+        fp_expected = compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="TASK-99",
+            source_branch="",  # Empty, no candidates matched
+        )
+        assert fp == fp_expected
