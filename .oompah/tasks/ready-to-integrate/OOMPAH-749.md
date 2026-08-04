@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T01:01:19.194576Z'
+updated_at: '2026-08-04T03:03:41.459878Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -240,5 +240,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 37s
 - Log: OOMPAH-749__20260804T004550Z.jsonl
+---
+author: oompah
+created: 2026-08-04 03:03
+---
+Live re-examination at 2026-08-04 03:02 UTC: all 37 shared integration-queue rows across Oompah, Nodevirt, and Exocomp still have attempts=0 and no lease under live revision 11d81c27. OOMPAH-749 head 713f79080 is now in the active quality gate. The live OOMPAH-752 fairness fix selected this repair after OOMPAH-735's gate, so the root remediation is progressing. No task-local queue mutation is safe or necessary while this exact fix is flowing.
 ---
 <!-- COMMENTS:END -->

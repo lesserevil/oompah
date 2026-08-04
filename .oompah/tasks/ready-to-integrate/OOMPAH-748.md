@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T01:13:17.950298Z'
+updated_at: '2026-08-04T03:03:43.720393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 28m 45s
 - Log: OOMPAH-748__20260804T004441Z.jsonl
+---
+author: oompah
+created: 2026-08-04 03:03
+---
+Live re-examination at 2026-08-04 03:02 UTC: EXOCOMP-128 remains the sole confirmed nested-epic lifecycle deadlock. Its PR 21 is already merged into immediate parent branch epic-EXOCOMP-127 and has repeated passing terminal audits, while live revision 11d81c27 still lacks OOMPAH-748 head d4282363c. OOMPAH-748 is Ready to Integrate. A task-local terminal override remains unsafe because the live lifecycle reconciler would reject or revert it; letting this target-relative lifecycle fix land is the safe recovery.
 ---
 <!-- COMMENTS:END -->
