@@ -12,14 +12,33 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:20:49.325977Z'
-work_branch: null
+updated_at: '2026-08-04T20:22:28.892528Z'
+work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 3e730440ffde04145aa9c18b89db7431eda9a2cd7a481c12d5b3ab63ea7ce0e7
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: aac864e3-c572-48a2-994d-c79c9ab49831
+  claim_owner: f75f2e47-c230-48b7-9af8-09eea50f8e9b
+  claimed_at: '2026-08-04T20:22:08.183805+00:00'
+  claim_expires_at: '2026-08-04T20:52:08.183805+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 6479cc35-618b-4384-b2cd-6ee48a4db025
+oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 ---
 ## Summary
 
@@ -31,3 +50,11 @@ Migrate audit request ownership, candidate selection, launch, rotation, finaliza
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:22
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
