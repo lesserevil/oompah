@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-812
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Drain synthetic long-tick ordering fixtures under full-gate load
 parent: OOMPAH-768
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T22:47:56.569040Z'
+updated_at: '2026-08-04T22:48:14.662540Z'
 work_branch: null
 target_branch: null
 review_url: null
