@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:36:27.418561Z'
+updated_at: '2026-08-04T12:36:38.746311Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-04 12:36
 ---
 Continuation discovery: the recovered patch rebased cleanly onto origin/main, but it does not yet cover all required failure modes. The observer records a pending generation and adds the completion label, while Open/finalization still depend on later mutations or exit/reconcile. Restart recovery only backfills dispatch candidates, so a restart after the structured comment but before Open can leave an orphaned In Progress task. The trusted-comment parser also accepts records with neither author nor provider identity. Required docs -> feature, forced/late exit, normal/retry dispatch, and restart-between-write tests are absent.
+---
+author: oompah
+created: 2026-08-04 12:36
+---
+Continuation verification after rebase: python3 -m pytest -q tests/test_orchestrator_duplicate_detection.py::TestFocusHandoff tests/test_task_handoff.py tests/test_focus.py passed (224 passed in 12.57s). make test-setup could not provision the task-private venv because the installed snap uv failed to create a transient DBus scope; the already-provisioned Python test runtime was used for the focused suite. The prior run's full make test result remains 15,306 passed, but acceptance-specific gaps remain untested as noted above.
 ---
 <!-- COMMENTS:END -->
