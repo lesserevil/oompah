@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-777
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Implement the pure total WorkDecision evaluator
 parent: OOMPAH-765
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:52.177276Z'
-updated_at: '2026-08-04T15:28:24.304920Z'
+updated_at: '2026-08-04T15:28:52.530232Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-777
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -31,6 +31,30 @@ oompah.integration:
   head_sha: 96b878f747949df1956de1d11e6f9bc6db32d279
   submitted_at: '2026-08-04T15:28:18.364467+00:00'
   updated_at: '2026-08-04T15:28:18.364467+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-40009111e70b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-777
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7a0d62337d276c70afd99a556a6dfcb63eabd18937a196b52010b68fe42d296b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner exact-head integration: commit 96b878f747949df1956de1d11e6f9bc6db32d279
+      was proven a descendant and fast-forwarded to epic-OOMPAH-765. Verification:
+      195 workflow/delivery tests, ruff check/format, terminal mutation scan, secret
+      scan, and diff check passed.'
+    created_at: '2026-08-04T15:28:48.450992+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
