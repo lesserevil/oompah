@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:55:04.905158Z'
+updated_at: '2026-08-04T11:08:40.898173Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,12 +47,32 @@ oompah.agent_run_id: e6bddb7b-01b1-4820-bd01-dd2fa03f41c6
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
+  base_branch: epic-OOMPAH-740
+  base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
   head_sha: c3f9dbbaa8a88200bccbfcc8d62016b6763b992b
   submitted_at: '2026-08-03T23:53:07.523920+00:00'
-  updated_at: '2026-08-03T23:53:07.523920+00:00'
+  updated_at: '2026-08-04T11:08:32.476437+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/1)
+
+    error: could not apply c3f9dbbaa... OOMPAH-741: Classify dashboard facts by current
+    operator actionability
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply c3f9dbbaa... # OOMPAH-741: Classify dashboard facts by current
+    operator actionability'
 oompah.task_costs:
   total_input_tokens: 46316
   total_output_tokens: 9830
@@ -221,5 +241,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 27m 51s
 - Log: OOMPAH-741__20260803T232728Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:08
+---
+Integration found a rebase conflict on `epic-OOMPAH-740--task-OOMPAH-741`. Resolve it against `epic-OOMPAH-740`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->

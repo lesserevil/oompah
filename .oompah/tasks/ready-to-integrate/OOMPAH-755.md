@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:06:57.491466Z'
+updated_at: '2026-08-04T11:09:02.810907Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -20,16 +20,18 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.target_branch: main
-oompah.agent_run_id: a42183e9-a872-493f-9ffe-efd11dd66915
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-04T11:05:58.720427+00:00'
+  head_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+  submitted_at: '2026-08-04T11:08:47.725906+00:00'
+  updated_at: '2026-08-04T11:08:47.725906+00:00'
 ---
 ## Summary
 
@@ -67,5 +69,21 @@ author: oompah
 created: 2026-08-04 11:06
 ---
 Discovery: epic-OOMPAH-740 was an ancestor of origin/main with no unique commits; Current branch epic-OOMPAH-740 is up to date. therefore completed without conflicts and advanced it 35 commits to 5368e236. The new head contains OOMPAH-735 commit 0c7d9cbd.
+---
+author: oompah
+created: 2026-08-04 11:08
+---
+Verification: remote epic-OOMPAH-740 and local HEAD both resolve to 5368e236; it is descended from OOMPAH-735 (0c7d9cbd), has an empty reviewed diff against origin/main, and the working tree is clean/up to date. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740' could not begin because uv failed creating the task venv with a DBus/kernel-thread sandbox error (exit 2), before any test executed; no source change was involved.
+---
+author: oompah
+created: 2026-08-04 11:08
+---
+Completion: force-pushed epic-OOMPAH-740 with --force-with-lease (583fb2369..5368e2361) after a clean rebase. The branch now matches origin/main, contains OOMPAH-735, and a coordination notice was sent to OOMPAH-741; no queue metadata or private task head was changed.
+---
+author: oompah
+created: 2026-08-04 11:09
+---
+Rebased epic-OOMPAH-740 onto origin/main and force-pushed repaired ancestry
 ---
 <!-- COMMENTS:END -->
