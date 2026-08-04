@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:26:00.568989Z'
+updated_at: '2026-08-04T21:29:34.422036Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,7 +27,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,13 +70,27 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-803 (tried: origin/OOMPAH-803)'
       next_retry_at: '2026-08-04T21:25:54.167762+00:00'
+    - version: 1
+      attempt_id: attempt-a397df90d75d
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+      created_at: '2026-08-04T21:29:27.884164+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T21:29:27.884164+00:00'
+      branch_key: OOMPAH-803
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:22:32.673831+00:00'
-    updated_at: '2026-08-04T21:25:34.167790+00:00'
+    updated_at: '2026-08-04T21:29:27.884164+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -115,6 +129,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-803 (tried: origin/OOMPAH-803)'
     next_retry_at: '2026-08-04T21:25:54.167762+00:00'
+  - version: 1
+    attempt_id: attempt-a397df90d75d
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+    created_at: '2026-08-04T21:29:27.884164+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T21:29:27.884164+00:00'
+    branch_key: OOMPAH-803
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -175,5 +203,10 @@ author: oompah
 created: 2026-08-04 21:26
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-803 (tried: origin/OOMPAH-803). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 21:29
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
