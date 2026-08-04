@@ -778,6 +778,13 @@ def _task_value(issue: Issue) -> dict[str, Any]:
         "target_branch": issue.target_branch,
         "assignment_id": issue.assignment_id,
         "head_sha": issue.head_sha,
+        # Review metadata is part of the task authority snapshot.  Keeping it
+        # in the facts (rather than consulting mutable tracker text during a
+        # transition) is what lets a merged review be compared with the exact
+        # head that was recorded when it was opened.
+        "review_url": issue.review_url,
+        "review_number": issue.review_number,
+        "review_head": issue.review_head,
     }
 
 
