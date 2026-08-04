@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:17:01.190342Z'
+updated_at: '2026-08-04T11:19:23.162716Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -56,8 +56,8 @@ oompah.integration:
   submitted_at: '2026-08-04T11:16:52.969567+00:00'
   updated_at: '2026-08-04T11:16:52.969567+00:00'
 oompah.task_costs:
-  total_input_tokens: 46316
-  total_output_tokens: 9830
+  total_input_tokens: 46376
+  total_output_tokens: 15598
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -65,8 +65,8 @@ oompah.task_costs:
       output_tokens: 259
       cost_usd: 0.0
     opus:
-      input_tokens: 74
-      output_tokens: 9571
+      input_tokens: 134
+      output_tokens: 15339
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 9571
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:55:02.784693+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 60
+    output_tokens: 5768
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:19:20.115797+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-741__20260803T230037Z
@@ -248,5 +254,15 @@ author: oompah
 created: 2026-08-04 11:17
 ---
 Structured server-side dashboard alert contract (oompah.dashboard_alerts) applied to generic orchestrator alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Frontend uses action_required=false as the actionability decision without message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification. Rebased onto current epic-OOMPAH-740 (includes OOMPAH-735); focused alert/health/state-API/WebSocket suites pass (301 tests + 6 new contract tests).
+---
+author: oompah
+created: 2026-08-04 11:19
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 36
+- Tokens: 60 in / 5.8K out [5.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 50s
+- Log: OOMPAH-741__20260804T110954Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:18:47.979823Z'
+updated_at: '2026-08-04T11:19:19.026023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,17 @@ Understanding: OOMPAH-757 requires implementing a new feature to persist canonic
 4. Comprehensive test coverage including conflict-resolved rebase mappings, patch equivalence, partial/wrong mappings, stale targets, and security tests
 
 This is a backend/implementation-focused task requiring code changes, schema modifications, and integration testing. As a Technical Writer focused on documentation only, this is outside my scope. The appropriate next focus should be a backend/feature specialist who can implement the required code changes and write the corresponding tests.
+---
+author: oompah
+created: 2026-08-04 11:19
+---
+HANDOFF: This task requires backend/feature implementation work, not documentation. As a Technical Writer, I'm handing off to a Feature Developer or backend specialist. 
+
+Key context for next agent:
+- Issue addresses regression in OOMPAH-747 where conflict-resolved rebases don't persist landing evidence
+- Live case: EXOCOMP-130 blocked because commits 4e013110 (one of two in EXOCOMP-148) aren't recognized as landed despite being rebased into canonical epic commits 61141cb8/9663f4b2 with conflict resolution
+- Current system only accepts exact ancestry/patch equivalence or Oompah-authored completion SHAs; no conflict-resolved rebase mapping support
+- Implementation scope includes schema changes, evidence persistence/consumption functions, epic review readiness updates, and comprehensive test coverage (especially conflict-resolved mappings with differing patch IDs)
+- Recommended next focus: feature
 ---
 <!-- COMMENTS:END -->
