@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-509
 type: feature
-status: Merged
+status: In Validation
 priority: 2
 title: Parallelize pytest safely on isolated workers
 parent: OOMPAH-502
@@ -12,13 +12,35 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-07-28T18:00:08.837040Z'
+updated_at: '2026-08-04T18:28:58.864334Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-83c5b2c0ec81
+    project_id: proj-14849f1b
+    task_id: OOMPAH-509
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2170d2dcb816c9a09f0d0baf964fc1c30a6bb78365e2d4f12521507b50d6c355
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:52.300310+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -67,5 +89,10 @@ author: oompah
 created: 2026-07-28 17:34
 ---
 Added bounded four-worker pytest-xdist execution with per-run/per-worker filesystem isolation, serialized process-owning tests, and an exact-outcome serial fallback; repeated full suites show a stable 3.9x speedup.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
