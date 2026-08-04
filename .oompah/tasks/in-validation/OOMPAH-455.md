@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-08-04T15:19:35.240499Z'
+updated_at: '2026-08-04T15:30:40.560232Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -57,19 +57,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-455
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: d157a76b965e6405e8848d7e03640eebf4e3b466fec3a116fba8fbaab4f000fc
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8ff166268307
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d157a76b965e6405e8848d7e03640eebf4e3b466fec3a116fba8fbaab4f000fc
+      created_at: '2026-08-04T15:30:37.585804+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T15:30:37.585804+00:00'
+      branch_key: epic-OOMPAH-451
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T15:19:29.046464+00:00'
-  attempt_history: []
+    updated_at: '2026-08-04T15:30:37.585804+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-8ff166268307
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d157a76b965e6405e8848d7e03640eebf4e3b466fec3a116fba8fbaab4f000fc
+    created_at: '2026-08-04T15:30:37.585804+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T15:30:37.585804+00:00'
+    branch_key: epic-OOMPAH-451
 ---
 ## Summary
 
