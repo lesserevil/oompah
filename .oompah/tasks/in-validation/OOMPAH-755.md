@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: Open
+status: In Validation
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:13:01.466492Z'
+updated_at: '2026-08-04T11:16:04.251155Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -39,7 +39,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-755
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -51,6 +51,23 @@ oompah.terminal_audit:
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T11:10:33.553014+00:00'
+  - version: 1
+    audit_id: audit-4d23d9e26034
+    project_id: proj-14849f1b
+    task_id: OOMPAH-755
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 18f4d6cd9d7bd47402eccdbfaaedbf03e78d0d803a8a5a94f10c5002258f4c78
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-04T11:15:56.050934+00:00'
   attempt_history: []
 oompah.duplicate_screening:
   schema_version: 1
@@ -247,5 +264,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 23s
 - Log: OOMPAH-755__20260804T111151Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:16
+---
+Recovery restage after obsolete ordinary integration row was cancelled; published epic head 5368e236 remains verified.
 ---
 <!-- COMMENTS:END -->
