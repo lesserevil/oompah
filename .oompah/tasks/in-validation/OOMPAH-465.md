@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-465
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Implement idempotent terminal-transition staging and audit chains
 parent: OOMPAH-457
@@ -15,7 +15,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-28T13:05:07.200491Z'
-updated_at: '2026-07-28T21:16:12.965325Z'
+updated_at: '2026-08-04T21:33:57.483095Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -67,6 +67,28 @@ oompah.task_costs:
     output_tokens: 2339
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:36:55.888105+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-61e0d9117a38
+    project_id: proj-14849f1b
+    task_id: OOMPAH-465
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 700675c9288674aa7bdcac8d763345ac1a8acad0910e4d36eac4b3d478747606
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:51.825137+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -651,5 +673,10 @@ author: oompah
 created: 2026-07-28 19:49
 ---
 Implemented and pushed idempotent terminal-transition coordination, project-aware bootstrap/orchestrator integration, duplicate-safe audit chains, and comprehensive tests.
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
