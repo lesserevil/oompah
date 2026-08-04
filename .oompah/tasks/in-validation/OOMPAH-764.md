@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,13 +16,34 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:40:01.965334Z'
+updated_at: '2026-08-04T14:41:17.025199Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a70c8beeb684
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a896dca59b0518a9920ae5a6fbd185fa921267513316f4cea0b18c3840f78d8b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-08-04T14:41:10.958074+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -34,3 +55,11 @@ Establish the executable specification that all later workflow-engine work must 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 14:41
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+<!-- COMMENTS:END -->
