@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-754
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Inspect every integration head when repairing stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:15:20.503912Z'
+updated_at: '2026-08-04T11:15:43.241382Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,6 +68,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-754
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:04:34.850743+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-754
+  head_sha: 0440a66b160781c7c353c283345011d2932e9477
+  submitted_at: '2026-08-04T11:15:38.944588+00:00'
+  updated_at: '2026-08-04T11:15:38.944588+00:00'
 ---
 ## Summary
 
@@ -132,5 +140,10 @@ author: oompah
 created: 2026-08-04 11:15
 ---
 VERIFICATION: All 54 relevant tests pass (34 test_parallel_epic_children.py + 20 test_integration_queue.py). Specifically: all 4 existing staleness detector tests pass, plus new regression test test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible verifies the fix. The implementation correctly: scans all Ready items instead of only the first, skips items whose nonterminal dependencies appear in the queue, finds the first eligible item with terminal-unreachable deps, and files exactly one repair task. Branch is up to date and ready for review.
+---
+author: oompah
+created: 2026-08-04 11:15
+---
+Fixed queue staleness detector to inspect all integration heads, not just the first ready item. The original implementation would miss repairable terminal-unreachable dependencies when earlier queue items were legitimately blocked on nonterminal dependencies. New implementation scans all Ready items topologically, skipping those blocked by nonterminal queue members, and files repair for the first eligible head. Added regression test. All 54 related tests pass.
 ---
 <!-- COMMENTS:END -->
