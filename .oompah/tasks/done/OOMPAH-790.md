@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-790
 type: feature
-status: Open
+status: Done
 priority: 1
 title: Build a stateful reference model and generative workflow harness
 parent: OOMPAH-767
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:16.097978Z'
-updated_at: '2026-08-04T17:59:14.450530Z'
+updated_at: '2026-08-04T17:59:43.523098Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,31 @@ oompah.integration:
   last_error: epic worktree head a681ec2fc005f339063b3b8e2a139b8ae0b3c379 differs
     from the published epic head fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1; refusing
     to reset a preserved recovery snapshot
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-06113f88fa72
+    project_id: proj-14849f1b
+    task_id: OOMPAH-790
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 953468f90e6665ecc591872730033212d35e1e12bbdc9280d4b0c8a26fc57807
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner implementation was fully tested and published at exact head
+      fee2b7a57 on epic-OOMPAH-767. Integration twice failed on server-side recovery
+      state: first the parent epic branch was absent, then its preserved integration
+      worktree remained at stale head a681ec2f despite the remote epic branch being
+      fee2b7a57.'
+    created_at: '2026-08-04T17:59:40.026402+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
