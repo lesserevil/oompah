@@ -7,17 +7,19 @@ title: Route orchestrator lifecycle writes through TaskTransitionService
 parent: OOMPAH-769
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-776
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T13:58:53.917290Z'
+updated_at: '2026-08-04T14:05:26.617492Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
