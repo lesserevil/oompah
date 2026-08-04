@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-04T21:35:39.408149Z'
+updated_at: '2026-08-04T21:42:32.010480Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -38,18 +38,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-457
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-66403b6f73b4
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
+      created_at: '2026-08-04T21:42:29.461331+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T21:42:29.461331+00:00'
+      branch_key: epic-OOMPAH-457
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:09.639801+00:00'
+    updated_at: '2026-08-04T21:42:29.461331+00:00'
   - version: 1
     audit_id: audit-70ee8bf012fa
     project_id: proj-14849f1b
@@ -84,7 +98,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:35:36.253495+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-66403b6f73b4
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
+    created_at: '2026-08-04T21:42:29.461331+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T21:42:29.461331+00:00'
+    branch_key: epic-OOMPAH-457
 ---
 ## Summary
 
