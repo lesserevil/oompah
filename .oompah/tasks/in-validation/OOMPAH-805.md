@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T22:02:18.931734Z'
+updated_at: '2026-08-04T22:12:33.334733Z'
 work_branch: OOMPAH-805
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/715
@@ -137,6 +137,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/715
 oompah.review_number: '715'
 oompah.work_branch: OOMPAH-805
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3d1b3c625ed7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-805
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T22:12:26.519849+00:00'
+  - version: 1
+    audit_id: audit-498d220ab608
+    project_id: proj-14849f1b
+    task_id: OOMPAH-805
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T22:12:26.519849+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -449,5 +488,15 @@ author: oompah
 created: 2026-08-04 22:01
 ---
 Branch quality gate passed for `376e9a011a6ba90ed4160a9c2754844c2d37d809` using `make test` in 436.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 22:12
+---
+Operator integration workaround: PR #715 was CLEAN with Python 3.11/3.12/3.13 all green and exact branch gate make test passed at 376e9a011. The scheduler had not reached YOLO follow-through during its 681-second tick, so the verified PR was merged without deleting the evidence branch. OOMPAH-809 tracks the scheduling starvation; normal webhook/terminal reconciliation should now finalize this task.
+---
+author: oompah
+created: 2026-08-04 22:12
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
