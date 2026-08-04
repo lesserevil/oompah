@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:09:57.495977Z'
+updated_at: '2026-08-04T03:10:25.530547Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -339,5 +339,10 @@ author: oompah
 created: 2026-08-04 03:09
 ---
 Verification: Post-rebase focused suites are green. Batch 1: 173/173 across integration retry recovery, dashboard actionability/credential/state-read/websocket/repository-hygiene/terminal-audit, integration queue/conflict repair, and worker submission. Batch 2: 579/579 across epic strategy, orchestrator handlers, parallel epic children, state API responsiveness, and authenticated websocket bootstrap. python3 py_compile and git diff --check pass. The earlier exact implementation head also passed make test; Oompah will run the configured full gate once for this new rebased head after submission.
+---
+author: oompah
+created: 2026-08-04 03:10
+---
+Completion: Delivered and pushed rebased head 0c7d9cbd41a03aa8092a0e82e10ec50862e143ed. Normal authorized/fresh repair and bounded retry activity is structured as non-actionable info and excluded from global operator alerts; stopped, stale, revoked, exhausted, and unrecoverable recovery re-arms actionable warning/error state; successful delivery clears recovery alerts; diagnostics remain intact. The sole main overlap was resolved without dropping direct-epic cleanup behavior. Remote branch exactly matches HEAD and is one commit ahead of current origin/main.
 ---
 <!-- COMMENTS:END -->
