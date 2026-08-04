@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-775
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService and enforce
   the boundary
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:26:56.036782Z'
+updated_at: '2026-08-04T21:30:26.732924Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -114,7 +114,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8f1095d7-edf5-4423-bdee-85244b8786fd
+oompah.agent_run_id: 0ca57b14-41af-4f26-b451-f10500389e57
 oompah.work_branch: epic-OOMPAH-769--task-OOMPAH-775
 oompah.integration:
   version: 2
@@ -187,5 +187,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 43s
 - Log: OOMPAH-775__20260804T212425Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:30
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
