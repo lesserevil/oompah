@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T21:42:08.927832Z'
+updated_at: '2026-08-04T21:50:14.848633Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -61,7 +61,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-523
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +70,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-11b6a9dcd01f
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -80,6 +80,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:42:06.670511+00:00'
       branch_key: epic-OOMPAH-521
+      ended_at: '2026-08-04T21:50:11.554121+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah
@@ -91,7 +93,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -101,6 +103,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:42:06.670511+00:00'
     branch_key: epic-OOMPAH-521
+    ended_at: '2026-08-04T21:50:11.554121+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
