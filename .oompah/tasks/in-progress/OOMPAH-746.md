@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:09:33.753526Z'
+updated_at: '2026-08-04T01:11:52.556950Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,7 +71,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c639d605-b673-4f1f-91f5-2f5a6a51e49f
+oompah.agent_run_id: 65703f40-c7a2-45a1-a059-e4803db01ee5
 oompah.task_costs:
   total_input_tokens: 832
   total_output_tokens: 2620
