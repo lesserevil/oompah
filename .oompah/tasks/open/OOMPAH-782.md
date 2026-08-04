@@ -12,8 +12,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:22:40.953603Z'
-work_branch: null
+updated_at: '2026-08-04T20:23:00.352468Z'
+work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
 review_number: null
@@ -38,6 +38,15 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 54918e9b-6c9d-4519-a561-721ff86a1ecf
+oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-782
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-768--task-OOMPAH-782
+  base_branch: epic-OOMPAH-768
+  base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
+  updated_at: '2026-08-04T20:22:55.498966+00:00'
 ---
 ## Summary
 
@@ -49,3 +58,16 @@ Migrate In Review and repair progression to unified review/CI/Git facts and dura
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:22
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 20:23
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
