@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T22:40:45.176772Z'
+updated_at: '2026-08-04T22:41:03.897253Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -49,16 +49,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d501a887-3a5d-433d-b5a6-fbc241e45e9b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: a744be37d42047e25e6fc62a6a64878c187290e0
-  updated_at: '2026-08-04T22:28:13.196413+00:00'
+  head_sha: 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35
+  submitted_at: '2026-08-04T22:40:51.588852+00:00'
+  updated_at: '2026-08-04T22:40:51.588852+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -251,5 +253,10 @@ author: oompah
 created: 2026-08-04 22:40
 ---
 The prior infrastructure failure occurred because integration rebased submitted head f8f9d382c to patch-equivalent head 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35 but retained stale quality-gate owner metadata. The deployed watchdog then cancelled the blocked queue row and redispatched a repair worker. I stopped that out-of-scope repair, quarantined its uncommitted gate-owner patch for OOMPAH-811, and revalidated the clean rewritten feature head: 744 focused tests pass. Freshly resubmitting 9e2ecc3ff without feature-scope changes.
+---
+author: oompah
+created: 2026-08-04 22:41
+---
+Revalidated the integration-rewritten, patch-equivalent exact head 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35 with 744 focused tests; resubmitting without the quarantined out-of-scope infrastructure patch.
 ---
 <!-- COMMENTS:END -->
