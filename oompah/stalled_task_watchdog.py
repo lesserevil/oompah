@@ -211,6 +211,12 @@ class WatchdogEvidence:
     either provider implementation.  Missing values mean *unknown*, never
     false.  In particular, a provider exception is represented explicitly in
     ``provider`` instead of being inferred from an empty review list.
+
+    ``integration`` carries the current internal integration record for the
+    task (``oompah.integration`` metadata).  This is authoritative internal
+    gate authority: when the integration record shows ``state='blocked'`` at
+    a specific head, the watchdog must not override that gate verdict on the
+    strength of generic forge CI signals alone.  See OOMPAH-806.
     """
 
     review: Any | None = None
@@ -219,6 +225,7 @@ class WatchdogEvidence:
     ci: Any | None = None
     provider: Any | None = None
     issue: Any | None = None
+    integration: Any | None = None
     errors: tuple[str, ...] = ()
 
 
@@ -530,6 +537,23 @@ def _normalise_watchdog_evidence(evidence: Any) -> WatchdogEvidence:
             )
             if key in mapping
         }
+    integration = (
+        mapping.get("integration")
+        or mapping.get("oompah.integration")
+        or mapping.get("integration_record")
+    )
+    if integration is None:
+        # Fall back to a shallow snapshot when tests supply flat fields.
+        integration = {
+            key: mapping[key]
+            for key in (
+                "integration_state", "integration_head_sha",
+                "integration_task_branch", "integration_updated_at",
+                "integration_last_error",
+            )
+            if key in mapping
+        }
+        integration = integration or None
     return WatchdogEvidence(
         review=review,
         branch=branch,
@@ -537,6 +561,7 @@ def _normalise_watchdog_evidence(evidence: Any) -> WatchdogEvidence:
         ci=mapping.get("ci") or mapping.get("ci_status"),
         provider=provider,
         issue=mapping.get("issue") or mapping.get("tracker"),
+        integration=integration,
         errors=tuple(
             str(error) for error in (mapping.get("errors") or ()) if str(error)
         ),
@@ -552,6 +577,7 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
     ci = _as_mapping(envelope.ci)
     provider = _as_mapping(envelope.provider)
     issue = _as_mapping(envelope.issue)
+    integration = _as_mapping(envelope.integration)
 
     if isinstance(envelope.ci, str):
         ci = {"status": envelope.ci}
@@ -619,6 +645,37 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
         _first_value(branch, provider, keys=("scm_state", "resolution", "state"))
     )
 
+    integration_state = _string_signal(
+        _first_value(integration, keys=("state", "integration_state"))
+    )
+    integration_head_raw = _first_value(
+        integration,
+        keys=("head_sha", "integration_head_sha", "rebased_head_sha"),
+    )
+    integration_head_sha = (
+        str(integration_head_raw).strip().lower() if integration_head_raw else ""
+    )
+    integration_task_branch = _first_value(
+        integration,
+        keys=("task_branch", "integration_task_branch", "branch"),
+    )
+    branch_head_raw = _first_value(
+        branch,
+        review,
+        issue,
+        keys=("head_sha", "branch_head", "review_head", "commit"),
+    )
+    branch_head_sha = (
+        str(branch_head_raw).strip().lower() if branch_head_raw else ""
+    )
+    integration_last_error = _first_value(
+        integration,
+        keys=("last_error", "error", "integration_last_error"),
+    )
+    integration_updated_at = _first_value(
+        integration,
+        keys=("updated_at", "integration_updated_at"),
+    )
     return {
         "review_state": review_state,
         "merged": merged,
@@ -634,7 +691,95 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
         "scm_state": scm_state,
         "errors": envelope.errors,
         "review": review,
+        "integration_state": integration_state,
+        "integration_head_sha": integration_head_sha,
+        "integration_task_branch": (
+            str(integration_task_branch).strip() if integration_task_branch else ""
+        ),
+        "integration_last_error": (
+            str(integration_last_error).strip() if integration_last_error else ""
+        ),
+        "integration_updated_at": (
+            str(integration_updated_at).strip() if integration_updated_at else ""
+        ),
+        "branch_head_sha": branch_head_sha,
     }
+
+
+def _blocked_gate_authority_decision_from_evidence(
+    task_id: str,
+    stalled_status: str,
+    evidence: Any,
+    *,
+    project_id: str | None,
+    run_id: int,
+) -> StalledTaskDecision | None:
+    """Convenience wrapper for callers that hold raw evidence."""
+
+    if evidence is None:
+        return None
+    signals = _evidence_signals(evidence)
+    return _blocked_gate_authority_decision(
+        task_id,
+        stalled_status,
+        signals,
+        project_id=project_id,
+        run_id=run_id,
+    )
+
+
+def _blocked_gate_authority_decision(
+    task_id: str,
+    stalled_status: str,
+    signals: Mapping[str, Any],
+    *,
+    project_id: str | None,
+    run_id: int,
+) -> StalledTaskDecision | None:
+    """Refuse to reopen when internal gate authority is authoritative.
+
+    An internal integration record in ``blocked`` state at the current head
+    is the authoritative internal gate verdict for NEEDS_CI_FIX and
+    NEEDS_REBASE.  Reopening on the strength of external forge CI would
+    discard that verdict and cancel its integration generation — see
+    OOMPAH-793 / OOMPAH-806.  Only a newer pushed branch head (indicating
+    authoritative repair evidence), an explicit same-generation retry
+    (handled by the queue), or authoritative repair evidence (merged review,
+    audit-verdict pass, branch on canonical target — handled above in
+    :func:`_current_evidence_decision`) may override the block.
+    """
+
+    canonical = canonicalize_status(stalled_status)
+    if canonical not in {NEEDS_CI_FIX, NEEDS_REBASE}:
+        return None
+    integration_state = signals.get("integration_state") or ""
+    integration_head_sha = signals.get("integration_head_sha") or ""
+    branch_head_sha = signals.get("branch_head_sha") or ""
+    if integration_state != "blocked" or not integration_head_sha:
+        return None
+    # A newer pushed head is authoritative repair evidence.  Treat identical
+    # heads or unknown branch heads as still-blocked to keep the internal
+    # gate authoritative.
+    if branch_head_sha and branch_head_sha != integration_head_sha:
+        return None
+    detail = (
+        "internal integration record is blocked at "
+        f"{integration_head_sha[:12]} — external CI cannot override the "
+        "authoritative gate verdict without a newer pushed head or "
+        "explicit same-generation retry"
+    )
+    last_error = signals.get("integration_last_error") or ""
+    if last_error:
+        detail += f"; last gate error: {last_error[:120]}"
+    return StalledTaskDecision(
+        task_id,
+        project_id,
+        stalled_status,
+        "insufficient_evidence",
+        "none",
+        detail,
+        watchdog_run_id=run_id,
+    )
 
 
 def _current_evidence_decision(
@@ -645,7 +790,19 @@ def _current_evidence_decision(
     project_id: str | None,
     run_id: int,
 ) -> StalledTaskDecision | None:
-    """Return a decision from authoritative current evidence, if decisive."""
+    """Return a decision from authoritative current evidence, if decisive.
+
+    An internal integration record in ``blocked`` state at the current head
+    is the authoritative internal gate verdict and outranks generic forge CI.
+    A watchdog reopen against that verdict would discard authoritative repair
+    evidence and cancel the corresponding integration generation — see
+    OOMPAH-793/OOMPAH-806.  For NEEDS_CI_FIX and NEEDS_REBASE we therefore
+    refuse to act while the blocked internal record is still current.  Only a
+    newer pushed branch head, an explicit same-generation retry, or authoritative
+    repair evidence (merged/audit-verdict pass) may override the block; those
+    signals are handled by the merge/audit branches below and by resubmission,
+    not by this classifier.
+    """
     if evidence is None:
         return None
     signals = _evidence_signals(evidence)
@@ -705,6 +862,15 @@ def _current_evidence_decision(
         )
 
     canonical = canonicalize_status(stalled_status)
+    block_decision = _blocked_gate_authority_decision(
+        task_id,
+        stalled_status,
+        signals,
+        project_id=project_id,
+        run_id=run_id,
+    )
+    if block_decision is not None:
+        return block_decision
     if canonical == NEEDS_CI_FIX and signals["ci_status"] in {
         "passed", "pass", "green", "success", "successful"
     }:
@@ -959,6 +1125,17 @@ def classify_stalled_task(
 
     # ---- Needs CI Fix -------------------------------------------------------
     if canonical == NEEDS_CI_FIX:
+        # Even prose "CI passed" comments cannot override an authoritative
+        # blocked internal record at the same head.  See OOMPAH-806.
+        block_decision = _blocked_gate_authority_decision_from_evidence(
+            task_id,
+            stalled_status,
+            supplied_evidence,
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if block_decision is not None:
+            return block_decision
         for c in reversed(recent):
             body = _get_comment_body(c)
             if WATCHDOG_COMMENT_MARKER in body:
@@ -991,6 +1168,15 @@ def classify_stalled_task(
 
     # ---- Needs Rebase -------------------------------------------------------
     if canonical == NEEDS_REBASE:
+        block_decision = _blocked_gate_authority_decision_from_evidence(
+            task_id,
+            stalled_status,
+            supplied_evidence,
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if block_decision is not None:
+            return block_decision
         for c in reversed(recent):
             body = _get_comment_body(c)
             if WATCHDOG_COMMENT_MARKER in body:
@@ -1088,6 +1274,25 @@ def _tracker_issue_evidence(tracker: Any, issue: Any) -> WatchdogEvidence:
         if isinstance(raw_metadata, Mapping):
             metadata = raw_metadata
     audit = metadata.get("oompah.terminal_audit") or metadata.get("terminal_audit")
+    integration = (
+        metadata.get("oompah.integration")
+        or metadata.get("integration")
+    )
+    if integration is None:
+        # ``Issue.integration`` may already carry the parsed record; expose it
+        # so the classifier can enforce internal-authority precedence even
+        # when the tracker has no metadata read hook.  See OOMPAH-806.
+        integration_attr = getattr(issue, "integration", None)
+        if integration_attr is not None:
+            if hasattr(integration_attr, "to_dict"):
+                try:
+                    integration = integration_attr.to_dict()
+                except Exception:  # noqa: BLE001 - defensive
+                    integration = None
+            elif isinstance(integration_attr, Mapping):
+                integration = dict(integration_attr)
+            else:
+                integration = _as_mapping(integration_attr) or None
     return WatchdogEvidence(
         issue=issue_mapping,
         review={
@@ -1101,6 +1306,7 @@ def _tracker_issue_evidence(tracker: Any, issue: Any) -> WatchdogEvidence:
             if issue_mapping.get(key) not in (None, "")
         },
         audit=audit,
+        integration=integration,
     )
 
 

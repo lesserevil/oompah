@@ -751,6 +751,45 @@ class TestOrchestratorIntegration:
         assert evidence["ci"]["status"] == "passed"
         assert evidence["audit"]["pending_chain"]
 
+    def test_collects_integration_record_for_internal_gate_authority(self, tmp_path):
+        """OOMPAH-806: the integration record must be exposed as evidence."""
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="T-806",
+            identifier="T-806",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="feature/T-806",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            "oompah.integration": {
+                "state": "blocked",
+                "head_sha": "ef5e8c30e" + "0" * 31,
+                "last_error": "combined-tree gate failed",
+                "task_branch": "feature/T-806",
+            },
+        }
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = None
+        provider.get_branch_head_sha.return_value = "ef5e8c30e" + "0" * 31
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+
+        assert "integration" in evidence
+        assert evidence["integration"]["state"] == "blocked"
+        assert evidence["integration"]["head_sha"] == "ef5e8c30e" + "0" * 31
+
     def test_scheduler_watchdog_wakes_once_after_clearing_stale_completed(
         self, tmp_path
     ):
@@ -982,6 +1021,267 @@ class TestOrchestratorIntegration:
 
         snap = orch._maintenance_status["stalled_task_watchdog"]
         assert snap["run_id"] == 2
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-806: internal gate authority precedence over external forge CI
+# ---------------------------------------------------------------------------
+
+
+class TestInternalGateAuthorityPrecedence:
+    """OOMPAH-806: external CI must not override a blocked internal gate.
+
+    The live reproduction on OOMPAH-793 was: an exact-head combined-tree
+    integration gate failed at head ef5e8c30e; the integration row moved to
+    ``blocked`` and the tracker task moved to ``Needs CI Fix``.  Minutes later
+    the watchdog observed unrelated passing external commit CI, reopened the
+    task to ``Open``, and the integration reconciler cancelled the blocked
+    row because tracker state was no longer ``Ready to Integrate``.  The
+    watchdog must instead refuse to act while the internal record is blocked
+    at the same head.
+    """
+
+    def test_blocked_gate_at_same_head_refuses_reopen_on_passing_external_ci(self):
+        """External CI green cannot override an authoritative blocked gate."""
+        decision = classify_stalled_task(
+            "T-806-1",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "ef5e8c30e" + "0" * 31,
+                    "last_error": "combined-tree gate failed",
+                },
+                "branch": {"head_sha": "ef5e8c30e" + "0" * 31},
+                "ci": {"status": "success"},
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert "blocked" in decision.evidence.lower()
+
+    def test_blocked_gate_at_same_head_refuses_reopen_on_ci_passing_comment(self):
+        """Prose 'CI passing' comment cannot override authoritative blocked gate."""
+        comments = [_comment("ci-bot", "All checks passed on the branch.")]
+        decision = classify_stalled_task(
+            "T-806-2",
+            NEEDS_CI_FIX,
+            comments,
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_newer_pushed_head_allows_reopen_on_passing_ci(self):
+        """A newer branch head is authoritative repair evidence."""
+        decision = classify_stalled_task(
+            "T-806-3",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "branch": {"head_sha": "b" * 40},
+                "ci": {"status": "success"},
+            },
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+
+    def test_blocked_needs_rebase_refuses_external_ci_reopen(self):
+        decision = classify_stalled_task(
+            "T-806-4",
+            NEEDS_REBASE,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "branch": {"head_sha": "a" * 40, "exists": True},
+                "ci": {"status": "green"},
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+
+    def test_blocked_gate_unknown_branch_head_still_refuses(self):
+        """When branch head is unknown, keep the blocked verdict authoritative."""
+        decision = classify_stalled_task(
+            "T-806-5",
+            NEEDS_CI_FIX,
+            [_comment("bot", "CI is now passing.")],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+
+    def test_merged_review_still_overrides_blocked_record(self):
+        """Merged review evidence is authoritative repair evidence."""
+        decision = classify_stalled_task(
+            "T-806-6",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "review": {"state": "merged"},
+            },
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+
+    def test_audit_verdict_pass_still_overrides_blocked_record(self):
+        decision = classify_stalled_task(
+            "T-806-7",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "audit": {"verdict": "pass"},
+            },
+        )
+        assert decision.classification == "actionable"
+
+    def test_ready_integration_state_does_not_trigger_precedence(self):
+        """Only ``blocked`` state activates internal-authority precedence."""
+        decision = classify_stalled_task(
+            "T-806-8",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {"state": "ready", "head_sha": "a" * 40},
+                "ci": {"status": "success"},
+            },
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+
+    def test_unrelated_task_ci_cannot_influence_this_task(self):
+        """Watchdog only reads per-task evidence; unrelated CI is irrelevant."""
+        # An unrelated task's CI status can only reach this task's classifier
+        # via the current_evidence pathway.  When the evidence for THIS task
+        # says ``blocked`` at the current head, the classifier refuses
+        # regardless of what any other task looks like.
+        decision = classify_stalled_task(
+            "T-806-9",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "branch": {"head_sha": "a" * 40},
+                "ci": {"status": "success"},
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+
+    def test_restart_preserves_precedence_same_evidence(self):
+        """A restart re-reads evidence; blocked at same head still refuses."""
+        # First run: watchdog posts sentinel comment.
+        first = classify_stalled_task(
+            "T-806-10",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "branch": {"head_sha": "a" * 40},
+                "ci": {"status": "success"},
+            },
+            run_id=1,
+        )
+        assert first.classification == "insufficient_evidence"
+        # Sentinel comment then persists after restart.
+        sentinel = _comment("oompah", f"{WATCHDOG_COMMENT_MARKER} run #1\n\n"
+                            f"**Evidence:** {first.evidence}")
+        # Second run with identical evidence: idempotent, still refuses.
+        second = classify_stalled_task(
+            "T-806-10",
+            NEEDS_CI_FIX,
+            [sentinel],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": "a" * 40,
+                },
+                "branch": {"head_sha": "a" * 40},
+                "ci": {"status": "success"},
+            },
+            run_id=2,
+        )
+        assert second.classification == "insufficient_evidence"
+
+    def test_run_watchdog_audit_does_not_reopen_blocked_gate(self):
+        """End-to-end: watchdog does not call update_issue when blocked."""
+        issue = _make_issue("T-806-e2e", NEEDS_CI_FIX)
+        tracker = _make_tracker(
+            [issue],
+            {"T-806-e2e": [_comment("bot", "CI is now passing on the branch.")]},
+        )
+
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=42,
+            evidence_by_task={
+                "T-806-e2e": {
+                    "integration": {
+                        "state": "blocked",
+                        "head_sha": "a" * 40,
+                        "last_error": "combined-tree gate failed at ef5e8c30e",
+                    },
+                    "branch": {"head_sha": "a" * 40},
+                    "ci": {"status": "success"},
+                }
+            },
+        )
+        assert result.actions_taken == 0
+        assert result.tasks_insufficient_evidence == 1
+        tracker.update_issue.assert_not_called()
+
+    def test_newer_head_allows_reopen_via_run_watchdog_audit_once(self):
+        """A newer branch head permits exactly one reopen even with blocked history."""
+        issue = _make_issue("T-806-repair", NEEDS_CI_FIX)
+        tracker = _make_tracker([issue])
+
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=51,
+            evidence_by_task={
+                "T-806-repair": {
+                    "integration": {
+                        "state": "blocked",
+                        "head_sha": "a" * 40,
+                    },
+                    "branch": {"head_sha": "b" * 40},
+                    "ci": {"status": "success"},
+                }
+            },
+        )
+        assert result.actions_taken == 1
+        tracker.update_issue.assert_called_once_with(
+            "T-806-repair", status=OPEN
+        )
 
 
 # ---------------------------------------------------------------------------

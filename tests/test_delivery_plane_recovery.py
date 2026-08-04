@@ -19,7 +19,15 @@ from oompah.integration_executor import IntegrationExecutionResult
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner
-from oompah.statuses import DONE, NEEDS_REBASE, OPEN, READY_TO_INTEGRATE
+from oompah.statuses import (
+    ARCHIVED,
+    DONE,
+    MERGED,
+    NEEDS_CI_FIX,
+    NEEDS_REBASE,
+    OPEN,
+    READY_TO_INTEGRATE,
+)
 from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.terminal_transition_coordinator import TransitionResult
 
@@ -727,5 +735,255 @@ def test_exact_ready_submission_is_required_for_executor_authority(tmp_path):
         assert not orchestrator._integration_task_still_ready(claimed)
         tracker.fetch_issue_detail.return_value = None
         assert not orchestrator._integration_task_still_ready(claimed)
+    finally:
+        _close(orchestrator)
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-806: preserve blocked rows through watchdog-driven Open transitions
+# ---------------------------------------------------------------------------
+
+
+def _blocked_row_for(orchestrator, project, issue):
+    """Enqueue an item and drive it to a durable ``blocked`` queue state."""
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="gate-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.fail(
+        project.id,
+        issue.identifier,
+        lease_owner="gate-worker",
+        error="combined-tree gate failed at ef5e8c30e",
+    )
+    row = orchestrator.integration_queue.get(project.id, issue.identifier)
+    assert row is not None
+    assert row.state == "blocked"
+    return row
+
+
+def test_retire_preserves_blocked_row_when_watchdog_reopens_task(tmp_path):
+    """OOMPAH-806: an internal blocked gate must survive watchdog-driven Open.
+
+    Reproduces OOMPAH-793: gate failed, integration row is blocked at head H,
+    tracker task is Needs CI Fix.  Watchdog observed unrelated passing external
+    CI and flipped the task to Open.  The queue reconciler previously cancelled
+    the blocked row because tracker state was no longer Ready to Integrate,
+    discarding authoritative internal gate authority.
+    """
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # Simulate the watchdog reopen: tracker now shows Open.
+        issue.state = OPEN
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        assert retired == 0
+        row_after = orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        )
+        assert row_after is not None
+        assert row_after.state == "blocked"
+        assert row_after.head_sha == blocked.head_sha
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_preserves_blocked_row_when_tracker_shows_needs_ci_fix(tmp_path):
+    """Blocked rows also survive Needs CI Fix, In Progress, Needs Human, etc."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        for tracker_state in (NEEDS_CI_FIX, NEEDS_REBASE, OPEN, "In Progress"):
+            issue.state = tracker_state
+            retired = orchestrator._retire_inactive_integration_rows(
+                project.id,
+                [issue],
+                [
+                    orchestrator.integration_queue.get(
+                        project.id, issue.identifier
+                    )
+                ],
+            )
+            assert retired == 0, (
+                f"blocked row was retired under tracker state {tracker_state!r}"
+            )
+            assert (
+                orchestrator.integration_queue.get(
+                    project.id, issue.identifier
+                ).state
+                == "blocked"
+            )
+    finally:
+        _close(orchestrator)
+
+
+@pytest.mark.parametrize("terminal_state", [DONE, MERGED, ARCHIVED])
+def test_retire_retires_blocked_row_when_task_is_terminal(tmp_path, terminal_state):
+    """Terminal tracker state authorises retiring the blocked row."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+        issue.state = terminal_state
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(
+                project.id, issue.identifier
+            ).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_retires_blocked_row_when_tracker_head_moved_past(tmp_path):
+    """A newer head on the tracker means the blocked row is superseded."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # A fresh submission recorded a newer head on the tracker record while
+        # the task is back in Open (a new implementation attempt is queued).
+        issue.state = OPEN
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch=blocked.task_branch,
+            head_sha="b" * 40,
+        )
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        # The head divergence AND non-READY_TO_INTEGRATE tracker state make
+        # the stale blocked generation retirable.
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(
+                project.id, issue.identifier
+            ).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_still_cancels_ready_row_when_tracker_shows_open(tmp_path):
+    """OOMPAH-657 regression: non-blocked (ready/integrating) rows still retire."""
+    issue = _issue(state=OPEN, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        row = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert row is not None and row.state == "ready"
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [row],
+        )
+
+        assert retired == 1
+        assert (
+            orchestrator.integration_queue.get(project.id, issue.identifier).state
+            == "cancelled"
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_leaves_blocked_row_when_tracker_issue_absent(tmp_path):
+    """When the tracker issue is missing entirely, retire the row (stale ref)."""
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+
+        # The tracker no longer reports this task at all — treat as retirable
+        # so stale references don't accumulate indefinitely.
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [],  # no issues at all
+            [blocked],
+        )
+        assert retired == 1
+    finally:
+        _close(orchestrator)
+
+
+def test_repair_submission_rearms_the_same_head_via_explicit_retry(tmp_path):
+    """OOMPAH-806: an explicit retry with the same head rearms exactly once.
+
+    Ensures the CI/CD boundary: a resubmission via ``oompah task submit``
+    (which sets ``explicit_retry=True``) may reopen the blocked row exactly
+    once, without racing the retirement logic.
+    """
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="blocked")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        blocked = _blocked_row_for(orchestrator, project, issue)
+        first_head = blocked.head_sha
+
+        # Explicit retry with SAME head must rearm to ready exactly once.
+        rearmed = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=blocked.task_branch,
+            head_sha=first_head,
+            explicit_retry=True,
+        )
+        assert rearmed.state == "ready"
+        assert rearmed.retry_forced is True
+
+        # A second identical resubmission without explicit_retry is idempotent
+        # — must not reset state (which is now "ready").
+        again = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=blocked.task_branch,
+            head_sha=first_head,
+        )
+        assert again.state == "ready"
+        assert (
+            orchestrator.integration_queue.get(project.id, issue.identifier).state
+            == "ready"
+        )
     finally:
         _close(orchestrator)

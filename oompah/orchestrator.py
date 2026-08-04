@@ -10211,6 +10211,15 @@ class Orchestrator:
         operator rejection — the live race reproduced repeatedly on OOMPAH-655,
         OOMPAH-653, and OOMPAH-658.
 
+        ``blocked`` rows carry the authoritative internal gate verdict for
+        NEEDS_CI_FIX / NEEDS_REBASE tasks (OOMPAH-793 / OOMPAH-806) and must
+        NOT be retired merely because a watchdog reopened the task to Open on
+        the strength of external forge CI.  Only a terminal tracker state
+        (Done, Merged, Archived) or a divergent integration record on the
+        tracker (a fresh submission that recorded a different head) may
+        cancel a blocked row.  Explicit ``oompah task submit`` retries rearm
+        the row directly via the integration queue and never reach this path.
+
         We also cancel the gate generation for each retired row.  The row
         retirement stops the queue item from being picked up again, while the
         generation cancellation terminates (or tombstones, for pre-spawn cases)
@@ -10228,6 +10237,41 @@ class Orchestrator:
                 continue
             issue = by_alias.get(item.task_id)
             status = canonicalize_status(getattr(issue, "state", ""))
+            # ``blocked`` rows are cycle-fenced by the internal gate.  A
+            # watchdog-driven reopen (which flips tracker status to Open on
+            # the strength of unrelated external CI) must NOT cancel the row
+            # — that would discard authoritative internal gate authority and
+            # expose completed implementation to duplicate dispatch.  Only a
+            # terminal tracker state OR a tracker integration record that has
+            # moved past this row's head (a fresh submission with a different
+            # head_sha) may retire it.
+            if item.state == "blocked":
+                terminal_states = {DONE, MERGED, ARCHIVED}
+                if issue is None:
+                    # Tracker no longer reports the task; treat as retirable.
+                    pass
+                elif status in terminal_states:
+                    pass
+                else:
+                    tracker_record = getattr(issue, "integration", None)
+                    tracker_head = (
+                        str(getattr(tracker_record, "head_sha", "") or "")
+                        .strip()
+                        .lower()
+                    )
+                    row_head = str(item.head_sha or "").strip().lower()
+                    if (
+                        tracker_record is not None
+                        and tracker_head
+                        and row_head
+                        and tracker_head != row_head
+                    ):
+                        # A newer head is on the tracker — the old blocked
+                        # generation is superseded by the new submission.
+                        pass
+                    else:
+                        # Preserve authoritative internal gate authority.
+                        continue
             # Retire the row unless the tracker still authorises delivery.
             # Any status other than READY_TO_INTEGRATE means the task has left
             # the queue lane (rejected back to Open, terminal, reassigned, etc.).
@@ -21366,6 +21410,25 @@ class Orchestrator:
         audit = metadata.get("oompah.terminal_audit") or metadata.get("terminal_audit")
         if audit is not None:
             evidence["audit"] = audit
+
+        integration = (
+            metadata.get("oompah.integration") or metadata.get("integration")
+        )
+        if integration is None:
+            # ``Issue.integration`` may already carry the parsed record; expose
+            # it so the classifier can enforce internal-authority precedence
+            # when the tracker has no metadata read hook. See OOMPAH-806.
+            integration_attr = getattr(issue, "integration", None)
+            if integration_attr is not None:
+                if hasattr(integration_attr, "to_dict"):
+                    try:
+                        integration = integration_attr.to_dict()
+                    except Exception:  # noqa: BLE001 - defensive
+                        integration = None
+                elif isinstance(integration_attr, dict):
+                    integration = dict(integration_attr)
+        if integration is not None:
+            evidence["integration"] = integration
 
         project = None
         if project_id and self.project_store:
