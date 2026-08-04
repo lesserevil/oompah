@@ -10,10 +10,11 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-792
 - OOMPAH-796
+- OOMPAH-805
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:28.518646Z'
-updated_at: '2026-08-04T14:07:27.403286Z'
+updated_at: '2026-08-04T21:31:16.149778Z'
 work_branch: null
 target_branch: null
 review_url: null

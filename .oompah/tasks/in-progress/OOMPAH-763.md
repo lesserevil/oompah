@@ -23,7 +23,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-04T21:30:00.971862Z'
+updated_at: '2026-08-04T21:31:24.204877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-04 14:07
 ---
 Implementation ownership: this entire hierarchy is reserved for direct project-owner execution, not Oompah agent dispatch. Child tasks remain Backlog until their hard-start dependencies are complete; the active leaf will be owner-claimed in sequence so board state stays truthful. Foundation begins with OOMPAH-772. Accidental duplicate creations OOMPAH-799 through OOMPAH-802 were owner-archived; canonical children are OOMPAH-773, OOMPAH-774, OOMPAH-776, and OOMPAH-778.
+---
+author: oompah
+created: 2026-08-04 21:31
+---
+Program graph repair: OOMPAH-775 now hard-starts after overlapping watchdog fix OOMPAH-806; OOMPAH-792 now hard-starts after production wiring OOMPAH-804; final retirement epic OOMPAH-771 waits for OOMPAH-769 and OOMPAH-806; qualification soak OOMPAH-797 waits for standalone gate-stability bug OOMPAH-805; obsolete historical OOMPAH-766 -> OOMPAH-769 start blocker removed. Independent audit found no cycles or missing refs after these changes.
 ---
 <!-- COMMENTS:END -->

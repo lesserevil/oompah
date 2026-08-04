@@ -14,10 +14,12 @@ start_blocked_by: &id001
 - OOMPAH-768
 - OOMPAH-770
 - OOMPAH-767
+- OOMPAH-769
+- OOMPAH-806
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:05.119669Z'
-updated_at: '2026-08-04T14:05:03.647651Z'
+updated_at: '2026-08-04T21:31:12.002162Z'
 work_branch: null
 target_branch: null
 review_url: null

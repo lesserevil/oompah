@@ -11,12 +11,11 @@ children:
 - OOMPAH-785
 blocked_by: []
 start_blocked_by: &id001
-- OOMPAH-769
 - OOMPAH-765
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T17:01:24.577212Z'
+updated_at: '2026-08-04T21:31:19.786494Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
