@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T22:59:05.414930Z'
+updated_at: '2026-08-04T23:37:55.716372Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -56,9 +56,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-768--task-OOMPAH-782
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  head_sha: 687af6c1d352cc5868ae23305e1682837cdeb398
-  submitted_at: '2026-08-04T21:44:37.177473+00:00'
-  updated_at: '2026-08-04T21:44:37.177473+00:00'
+  head_sha: a3948097f27f4e84ac0f2375408ac05f4e419d2c
+  submitted_at: '2026-08-04T23:37:49.301417+00:00'
+  updated_at: '2026-08-04T23:37:49.301417+00:00'
 oompah.task_costs:
   total_input_tokens: 46834
   total_output_tokens: 334
@@ -309,5 +309,10 @@ author: oompah
 created: 2026-08-04 21:44
 ---
 Rebased review/CI domain onto a744be37; dropped redundant batching alternative; 108 focused tests pass.
+---
+author: oompah
+created: 2026-08-04 23:37
+---
+Completed durable review and CI reconciliation at exact head a3948097f27f4e84ac0f2375408ac05f4e419d2c. Combined pre-rebase verification: 751 passed, 2 skipped; post-rebase: 386 passed; terminal mutation scan 8/8. Ready for exact full gate and terminal audit.
 ---
 <!-- COMMENTS:END -->
