@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-491
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Block network Git remotes during pytest sessions
 parent: OOMPAH-490
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-07-28T17:06:59.120870Z'
+updated_at: '2026-08-04T17:25:53.472954Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -41,6 +41,28 @@ oompah.task_costs:
     output_tokens: 32699
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:56:40.925012+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ae44e735f0af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-491
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 812123744863a985526ca74f836141213395a48d8118814a1179041f55b36c20
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:25:47.367647+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -198,5 +220,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 18m 34s
 - Log: OOMPAH-491__20260728T143810Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:25
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
