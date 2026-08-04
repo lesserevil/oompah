@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:54:07.549756Z'
+updated_at: '2026-08-04T11:54:50.137738Z'
 work_branch: OOMPAH-754
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/707
@@ -43,8 +43,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d492709f-e4f1-4219-8cd5-ed3ded297577
 oompah.task_costs:
-  total_input_tokens: 48117
-  total_output_tokens: 1601
+  total_input_tokens: 48123
+  total_output_tokens: 2393
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -52,8 +52,8 @@ oompah.task_costs:
       output_tokens: 746
       cost_usd: 0.0
     unknown:
-      input_tokens: 6
-      output_tokens: 855
+      input_tokens: 12
+      output_tokens: 1647
       cost_usd: 0.0
   runs:
   - profile: default
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 855
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:48:57.942268+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 792
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:54:46.083855+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-754__20260804T110418Z
@@ -400,5 +406,15 @@ Safe evidence:
 - regression_test: test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible passes
 - on_origin_main: true (git merge-base --is-ancestor returns 0; origin/main HEAD is the merge commit)
 - branch_gate: make test passed in 444.3s for 0440a66b1 (recorded in prior comment)
+---
+author: oompah
+created: 2026-08-04 11:54
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 29, Tool calls: 20
+- Tokens: 6 in / 792 out [798 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 26s
+- Log: OOMPAH-754__20260804T114926Z.jsonl
 ---
 <!-- COMMENTS:END -->
