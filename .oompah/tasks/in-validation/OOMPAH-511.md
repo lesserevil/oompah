@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-08-04T16:25:30.178507Z'
+updated_at: '2026-08-04T16:26:13.536161Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -32,18 +32,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-511
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: d46f59de6b7e98be6b90abb05ad71e10fedea7b02363822c30dd5c37750f1529
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-cb96d0a8036a
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d46f59de6b7e98be6b90abb05ad71e10fedea7b02363822c30dd5c37750f1529
+      created_at: '2026-08-04T16:26:01.168349+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T16:26:01.168349+00:00'
+      branch_key: epic-OOMPAH-511
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T16:24:35.836414+00:00'
+    updated_at: '2026-08-04T16:26:01.168349+00:00'
   - version: 1
     audit_id: audit-6fabd90c6453
     project_id: proj-14849f1b
@@ -78,7 +92,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T16:25:26.662298+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-cb96d0a8036a
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d46f59de6b7e98be6b90abb05ad71e10fedea7b02363822c30dd5c37750f1529
+    created_at: '2026-08-04T16:26:01.168349+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T16:26:01.168349+00:00'
+    branch_key: epic-OOMPAH-511
 ---
 ## Summary
 
@@ -128,5 +155,15 @@ author: oompah
 created: 2026-08-04 16:24
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-04 16:26
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 16:26
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
