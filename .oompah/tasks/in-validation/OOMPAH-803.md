@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-803
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService
 parent: OOMPAH-769
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:36:23.102381Z'
+updated_at: '2026-08-04T21:37:25.403607Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,7 +52,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -133,6 +133,23 @@ oompah.terminal_audit:
     previous_state: Backlog
     created_at: '2026-08-04T21:22:32.673831+00:00'
     updated_at: '2026-08-04T21:36:12.621078+00:00'
+  - version: 1
+    audit_id: audit-aa0c724bb97e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-803
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Backlog
+    created_at: '2026-08-04T21:37:21.180442+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -282,5 +299,10 @@ created: 2026-08-04 21:36
 Needs Human — Archived audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-04 21:37
+---
+The first Archived audit generation exhausted all three candidates before the temporary read-only branch existed. Resetting that exhausted generation only, then requesting Archived again so the new source-linked evidence can be audited. This does not reopen implementation; OOMPAH-775 remains the canonical task.
 ---
 <!-- COMMENTS:END -->
