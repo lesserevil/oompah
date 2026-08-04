@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T13:00:07.237511Z'
+updated_at: '2026-08-04T13:00:19.073282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,6 +136,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-760
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:29:29.638885+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-760
+  head_sha: 2e3402064c996d094a52bb21ef8bc8f451655484
+  submitted_at: '2026-08-04T13:00:14.734334+00:00'
+  updated_at: '2026-08-04T13:00:14.734334+00:00'
 ---
 ## Summary
 
@@ -297,5 +305,10 @@ author: oompah
 created: 2026-08-04 13:00
 ---
 Completion: pushed 2e3402064 on OOMPAH-760. Delivered parser fail-closed identity requirement (no more forged HANDOFF backfill) plus regression tests for the exact OOMPAH-757 docs -> feature race, restart-between-writes, forced/late termination finalization, duplicate-mutation idempotence, already-completed focus, and explicit needs:feature selection. Combined with the prior authority-transition work (RunningEntry handoff generation, ACP/HTTP observer, reconcile Open branch, retirement finalizer, dispatch backfill), the acceptance criteria are met: a valid focus handoff durably completes the old focus before the task is dispatchable, starts the requested applicable focus exactly once, never loops back to the old focus, and never leaves an orphaned In Progress claim.
+---
+author: oompah
+created: 2026-08-04 13:00
+---
+Reject unidentified handoff comments and add regression tests for the OOMPAH-757 docs -> feature race, restart-between-writes, forced/late termination, duplicate mutation idempotence, already-completed focus, and explicit needs:feature routing. Combined with the prior handoff authority transition, focus completion is durable before the tracker is dispatchable and the successor focus starts exactly once.
 ---
 <!-- COMMENTS:END -->
