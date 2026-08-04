@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T00:08:28.996071Z'
+updated_at: '2026-08-04T00:08:48.862460Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -68,16 +68,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bacf6ad9-a6a1-465d-8dfb-7834dc82172b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
-  base_branch: epic-OOMPAH-740
-  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-03T23:43:11.700623+00:00'
+  head_sha: 2361ecf83000d89fdf37ff9d088954231c18db4c
+  submitted_at: '2026-08-04T00:08:33.005683+00:00'
+  updated_at: '2026-08-04T00:08:33.005683+00:00'
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1156
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-04 00:08
 ---
 Completion: pushed 2361ecf83 (OOMPAH-745: Cover dashboard alert experience). Delivered deterministic headless-Chrome alert coverage plus the one-visible-surface contract, updated legacy regression expectations, and documented operator behavior. Final focused verification: 149 passed; terminal mutation scan passed; branch is clean and up to date with origin. The attempted Makefile gate is blocked only by the sandboxed uv transient-scope error, while the fallback broad-suite timeout flake is recorded above and passes in isolation.
+---
+author: oompah
+created: 2026-08-04 00:08
+---
+Added browser-level alert density and recovery coverage
 ---
 <!-- COMMENTS:END -->
