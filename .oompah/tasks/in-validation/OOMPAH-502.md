@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T22:08:38.014291Z'
+updated_at: '2026-08-04T22:09:46.081426Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -175,6 +175,22 @@ oompah.terminal_audit:
     started_at: '2026-08-04T21:48:21.618731+00:00'
     branch_key: epic-OOMPAH-502
     candidate_rotation_count: 1
+oompah.task_costs:
+  total_input_tokens: 13
+  total_output_tokens: 7374
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 13
+      output_tokens: 7374
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 13
+    output_tokens: 7374
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T22:09:42.990132+00:00'
 ---
 ## Summary
 
@@ -247,5 +263,15 @@ Safe evidence:
 - children_archived: OOMPAH-509, OOMPAH-517, OOMPAH-518, OOMPAH-519, OOMPAH-520
 - children_in_validation: OOMPAH-503, OOMPAH-504, OOMPAH-505, OOMPAH-506, OOMPAH-507, OOMPAH-508, OOMPAH-510
 - auto_archive_trigger: 7 days since merge (2026-07-28 to 2026-08-04)
+---
+author: oompah
+created: 2026-08-04 22:09
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 33, Tool calls: 19
+- Tokens: 13 in / 7.4K out [7.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 21m 15s
+- Log: OOMPAH-502__20260804T214848Z.jsonl
 ---
 <!-- COMMENTS:END -->
