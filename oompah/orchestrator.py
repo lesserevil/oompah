@@ -1732,6 +1732,10 @@ class Orchestrator:
         self._review_lifecycle_generation: dict[str, int] = {}
         self._closed_review_fences: dict[tuple[str, str], int] = {}
         self._reviews_cache_generation: dict[str, int] = {}
+        # Installed by bootstrap after the project-scoped terminal coordinator
+        # exists.  Keeping the slot on the orchestrator lets API, WebSocket,
+        # and scheduler snapshots all observe the same durable runtime.
+        self.workflow_runtime: Any | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self._audit_rollback_fallback_path = (
             f"{self._state_path}.unadmitted-audit-rollbacks.json"
@@ -5698,6 +5702,8 @@ class Orchestrator:
                 mode=config.workflow_engine_mode,
                 max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
             )
+            if self.workflow_runtime is not None:
+                self.workflow_runtime.set_mode(config.workflow_engine_mode)
             self.tracker = next_tracker
             self.workspace_mgr = next_workspace_mgr
             self._prompt_template = prompt_template
@@ -11322,6 +11328,8 @@ class Orchestrator:
         the loop contract).
         """
         self._dispatch_loop = asyncio.get_running_loop()
+        if self.workflow_runtime is not None:
+            await self.workflow_runtime.start()
         # Establish the grandfather baseline and recover tracker-backed
         # validation work before the first dispatch tick.  This is deliberately
         # a one-shot startup operation; later scans are tied to the existing
@@ -11486,6 +11494,11 @@ class Orchestrator:
             self._quiesced = True
             self._provider_admission_generation += 1
             self._termination_scheduling_closed = True
+        workflow_runtime_drained = True
+        if self.workflow_runtime is not None:
+            workflow_runtime_drained = await self.workflow_runtime.drain(
+                timeout_seconds=10.0
+            )
         # Let already-published retirements finish before walking the same
         # runtimes directly; two concurrent cleanup paths must not race over
         # one provider/session generation.
@@ -11516,6 +11529,8 @@ class Orchestrator:
             )
             if failed
         ]
+        if not workflow_runtime_drained:
+            persistence_failures.append("workflow runtime drain")
         if failed_issue_ids or persistence_failures:
             logger.critical(
                 "Orchestrator shutdown remains fenced; runtime recovery is "
@@ -11548,6 +11563,8 @@ class Orchestrator:
             logger.info("Terminated %d quality gate process group(s)", terminated)
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         await self._drain_background_work()
+        if self.workflow_runtime is not None:
+            self.workflow_runtime.close()
         logger.info("Orchestrator stopped")
         return True
 
@@ -13192,6 +13209,34 @@ class Orchestrator:
                 self._tick_pool,
                 self._reconcile_pending_recovery_publications,
             )
+
+        # Enforce mode has one lifecycle owner: the durable workflow runtime.
+        # Return before any legacy dispatch, review, integration, watchdog, or
+        # epic-rollup writer can run.  The runtime performs its own bounded
+        # fact scan, scheduling, and leased worker pass.
+        if self.workflow_runtime is not None and self.workflow_runtime.enforce:
+            if not self.workflow_runtime.started:
+                await self.workflow_runtime.start()
+            report = await self.workflow_runtime.reconcile_async()
+            self._last_tick_metrics = {
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "durable_runtime": True,
+                "workflow_runtime": report,
+                "total_ms": (self._monotonic_clock() - t0) * 1000,
+            }
+            self._last_tick_timings = dict(self._last_tick_metrics)
+            self._notify_observers()
+            return
+
+        # Shadow mode materializes the same durable decisions and projections
+        # while leaving every legacy writer active.  The existing shadow
+        # evaluator below compares those facts with legacy UI/dispatcher
+        # projections; this branch makes the durable side visible before
+        # enforce cutover without allowing the worker to perform effects.
+        if self.workflow_runtime is not None and self.workflow_runtime.mode == "shadow":
+            if not self.workflow_runtime.started:
+                await self.workflow_runtime.start()
+            await self.workflow_runtime.reconcile_async()
 
         # Arm standalone delivery before the dispatch and maintenance lanes.
         # A full task scan or a long maintenance operation must not defer the
@@ -59657,6 +59702,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "enabled": workflow_liveness_enabled,
                 **workflow_liveness.to_dict(),
             },
+            "workflow_runtime": (
+                self.workflow_runtime.health_snapshot()
+                if self.workflow_runtime is not None
+                else None
+            ),
+            "workflow_projections": (
+                list(self.workflow_runtime.projections())
+                if self.workflow_runtime is not None
+                else []
+            ),
             "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": audit_health_payload,
             "health": {
