@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:41.045890Z'
-updated_at: '2026-08-04T14:20:49.841289Z'
+updated_at: '2026-08-04T14:20:56.656502Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-772
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -50,7 +50,17 @@ oompah.terminal_audit:
       single quality-gate queue, so this owner override records the already-landed
       result without interrupting other work.
     created_at: '2026-08-04T14:20:46.705976+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-772
+    target_state: Done
+    evidence_fingerprint: 771cd3475303e0eafab35554af55512c687c87e9fa8c826333c9677dea7e19ad
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T14:20:55.386413+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -81,5 +91,12 @@ author: oompah
 created: 2026-08-04 14:18
 ---
 Implemented the authoritative canonical workflow contract with complete status mappings, legal version-fenced transition rules, ownership and reassessment semantics, safety/liveness invariants, a compatibility facade, documentation, and focused regression coverage (661 tests passed).
+---
+author: oompah
+created: 2026-08-04 14:20
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct owner independently verified the focused test, lint, format, secret-scan, clean-worktree, pushed-head, fast-forward ancestry, and exact parent-branch containment evidence. Automatic integration is backlogged behind the existing single quality-gate queue, so this owner override records the already-landed result without interrupting other work.
 ---
 <!-- COMMENTS:END -->
