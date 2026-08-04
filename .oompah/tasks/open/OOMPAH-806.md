@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T20:44:42.479469Z'
+updated_at: '2026-08-04T20:44:55.583754Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: c06e16d0-6d62-4572-861d-aff8474a00b0
 ---
 ## Summary
 
@@ -46,3 +47,11 @@ Live reproduction on 2026-08-04: OOMPAH-793's exact-head combined-tree integrati
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:44
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+<!-- COMMENTS:END -->
