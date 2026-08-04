@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T23:56:24.286716Z'
+updated_at: '2026-08-04T23:56:31.608389Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -210,5 +210,15 @@ author: oompah
 created: 2026-08-04 23:55
 ---
 Discovery: the reported submit-queue assertion is not reproducible on the exact branch head. It passes in isolation and the full 61-test submit-queue module passes under the same four-worker gate harness. The OOMPAH-806 internal-gate guard is not implicated because this fixture has no blocked integration record. I will now run the configured full gate on the clean submitted head.
+---
+author: oompah
+created: 2026-08-04 23:56
+---
+Exact gate diagnosis: the sole failure was a five-second pytest-timeout, not a review-cap assertion failure. _should_dispatch reached _issue_has_children and the incomplete MagicMock(spec=Project) fixture dynamically synthesized an unset default_branch child while constructing a real tracker; under full-suite load that mock machinery exceeded 5s. Exact test, 61-test module serial and xdist, and 40 concurrent process repetitions all pass outside the loaded gate. OOMPAH-814 now tracks the deterministic fixture repair and is a finish-order dependency. After 814 lands to epic-OOMPAH-763, rebase this unchanged 807 product patch onto that exact head, rerun combined focused tests, push, and resubmit.
+---
+author: oompah
+created: 2026-08-04 23:56
+---
+Implementation: no source change was made because no regression reproduces. The initial full-gate attempt could not enter pytest: the managed task-private venv is absent and uv fails during transient-scope creation. I am using Make's supported gate-mode setup against the already-provisioned local test venv; it retains the complete parallel test command, isolated run root, credential clearing, and terminal mutation scan.
 ---
 <!-- COMMENTS:END -->
