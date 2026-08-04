@@ -12,13 +12,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:40:26.263734Z'
+updated_at: '2026-08-04T00:41:19.096222Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 1435d8d231ea47878cdbfb3e8bec02bd7c390370d729fd2852567f034a214a0e
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 89603f86-e1cd-4772-80ca-c6102a700df1
+  claim_owner: b6e50576-eec3-4dce-bc89-fe685f70768e
+  claimed_at: '2026-08-04T00:41:06.963763+00:00'
+  claim_expires_at: '2026-08-04T01:11:06.963763+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 1601c4e6-8ecb-458a-9023-72c1f2e96e48
 ---
 ## Summary
 
@@ -32,3 +50,16 @@ Live reproduction: EXOCOMP-130 exhausted all terminal-audit attempts before audi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 00:41
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 00:41
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
