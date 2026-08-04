@@ -11,11 +11,14 @@ blocked_by:
 - OOMPAH-782
 - OOMPAH-791
 - OOMPAH-793
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-781
+- OOMPAH-782
+- OOMPAH-791
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:32:51.702021Z'
+updated_at: '2026-08-04T21:37:59.123703Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -120,6 +123,7 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-804
     source_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
     completed_at: '2026-08-04T20:26:04.014658+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
