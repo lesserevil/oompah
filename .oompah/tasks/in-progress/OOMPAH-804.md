@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T20:34:45.124998Z'
+updated_at: '2026-08-04T20:37:19.105415Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-08-04 20:34
 ---
 Understanding: I will inspect the durable workflow adapters and service startup lifecycle, then wire production construction/shutdown, routing, projections, and shadow/enforce single-writer controls with focused tests.
+---
+author: oompah
+created: 2026-08-04 20:37
+---
+Discovery: setup_services constructs only Orchestrator/terminal coordinator; Orchestrator owns a shared WorkflowJobStore and shadow evaluator but no durable worker, per-project fact collectors, transition services, or domain registry. Dependency work shows terminal_audit_workflow.py on OOMPAH-781 and implementation_workflow.py on OOMPAH-793; runtime wiring must share one SQLite ledger, recover abandoned leases before dispatch, and expose accepted projections without legacy mutation in enforce mode.
 ---
 <!-- COMMENTS:END -->
