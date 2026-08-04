@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-533
 type: task
-status: Merged
+status: In Validation
 priority: 3
 title: Expose duplicate-screening state in the API and dashboard
 parent: OOMPAH-528
@@ -11,12 +11,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-07-28T22:14:52.441681Z'
+updated_at: '2026-08-04T22:37:02.550305Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a7689a4beebe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-533
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e610bae7c893dac11cb38bb0e58d003450bc9faa874eb33a3b994afb4f62b354
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:36:56.312957+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -92,5 +114,10 @@ author: oompah
 created: 2026-07-28 22:13
 ---
 Verified the completed duplicate-preflight work landed in PR #568; removed stale divergent worktree evidence.
+---
+author: oompah
+created: 2026-08-04 22:37
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
