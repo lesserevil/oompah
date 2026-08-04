@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-519
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Recognize rebased child commits in epic review coverage
 parent: OOMPAH-502
@@ -10,13 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-07-28T18:02:00.701987Z'
+updated_at: '2026-08-04T18:29:34.342057Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5c4756acf882
+    project_id: proj-14849f1b
+    task_id: OOMPAH-519
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4f97b1e80afe23eb3b2bc6eae0f230068723c24a0790fc94a157daf0db07965c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:29:27.983166+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -49,5 +71,10 @@ author: oompah
 created: 2026-07-28 18:02
 ---
 Landed in merged epic PR #564 on main.
+---
+author: oompah
+created: 2026-08-04 18:29
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
