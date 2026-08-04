@@ -81,6 +81,7 @@ class SubmissionGitAuthority:
 _WORKTREE_RECOVERY_VERSION = 1
 _WORKTREE_RECOVERY_MARKER = "oompah-recovery-json:"
 _RECOVERY_METADATA_LIMIT = 64 * 1024
+_METADATA_AUDIT_MARKER = ".oompah-metadata-audit.json"
 
 
 def _is_generated_worktree_helper(path: str) -> bool:
@@ -2562,6 +2563,63 @@ class ProjectStore:
                 resolved_sha,
             )
             return wt_path, resolved_sha
+
+    def create_metadata_audit_workspace(
+        self,
+        project_id: str,
+        workspace_identifier: str,
+    ) -> str:
+        """Create an attempt-scoped non-Git workspace for metadata auditing.
+
+        Revisionless workspaces are intentionally separate from detached Git
+        worktrees.  They are valid only after the orchestrator's Archived
+        evidence preflight classifies the task as metadata-only; this storage
+        helper merely creates the owned, read-only inspection boundary.  It
+        never resolves, creates, or names a branch or commit.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+            wt_path = self.worktree_path_for(project_id, workspace_identifier)
+            marker_path = os.path.join(wt_path, _METADATA_AUDIT_MARKER)
+            expected = {
+                "version": 1,
+                "project_id": project_id,
+                "workspace_identifier": workspace_identifier,
+                "kind": "metadata_terminal_audit",
+            }
+
+            if os.path.isdir(wt_path):
+                try:
+                    with open(marker_path, encoding="utf-8") as marker_file:
+                        existing = json.load(marker_file)
+                except (OSError, ValueError, TypeError):
+                    existing = None
+                if existing == expected:
+                    return wt_path
+                raise ProjectError(
+                    "existing terminal audit workspace is not the requested "
+                    "metadata-only attempt; refusing to reuse it"
+                )
+
+            os.makedirs(wt_path, exist_ok=False)
+            try:
+                with open(marker_path, "x", encoding="utf-8") as marker_file:
+                    json.dump(expected, marker_file, sort_keys=True)
+                    marker_file.write("\n")
+            except Exception:
+                _safe_remove_managed_dir(
+                    wt_path,
+                    self._project_worktree_root(project),
+                )
+                raise
+            logger.info(
+                "Metadata-only terminal audit workspace created path=%s",
+                wt_path,
+            )
+            return wt_path
 
     def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
         """Path used for the shared epic worktree under epic_strategy='shared'.
@@ -6153,6 +6211,27 @@ class ProjectStore:
         if not os.path.isdir(wt_path):
             self._prune_git_worktrees(project.repo_path)
             return False
+
+        marker_path = os.path.join(wt_path, _METADATA_AUDIT_MARKER)
+        try:
+            with open(marker_path, encoding="utf-8") as marker_file:
+                marker = json.load(marker_file)
+        except (OSError, ValueError, TypeError):
+            marker = None
+        if (
+            isinstance(marker, dict)
+            and marker.get("version") == 1
+            and marker.get("kind") == "metadata_terminal_audit"
+            and marker.get("project_id") == project_id
+            and marker.get("workspace_identifier") == issue_identifier
+        ):
+            _safe_remove_managed_dir(
+                wt_path,
+                self._project_worktree_root(project),
+            )
+            self._prune_git_worktrees(project.repo_path)
+            logger.info("Metadata audit workspace removed path=%s", wt_path)
+            return True
 
         try:
             subprocess.run(

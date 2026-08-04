@@ -451,6 +451,33 @@ class TestDetachedAuditWorktree:
         add.assert_not_called()
 
 
+class TestMetadataAuditWorkspace:
+    def test_create_and_remove_without_git_revision(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        identifier = "OOMPAH-803--terminal-audit-attempt-1"
+
+        path = store.create_metadata_audit_workspace("proj-sync1", identifier)
+        recovered_path = store.create_metadata_audit_workspace(
+            "proj-sync1", identifier
+        )
+
+        assert path == str(tmp_path / "wt" / "syncrepo" / identifier)
+        assert recovered_path == path
+        assert (Path(path) / ".oompah-metadata-audit.json").is_file()
+        with patch.object(store, "_prune_git_worktrees"):
+            assert store.remove_worktree("proj-sync1", identifier)
+        assert not Path(path).exists()
+
+    def test_refuses_to_reuse_unowned_directory(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        identifier = "OOMPAH-803--terminal-audit-attempt-1"
+        path = Path(store.worktree_path_for("proj-sync1", identifier))
+        path.mkdir(parents=True)
+
+        with pytest.raises(ProjectError, match="refusing to reuse"):
+            store.create_metadata_audit_workspace("proj-sync1", identifier)
+
+
 class TestRepoNameFromUrl:
     def test_https_with_git(self):
         assert _repo_name_from_url("https://github.com/org/repo.git") == "repo"

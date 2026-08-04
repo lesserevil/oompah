@@ -1366,6 +1366,35 @@ def test_auditor_uses_detached_integrated_revision_not_epic_branch(tmp_path):
     orchestrator.project_store.prepare_epic_branch_for_private_dispatch.assert_not_called()
 
 
+def test_backlog_metadata_archive_uses_revisionless_attempt_workspace(tmp_path):
+    """OOMPAH-803 must not invent or resolve an implementation branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.create_metadata_audit_workspace.return_value = (
+        "/wt/metadata-audit"
+    )
+    issue = _make_issue(
+        identifier="OOMPAH-803",
+        project_id=project.id,
+        state="In Validation",
+    )
+    issue.branch_name = "OOMPAH-803"  # native tracker's historical fallback
+
+    workspace = orchestrator._create_workspace_for_auditor(
+        issue,
+        _audit_plan(previous_state="Backlog"),
+    )
+
+    assert workspace == "/wt/metadata-audit"
+    orchestrator.project_store.create_metadata_audit_workspace.assert_called_once_with(
+        project.id,
+        "OOMPAH-803--terminal-audit-attempt-1",
+    )
+    orchestrator.project_store.create_detached_audit_worktree.assert_not_called()
+
+
 def test_archived_auditor_falls_back_to_default_when_merged_branch_deleted(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     project.default_branch = "main"

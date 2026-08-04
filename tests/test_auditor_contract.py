@@ -88,7 +88,6 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
         "Do not approve code",
     ):
         assert required in prompt
-
     assert "absolute/provider-private path" in prompt
 
     assert f"<{DELIMITER}" in prompt
@@ -96,6 +95,35 @@ def test_auditor_prompt_contains_target_metadata_evidence_actions_and_schema():
     assert "approve and edit" in prompt
     assert "reference data" in prompt
     assert json.dumps(AUDITOR_RESULT_TOOL_SCHEMA, indent=2) in prompt
+
+
+def test_metadata_archive_prompt_does_not_require_fake_code_revision():
+    target = AuditorTargetContract(
+        audit_id="audit-803",
+        task_id="OOMPAH-803",
+        project_id="project-1",
+        target_state="Archived",
+        evidence_fingerprint="c" * 64,
+        previous_state="Backlog",
+    )
+
+    prompt = render_auditor_prompt(
+        _issue(id="OOMPAH-803", identifier="OOMPAH-803"),
+        target=target,
+        evidence_summary={
+            "metadata_archive": {
+                "mode": "revisionless_metadata_archive",
+                "passed_preflight": True,
+                "disposition_type": "duplicate",
+                "disposition_source": "OOMPAH-775",
+            }
+        },
+    )
+
+    assert "Metadata-only Archived target" in prompt
+    assert "No implementation revision" in prompt
+    assert "absence is not missing evidence" in prompt
+    assert "must not be reported as a transport failure" in prompt
 
 
 def test_render_prompt_appends_target_contract_and_keeps_injection_delimited():

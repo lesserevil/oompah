@@ -242,6 +242,13 @@ def auditor_turn_budget(ordinary_turns: int, *, auditor: bool) -> int:
 
 
 from oompah.archived_audit_requests import request_archived_audit
+from oompah.archived_evidence_collector import (
+    ArchivedEvidenceCollector,
+    ArchivedEvidenceSnapshot,
+    EvidenceUnavailable,
+    metadata_archive_disposition,
+    revisionless_metadata_archive_candidate,
+)
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TASK_ENV,
@@ -7799,6 +7806,20 @@ class Orchestrator:
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
                         metrics["in_progress_count"] += 1
+                    continue
+
+                archive_snapshot = await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    self._revisionless_archive_evidence,
+                    issue,
+                    record,
+                )
+                if archive_snapshot is not None and not archive_snapshot.passed():
+                    await self._route_unsafe_metadata_archive(
+                        issue,
+                        record,
+                        archive_snapshot,
+                    )
                     continue
 
                 if self._audit_branch_busy(issue, branch_key):
@@ -18099,6 +18120,311 @@ class Orchestrator:
 
         return f"{issue_identifier}--terminal-audit-{attempt_id}"
 
+    def _revisionless_archive_evidence(
+        self,
+        issue: Issue,
+        audit_target: Any,
+    ) -> ArchivedEvidenceSnapshot | None:
+        """Collect safe-retirement evidence for a metadata-only archive.
+
+        ``None`` means the target is code-bearing (or otherwise outside the
+        deliberately narrow Proposed/Backlog metadata path) and must continue
+        through normal immutable-revision resolution.  A returned snapshot is
+        authoritative preflight evidence: callers may launch a revisionless
+        auditor only when :meth:`ArchivedEvidenceSnapshot.passed` is true.
+        """
+
+        target_state = getattr(audit_target, "target_state", None)
+        previous_state = getattr(audit_target, "previous_state", None)
+        if not revisionless_metadata_archive_candidate(
+            issue,
+            target_state=target_state,
+            previous_state=previous_state,
+        ):
+            return None
+
+        tracker = self._tracker_for_issue(issue)
+        try:
+            raw_comments = tracker.fetch_comments(issue.identifier)
+            comments = list(raw_comments or [])
+        except Exception as exc:  # noqa: BLE001 - missing evidence fails closed
+            logger.warning(
+                "Could not read metadata archive comments for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            comments = []
+
+        disposition_type, explanation, source_task = metadata_archive_disposition(
+            issue.description,
+            comments,
+        )
+        # A source header is only evidence when it resolves to a different
+        # task in this exact tracker/project.  Missing or self-referential
+        # replacements are presented to the collector as absent.
+        validated_source = source_task
+        if validated_source:
+            if validated_source == issue.identifier:
+                validated_source = None
+            else:
+                try:
+                    replacement = tracker.fetch_issue_detail(validated_source)
+                except Exception:  # noqa: BLE001 - source lookup is evidence
+                    replacement = None
+                if replacement is None:
+                    validated_source = None
+
+        state = getattr(self, "state", None)
+        running_entries = self._running_values_snapshot() if state is not None else ()
+        has_current_auditor = any(
+            entry.issue is not None
+            and entry.issue.id == issue.id
+            and getattr(entry, "is_auditor", False)
+            for entry in running_entries
+        )
+        has_active_worker = any(
+            entry.issue is not None
+            and entry.issue.id == issue.id
+            and not getattr(entry, "is_auditor", False)
+            for entry in running_entries
+        )
+        claimed = getattr(state, "claimed", set()) if state is not None else set()
+        # Once dispatch begins, the auditor itself owns the scheduler claim.
+        # That read-only claim is expected and must not invalidate the same
+        # preflight that admitted it.  Direct-owner claims remain independent.
+        has_active_claim = issue.id in claimed and not has_current_auditor
+        if not has_active_claim and hasattr(self, "_has_live_owner_claim"):
+            has_active_claim = self._has_live_owner_claim(issue.id, issue.project_id)
+        retry_attempts = (
+            getattr(state, "retry_attempts", {}) if state is not None else {}
+        )
+        retry_dispatching = getattr(self, "_retry_dispatching", {})
+        has_active_retry = (
+            issue.id in retry_attempts or issue.id in retry_dispatching
+        )
+
+        integration = getattr(issue, "integration", None)
+        has_open_review = any(
+            str(value or "").strip()
+            for value in (
+                getattr(issue, "review_url", None),
+                getattr(issue, "review_number", None),
+                getattr(issue, "review_head", None),
+                getattr(integration, "review_url", None),
+                getattr(integration, "review_number", None),
+            )
+        )
+
+        try:
+            children = list(tracker.fetch_children(issue.id) or [])
+            has_active_child: bool | EvidenceUnavailable = any(
+                not _is_terminal_state(
+                    child.state,
+                    self.config.tracker_terminal_states,
+                )
+                for child in children
+            )
+        except Exception as exc:  # noqa: BLE001 - missing evidence fails closed
+            has_active_child = EvidenceUnavailable(
+                f"Could not resolve child state: {type(exc).__name__}"
+            )
+
+        dependency_refs = list(getattr(issue, "blocked_by", None) or []) + list(
+            getattr(issue, "start_blocked_by", None) or []
+        )
+        has_unresolved_dependency: bool | EvidenceUnavailable = False
+        if dependency_refs:
+            missing_state_ids = [
+                str(getattr(ref, "id", None) or getattr(ref, "identifier", None) or "")
+                for ref in dependency_refs
+                if not str(getattr(ref, "state", None) or "").strip()
+            ]
+            state_by_id: dict[str, str] = {}
+            try:
+                if any(missing_state_ids):
+                    for dependency in tracker.fetch_issue_states_by_ids(
+                        [value for value in missing_state_ids if value]
+                    ):
+                        dependency_state = str(dependency.state or "")
+                        for key in (dependency.id, dependency.identifier):
+                            if key:
+                                state_by_id[str(key)] = dependency_state
+                has_unresolved_dependency = any(
+                    not _is_terminal_state(
+                        str(getattr(ref, "state", None) or "")
+                        or state_by_id.get(
+                            str(
+                                getattr(ref, "id", None)
+                                or getattr(ref, "identifier", None)
+                                or ""
+                            ),
+                            "",
+                        ),
+                        self.config.tracker_terminal_states,
+                    )
+                    for ref in dependency_refs
+                )
+            except Exception as exc:  # noqa: BLE001 - missing evidence fails closed
+                has_unresolved_dependency = EvidenceUnavailable(
+                    f"Could not resolve dependency state: {type(exc).__name__}"
+                )
+
+        expected_fingerprint = getattr(audit_target, "evidence_fingerprint", None)
+        try:
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                issue,
+                str(issue.project_id or "legacy"),
+            )
+            requirements_changed: bool | EvidenceUnavailable = (
+                current_fingerprint != expected_fingerprint
+            )
+        except Exception as exc:  # noqa: BLE001 - fingerprint is mandatory evidence
+            current_fingerprint = None
+            requirements_changed = EvidenceUnavailable(
+                f"Could not recompute task fingerprint: {type(exc).__name__}"
+            )
+
+        return ArchivedEvidenceCollector(
+            task_id=issue.identifier,
+            project_id=str(issue.project_id or "legacy"),
+        ).collect(
+            current_state=str(previous_state or ""),
+            disposition_type=disposition_type,
+            disposition_explanation=explanation,
+            disposition_source_link=validated_source,
+            has_active_worker=has_active_worker,
+            has_active_claim=has_active_claim,
+            has_active_retry=has_active_retry,
+            has_open_review=bool(has_open_review),
+            has_active_child=has_active_child,
+            has_unresolved_dependency=has_unresolved_dependency,
+            requirement_changed_after_prior_audit=requirements_changed,
+            current_fingerprint=current_fingerprint,
+            audit_id=str(getattr(audit_target, "audit_id", "") or ""),
+            collected_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    @staticmethod
+    def _revisionless_archive_evidence_summary(
+        snapshot: ArchivedEvidenceSnapshot,
+    ) -> dict[str, Any]:
+        """Return bounded trusted evidence for the independent auditor prompt."""
+
+        task_state = snapshot.task_state
+        disposition = snapshot.disposition
+        guidance = snapshot.restoration_guidance
+        return {
+            "mode": "revisionless_metadata_archive",
+            "passed_preflight": snapshot.passed(),
+            "pre_archive_state": snapshot.pre_archive_state,
+            "disposition_type": getattr(
+                getattr(disposition, "type", None), "value", None
+            ),
+            "disposition_source": getattr(disposition, "source_link", None),
+            "disposition_explanation": getattr(disposition, "explanation", None),
+            "has_active_worker": getattr(task_state, "has_active_worker", None),
+            "has_active_claim": getattr(task_state, "has_active_claim", None),
+            "has_active_retry": getattr(task_state, "has_active_retry", None),
+            "has_open_review": getattr(task_state, "has_open_review", None),
+            "has_active_child": getattr(task_state, "has_active_child", None),
+            "has_unresolved_dependency": getattr(
+                task_state, "has_unresolved_dependency", None
+            ),
+            "failure_modes": list(snapshot.failure_modes),
+            "restoration_actions": list(
+                getattr(guidance, "required_actions", []) or []
+            ),
+        }
+
+    def _revisionless_archive_source_comment(
+        self,
+        issue: Issue,
+        snapshot: ArchivedEvidenceSnapshot,
+    ) -> dict[str, str] | None:
+        """Return bounded replacement-task content as untrusted audit data.
+
+        Auditor tools are intentionally task-scoped and cannot open a peer task.
+        The server already resolved the structured source during preflight, so
+        copy the relevant peer fields into the prompt's *untrusted comment*
+        channel.  This lets the auditor compare duplicate/obsolete claims
+        without widening its tracker authority or treating peer prose as trusted.
+        """
+
+        source_identifier = str(
+            getattr(snapshot.disposition, "source_link", None) or ""
+        ).strip()
+        if not source_identifier:
+            return None
+        try:
+            source = self._tracker_for_issue(issue).fetch_issue_detail(
+                source_identifier
+            )
+        except Exception:  # noqa: BLE001 - preflight already fails if unresolved
+            return None
+        if source is None:
+            return None
+        payload = {
+            "kind": "metadata_archive_replacement_task",
+            "identifier": str(source.identifier),
+            "title": str(source.title or "")[:1000],
+            "state": str(source.state or ""),
+            "description": str(source.description or "")[:8000],
+        }
+        return {
+            "author": "oompah-source-evidence",
+            "created_at": "",
+            "text": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        }
+
+    async def _route_unsafe_metadata_archive(
+        self,
+        issue: Issue,
+        record: Any,
+        snapshot: ArchivedEvidenceSnapshot,
+    ) -> None:
+        """Finalize unsafe revisionless retirement as actionable evidence."""
+
+        from oompah.terminal_transition_coordinator import AuditResult
+
+        guidance = snapshot.restoration_guidance
+        actions = list(getattr(guidance, "required_actions", []) or [])
+        message = (
+            "Metadata-only Archived preflight found unsafe retirement evidence: "
+            + ", ".join(snapshot.failure_modes)
+            + ". "
+            + (
+                "Required action: " + "; ".join(actions)
+                if actions
+                else "Review the task evidence and retry archival."
+            )
+        )
+        result = AuditResult(
+            audit_id=record.audit_id,
+            target_state=record.target_state,
+            evidence_fingerprint=record.evidence_fingerprint,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.UNSAFE_ARCHIVE,
+            message=message,
+            safe_evidence={
+                "archive_mode": "revisionless_metadata",
+                "failure_modes": ",".join(snapshot.failure_modes),
+            },
+            attempt_id=f"metadata-preflight-{record.audit_id}",
+        )
+        outcome = await self.terminal_transition_coordinator.apply_audit_result(
+            issue,
+            result,
+            str(issue.project_id or "legacy"),
+        )
+        self._record_audit_outcome_ownership(issue.id, outcome)
+        if not outcome.success:
+            self._audit_metrics["last_error"] = outcome.reason
+            logger.warning(
+                "Unable to route unsafe metadata archive %s: %s",
+                record.audit_id,
+                outcome.reason,
+            )
+
     def _create_workspace_for_auditor(
         self,
         issue: Issue,
@@ -18123,6 +18449,26 @@ class Orchestrator:
         project = self.project_store.get(issue.project_id)
         if project is None:
             raise ProjectError(f"Unknown project: {issue.project_id}")
+
+        if revisionless_metadata_archive_candidate(
+            issue,
+            target_state=plan.target_state,
+            previous_state=plan.previous_state,
+        ):
+            workspace_identifier = self._audit_workspace_identifier(
+                issue.identifier,
+                plan.attempt_id,
+            )
+            workspace = self.project_store.create_metadata_audit_workspace(
+                issue.project_id,
+                workspace_identifier,
+            )
+            logger.info(
+                "Auditor workspace resolved issue=%s attempt=%s mode=metadata-only",
+                issue.identifier,
+                plan.attempt_id,
+            )
+            return workspace
 
         integration = getattr(issue, "integration", None)
         immutable_revisions: list[str] = []
@@ -33732,12 +34078,30 @@ class Orchestrator:
                             and isinstance(raw_audit.get("pending_chain"), list)
                             else 1
                         )
+                        evidence_summary: dict[str, Any] = {
+                            "pending_target": audit_target.to_dict(),
+                            "pending_target_count": pending_count,
+                        }
+                        auditor_comments = comments
+                        archive_snapshot = self._revisionless_archive_evidence(
+                            issue,
+                            auditor_plan or audit_target,
+                        )
+                        if archive_snapshot is not None:
+                            evidence_summary["metadata_archive"] = (
+                                self._revisionless_archive_evidence_summary(
+                                    archive_snapshot
+                                )
+                            )
+                            source_comment = self._revisionless_archive_source_comment(
+                                issue,
+                                archive_snapshot,
+                            )
+                            if source_comment is not None:
+                                auditor_comments = [*comments, source_comment]
                         auditor_context = {
                             "target": audit_target,
-                            "evidence_summary": {
-                                "pending_target": audit_target.to_dict(),
-                                "pending_target_count": pending_count,
-                            },
+                            "evidence_summary": evidence_summary,
                             "task_metadata": {
                                 "identifier": issue.identifier,
                                 "task_id": issue.id,
@@ -33748,7 +34112,7 @@ class Orchestrator:
                                 "labels": list(issue.labels or []),
                                 "branch_name": issue.branch_name,
                             },
-                            "comments": comments,
+                            "comments": auditor_comments,
                         }
 
                 # Materialize attachments under the worktree — `git lfs pull`
@@ -34376,12 +34740,30 @@ class Orchestrator:
                             and isinstance(raw_audit.get("pending_chain"), list)
                             else 1
                         )
+                        evidence_summary: dict[str, Any] = {
+                            "pending_target": audit_target.to_dict(),
+                            "pending_target_count": pending_count,
+                        }
+                        auditor_comments = comments
+                        archive_snapshot = self._revisionless_archive_evidence(
+                            issue,
+                            auditor_plan or audit_target,
+                        )
+                        if archive_snapshot is not None:
+                            evidence_summary["metadata_archive"] = (
+                                self._revisionless_archive_evidence_summary(
+                                    archive_snapshot
+                                )
+                            )
+                            source_comment = self._revisionless_archive_source_comment(
+                                issue,
+                                archive_snapshot,
+                            )
+                            if source_comment is not None:
+                                auditor_comments = [*comments, source_comment]
                         auditor_context = {
                             "target": audit_target,
-                            "evidence_summary": {
-                                "pending_target": audit_target.to_dict(),
-                                "pending_target_count": pending_count,
-                            },
+                            "evidence_summary": evidence_summary,
                             "task_metadata": {
                                 "identifier": issue.identifier,
                                 "task_id": issue.id,
@@ -34392,7 +34774,7 @@ class Orchestrator:
                                 "labels": list(issue.labels or []),
                                 "branch_name": issue.branch_name,
                             },
-                            "comments": comments,
+                            "comments": auditor_comments,
                         }
 
                 attachments = list(getattr(issue, "attachments", None) or [])

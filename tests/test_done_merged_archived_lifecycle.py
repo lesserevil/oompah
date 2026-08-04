@@ -36,6 +36,7 @@ from oompah.models import Issue
 from oompah.scm import CIStatus
 from oompah.statuses import (
     ARCHIVED,
+    BACKLOG,
     DONE,
     IN_REVIEW,
     IN_VALIDATION,
@@ -705,6 +706,51 @@ class TestHappyPathArchived:
         # The auditor identity is stored in requested_by (from AuditResult.auditor)
         assert a_record.attempts[0].requested_by is not None
         assert a_record.attempts[0].requested_by.name == PROVIDER_D
+
+    def test_revisionless_backlog_duplicate_pass_finalizes_archived(self):
+        """OOMPAH-803 regression: metadata retirement needs no fake revision."""
+
+        tracker = _MemoryTracker()
+        tracker.set_status(TASK_ID, BACKLOG)
+        coordinator = _coordinator(tracker)
+        issue = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Duplicate task",
+            description="Triggered by: OOMPAH-775\n\nDuplicate requirements.",
+            state=BACKLOG,
+            project_id=PROJECT_ID,
+        )
+        requested = _run(
+            coordinator.request_transition(
+                issue,
+                TargetState.ARCHIVED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint(),
+            )
+        )
+        assert requested.success
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        record = tracker.read_chain(TASK_ID).pending_chain[-1]
+
+        outcome = _run(
+            coordinator.apply_audit_result(
+                Issue(
+                    id=TASK_ID,
+                    identifier=TASK_ID,
+                    title="Duplicate task",
+                    state=IN_VALIDATION,
+                    project_id=PROJECT_ID,
+                ),
+                _pass_result(record, PROVIDER_D, MODEL_D),
+                PROJECT_ID,
+            )
+        )
+
+        assert outcome.success
+        assert outcome.applied_status == ARCHIVED
+        assert tracker.current_status(TASK_ID) == ARCHIVED
 
 
 # ===========================================================================

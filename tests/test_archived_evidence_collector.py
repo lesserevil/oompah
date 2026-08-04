@@ -13,8 +13,11 @@ from oompah.archived_evidence_collector import (
     SafetyFailureMode,
     TaskStateSnapshot,
     AuditReferenceEvidence,
+    metadata_archive_disposition,
+    revisionless_metadata_archive_candidate,
 )
-from oompah.terminal_audit import EvidenceFingerprint
+from oompah.models import Issue
+from oompah.terminal_audit import EvidenceFingerprint, TargetState
 
 
 class TestDispositionType:
@@ -46,6 +49,66 @@ class TestDispositionType:
     def test_disposition_empty_string(self) -> None:
         with pytest.raises(ValueError):
             DispositionType.from_raw("")
+
+
+class TestRevisionlessMetadataArchiveClassification:
+    """Regression coverage for the OOMPAH-803 metadata-only retirement."""
+
+    def test_backlog_duplicate_ignores_derived_identifier_branch(self) -> None:
+        issue = Issue(
+            id="OOMPAH-803",
+            identifier="OOMPAH-803",
+            title="Duplicate",
+            state="In Validation",
+            branch_name="OOMPAH-803",
+        )
+
+        assert revisionless_metadata_archive_candidate(
+            issue,
+            target_state=TargetState.ARCHIVED,
+            previous_state="Backlog",
+        )
+
+    def test_code_bearing_archive_keeps_immutable_revision_path(self) -> None:
+        issue = Issue(
+            id="OOMPAH-803",
+            identifier="OOMPAH-803",
+            title="Implemented",
+            work_branch="OOMPAH-803",
+        )
+
+        assert not revisionless_metadata_archive_candidate(
+            issue,
+            target_state=TargetState.ARCHIVED,
+            previous_state="Backlog",
+        )
+
+    def test_oompah_803_reason_and_replacement_are_extracted(self) -> None:
+        disposition, explanation, source = metadata_archive_disposition(
+            "Triggered by: OOMPAH-775\n\nMigrate all transition writers.",
+            [
+                {
+                    "text": (
+                        "Archiving as an exact duplicate of the earlier, more "
+                        "actionable OOMPAH-775."
+                    )
+                }
+            ],
+        )
+
+        assert disposition is DispositionType.DUPLICATE
+        assert "exact duplicate" in explanation
+        assert source == "OOMPAH-775"
+
+    def test_source_without_disposition_reason_remains_actionably_missing(self) -> None:
+        disposition, explanation, source = metadata_archive_disposition(
+            "Triggered by: OOMPAH-775\n\nDuplicate requirements.",
+            [],
+        )
+
+        assert disposition is None
+        assert explanation == ""
+        assert source == "OOMPAH-775"
 
 
 class TestDispositionReason:
