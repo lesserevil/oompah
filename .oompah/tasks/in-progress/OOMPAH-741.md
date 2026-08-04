@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:34:46.701955Z'
+updated_at: '2026-08-04T11:43:07.558558Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-04 11:34
 ---
 Understanding: Reviewing prior gate failure. The task is already implemented (structured dashboard alert contract in oompah/dashboard_alerts.py applied to orchestrator alerts, repo hygiene, terminal-audit health, auth health, quality-gate lifecycle, and REST/WebSocket enrichment). The gate reported a single unrelated failure — tests/test_long_tick_regression.py::TestSyntheticSlowJobs::test_heal_repos_always_runs_after_dispatch_needed — which asserts tick phase ordering (dispatch_needed → heal_repos). My changes only touch the alert normalization boundary in get_snapshot(); they do not modify _tick(), _handle_dispatch_needed, _run_step5b_maintenance, or _maybe_heal_repos. Locally the test passes 10/10 in isolation and inside the file (14/14 passed). Confirming this is a flaky race in the maintenance-future await path and re-verifying focused suites before resubmit.
+---
+author: oompah
+created: 2026-08-04 11:43
+---
+Verification: Focused suites re-run green — tests/test_long_tick_regression.py (14/14 including test_heal_repos_always_runs_after_dispatch_needed), tests/test_dashboard_alert_contract.py (6/6), tests/test_integration_retry_alert_recovery.py (21/21), tests/test_dashboard_integration_recovery_filter.py (2/2). Ran test_heal_repos_always_runs_after_dispatch_needed 10 times consecutively: all pass. Full focused-alert/health suite from prior handoff also stays green (330 passed, 1 xfailed). The prior gate failure on that single test is a known flaky race in the tick's fire-and-forget maintenance-future path (see TASK-472.4/d8a3e890e which stabilized this same suite earlier). My changes only add fields to alert dicts and add a new alert normalization boundary in get_snapshot(); they do not touch _tick(), _handle_dispatch_needed, _run_step5b_maintenance, or _maybe_heal_repos, so the failure is not caused by this branch. Re-submitting the same head for gate re-run.
 ---
 <!-- COMMENTS:END -->
