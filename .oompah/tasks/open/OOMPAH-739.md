@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:21:02.091869Z'
+updated_at: '2026-08-04T00:21:38.408704Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: bdfd34a4-f64c-4988-9e59-1137d2202d64
 oompah.task_costs:
-  total_input_tokens: 1522669
-  total_output_tokens: 47150
+  total_input_tokens: 1522726
+  total_output_tokens: 66758
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -58,8 +58,8 @@ oompah.task_costs:
       output_tokens: 8501
       cost_usd: 0.0
     unknown:
-      input_tokens: 169
-      output_tokens: 6270
+      input_tokens: 226
+      output_tokens: 25878
       cost_usd: 0.0
   runs:
   - profile: default
@@ -92,6 +92,12 @@ oompah.task_costs:
     output_tokens: 6270
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:56:21.768401+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 57
+    output_tokens: 19608
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T00:21:36.028292+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-739__20260803T211724Z
@@ -502,5 +508,15 @@ Instructions:
 - Add a test verifying that when the parent is not in terminal Merged/Archived state (unlanded), the Merged-to-Done repair still fires exactly once.
 - Add a test verifying OOMPAH-447 regression: a later open PR on the shared branch does not reopen already-Merged siblings.
 - Add direct coverage for get_recovery_snapshot() — specifically that it returns the snapshot during recovery and None outside of it.
+---
+author: oompah
+created: 2026-08-04 00:21
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 57
+- Tokens: 57 in / 19.6K out [19.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 24m 53s
+- Log: OOMPAH-739__20260803T235653Z.jsonl
 ---
 <!-- COMMENTS:END -->
