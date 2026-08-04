@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:52:58.029900Z'
+updated_at: '2026-08-04T00:59:41.459211Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,29 @@ Changes made:
 Test results: All 38 tests in test_terminal_audit.py pass, plus 129 terminal_transition_coordinator tests and 5 fingerprint canonicalization tests.
 
 This enables EXOCOMP-130 scenario resolution where work_branch is absent but canonical epic branch exists.
+---
+author: oompah
+created: 2026-08-04 00:59
+---
+**Verification**: Test results confirm implementation is correct and doesn't break existing functionality.
+
+Test coverage:
+- test_terminal_audit.py: 38 tests pass (including 10 new epic branch tests)
+- test_terminal_audit*.py: 190 tests pass (all terminal audit modules)
+- test_epic*.py: 484 tests pass (epic-related functionality)
+- test_delivery_plane_recovery.py: 8 tests pass (integration recovery)
+- test_orchestrator_merged.py: 165 tests pass (orchestrator integration)
+- All related tests: 853+ tests pass
+
+Key test scenarios covered:
+1. Standalone epic branch resolution (origin/epic-ISSUE-ID)
+2. Nested epic branch resolution (origin/epic-PARENT-ID as primary)
+3. Non-epic issues don't trigger epic resolution
+4. Explicit work_branch takes precedence over epic resolution
+5. Integration records are respected and take precedence
+6. Fallback hierarchy is maintained
+7. All existing terminal audit and orchestrator flows remain functional
+
+The implementation successfully resolves the EXOCOMP-130 scenario where work_branch is absent but canonical epic branch exists.
 ---
 <!-- COMMENTS:END -->
