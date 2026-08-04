@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:29:07.777013Z'
+updated_at: '2026-08-04T21:30:04.316900Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -200,5 +200,10 @@ author: oompah
 created: 2026-08-04 21:29
 ---
 Implementation: Added PRAGMA synchronous=NORMAL to WorkflowJobStore initialization (oompah/workflow_jobs.py). With WAL mode, this reduces per-commit fsync overhead while maintaining crash safety for committed data. 400-task reconcile time dropped from 7.6s to 0.3s. The recovery checkpoint already contained the complete OOMPAH-804 implementation: workflow_runtime.py (production composition root), bootstrap.py (build_workflow_runtime call + Services.workflow_runtime field), config.py (workflow_engine_mode/decision_limit/batch_size attributes), orchestrator.py (start/stop/tick lifecycle wiring + health/projections APIs), tests/test_workflow_runtime.py (4 tests for startup, recovery, enforce, shadow modes), and .env.example config documentation.
+---
+author: oompah
+created: 2026-08-04 21:30
+---
+Verification: 54/54 tests pass across test_workflow_runtime.py, test_workflow_jobs.py, and test_integration_workflow.py. All 262 workflow module tests pass. test_hundreds_of_history_rows_do_not_hide_eligible_heads went from timeout (>5s) to 2.03s total suite with synchronous=NORMAL.
 ---
 <!-- COMMENTS:END -->
