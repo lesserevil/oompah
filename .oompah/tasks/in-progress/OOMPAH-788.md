@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-788
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Cut integration delivery over to shared decisions and durable jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:10.953215Z'
-updated_at: '2026-08-04T14:06:11.951314Z'
+updated_at: '2026-08-04T18:13:19.548946Z'
 work_branch: null
 target_branch: null
 review_url: null
