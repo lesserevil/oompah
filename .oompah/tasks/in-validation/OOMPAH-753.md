@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:36:20.031297Z'
+updated_at: '2026-08-04T04:36:46.982415Z'
 work_branch: OOMPAH-753
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/706
@@ -192,18 +192,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-753
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: afce0c913894eeaa4ffe1369726a4429f86eb8b2b1728ec49896abc8b1a600e8
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-0dd0062982c2
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: afce0c913894eeaa4ffe1369726a4429f86eb8b2b1728ec49896abc8b1a600e8
+      created_at: '2026-08-04T04:36:38.567772+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T04:36:38.567772+00:00'
+      branch_key: OOMPAH-753
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T04:24:44.842905+00:00'
+    updated_at: '2026-08-04T04:36:38.567772+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6b406218bd18
@@ -217,6 +231,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-04T04:26:18.911682+00:00'
+    branch_key: OOMPAH-753
+  - version: 1
+    attempt_id: attempt-0dd0062982c2
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: afce0c913894eeaa4ffe1369726a4429f86eb8b2b1728ec49896abc8b1a600e8
+    created_at: '2026-08-04T04:36:38.567772+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T04:36:38.567772+00:00'
     branch_key: OOMPAH-753
 ---
 ## Summary
@@ -495,5 +522,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 57s
 - Log: OOMPAH-753__20260804T042629Z.jsonl
+---
+author: oompah
+created: 2026-08-04 04:36
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 04:36
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
