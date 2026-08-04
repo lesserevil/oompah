@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-812
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Drain synthetic long-tick ordering fixtures under full-gate load
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T22:52:24.878814Z'
+updated_at: '2026-08-04T22:52:41.301505Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-812
 target_branch: epic-OOMPAH-768
 review_url: null
@@ -20,6 +20,15 @@ review_head: null
 merged_at: null
 oompah.target_branch: epic-OOMPAH-768
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-812
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-768--task-OOMPAH-812
+  base_branch: epic-OOMPAH-768
+  head_sha: 1230456cc7834d14b8064d73e1742734ab670d2a
+  submitted_at: '2026-08-04T22:52:34.629625+00:00'
+  updated_at: '2026-08-04T22:52:34.629625+00:00'
 ---
 ## Summary
 
@@ -37,5 +46,10 @@ author: oompah
 created: 2026-08-04 22:51
 ---
 Implemented at exact head 1230456cc7834d14b8064d73e1742734ab670d2a. The ordering test now disables unrelated durable lanes, waits for its actual step-5b future, and drains every owned future/pool/store in finally under a lifecycle-sized timeout. Verification: exact test 1/1; 100/100 same-process invocations; module 14/14 serial and 14/14 with -n 4; combined event-loop/long-tick/orchestrator/Granian/GitHub fixture slice 284/284 with -n 4; terminal mutation scan 8/8; diff check clean.
+---
+author: oompah
+created: 2026-08-04 22:52
+---
+Made the full-load synthetic ordering fixture deterministic and leak-free at 1230456cc; 100x repeat, serial/parallel module, 284-test combined fixture slice, and mutation scan pass.
 ---
 <!-- COMMENTS:END -->
