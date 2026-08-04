@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:42:44.620962Z'
+updated_at: '2026-08-04T00:44:04.622976Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1601c4e6-8ecb-458a-9023-72c1f2e96e48
+oompah.agent_run_id: c639d605-b673-4f1f-91f5-2f5a6a51e49f
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2384
@@ -131,5 +131,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 18s
 - Log: OOMPAH-746__20260804T004146Z.jsonl
+---
+author: oompah
+created: 2026-08-04 00:43
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 00:44
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

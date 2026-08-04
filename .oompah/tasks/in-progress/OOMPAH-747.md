@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-747
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reuse trusted patch-equivalence evidence during epic auto-close
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:42:22.749405Z'
+updated_at: '2026-08-04T00:44:24.068779Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 7225c9a5-2a3b-4e7b-9bf4-8df915eec53c
+oompah.agent_run_id: 1f99ffc0-e875-4236-ad06-ac2e884b0352
 oompah.task_costs:
   total_input_tokens: 46741
   total_output_tokens: 179
@@ -103,5 +103,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 40s
 - Log: OOMPAH-747__20260804T004147Z.jsonl
+---
+author: oompah
+created: 2026-08-04 00:44
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 00:44
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
