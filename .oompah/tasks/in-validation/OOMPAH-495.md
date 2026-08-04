@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-495
 type: chore
-status: Merged
+status: In Validation
 priority: 2
 title: Retire pre-implementation state-branch design tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:30.405382Z'
-updated_at: '2026-07-28T17:10:43.464803Z'
+updated_at: '2026-08-04T17:26:27.789113Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -46,6 +46,28 @@ oompah.task_costs:
     output_tokens: 533
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:00:34.034133+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e4f539193373
+    project_id: proj-14849f1b
+    task_id: OOMPAH-495
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6d7fcb95c886c342fd8370e4558d15b75bf36837f595ea02edfc3c6893159c7a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:26:21.936829+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -202,5 +224,10 @@ author: oompah
 created: 2026-07-28 16:00
 ---
 Retired the pre-implementation state-branch design module and duplicate post-xfail checks; preserved production-backed coverage and verified all tests.
+---
+author: oompah
+created: 2026-08-04 17:26
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
