@@ -6,13 +6,14 @@ priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-806
 start_blocked_by: &id001
 - OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T21:54:12.402580Z'
+updated_at: '2026-08-04T22:05:07.664208Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -169,5 +170,10 @@ author: oompah
 created: 2026-08-04 21:54
 ---
 Discovery: Found existing pure evaluator (oompah/work_decision.py), facts collector (workflow_facts.py), durable jobs (workflow_jobs.py), and scheduler (workflow_scheduler.py). Runtime currently has only shadow comparison plus legacy dispatch/watchdog paths; I am tracing initialization and tick/full-sync seams to add the universal controller without moving status writes into evaluation.
+---
+author: oompah
+created: 2026-08-04 22:05
+---
+Landing-order coordination: OOMPAH-806 is already in verification with a substantial legitimate orchestrator.py/workflow_contract.py diff; this task is now reaching the same runtime seam. A finish-order dependency on OOMPAH-806 has been added without blocking current implementation. Complete your scoped work, but rebase/reconcile onto the landed OOMPAH-806 lineage before final submission/integration; preserve both transition-CAS and totality-controller semantics with combined focused tests.
 ---
 <!-- COMMENTS:END -->
