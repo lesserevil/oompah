@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T20:47:51.688370Z'
+updated_at: '2026-08-04T20:49:20.418924Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-04 20:47
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-04 20:49
+---
+Understanding: The bug is a churn scenario where the stalled-task watchdog reopens a task to Open based on unrelated passing external forge CI, causing the integration reconciler to cancel the authoritative internal gate 'Needs CI Fix' row (blocked at exact head). The fix must: (1) make current internal integration/gate records outrank generic forge CI; (2) never reopen or cancel a blocked integration generation based on external CI alone; (3) require newer pushed head, explicit same-gen retry, or authoritative repair evidence; (4) serialize watchdog + integration transitions through TaskTransitionService with generation CAS; (5) keep blocked evidence visible. Focus files: oompah/stalled_task_watchdog.py, oompah/integration_queue.py, oompah/integration_executor.py, oompah/task_transition_service.py, oompah/orchestrator.py. Starting exploration.
 ---
 <!-- COMMENTS:END -->
