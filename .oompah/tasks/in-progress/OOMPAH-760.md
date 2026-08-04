@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:43:41.108860Z'
+updated_at: '2026-08-04T12:28:33.396668Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-04 11:43
 ---
 Implementation: added RunningEntry handoff generation/pending/finalized state; unified scoped HTTP and ACP task mutations through _observe_task_handoff_mutation; trusted structured Oompah comments now backfill focus-complete and recommended successor labels idempotently. Reconciliation handles Open-before-worker-exit by finalizing the handoff, cancelling retry authority, retiring the old worker, and waking dispatch; forced retirement retries finalization. Dispatch selection backfills bounded trusted pre-marker comments after restart, while human-authored matching text is rejected. Added focused coverage for forged comments, duplicate mutation, successor routing, and reconcile ordering.
+---
+author: oompah
+created: 2026-08-04 12:28
+---
+Verification: final make test passed with 15,306 tests passed, 7 skipped, 1 expected xfail, and 48 warnings; terminal mutation scan passed 8/8. Earlier setup-only failures were eliminated by running with managed venv/Make flags removed from nested test processes.
 ---
 <!-- COMMENTS:END -->
