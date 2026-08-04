@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-812
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Drain synthetic long-tick ordering fixtures under full-gate load
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T23:26:56.256064Z'
+updated_at: '2026-08-04T23:36:50.470020Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-812
 target_branch: epic-OOMPAH-768
 review_url: null
@@ -33,6 +33,30 @@ oompah.integration:
   updated_at: '2026-08-04T23:13:37.122553+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a804febef756: '2026-08-04T23:36:44.718218+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-812
+    target_state: Done
+    evidence_fingerprint: 5cc3b17ae25ba98859760a47dbbd8c39110fd131c8b1ce951676f4fc85cceaf2
+    audit_ids:
+    - audit-7f5bb039e5df
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:36:44.718229+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-812
+    audit_id: audit-7f5bb039e5df
+    attempt_id: attempt-a804febef756
+    target_state: Done
+    evidence_fingerprint: 5cc3b17ae25ba98859760a47dbbd8c39110fd131c8b1ce951676f4fc85cceaf2
+    status: Done
+    audit_ids:
+    - audit-7f5bb039e5df
+    applied: false
+    created_at: '2026-08-04T23:36:44.718257+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -40,7 +64,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-812
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -68,7 +92,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a804febef756
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,13 +103,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T23:26:29.746815+00:00'
       branch_key: epic-OOMPAH-768--task-OOMPAH-812
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T23:36:44.718068+00:00'
+      ended_at: '2026-08-04T23:36:44.718068+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T23:13:49.092144+00:00'
-    updated_at: '2026-08-04T23:26:29.746815+00:00'
+    updated_at: '2026-08-04T23:36:44.718068+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7697c4ded953
