@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:36:22.106681Z'
+updated_at: '2026-08-04T01:40:15.568512Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -602,5 +602,14 @@ author: oompah
 created: 2026-08-04 01:36
 ---
 Understanding: rebasing OOMPAH-734 (4 commits ahead of main) onto origin/main to resolve merge conflicts. Prior work already implemented backend commit-before-comment ordering, non-starvable finalization, finalization-health distinction, and regression tests. Main has advanced with OOMPAH-731/733/736/737/738/739/747 that overlap orchestrator/terminal_audit/terminal_transition_coordinator paths flagged in coordination comments.
+---
+author: oompah
+created: 2026-08-04 01:40
+---
+Discovery + Implementation: rebase encountered 2 conflicts.
+
+1) oompah/terminal_audit_enforcement.py (TerminalAuditEnforcement.__init__): main added self._lifecycle_lock/_lifecycle_state_lock (OOMPAH-737/738); OOMPAH-734 added self.finalization_failure_counts. Resolved by keeping BOTH — they are independent instance attributes and each is required for its own concern.
+
+2) oompah/terminal_transition_coordinator.py (owner override in _apply_override): main kept the old comment-before-status ordering (Step 5 post comment, Step 6 update_issue), OOMPAH-734 inverted this to Step 5 update_issue, Step 6 post comment (commit-before-comment). Resolved by accepting the OOMPAH-734 ordering — this IS the fix for OOMPAH-734 and matches the aligned regression test in tests/test_terminal_override.py. The tracker status is written before the human-readable comment; a comment failure now cannot leave the tracker mid-transition, and a persisted override intent remains for restart reconciliation.
 ---
 <!-- COMMENTS:END -->
