@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:31:15.092425Z'
+updated_at: '2026-08-04T13:39:56.000309Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,14 +47,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
   base_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
   head_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
+  integrated_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
   submitted_at: '2026-08-04T13:30:54.286435+00:00'
-  updated_at: '2026-08-04T13:30:54.286435+00:00'
+  updated_at: '2026-08-04T13:39:48.582344+00:00'
 oompah.task_costs:
   total_input_tokens: 46421
   total_output_tokens: 21147
@@ -117,6 +118,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-741
     source_sha: a6a023f461e0c6ff11de967fc617e35996a3116b
     completed_at: '2026-08-04T11:45:05.195923+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e7753a8d72ce
+    project_id: proj-14849f1b
+    task_id: OOMPAH-741
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f31efaaf08bda156eb3ec7c2c687452b06d88478c430cb0ebc1a58217fb3affb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T13:39:51.003845+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -492,5 +515,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 11s
 - Log: OOMPAH-741__20260804T132117Z.jsonl
+---
+author: oompah
+created: 2026-08-04 13:39
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
