@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:28:32.090875Z'
-updated_at: '2026-08-04T22:59:32.846435Z'
+updated_at: '2026-08-04T23:04:20.893904Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-811
 target_branch: null
 review_url: null
@@ -24,14 +24,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d8d4771762019c61d2a7033903b4d7cacd621cacf0c783a2e3e879350014675a
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T23:04:15.195952+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d2e3898c-f8a5-403a-9825-684aac807a92
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-04T22:58:45.716894+00:00'
-  claim_expires_at: '2026-08-04T23:28:45.716894+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-811 describes a specific bug in the integration\
+    \ executor's handling of a conflict-free rebase/push: after the remote branch\
+    \ head advances (f8f9d382 \u2192 9e2ecc3f), the queue row, tracker `oompah.integration`\
+    \ record, and quality-gate authority generation still name the old head. The exact-head\
+    \ fencing correctly rejects the gate attempt, but the executor misclassifies this\
+    \ normal branch advance as `infrastructure_error` and sets the task to Needs CI\
+    \ Fix even though no test ran. The fix requires an atomic saga: CAS-advance all\
+    \ three durable records to the new head before requesting a gate, and classify\
+    \ branch-advance as superseded/requeued rather than CI failure.\nFocus handoff:\
+    \ duplicate_detector\nDuplicate preflight verdict: no_duplicate\nMatches: none\n\
+    \nEvidence: OOMPAH-811 describes a specific bug in the integration executor's\
+    \ handling of a conflict-free rebase/push: after the remote branch head advances\
+    \ (f8f9d382 \u2192 9e2ecc3f), the queue row, tracker `oompah.integration` record,\
+    \ and quality-gate authority generation still name the old head. The exact-head\
+    \ fencing correctly rejects the gate attempt, but the executor misclassifies this\
+    \ normal branch advance as `infrastructure_error` and sets the task to Needs CI\
+    \ Fix even though no test ran. The fix requires an atomic saga: CAS-advance all\
+    \ three durable records to the new head before requesting a gate, and classify\
+    \ branch-advance as superseded/requeued rather than CI failure.\n\nThe closest\
+    \ active non-terminal peer is **OOMPAH-806** (\"Fence stalled-task recovery behind\
+    \ internal gate authority,\" Ready to Integrate), which addresses a distinct but\
+    \ related failure mode \u2014 the stalled-task watchdog overriding an authoritative\
+    \ internal gate failure when external CI passes. OOMPAH-806 fixes watchdog-vs-gate-authority\
+    \ precedence; OOMPAH-811 fixes the failure to atomically update authority metadata\
+    \ after a rebase-push. Different triggering conditions, different code paths (`stalled_task_watchdog.py`\
+    \ vs. integration executor rebase/push result + queue CAS), different root causes,\
+    \ and different required tests \u2014 they are complementary bugs, not duplicates.\n\
+    \n**OOMPAH-768** (\"Migrate every workflow domain to shared decisions and durable\
+    \ jobs,\" In Progress) is the parent epic covering integration queue migration\
+    \ broadly; OOMPAH-811 is a specific correctness bug within that domain, not a\
+    \ duplicate of the umbrella epic. **OOMPAH-808** (fence nested-epic dispatch)\
+    \ and **OOMPAH-809** (scheduler lane capacity) are siblings covering entirely\
+    \ different failure classes. All similarity-scored candidates (OOMPAH-1, OOMPAH-10,\
+    \ OOMPAH-156, etc.) are in terminal states (Archived) and are excluded as duplicat"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -47,6 +81,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 5cd24351e3b3f643bf4d43af84e81af0928b5f44
   updated_at: '2026-08-04T22:59:28.443522+00:00'
+oompah.task_costs:
+  total_input_tokens: 3
+  total_output_tokens: 342
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 3
+      output_tokens: 342
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 342
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:04:15.194369+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-811__20260804T230012Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-811
+    source_sha: 5cd24351e3b3f643bf4d43af84e81af0928b5f44
+    completed_at: '2026-08-04T23:04:15.216058+00:00'
 ---
 ## Summary
 
@@ -69,5 +129,15 @@ author: oompah
 created: 2026-08-04 22:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 23:04
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 6, Tool calls: 0
+- Tokens: 3 in / 342 out [345 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 57s
+- Log: OOMPAH-811__20260804T230012Z.jsonl
 ---
 <!-- COMMENTS:END -->
