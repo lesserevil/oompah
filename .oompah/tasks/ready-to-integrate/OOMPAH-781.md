@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T21:11:22.985052Z'
+updated_at: '2026-08-04T21:11:41.505536Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -62,16 +62,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3daeb871-6107-458a-b8d0-91606d233f47
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T21:00:25.596278+00:00'
+  head_sha: 1ba60b5687f4e321c17d0f1ffb71b68a8d6c61e1
+  submitted_at: '2026-08-04T21:11:27.905540+00:00'
+  updated_at: '2026-08-04T21:11:27.905540+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -285,5 +287,10 @@ author: oompah
 created: 2026-08-04 21:11
 ---
 Completion: pushed 1ba60b568. Durable workflow scheduling now commits each snapshot atomically, eliminating the combined-gate history-row timeout and preventing partial cursor/job state on errors. The orphan YOLO test passes under full affected-module collection; no behavior change was needed there.
+---
+author: oompah
+created: 2026-08-04 21:11
+---
+Fixed combined-gate durable scheduler timeout with atomic snapshot writes; focused suites pass
 ---
 <!-- COMMENTS:END -->
