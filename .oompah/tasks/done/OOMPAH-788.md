@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-788
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Cut integration delivery over to shared decisions and durable jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:10.953215Z'
-updated_at: '2026-08-04T18:22:59.296249Z'
+updated_at: '2026-08-04T18:23:03.045113Z'
 work_branch: null
 target_branch: null
 review_url: null
