@@ -1178,16 +1178,132 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             alert=AlertSeverity.INFO,
             durable_jobs=("rollup_reconciliation",),
         )
-    incomplete = tuple(
-        UnmetPrerequisite(
-            "rollup.child_incomplete",
-            str((_mapping(child) or {}).get("identifier") or "unknown"),
-            canonicalize_status((_mapping(child) or {}).get("status")),
+
+    if value.get("acyclic") is False:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="operator.action_required",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "containment.cycle",
+                    str(value.get("cycle") or task.task_id),
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
         )
-        for child in raw_children
-        if canonicalize_status((_mapping(child) or {}).get("status"))
-        not in SATISFIED_DEPENDENCY_STATUSES
+
+    # Generic task rollups historically used terminal status as their only
+    # proof.  Epic facts opt into the stricter target-relative contract by
+    # carrying ``requires_landing`` plus exact source/target identities.  A
+    # nested epic is intentionally checked by its landing fact alone: asking
+    # for the parent's derived status here would recreate the parent/child
+    # proof cycle this evaluator is meant to remove.
+    target_relative = any(
+        isinstance(_mapping(item), Mapping)
+        and (
+            "requires_landing" in (_mapping(item) or {})
+            or str((_mapping(item) or {}).get("kind") or "")
+            in {"nested", "nested_epic", "maintenance"}
+        )
+        for item in raw_children
     )
+    incomplete: list[UnmetPrerequisite] = []
+    landing_unknown: list[UnmetPrerequisite] = []
+    landing_observation = facts.fact(FactDomain.LANDING)
+    for raw_child in raw_children:
+        child = _mapping(raw_child) or {}
+        identifier = str(child.get("identifier") or "unknown")
+        kind = str(child.get("kind") or "normal")
+        status = canonicalize_status(child.get("status"))
+        maintenance = bool(child.get("maintenance")) or kind == "maintenance"
+        nested = kind == "nested_epic" or (
+            kind == "nested" and str(child.get("issue_type") or "").lower() == "epic"
+        )
+
+        if not target_relative:
+            if status not in SATISFIED_DEPENDENCY_STATUSES:
+                incomplete.append(
+                    UnmetPrerequisite("rollup.child_incomplete", identifier, status)
+                )
+            continue
+
+        if nested:
+            # Nested epic readiness is target evidence, never the parent's
+            # lifecycle status (which may itself be derived from this child).
+            requires_landing = True
+        else:
+            if not maintenance and status != "Done":
+                incomplete.append(
+                    UnmetPrerequisite("rollup.child_incomplete", identifier, status)
+                )
+                continue
+            if maintenance:
+                if status not in SATISFIED_DEPENDENCY_STATUSES:
+                    incomplete.append(
+                        UnmetPrerequisite("rollup.child_incomplete", identifier, status)
+                    )
+                continue
+            # Old projections without target-relative metadata retain their
+            # established terminal-status behavior.
+            requires_landing = bool(child.get("requires_landing"))
+            if not requires_landing:
+                continue
+
+        if not requires_landing:
+            continue
+        source = str(child.get("landing_source") or "").strip()
+        target = str(child.get("landing_target") or "").strip()
+        matching = tuple(
+            item
+            for item in facts.landings
+            if (not source or item.source == source)
+            and (not target or item.target == target)
+        )
+        if landing_observation.state is not FactState.KNOWN:
+            landing_unknown.append(
+                UnmetPrerequisite(
+                    f"landing.{landing_observation.state.value}",
+                    f"{source or identifier}->{target or 'target'}",
+                    landing_observation.error_code,
+                )
+            )
+            continue
+        landed = any(item.state is LandingState.LANDED for item in matching)
+        if landed:
+            continue
+        if any(item.state is LandingState.UNKNOWN for item in matching) or not matching:
+            landing_unknown.append(
+                UnmetPrerequisite(
+                    "landing.unknown",
+                    f"{source or identifier}->{target or 'target'}",
+                )
+            )
+        else:
+            incomplete.append(
+                UnmetPrerequisite(
+                    "landing.not_landed",
+                    f"{source or identifier}->{target or 'target'}",
+                )
+            )
+
+    if landing_unknown:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="landing.evidence_unknown",
+            owner=WorkflowOwner.ROLLUP,
+            prerequisites=tuple(landing_unknown),
+            actions=(PermittedAction.REFRESH_LANDING,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=(
+                "child_landing_verification" if target_relative else "rollup_reconciliation",
+            ),
+        )
     if incomplete:
         return _decision(
             task,
@@ -1196,7 +1312,17 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             reason_code="rollup.waiting_children",
             owner=WorkflowOwner.ROLLUP,
             prerequisites=incomplete,
-            actions=(PermittedAction.ROLLUP_CHILDREN,),
+            actions=(
+                (
+                    PermittedAction.REFRESH_LANDING,
+                    PermittedAction.ROLLUP_CHILDREN,
+                )
+                if target_relative
+                else (PermittedAction.ROLLUP_CHILDREN,)
+            ),
+            durable_jobs=(
+                "child_landing_verification" if target_relative else "rollup_reconciliation",
+            ),
         )
     return _decision(
         task,
@@ -1205,7 +1331,9 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         reason_code="rollup.children_complete",
         owner=WorkflowOwner.ROLLUP,
         actions=(PermittedAction.ROLLUP_CHILDREN,),
-        durable_jobs=("rollup_reconciliation",),
+        durable_jobs=(
+            "rollup_review_creation" if target_relative else "rollup_reconciliation",
+        ),
     )
 
 
@@ -1384,6 +1512,9 @@ def evaluate_task(
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
         )
+
+    if view.issue_type.lower() == "epic":
+        return _rollup_decision(view, facts)
 
     dependency_sensitive = {
         OPEN,
