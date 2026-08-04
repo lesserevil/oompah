@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T22:00:51.460753Z'
+updated_at: '2026-08-04T22:01:59.810867Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,23 @@ oompah.integration:
   updated_at: '2026-08-04T21:28:41.090316+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a0dcf09f28dd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-793
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8400b10bbea40f39b77a4f9f75576effcfef31fc57912cc18515aeae812ae021
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-04T22:01:55.501074+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
