@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:10:56.961145Z'
+updated_at: '2026-08-04T11:11:28.818638Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -20,7 +20,7 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.target_branch: main
-oompah.agent_run_id: null
+oompah.agent_run_id: 651a4bbc-adc0-4b49-9173-8518aad547b7
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
@@ -58,6 +58,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-04T11:10:33.553014+00:00'
   attempt_history: []
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 06d7d423a9e6942349ba82551dd79a6b3652276e645a129b3135739822569aea
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 815dc74b-9e6c-4fb1-80a7-64a9769afd77
+  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
+  claimed_at: '2026-08-04T11:11:18.892056+00:00'
+  claim_expires_at: '2026-08-04T11:41:18.892056+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
@@ -134,5 +151,10 @@ Integration could not verify `epic-OOMPAH-740`: could not recover integration wo
 fatal: 'epic-OOMPAH-740' is already used by worktree at '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-740'
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 11:11
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
 ---
 <!-- COMMENTS:END -->
