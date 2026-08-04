@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:35:42.930958Z'
+updated_at: '2026-08-04T15:36:01.023138Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -86,8 +86,8 @@ oompah.integration:
     OOMPAH-742: 494c39f8f06ec986bd4efb345ea59e359cf95aed
     OOMPAH-741: d3cc87e7f273decdf492d48dfaba027cc815ef5a
 oompah.task_costs:
-  total_input_tokens: 130
-  total_output_tokens: 41239
+  total_input_tokens: 171
+  total_output_tokens: 48701
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -97,6 +97,10 @@ oompah.task_costs:
     opus:
       input_tokens: 100
       output_tokens: 38798
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 41
+      output_tokens: 7462
       cost_usd: 0.0
   runs:
   - profile: default
@@ -117,6 +121,12 @@ oompah.task_costs:
     output_tokens: 38798
     cost_usd: 0.0
     recorded_at: '2026-08-04T15:01:09.273138+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 7462
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T15:35:58.326905+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-744__20260803T230325Z
@@ -521,5 +531,15 @@ Safe evidence:
 - focused_reconciliation_tests: 86/86 passing
 - commit_attribution: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
 - diff_scope: oompah/templates/dashboard.html + tests/test_dashboard_full_sync_atomic_replacement.py
+---
+author: oompah
+created: 2026-08-04 15:36
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 44, Tool calls: 35
+- Tokens: 41 in / 7.5K out [7.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 35s
+- Log: OOMPAH-744__20260804T152932Z.jsonl
 ---
 <!-- COMMENTS:END -->
