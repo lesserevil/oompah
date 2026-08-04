@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-08-04T21:18:49.965143Z'
+updated_at: '2026-08-04T21:19:36.124744Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:03:31.044179+00:00'
     branch_key: epic-OOMPAH-502
+oompah.task_costs:
+  total_input_tokens: 62
+  total_output_tokens: 10028
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 62
+      output_tokens: 10028
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 62
+    output_tokens: 10028
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:19:30.864417+00:00'
 ---
 ## Summary
 
@@ -157,5 +173,15 @@ Safe evidence:
 - regression_tests: tests/test_epic_strategy.py::test_done_review_child_accepts_trusted_rebased_commit_evidence; tests/test_epic_strategy.py::test_done_review_child_has_epic_branch_commit
 - previous_state: Merged
 - audit_reason: Aged Merged auto-archive (closed 7 days ago)
+---
+author: oompah
+created: 2026-08-04 21:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 68, Tool calls: 56
+- Tokens: 62 in / 10.0K out [10.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 55s
+- Log: OOMPAH-519__20260804T210351Z.jsonl
 ---
 <!-- COMMENTS:END -->
