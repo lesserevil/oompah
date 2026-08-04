@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T17:09:00.146982Z'
+updated_at: '2026-08-04T17:09:16.056839Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -42,8 +42,8 @@ oompah.integration:
 
     fatal: ''epic-OOMPAH-765'' is already used by worktree at ''/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-765'''
 oompah.task_costs:
-  total_input_tokens: 119
-  total_output_tokens: 29812
+  total_input_tokens: 142
+  total_output_tokens: 33871
   total_cost_usd: 0.0
   by_model:
     opus:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 22845
       cost_usd: 0.0
     unknown:
-      input_tokens: 36
-      output_tokens: 6967
+      input_tokens: 59
+      output_tokens: 11026
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -67,6 +67,12 @@ oompah.task_costs:
     output_tokens: 6967
     cost_usd: 0.0
     recorded_at: '2026-08-04T17:06:01.030974+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 23
+    output_tokens: 4059
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:09:10.952512+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/714
 oompah.review_number: '714'
 oompah.terminal_audit:
@@ -540,5 +546,15 @@ Safe evidence:
 - design_docs: plans/workflow-facts.md, plans/work-decision-evaluator.md, plans/workflow-shadow-evaluation.md
 - epic_commit_chain: cc490d183, e34e3c58b, 73f5aeb26, b0ec9eb4e, 96b878f74, 40e46bf8e, c7bfbcc3b
 - merge_pr_title: OOMPAH-765: Build unified versioned facts and a pure WorkDecision evaluator
+---
+author: oompah
+created: 2026-08-04 17:09
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 23, Tool calls: 17
+- Tokens: 23 in / 4.1K out [4.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 54s
+- Log: OOMPAH-765__20260804T170628Z.jsonl
 ---
 <!-- COMMENTS:END -->
