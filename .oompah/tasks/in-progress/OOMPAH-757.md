@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:13:32.149558Z'
+updated_at: '2026-08-04T11:14:44.047917Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0021a13a-33cc-42a5-9a34-2df7be1ee15f
+oompah.agent_run_id: 47d169b3-8aed-4bad-a8a8-f389706a30a1
 oompah.task_costs:
   total_input_tokens: 47149
   total_output_tokens: 216
@@ -103,5 +103,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 39s
 - Log: OOMPAH-757__20260804T111243Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 11:14
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

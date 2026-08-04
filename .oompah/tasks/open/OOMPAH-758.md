@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:13:38.217532Z'
+updated_at: '2026-08-04T11:14:54.768602Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 3a5cf97524206a21bd89f17e45fdeef379b3dbd1ac80288a363273f3e8bf57a8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6c2832ec-e2f3-4e7f-8bb1-fbba0fb4c400
+  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
+  claimed_at: '2026-08-04T11:14:42.384037+00:00'
+  claim_expires_at: '2026-08-04T11:44:42.384037+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 54420ec4-e738-4970-9a71-cce91a679e87
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Live regression of merged OOMPAH-731 on revision 5368e236. OOMPAH-755 is a direc
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 11:14
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 11:14
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
