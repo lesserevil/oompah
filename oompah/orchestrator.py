@@ -15605,15 +15605,17 @@ class Orchestrator:
             collector=collector,
             store=self.workflow_job_store,
         )
-        batch = controller.evaluate([epic])
+        if schedule:
+            # One collection snapshot must be both the decision consumed by
+            # the caller and the generation persisted for the worker.  A
+            # second evaluate/reconcile pass can observe a newly added or
+            # reopened child yet return the older runnable decision.
+            batch, _scheduled = controller.reconcile([epic])
+        else:
+            batch = controller.evaluate([epic])
         if not batch.tasks:
             return None
         item = batch.tasks[0]
-        if schedule:
-            # Reconcile the exact facts/decision that the gate consumed.  The
-            # controller's durable cursor makes repeated maintenance ticks and
-            # process restarts idempotent.
-            controller.reconcile([epic])
         return item.decision, item.facts
 
     @staticmethod
@@ -18697,6 +18699,7 @@ class Orchestrator:
                 if (
                     decision.disposition is not TaskDisposition.RUNNABLE
                     or not self._shared_epic_landing_proven(facts)
+                    or "epic_auto_close" not in decision.durable_jobs
                 ):
                     # Rollup readiness and the epic's own landing are
                     # separate facts.  A parent may remain open on main while
@@ -18705,27 +18708,14 @@ class Orchestrator:
                     # tracker status.
                     self._clear_stuck_epic_alert(epic.identifier)
                     return False
-                children = self._fetch_epic_children(epic)
-                tracker = self._tracker_for_issue(epic)
-                terminal_state = self._terminal_status_for_tracker(tracker)
-                self._request_epic_terminal_rollup(epic, terminal_state)
-                try:
-                    tracker.append_comment(
-                        epic.identifier,
-                        (
-                            f"Auto-closed from LandingFact evidence: all "
-                            f"{len(children)} direct children are ready and "
-                            "the epic branch landed on its immediate target."
-                        ),
-                    )
-                except Exception as exc:  # noqa: BLE001 - status remains authoritative
-                    logger.debug(
-                        "Failed to append shared auto-close reason to %s: %s",
-                        epic.identifier,
-                        exc,
-                    )
+                # The accepted decision already materialized an
+                # ``epic_auto_close`` job carrying its exact evidence
+                # revision. Its production handler revalidates immediately
+                # before requesting the terminal transition. Performing the
+                # transition here too would create a second writer and a
+                # child-added/reopened race outside the durable fence.
                 self._clear_stuck_epic_alert(epic.identifier)
-                return True
+                return False
             except Exception as exc:  # noqa: BLE001 - maintenance is best effort
                 logger.debug(
                     "Shared epic auto-close check failed for %s: %s",

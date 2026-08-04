@@ -740,13 +740,17 @@ class WorkflowJobStore:
                 """
                 SELECT fact_json FROM workflow_landing_facts
                  WHERE project_id = ? AND task_id = ?
-                 ORDER BY recorded_at, source, target, evidence_revision
+                 ORDER BY recorded_at DESC, source DESC, target DESC,
+                          evidence_revision DESC
                  LIMIT ?
                 """,
                 (project, task, bounded),
             ).fetchall()
         values: list[dict[str, Any]] = []
-        for row in rows:
+        # Callers fold this bounded history into one fact per source/target.
+        # Return the newest window in chronological order so the final value
+        # wins without an old prefix starving recent evidence.
+        for row in reversed(rows):
             value = _decode_json_object(row["fact_json"], "landing_fact")
             if value is None or str(value.get("project_id") or "") != project:
                 raise WorkflowJobCorruptionError("landing fact project scope is invalid")
@@ -1939,6 +1943,8 @@ class WorkflowJobStore:
         self,
         *,
         lease_owner: str | None = None,
+        project_id: str | None = None,
+        actions: Sequence[str] | None = None,
         now: float | None = None,
         limit: int = DEFAULT_SCAN_LIMIT,
     ) -> int:
@@ -1947,9 +1953,27 @@ class WorkflowJobStore:
         timestamp = float(self._clock() if now is None else now)
         bounded = _bounded_limit(limit)
         owner_clause = "AND lease_owner = ?" if lease_owner is not None else ""
+        project_clause = "AND project_id = ?" if project_id is not None else ""
+        if isinstance(actions, (str, bytes)):
+            raise TypeError("actions must be a sequence of action names")
+        normalized_actions = (
+            tuple(sorted({_required_text(value, "action") for value in actions}))
+            if actions is not None
+            else ()
+        )
+        if actions is not None and not normalized_actions:
+            raise ValueError("actions cannot be empty")
+        action_clause = (
+            f"AND action IN ({','.join('?' for _ in normalized_actions)})"
+            if normalized_actions
+            else ""
+        )
         values: list[object] = [WorkflowJobState.RUNNING.value]
         if lease_owner is not None:
             values.append(_required_text(lease_owner, "lease_owner"))
+        if project_id is not None:
+            values.append(_required_text(project_id, "project_id"))
+        values.extend(normalized_actions)
         values.append(bounded)
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -1957,7 +1981,7 @@ class WorkflowJobStore:
                 rows = self._conn.execute(
                     f"""
                     SELECT * FROM workflow_jobs
-                     WHERE state = ? {owner_clause}
+                     WHERE state = ? {owner_clause} {project_clause} {action_clause}
                      ORDER BY enqueue_sequence LIMIT ?
                     """,
                     values,

@@ -349,7 +349,7 @@ def test_durable_prior_survives_unavailable_source_object(tmp_path):
     assert cross_project.state is LandingState.UNKNOWN
 
 
-def test_durable_prior_survives_later_target_rewrite(tmp_path):
+def test_git_durable_prior_does_not_survive_target_rewrite(tmp_path):
     repo, base, task = _git_repo(tmp_path)
     _git(repo, "merge", "--no-ff", "task", "-m", "merge")
     collector = GitLandingCollector(repo, project_id="project-1", clock=lambda: NOW)
@@ -357,11 +357,11 @@ def test_durable_prior_survives_later_target_rewrite(tmp_path):
     _git(repo, "reset", "--hard", base)
 
     current_only = collector.collect(LandingRequest("task", "main", task))
-    preserved = collector.collect(LandingRequest("task", "main", task, prior=prior))
+    refreshed = collector.collect(LandingRequest("task", "main", task, prior=prior))
 
     assert current_only.state is LandingState.NOT_LANDED
-    assert preserved.state is LandingState.LANDED
-    assert preserved.evidence_revision == prior.evidence_revision
+    assert refreshed.state is LandingState.NOT_LANDED
+    assert refreshed.evidence_revision != prior.evidence_revision
 
 
 def test_git_observation_failure_becomes_unknown_fact(tmp_path):
