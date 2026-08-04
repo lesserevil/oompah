@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-451
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Restore GitLab parity stranded after the OOMPAH-318 epic merge
 parent: null
@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:22:38.062193Z'
+updated_at: '2026-08-04T15:25:53.125463Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -27,6 +27,31 @@ oompah.work_branch: epic-OOMPAH-451
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5b11000acb47: '2026-08-04T15:25:41.704049+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-451
+    target_state: Archived
+    evidence_fingerprint: ec2faf89a761d26e33c737e46d2bbf72c87afc3f6eb9eef479e9cd305f0777df
+    audit_ids:
+    - audit-c9d9897dbd67
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T15:25:41.704061+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-451
+    audit_id: audit-c9d9897dbd67
+    attempt_id: attempt-5b11000acb47
+    target_state: Archived
+    evidence_fingerprint: ec2faf89a761d26e33c737e46d2bbf72c87afc3f6eb9eef479e9cd305f0777df
+    status: Needs Human
+    audit_ids:
+    - audit-c9d9897dbd67
+    applied: true
+    created_at: '2026-08-04T15:25:41.704076+00:00'
+    applied_at: '2026-08-04T15:25:50.985609+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +59,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-451
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -43,7 +68,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5b11000acb47
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -53,13 +78,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T15:20:20.495612+00:00'
       branch_key: epic-OOMPAH-451
+      verdict: fail
+      failure_classification: unsafe_archive
+      completed_at: '2026-08-04T15:25:41.703922+00:00'
+      ended_at: '2026-08-04T15:25:41.703922+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T15:19:04.185104+00:00'
-    updated_at: '2026-08-04T15:20:20.495612+00:00'
+    updated_at: '2026-08-04T15:25:41.703922+00:00'
   - version: 1
     audit_id: audit-24a26411808a
     project_id: proj-14849f1b
@@ -146,5 +175,12 @@ author: oompah
 created: 2026-08-04 15:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 15:25
+---
+Needs Human — Archived audit requires operator input.
+
+[REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
