@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
-- needs:feature
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:37:21.094119Z'
+updated_at: '2026-08-04T12:38:02.103417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,7 +109,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 34b837ca-e9e5-49a4-ae65-1cd22455507e
+oompah.agent_run_id: a45ff3fb-b8fd-4d27-9ea7-97762b0e123c
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2071
@@ -263,5 +262,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 36s
 - Log: OOMPAH-760__20260804T123155Z.jsonl
+---
+author: oompah
+created: 2026-08-04 12:37
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 12:38
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
