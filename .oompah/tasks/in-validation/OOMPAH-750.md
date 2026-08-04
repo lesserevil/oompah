@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T02:08:41.188688Z'
+updated_at: '2026-08-04T02:16:40.497270Z'
 work_branch: OOMPAH-750
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/699
@@ -108,6 +108,31 @@ oompah.work_branch: OOMPAH-750
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5086218c7e21: '2026-08-04T02:16:32.067820+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    target_state: Done
+    evidence_fingerprint: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    audit_ids:
+    - audit-0d7073a25979
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T02:16:32.067828+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-750
+    audit_id: audit-0d7073a25979
+    attempt_id: attempt-5086218c7e21
+    target_state: Done
+    evidence_fingerprint: 69c88c7bc8ededb6d5ffbafe29726b82c457e49e25db17f329665034c192db03
+    status: In Validation
+    audit_ids:
+    - audit-0d7073a25979
+    applied: true
+    created_at: '2026-08-04T02:16:32.067840+00:00'
+    applied_at: '2026-08-04T02:16:38.442956+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -115,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-750
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5086218c7e21
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -134,13 +159,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T02:08:29.908330+00:00'
       branch_key: OOMPAH-750
+      verdict: pass
+      completed_at: '2026-08-04T02:16:32.067660+00:00'
+      ended_at: '2026-08-04T02:16:32.067660+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T02:07:35.356255+00:00'
-    updated_at: '2026-08-04T02:08:29.908330+00:00'
+    updated_at: '2026-08-04T02:16:32.067660+00:00'
   - version: 1
     audit_id: audit-45e76dc650ad
     project_id: proj-14849f1b
@@ -286,5 +314,29 @@ author: oompah
 created: 2026-08-04 02:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 02:16
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 9b3197a1156b117b35398c61a74fcc6b677c0f6b
+- feature_commit: 92bf56563a2803a4a3df0e146739634da6caa48a
+- pr_number: 699
+- merged_into: origin/main
+- files_changed: oompah/stalled_task_watchdog.py, oompah/orchestrator.py, tests/test_stalled_task_watchdog.py
+- diffstat: 3 files changed, 833 insertions(+), 40 deletions(-)
+- focused_watchdog_tests: 90 passed (tests/test_stalled_task_watchdog.py)
+- adjacent_tracker_tests: 37 passed (tests/test_managed_tracker_state_branch_guard.py)
+- branch_quality_gate: passed for 92bf56563 via `make test` in 411.6s
+- acceptance_ac1_handoff_alone_not_blocker: test_handoff_wording_alone_is_not_human_blocker PASS
+- acceptance_ac2_stronger_current_recovers: test_merged_review_overrides_stale_handoff, test_missing_audit_branch_with_canonical_ref_is_technical, test_provider_failure_is_not_human_blocked, test_ambiguous_scm_state_fails_closed PASS
+- acceptance_ac3_genuine_human_preserved: test_newer_question_remains_current_after_older_completion, test_newer_completion_supersedes_older_question PASS
+- idempotent_restart: test_same_current_evidence_after_restart_is_idempotent, test_new_current_evidence_after_restart_is_not_suppressed PASS
+- orchestrator_evidence_collection: test_collects_current_review_ci_and_audit_evidence, test_current_evidence_provider_overrides_handoff_comment PASS
+- commit_trailer: canonical oompah trailer present
 ---
 <!-- COMMENTS:END -->
