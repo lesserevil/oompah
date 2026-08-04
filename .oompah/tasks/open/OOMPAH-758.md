@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:14:54.768602Z'
+updated_at: '2026-08-04T11:15:02.704004Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-04 11:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 11:15
+---
+Task-specific recovery evidence: after duplicate screening finished and no OOMPAH-755 worker remained, the authenticated project-owner Done override was retried five times against the independently verified 5368e236 helper head. Every attempt returned HTTP 409 'The task changed before the override was requested' even though implementation/branch evidence was unchanged; the blocked ordinary queue row/refresh path keeps invalidating the fingerprint. No override committed. The fix must cancel/fence the obsolete row and compute current override evidence under the same ownership lock so OOMPAH-755 can converge without direct database/task-file edits.
 ---
 <!-- COMMENTS:END -->
