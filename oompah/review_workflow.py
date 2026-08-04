@@ -15,12 +15,14 @@ therefore exercise the same decisions and UI projection.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Mapping, Sequence
+import threading
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
 
 from oompah.models import Issue
+from oompah.review_capacity import ReviewCapacityStore
 from oompah.statuses import IN_REVIEW
 from oompah.task_transition_service import TransitionIntent
 from oompah.work_decision import REVIEW_ACTION_JOBS, WorkDecision, evaluate_task
@@ -72,6 +74,7 @@ class ReviewObservation:
     mergeable: bool | None = None
     mergeable_state: str = ""
     conflict: bool = False
+    needs_rebase: bool = False
     draft: bool = False
     provider: str | None = None
     source_deleted: bool = False
@@ -138,6 +141,7 @@ class ReviewObservation:
             mergeable=mergeable,
             mergeable_state=_text(getattr(review, "mergeable_state", None)),
             conflict=bool(getattr(review, "has_conflicts", False)),
+            needs_rebase=bool(getattr(review, "needs_rebase", False)),
             draft=bool(getattr(review, "draft", False)),
             provider=provider,
             capacity=capacity,
@@ -172,6 +176,7 @@ class ReviewObservation:
             "mergeable": self.mergeable,
             "mergeable_state": self.mergeable_state,
             "conflict": self.conflict,
+            "needs_rebase": self.needs_rebase,
             "draft": self.draft,
             "provider": self.provider,
             "source_deleted": self.source_deleted,
@@ -187,6 +192,7 @@ def review_fact_source(
     review_id: str | None = None,
     source_branch: str | None = None,
     capacity: Mapping[str, Any] | None = None,
+    source_exists: Callable[[str], bool | None] | None = None,
 ):
     """Build a collector source that preserves timeout vs empty semantics.
 
@@ -206,15 +212,25 @@ def review_fact_source(
         if reviews is None:
             raise ReviewObservationUnavailable("review provider returned no result")
         selected = None
-        for review in reviews:
-            if review_id and _text(getattr(review, "id", None)) == _text(review_id):
-                selected = review
-                break
-            if source_branch and _text(getattr(review, "source_branch", None)) == _text(
-                source_branch
-            ):
-                selected = review
-                break
+        if review_id:
+            selected = next(
+                (
+                    review
+                    for review in reviews
+                    if _text(getattr(review, "id", None)) == _text(review_id)
+                ),
+                None,
+            )
+        elif source_branch:
+            selected = next(
+                (
+                    review
+                    for review in reviews
+                    if _text(getattr(review, "source_branch", None))
+                    == _text(source_branch)
+                ),
+                None,
+            )
         # The open-list endpoint is intentionally the fast path, but a task
         # can remain In Review after its PR/MR closed or merged.  When durable
         # review metadata identifies that artifact, ask the provider for the
@@ -224,9 +240,25 @@ def review_fact_source(
                 selected = provider.get_review(repo, _text(review_id))
             except Exception as exc:  # noqa: BLE001 - preserve unavailable state
                 raise ReviewObservationUnavailable("review provider unavailable") from exc
+            if getattr(provider, "last_review_fetch_ok", True) is False:
+                raise ReviewObservationUnavailable("review provider unavailable")
         if selected is None:
+            source_deleted = False
+            if source_exists is not None and source_branch:
+                try:
+                    exists = source_exists(source_branch)
+                except Exception as exc:  # noqa: BLE001 - explicit evidence boundary
+                    raise ReviewObservationUnavailable(
+                        "review source availability is unknown"
+                    ) from exc
+                if exists is None:
+                    raise ReviewObservationUnavailable(
+                        "review source availability is unknown"
+                    )
+                source_deleted = not bool(exists)
             return ReviewObservation.missing(
                 source_branch=source_branch,
+                source_deleted=source_deleted,
                 provider=provider_name,
             ).to_fact_value()
         return ReviewObservation.from_review(
@@ -238,12 +270,56 @@ def review_fact_source(
     return collect
 
 
+@dataclass(frozen=True, slots=True)
+class ReviewCapacityReconcileResult:
+    open_review_ids: tuple[str, ...]
+    released: int
+
+
+class ReviewCapacityReconciler:
+    """Release durable review slots only from a successful forge snapshot."""
+
+    def __init__(self, store: ReviewCapacityStore) -> None:
+        self.store = store
+
+    def reconcile(
+        self,
+        *,
+        provider: Any,
+        repo: str,
+        project_id: str,
+    ) -> ReviewCapacityReconcileResult:
+        try:
+            reviews = provider.list_open_reviews(repo)
+        except Exception as exc:  # noqa: BLE001 - provider evidence boundary
+            raise ReviewObservationUnavailable("review provider unavailable") from exc
+        if (
+            reviews is None
+            or getattr(provider, "last_open_reviews_fetch_ok", True) is False
+        ):
+            raise ReviewObservationUnavailable("review provider unavailable")
+        open_ids = tuple(
+            sorted(
+                {
+                    review_id
+                    for review in reviews
+                    if (review_id := _text(getattr(review, "id", None)))
+                    and _text(getattr(review, "state", "open")).lower() == "open"
+                    and not bool(getattr(review, "draft", False))
+                }
+            )
+        )
+        released = self.store.reconcile_open_reviews(project_id, open_ids)
+        return ReviewCapacityReconcileResult(open_ids, released)
+
+
 class ReviewRoute(str, Enum):
     OBSERVED = "observed"
     CI_REPAIR = "ci_repair"
     CONFLICT_REPAIR = "conflict_repair"
     CLOSED_REPAIR = "closed_repair"
     HEAD_REPAIR = "head_repair"
+    MERGE = "merge"
     LANDED = "landed"
     RETRY = "retry"
     ACTION_REQUIRED = "action_required"
@@ -273,11 +349,14 @@ def classify_review_result(result: ReviewExecutionResult) -> ClassifiedReviewRes
         "monitoring",
         "open",
         "pending",
-        "passed",
         "repaired",
     }:
         return ClassifiedReviewResult(
             ReviewRoute.OBSERVED, False, WorkflowFailureCategory.UNKNOWN
+        )
+    if status in {"passed", "ready_to_merge", "merge_required"}:
+        return ClassifiedReviewResult(
+            ReviewRoute.MERGE, False, WorkflowFailureCategory.UNKNOWN
         )
     if status in {"ci_failure", "failed", "needs_ci_fix"}:
         return ClassifiedReviewResult(
@@ -393,6 +472,8 @@ class ReviewWorkflowController:
         )
         self.decision_limit = decision_limit
         self._latest: dict[str, ReviewTaskDecision] = {}
+        self._latest_generations: dict[str, int] = {}
+        self._latest_lock = threading.RLock()
 
     @staticmethod
     def _landing_request(task: Issue) -> tuple[LandingRequest, ...]:
@@ -419,7 +500,6 @@ class ReviewWorkflowController:
                 landing_requests=self._landing_request(task),
             )
             evaluated.append(ReviewTaskDecision(task, facts, evaluate_task(task, facts)))
-        self._latest = {item.task.identifier: item for item in evaluated}
         return ReviewDecisionBatch(tuple(evaluated))
 
     def reconcile(
@@ -428,6 +508,11 @@ class ReviewWorkflowController:
         *,
         snapshot_generation: int | None = None,
     ) -> tuple[ReviewDecisionBatch, WorkflowReconcileResult]:
+        generation = (
+            self.scheduler.begin_scan()
+            if snapshot_generation is None
+            else snapshot_generation
+        )
         batch = self.evaluate(tasks)
         for decision in batch.decisions:
             unknown = set(decision.durable_jobs) - REVIEW_ACTION_JOBS
@@ -438,8 +523,29 @@ class ReviewWorkflowController:
                 )
         scheduled = self.scheduler.reconcile(
             batch.decisions,
-            snapshot_generation=snapshot_generation,
+            snapshot_generation=generation,
         )
+        evaluated = {item.task.identifier: item for item in batch.tasks}
+        with self._latest_lock:
+            for task in tasks:
+                task_id = task.identifier
+                previous_generation = self._latest_generations.get(task_id, 0)
+                if task_id not in evaluated and generation >= previous_generation:
+                    self._latest.pop(task_id, None)
+                    self._latest_generations[task_id] = generation
+            for task_id, item in evaluated.items():
+                cursor = self.store.schedule_cursor(
+                    project_id=item.decision.project_id,
+                    task_id=task_id,
+                )
+                if (
+                    cursor is not None
+                    and cursor.snapshot_generation == generation
+                    and cursor.decision_revision == item.decision.decision_revision
+                    and generation >= self._latest_generations.get(task_id, 0)
+                ):
+                    self._latest[task_id] = item
+                    self._latest_generations[task_id] = generation
         return batch, scheduled
 
     def projections(self) -> tuple[ReviewProjection, ...]:
@@ -450,9 +556,11 @@ class ReviewWorkflowController:
                 previous = active.get(job.task_id)
                 if previous is None or job.enqueue_sequence > previous.enqueue_sequence:
                     active[job.task_id] = job
+        with self._latest_lock:
+            latest = tuple(sorted(self._latest.items()))
         return tuple(
             ReviewProjection.from_decision(item.decision, active.get(task_id))
-            for task_id, item in sorted(self._latest.items())
+            for task_id, item in latest
         )
 
 
@@ -580,6 +688,8 @@ __all__ = [
     "ClassifiedReviewResult",
     "DEFAULT_REVIEW_DECISION_LIMIT",
     "ReviewDecisionBatch",
+    "ReviewCapacityReconcileResult",
+    "ReviewCapacityReconciler",
     "ReviewExecutionResult",
     "ReviewObservation",
     "ReviewObservationUnavailable",
