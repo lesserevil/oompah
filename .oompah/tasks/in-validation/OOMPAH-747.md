@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-747
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Reuse trusted patch-equivalence evidence during epic auto-close
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T01:17:14.881009Z'
+updated_at: '2026-08-04T01:25:49.707774Z'
 work_branch: OOMPAH-747
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/697
@@ -81,6 +81,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/697
 oompah.review_number: '697'
 oompah.work_branch: OOMPAH-747
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-862f2d92c639
+    project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:25:39.651146+00:00'
+  - version: 1
+    audit_id: audit-d960e1cbd976
+    project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:25:39.651146+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -165,5 +204,15 @@ author: oompah
 created: 2026-08-04 01:16
 ---
 Branch quality gate passed for `a8a9e2b2f51a581f9066736a9408f21adacffed5` using `make test` in 411.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 01:25
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 01:25
+---
+YOLO: merged PR #697.
 ---
 <!-- COMMENTS:END -->
