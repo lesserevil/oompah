@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:13:56.706647Z'
+updated_at: '2026-08-04T02:15:01.338659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-04 02:13
 ---
 Verification update: after adding the concurrent reservation safeguard, the focused standalone, review-capacity, and integration-queue suites remain green (60 passed). No lower-ranked candidate is claimed or gated after a selected candidate loses the shared review slot.
+---
+author: oompah
+created: 2026-08-04 02:15
+---
+Completion: delivered fair standalone Ready selection on the pushed branch. Candidates are staged without unselected authority claims, ordered by priority and submitted-at FIFO, invalid rows fall through within the snapshot, and capacity waits remain informational and retry-safe. Existing review adoption, exact-head fencing, dependency ordering, restart/retry, gate, and per-project reservation behavior are preserved. Final focused verification: 60 passed.
 ---
 <!-- COMMENTS:END -->
