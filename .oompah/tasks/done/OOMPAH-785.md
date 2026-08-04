@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-785
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Replace process-local workflow scheduling primitives with durable job ownership
 parent: OOMPAH-766
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:05.979634Z'
-updated_at: '2026-08-04T16:35:11.910498Z'
+updated_at: '2026-08-04T16:35:38.114156Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,6 +29,30 @@ oompah.integration:
   head_sha: fd480f6bd8aeab2763b927bee841ffae52a345e1
   submitted_at: '2026-08-04T16:35:01.954426+00:00'
   updated_at: '2026-08-04T16:35:01.954426+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-94bcbd5eeb34
+    project_id: proj-14849f1b
+    task_id: OOMPAH-785
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cc4ae5ee49a81edc4b2971b04f8a122ae99b013c2ed9fe1e2f6b191f6d9d23fb
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project owner directly verified fd480f6bd with the exact prerequisite
+      merge: focused workflow and scheduler tests, 428 adjacent orchestration tests,
+      terminal mutation scan, secret scan, lint, compile, and ancestry all passed;
+      the exact head is now the tip of epic-OOMPAH-766.'
+    created_at: '2026-08-04T16:35:33.873482+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
