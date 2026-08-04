@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:15:26.277010Z'
+updated_at: '2026-08-04T16:15:50.538589Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -68,16 +68,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 290dee98-fe30-4fe4-af65-bf0411803c7f
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
   base_branch: epic-OOMPAH-740
   base_sha: b51047023a5a9d5a36d119260222fb57168cbf41
-  updated_at: '2026-08-04T16:11:03.373296+00:00'
+  head_sha: b08a12057afed4e7af5080e7e47522eed16dc2ce
+  submitted_at: '2026-08-04T16:15:35.000873+00:00'
+  updated_at: '2026-08-04T16:15:35.000873+00:00'
 oompah.task_costs:
   total_input_tokens: 151
   total_output_tokens: 47141
@@ -406,5 +408,20 @@ author: oompah
 created: 2026-08-04 16:15
 ---
 Completion: Pushed b08a12057 on epic-OOMPAH-740--task-OOMPAH-745. In addition to the existing alert-experience coverage and operator documentation, the branch makes the Makefile setup dry-run contract deterministic for managed workers by clearing only OOMPAH_TASK_VENV when asserting the default developer .venv path. Branch is clean and up to date with origin; submitting for a fresh combined-tree quality gate.
+---
+author: oompah
+created: 2026-08-04 16:15
+---
+Alert coverage rebased, setup regression stabilized, and verified
+---
+author: oompah
+created: 2026-08-04 16:15
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 34
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 57s
+- Log: OOMPAH-745__20260804T161114Z.jsonl
 ---
 <!-- COMMENTS:END -->
