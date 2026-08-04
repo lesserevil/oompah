@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:42.900744Z'
-updated_at: '2026-08-04T14:27:26.679484Z'
+updated_at: '2026-08-04T14:27:31.794835Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-773
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -52,7 +52,17 @@ oompah.terminal_audit:
       queue remains occupied by pre-existing full-gate work, so this records the already-landed
       result without interrupting it.
     created_at: '2026-08-04T14:27:23.432274+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-773
+    target_state: Done
+    evidence_fingerprint: adff7c1f3683660b2b7f93ec3b9aee23c27296a6fb743ef0249265d8a41a15c5
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T14:27:30.611883+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -78,5 +88,12 @@ author: oompah
 created: 2026-08-04 14:27
 ---
 Implemented a versioned workflow reason-code and liveness-SLO schema with total non-final status coverage, stable serialization, forward-compatible unknown codes, evidence/remedy contracts, normal-recovery severity guarantees, docs, and regression tests.
+---
+author: oompah
+created: 2026-08-04 14:27
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Direct owner independently verified stable-schema, severity, deadline, compatibility, focused-test, lint, format, secret-scan, pushed-head, fast-forward ancestry, and exact parent-branch containment evidence. The automatic integration queue remains occupied by pre-existing full-gate work, so this records the already-landed result without interrupting it.
 ---
 <!-- COMMENTS:END -->
