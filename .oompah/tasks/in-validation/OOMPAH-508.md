@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-07-28T18:00:03.330107Z'
+updated_at: '2026-08-04T18:28:49.550623Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 273
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:49:12.360160+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-922ddb8e6bc3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-508
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a999058c901f8de3c4b34c4b91426bb8593fd78fe0ca8d90a3f2bcf37cde75f1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:42.830532+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -102,5 +124,10 @@ author: oompah
 created: 2026-07-28 15:56
 ---
 Exact-head full branch gate shipped with persistent single-flight evidence and focused worker checks.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
