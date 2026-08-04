@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-517
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Reclaim quarantined cleanup trees with restrictive modes
 parent: OOMPAH-502
@@ -10,13 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-07-28T18:00:10.968231Z'
+updated_at: '2026-08-04T18:29:16.816197Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0e35765539f9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-517
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f4ec0a7adbe13e9aa4e70decd071744f03811faf6a845f4ea1603f2b2fb34a31
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:29:10.392593+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -44,5 +66,10 @@ author: oompah
 created: 2026-07-28 16:45
 ---
 Reclaimed restrictive-mode stale trees safely after quarantine; 10 focused storage cleanup tests pass.
+---
+author: oompah
+created: 2026-08-04 18:29
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
