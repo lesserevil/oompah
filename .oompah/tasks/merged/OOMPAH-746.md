@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T04:22:51.244495Z'
+updated_at: '2026-08-04T04:23:08.204802Z'
 work_branch: OOMPAH-746
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/705
@@ -73,8 +73,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 2106159
-  total_output_tokens: 22946
+  total_input_tokens: 2106188
+  total_output_tokens: 28539
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -86,8 +86,8 @@ oompah.task_costs:
       output_tokens: 12611
       cost_usd: 0.0
     unknown:
-      input_tokens: 73
-      output_tokens: 7715
+      input_tokens: 102
+      output_tokens: 13308
       cost_usd: 0.0
   runs:
   - profile: default
@@ -120,6 +120,12 @@ oompah.task_costs:
     output_tokens: 6613
     cost_usd: 0.0
     recorded_at: '2026-08-04T04:18:20.438580+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 5593
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T04:23:05.306270+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-746__20260804T004146Z
@@ -717,5 +723,15 @@ Safe evidence:
 - test_terminal_audit_epic_subset: 10 passed
 - test_dashboard_result: 6 passed
 - prior_full_gate: passed in 417s at head 3ed0f959e
+---
+author: oompah
+created: 2026-08-04 04:23
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 36, Tool calls: 29
+- Tokens: 29 in / 5.6K out [5.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 12s
+- Log: OOMPAH-746__20260804T041901Z.jsonl
 ---
 <!-- COMMENTS:END -->
