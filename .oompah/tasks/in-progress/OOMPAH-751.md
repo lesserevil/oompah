@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:01:07.905091Z'
+updated_at: '2026-08-04T02:02:28.891571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -200,5 +200,10 @@ author: oompah
 created: 2026-08-04 02:01
 ---
 Discovery correction: Orchestrator.coordination_send re-derives suggested peers before CoordinationStore.append and raises PermissionError when the recipient is absent. api_task_handoff currently lets that reach its generic exception handler, which records an actionable handoff failure and returns HTTP 500. Peer derivation excludes only terminal states; Ready to Integrate and In Review remain eligible when the graph/path relationship still authorizes them, and a non-running authorized recipient should use durable fallback.
+---
+author: oompah
+created: 2026-08-04 02:02
+---
+Implementation (docs focus): Updated docs/scoped-task-cli-authentication.md and plans/advisory-coordination-send-races.md to define recipient-policy denials as structured, non-disclosing, non-actionable results; clarify authorization-before-storage and idempotency; and distinguish terminal peers from Ready to Integrate or In Review peers that remain eligible for durable fallback. Also documented that uncheckpointed live changed-path evidence may disappear when a worker exits.
 ---
 <!-- COMMENTS:END -->
