@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:06:49.891505Z'
-updated_at: '2026-08-04T21:02:27.974447Z'
+updated_at: '2026-08-04T21:02:36.226819Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -41,8 +41,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-df90dfa0567d
-    applied: false
+    applied: true
     created_at: '2026-08-04T21:02:24.637350+00:00'
+    applied_at: '2026-08-04T21:02:33.898219+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -140,5 +141,25 @@ author: oompah
 created: 2026-08-04 20:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 21:02
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- fix_commit: eea181d3a
+- commit_stat: oompah/orchestrator.py +62 -3, tests/test_event_driven_loop.py +92 -0
+- drain_function_location: oompah/orchestrator.py line 5912 _drain_background_work
+- foreign_loop_guard_lines: 5933-5980 foreign_futures collection and closed-loop skip log
+- regression_test_class: tests/test_event_driven_loop.py::TestDrainBackgroundWork
+- regression_test_cases: test_awaits_pending_futures_on_current_loop; test_closed_foreign_loop_future_does_not_block_restart
+- branch_gate_command: make test
+- branch_gate_summary: 15386 passed, 7 skipped, 1 xfailed, 57 warnings in 514.60s
+- landed_via: merged epic PR #564 on main (2026-07-28)
+- previous_state: Merged
+- days_since_merge: 7+
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:01:46.917338Z'
+updated_at: '2026-08-04T21:02:51.387877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,7 +72,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a995ec0d-693d-4291-ba96-9b92ee03fa93
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 420
   total_output_tokens: 17536
@@ -110,9 +110,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-805
-  head_sha: 73a18c40fb6c85d57b622797a7bc94e589c1bf95
-  submitted_at: '2026-08-04T20:49:30.059910+00:00'
-  updated_at: '2026-08-04T20:49:30.059910+00:00'
+  head_sha: bab1341540127019bd1eb572f7eae0454dbc1f08
+  submitted_at: '2026-08-04T21:02:38.808986+00:00'
+  updated_at: '2026-08-04T21:02:38.808986+00:00'
 ---
 ## Summary
 
@@ -285,5 +285,15 @@ author: oompah
 created: 2026-08-04 21:01
 ---
 Understanding: Picking up the existing OOMPAH-805 branch after its submitted full-gate failure. I will synchronize the same branch, inspect the recorded/available CI failure evidence, reproduce the failing budget-gate test and closed-loop subprocess warnings, apply only deterministic fixture isolation fixes, run focused neighboring and stress checks, then commit, push, verify the original review check rerun, and resubmit.
+---
+author: oompah
+created: 2026-08-04 21:02
+---
+Repair pushed at bab134154 after direct-owner takeover. The gate-only failure was the budget free-tier class leaking each Orchestrator's executor pools and durable stores under the global five-second timeout. Added per-test draining and a lifecycle-sized class timeout. Verification: failing exact test passes 20/20 repeats; full class 5 passed; all three affected modules pass with four-worker loadgroup xdist (239 passed). Branch is clean and pushed.
+---
+author: oompah
+created: 2026-08-04 21:02
+---
+Fixed the remaining full-gate teardown race at bab134154; 20/20 exact repeats and 239/239 affected-module xdist tests pass.
 ---
 <!-- COMMENTS:END -->
