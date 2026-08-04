@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:08:40.898173Z'
+updated_at: '2026-08-04T11:09:31.692781Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e6bddb7b-01b1-4820-bd01-dd2fa03f41c6
+oompah.agent_run_id: 8f1ccb07-693d-42f2-ae79-47fb9b8b3967
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
@@ -246,5 +246,10 @@ author: oompah
 created: 2026-08-04 11:08
 ---
 Integration found a rebase conflict on `epic-OOMPAH-740--task-OOMPAH-741`. Resolve it against `epic-OOMPAH-740`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-08-04 11:09
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
