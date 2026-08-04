@@ -15,7 +15,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T12:34:07.972119Z'
-updated_at: '2026-08-04T15:25:53.125463Z'
+updated_at: '2026-08-04T15:26:09.079652Z'
 work_branch: epic-OOMPAH-451
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/560
@@ -137,6 +137,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T15:20:20.495612+00:00'
     branch_key: epic-OOMPAH-451
+oompah.task_costs:
+  total_input_tokens: 62
+  total_output_tokens: 1584
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 62
+      output_tokens: 1584
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 62
+    output_tokens: 1584
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T15:26:06.710860+00:00'
 ---
 ## Summary
 
@@ -182,5 +198,15 @@ created: 2026-08-04 15:25
 Needs Human — Archived audit requires operator input.
 
 [REDACTED] Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-04 15:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 31
+- Tokens: 62 in / 1.6K out [1.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 44s
+- Log: OOMPAH-451__20260804T152035Z.jsonl
 ---
 <!-- COMMENTS:END -->
