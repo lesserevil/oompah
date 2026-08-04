@@ -1483,6 +1483,17 @@ class RunningEntry:
     # reject events that belong to a superseded worker.
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     authority_generation: str | None = None
+    # A worker-scoped focus handoff has been accepted by the tracker
+    # mutation path. The handoff remains visible until its durable comment,
+    # completion marker, and Open transition have all been reconciled; this
+    # prevents state refresh from retiring the worker in the middle of that
+    # protocol.
+    handoff_generation: str | None = None
+    handoff_focus_name: str | None = None
+    handoff_pending: bool = False
+    handoff_status_open: bool = False
+    handoff_finalized: bool = False
+    handoff_requested_focus: str | None = None
     # Set when operator submission or another accepted lifecycle transition
     # withdraws this dispatch while it is still starting or running.  The
     # worker-exit path uses this tombstone to quarantine the run instead of

@@ -334,6 +334,18 @@ _DUPLICATE_PREFLIGHT_MATCHES_RE = re.compile(
 _DUPLICATE_PREFLIGHT_HANDOFF_RE = re.compile(
     r"(?i)^focus handoff:\s*duplicate_detector\s*$"
 )
+# A focus handoff is a structured, worker-authored protocol record.  Keep the
+# parser deliberately narrow: arbitrary prose containing "Focus handoff:"
+# must not be allowed to backfill a completion marker, especially when it was
+# written by a human or an untrusted tracker integration.
+_FOCUS_HANDOFF_HEADER_RE = re.compile(
+    r"^\s*focus handoff:\s*([a-z][a-z0-9_-]{0,63})\s*$",
+    re.IGNORECASE,
+)
+_FOCUS_HANDOFF_NEXT_FOCUS_RE = re.compile(
+    r"^\s*recommended next focus:\s*([a-z][a-z0-9_-]{0,63})\s*$",
+    re.IGNORECASE,
+)
 _DUPLICATE_CORPUS_MAX_TASKS = 100
 _DUPLICATE_CORPUS_MAX_BYTES = 96 * 1024
 _DUPLICATE_CORPUS_MAX_DIAGNOSTIC_IDS = 32
@@ -26557,6 +26569,57 @@ class Orchestrator:
         self._last_epic_proposal_metrics = metrics
         return processed
 
+    def _backfill_focus_handoff_markers(self, candidates: list[Issue]) -> None:
+        """Recover trusted pre-marker handoffs before selecting a focus.
+
+        Older workers could persist their Oompah-authored handoff comment and
+        lose the subsequent label write (including across a service restart).
+        Backfill only bounded, structured Oompah comments; human text can
+        never suppress a focus or create a routing label.
+        """
+        limit = getattr(self.config, "dispatch_scan_limit", 64)
+        if limit <= 0:
+            limit = len(candidates)
+        for issue in candidates[:limit]:
+            if not issue.identifier:
+                continue
+            try:
+                tracker = self._tracker_for_issue(issue)
+                comments = tracker.fetch_comments(issue.identifier)
+                handoffs = self._trusted_focus_handoff_comments(comments)
+                if not handoffs:
+                    continue
+                labels = {
+                    str(label).strip().casefold()
+                    for label in (issue.labels or [])
+                }
+                changed = False
+                for focus, next_focus in handoffs[-1:]:
+                    completion_label = f"focus-complete:{focus}"
+                    if completion_label.casefold() not in labels:
+                        tracker.add_label(issue.identifier, completion_label)
+                        issue.labels = list(issue.labels or []) + [completion_label]
+                        labels.add(completion_label.casefold())
+                        changed = True
+                    if next_focus:
+                        requested_label = f"needs:{next_focus}"
+                        if requested_label.casefold() not in labels:
+                            tracker.add_label(issue.identifier, requested_label)
+                            issue.labels = list(issue.labels or []) + [requested_label]
+                            labels.add(requested_label.casefold())
+                            changed = True
+                if changed:
+                    logger.info(
+                        "Backfilled focus handoff marker(s) for %s",
+                        issue.identifier,
+                    )
+            except Exception as exc:  # noqa: BLE001 - selection remains fail-closed
+                logger.debug(
+                    "Could not backfill focus handoff markers for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+
     def _select_dispatchable(self, candidates: list[Issue]) -> list[Issue]:
         """Sort candidates and filter via _should_dispatch.
 
@@ -26571,6 +26634,7 @@ class Orchestrator:
         dispatch.
         """
         sorted_candidates = self._sort_for_dispatch(candidates)
+        self._backfill_focus_handoff_markers(sorted_candidates)
         sorted_issues = [
             issue
             for issue in sorted_candidates
@@ -28944,6 +29008,173 @@ class Orchestrator:
         focus_names[issue_id] = focus
         return count
 
+    @staticmethod
+    def _trusted_focus_handoff_comment(
+        comment: Any,
+        expected_focus: str | None = None,
+    ) -> tuple[str, str | None] | None:
+        """Parse one trusted structured focus handoff comment.
+
+        Tracker adapters normally return an explicit ``author`` field.  A
+        missing field is accepted only for legacy in-memory snapshots created
+        before comment authorship was exposed; an explicit non-Oompah author
+        always fails closed.  The optional second result is the exact
+        ``Recommended next focus`` line when present.
+        """
+        if not isinstance(comment, dict):
+            return None
+        if "user" in comment:
+            raw_user = comment.get("user")
+            if isinstance(raw_user, dict):
+                raw_author = raw_user.get("login") or raw_user.get("username")
+            else:
+                raw_author = raw_user
+            from oompah.label_auth import get_bot_login
+
+            if str(raw_author or "").strip().casefold() != get_bot_login().strip().casefold():
+                return None
+        if "author" in comment:
+            author = str(comment.get("author") or "").strip().casefold()
+            if author != "oompah":
+                return None
+        text = str(comment.get("text") or "").replace("\r\n", "\n").replace("\r", "\n")
+        lines = text.splitlines()
+        if not lines:
+            return None
+        header = _FOCUS_HANDOFF_HEADER_RE.fullmatch(lines[0])
+        if header is None:
+            return None
+        focus = header.group(1).strip().casefold()
+        if expected_focus and focus != str(expected_focus).strip().casefold():
+            return None
+        next_focus = None
+        for line in lines[1:]:
+            next_match = _FOCUS_HANDOFF_NEXT_FOCUS_RE.fullmatch(line)
+            if next_match:
+                next_focus = next_match.group(1).strip().casefold()
+                break
+        return focus, next_focus
+
+    @classmethod
+    def _trusted_focus_handoff_comments(
+        cls,
+        comments: Iterable[Any],
+        expected_focus: str | None = None,
+    ) -> list[tuple[str, str | None]]:
+        """Return bounded, trusted handoff records from tracker comments."""
+        # A task's comment history is untrusted input and can grow without
+        # bound.  The newest records are sufficient for recovery of a recent
+        # handoff and keep reconciliation work bounded.
+        recent = list(comments)[-100:]
+        return [
+            parsed
+            for comment in recent
+            if (parsed := cls._trusted_focus_handoff_comment(comment, expected_focus))
+            is not None
+        ]
+
+    def _observe_task_handoff_mutation(
+        self,
+        *,
+        identifier: str,
+        action: str,
+        message: str | None = None,
+        label: str | None = None,
+        status: str | None = None,
+        tracker: Any = None,
+    ) -> bool:
+        """Record a worker handoff generation at the mutation boundary.
+
+        Worker comments, labels, and status writes can arrive through either
+        the scoped HTTP endpoint or the in-process ACP catalog.  This method is
+        intentionally synchronous so both paths share the same authority
+        fence.  The first trusted structured comment starts a generation and
+        backfills the completion label idempotently; later successor/status
+        mutations only advance that generation.  Reconciliation then owns the
+        single retirement and dispatch transition.
+        """
+        identifier = str(identifier or "").strip()
+        if not identifier:
+            return False
+        entry = None
+        for _issue_id, candidate in self._running_items_snapshot():
+            if str(getattr(candidate, "identifier", "") or "").strip() == identifier:
+                entry = candidate
+                break
+            candidate_issue = getattr(candidate, "issue", None)
+            if str(getattr(candidate_issue, "identifier", "") or "").strip() == identifier:
+                entry = candidate
+                break
+        if entry is None or getattr(entry, "is_auditor", False):
+            return False
+
+        focus = str(getattr(entry, "focus_name", "") or "").strip().casefold()
+        if not focus:
+            return False
+        parsed = None
+        if action == "comment":
+            parsed = self._trusted_focus_handoff_comment(
+                {"author": "oompah", "text": message or ""},
+                focus,
+            )
+            if parsed is None:
+                return False
+            if not getattr(entry, "handoff_pending", False):
+                entry.handoff_generation = uuid.uuid4().hex
+                entry.handoff_focus_name = focus
+                entry.handoff_pending = True
+            if parsed[1]:
+                entry.handoff_requested_focus = parsed[1]
+            # The comment and completion marker are one accepted worker
+            # mutation from the orchestrator's point of view.  Label stores
+            # are idempotent, so retrying after a timeout is safe.
+            completion_label = f"focus-complete:{focus}"
+            if tracker is not None:
+                current_issue = getattr(entry, "issue", None)
+                labels = {
+                    str(item).strip().casefold()
+                    for item in (getattr(current_issue, "labels", None) or [])
+                }
+                if completion_label.casefold() not in labels:
+                    try:
+                        tracker.add_label(identifier, completion_label)
+                    except Exception as exc:  # noqa: BLE001 - recovery retries it
+                        logger.warning(
+                            "Could not persist focus handoff marker for %s: %s",
+                            identifier,
+                            exc,
+                        )
+                    else:
+                        if current_issue is not None:
+                            current_issue.labels = list(
+                                getattr(current_issue, "labels", None) or []
+                            ) + [completion_label]
+            return True
+
+        if not getattr(entry, "handoff_pending", False):
+            return False
+        if action == "add-label":
+            normalized = str(label or "").strip().casefold()
+            completion_label = f"focus-complete:{focus}"
+            if normalized == completion_label.casefold():
+                return True
+            if normalized.startswith("needs:"):
+                requested = normalized[len("needs:"):].strip()
+                if requested:
+                    entry.handoff_requested_focus = requested
+                return True
+        elif action == "set-status" and _state_key(status) == "open":
+            entry.handoff_status_open = True
+            try:
+                self.request_refresh()
+            except Exception:  # noqa: BLE001 - refresh is a wake hint
+                logger.debug(
+                    "Could not wake dispatch for accepted focus handoff",
+                    exc_info=True,
+                )
+            return True
+        return False
+
     def _handoff_completed_focus(
         self,
         entry: RunningEntry,
@@ -28958,6 +29189,8 @@ class Orchestrator:
         next focus explicitly. Terminal tasks intentionally receive no
         handoff.
         """
+        if getattr(entry, "handoff_finalized", False):
+            return True
         if current is None or _is_terminal_state(
             current.state, self.config.tracker_terminal_states
         ):
@@ -28968,13 +29201,12 @@ class Orchestrator:
             labels = {label.lower() for label in (current.labels or [])}
             completed_label = f"focus-complete:{entry.focus_name.lower()}"
             requested_focus = any(label.startswith("needs:") for label in labels)
-            handoff_heading = f"focus handoff: {entry.focus_name.lower()}"
             comments = tracker.fetch_comments(entry.identifier)
-            has_handoff = any(
-                handoff_heading in str(comment.get("text", "")).lower()
-                for comment in comments
-                if isinstance(comment, dict)
+            trusted_handoffs = self._trusted_focus_handoff_comments(
+                comments,
+                entry.focus_name,
             )
+            has_handoff = bool(trusted_handoffs)
             # The comment is the durable handoff evidence. Agents sometimes
             # successfully post it but fail before issuing the follow-up
             # add-label command; treating the label as a prerequisite turns a
@@ -28987,6 +29219,15 @@ class Orchestrator:
                 tracker.add_label(entry.identifier, completed_label)
                 current.labels = list(current.labels or []) + [completed_label]
                 labels.add(completed_label)
+            if trusted_handoffs:
+                requested_from_comment = trusted_handoffs[-1][1]
+                if requested_from_comment and not requested_focus:
+                    requested_focus = True
+                    requested_label = f"needs:{requested_from_comment}"
+                    if requested_label.casefold() not in labels:
+                        tracker.add_label(entry.identifier, requested_label)
+                        current.labels = list(current.labels or []) + [requested_label]
+                        labels.add(requested_label.casefold())
             if not has_handoff:
                 # Do not let an empty label discard the outgoing focus's
                 # findings. Remove it and dispatch the same focus again so it
@@ -29024,6 +29265,25 @@ class Orchestrator:
             return False
 
         current.state = OPEN
+        entry.handoff_finalized = True
+        entry.handoff_pending = False
+        entry.handoff_status_open = True
+        # A handoff supersedes a pending implementation retry.  The caller
+        # owns retirement of the old worker, so do not schedule a second
+        # termination from this idempotent authority transition.
+        # Minimal unit-test orchestrators may not construct the runtime retry
+        # authority lock; production instances always do. Preserve those
+        # lightweight call sites while keeping cancellation on the real
+        # authority boundary.
+        if getattr(self, "_retry_authority_lock", None) is not None:
+            self._cancel_retry_for_issue(
+                issue_id=entry.issue.id if entry.issue else None,
+                identifier=entry.identifier,
+                project_id=project_id,
+                reason="focus handoff accepted",
+                notify=False,
+                schedule_termination=False,
+            )
         self._clear_reopen_count(entry.identifier)
         self.state.stall_counts.pop(entry.identifier, None)
         self._post_comment(
@@ -29038,6 +29298,10 @@ class Orchestrator:
             entry.focus_name,
             entry.identifier,
         )
+        try:
+            self.request_refresh()
+        except Exception:  # noqa: BLE001 - worker-exit wake is best effort
+            logger.debug("Could not wake dispatch after focus handoff", exc_info=True)
         return True
 
     def _is_first_dispatch(
@@ -29053,7 +29317,10 @@ class Orchestrator:
 
     def _has_explicit_handoff_label(self, issue: Issue) -> bool:
         """Return True if the issue carries a needs:* label (explicit user routing)."""
-        return any(label.startswith("needs:") for label in (issue.labels or []))
+        return any(
+            str(label).strip().casefold().startswith("needs:")
+            for label in (issue.labels or [])
+        )
 
     def _is_safety_critical_issue(self, issue: Issue) -> bool:
         """Return True if this issue requires safety-critical handling that must
@@ -36866,6 +37133,47 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             elif state_norm == "in_progress":
                 # Still in progress — update issue snapshot
                 self.state.running[issue_id].issue = issue
+            elif state_norm == "open" and running_entry:
+                # A worker handoff deliberately makes Open visible before the
+                # provider exits. Reconcile the durable comment/marker first;
+                # otherwise the generic state-revert branch retires the worker
+                # and schedules the same focus again before _on_worker_exit can
+                # persist focus completion.
+                if self._handoff_completed_focus(
+                    running_entry,
+                    issue,
+                    issue.project_id
+                    or (
+                        running_entry.issue.project_id
+                        if running_entry.issue
+                        else None
+                    ),
+                ):
+                    terminated = await self._terminate_running(
+                        issue_id,
+                        cleanup_workspace=False,
+                    )
+                    if not terminated:
+                        logger.warning(
+                            "Focus handoff retirement still has live processes "
+                            "issue_id=%s identifier=%s",
+                            issue_id,
+                            running_entry.identifier,
+                        )
+                    # Whether cleanup finished or remains pending, do not
+                    # enter the ordinary state-revert retry path. The
+                    # accepted handoff generation owns this task.
+                    continue
+                if getattr(running_entry, "handoff_pending", False):
+                    # The comment is durable but a marker/route write may
+                    # have transiently failed. Keep the worker claim alive so
+                    # the next refresh can retry persistence; never convert
+                    # an accepted handoff into an implementation retry.
+                    running_entry.issue = issue
+                    continue
+                # No trusted handoff evidence: retain the existing recovery
+                # behavior below and retry the worker after a normal Open
+                # state revert.
             elif state_norm in terminal_norms:
                 logger.info(
                     "Reconcile: terminal state issue_id=%s state=%s",
@@ -37168,6 +37476,36 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         self._terminating_worker_ids.add(issue_id)
         try:
+            # A forced/late retirement can race the worker's final callback.
+            # If the scoped handoff mutation was already accepted, finish its
+            # durable tracker transition before removing the runtime entry so
+            # termination cannot turn a valid handoff into an implementation
+            # retry.
+            if (
+                getattr(entry, "handoff_pending", False)
+                and not getattr(entry, "handoff_finalized", False)
+            ):
+                try:
+                    project_id = entry.issue.project_id if entry.issue else None
+                    tracker = (
+                        self._tracker_for_project(project_id)
+                        if project_id
+                        else self.tracker
+                    )
+                    current = tracker.fetch_issue_detail(entry.identifier)
+                    if current is not None:
+                        self._handoff_completed_focus(
+                            entry,
+                            current,
+                            project_id,
+                        )
+                except Exception as exc:  # noqa: BLE001 - retirement continues
+                    logger.warning(
+                        "Could not finalize accepted focus handoff during "
+                        "retirement issue_id=%s error=%s",
+                        issue_id,
+                        exc,
+                    )
             timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
             captured_processes = self._managed_processes(entry)
             waitables: set[asyncio.Future] = set()
