@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-749
 type: bug
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Bound historical audit replay so Ready integration claims cannot starve
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:21:05.065492Z'
+updated_at: '2026-08-04T03:21:38.796424Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -254,5 +255,10 @@ author: oompah
 created: 2026-08-04 03:07
 ---
 Branch quality gate passed for `713f7908041162620b6a2c587d2aac1c14bc3104` using `make test` in 430.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 03:21
+---
+YOLO: Merge conflict detected on MR #703. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
