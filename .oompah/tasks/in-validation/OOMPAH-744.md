@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:29:06.771550Z'
+updated_at: '2026-08-04T15:29:30.857654Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -127,6 +127,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-744
     source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
     completed_at: '2026-08-03T23:06:20.621019+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-780da94d36c5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-744
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 50ed42fd2b392ecf55ebc34d86726347a8c06023ac4bc92d4f6269a5455524a0
+    attempts:
+    - version: 1
+      attempt_id: attempt-094ec4b93abc
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 50ed42fd2b392ecf55ebc34d86726347a8c06023ac4bc92d4f6269a5455524a0
+      created_at: '2026-08-04T15:29:21.625362+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T15:29:21.625362+00:00'
+      branch_key: epic-OOMPAH-740--task-OOMPAH-744
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T15:29:13.572788+00:00'
+    updated_at: '2026-08-04T15:29:21.625362+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-094ec4b93abc
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 50ed42fd2b392ecf55ebc34d86726347a8c06023ac4bc92d4f6269a5455524a0
+    created_at: '2026-08-04T15:29:21.625362+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T15:29:21.625362+00:00'
+    branch_key: epic-OOMPAH-740--task-OOMPAH-744
 ---
 ## Summary
 
@@ -411,5 +460,20 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 55s
 - Log: OOMPAH-744__20260804T150227Z.jsonl
+---
+author: oompah
+created: 2026-08-04 15:29
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 15:29
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 15:29
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
