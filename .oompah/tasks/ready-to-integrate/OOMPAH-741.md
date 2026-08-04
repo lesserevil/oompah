@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:30:47.675091Z'
+updated_at: '2026-08-04T13:31:04.651913Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 826537be-5433-476d-a897-74bcc075f8a1
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
   base_sha: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
-  updated_at: '2026-08-04T13:21:09.779144+00:00'
+  head_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
+  submitted_at: '2026-08-04T13:30:54.286435+00:00'
+  updated_at: '2026-08-04T13:30:54.286435+00:00'
 oompah.task_costs:
   total_input_tokens: 46421
   total_output_tokens: 21147
@@ -475,5 +477,10 @@ author: oompah
 created: 2026-08-04 13:30
 ---
 Completion: Delivered the structured, redacted dashboard fact contract across generic orchestrator alerts, terminal-audit health, branch quality gates, auth health, repository hygiene, snapshot REST/WebSocket enrichment, and dashboard actionability filtering. Stable-identity deduplication prefers the highest severity; recovery downgrades actionability while retaining diagnostics; OOMPAH-735 remains the integration retry classifier. Exact head d3cc87e7f is based on current epic 32d881aa2, fully tested, pushed, clean, and up to date.
+---
+author: oompah
+created: 2026-08-04 13:31
+---
+Structured dashboard fact contract delivered and verified on exact rebased head d3cc87e7f. Full make test passes: 15,381 passed, 7 skipped, 1 xfailed; focused alert/health/state/WebSocket/recovery suites pass: 344 passed, 1 xfailed.
 ---
 <!-- COMMENTS:END -->
