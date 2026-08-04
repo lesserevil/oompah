@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-747
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Reuse trusted patch-equivalence evidence during epic auto-close
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T01:45:04.972756Z'
+updated_at: '2026-08-04T02:00:45.531530Z'
 work_branch: OOMPAH-747
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/697
@@ -107,6 +107,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-83223ba19bd7: '2026-08-04T01:36:09.804907+00:00'
+    attempt-e4a37a126bae: '2026-08-04T02:00:38.982684+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-747
@@ -117,6 +118,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T01:36:09.804917+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    target_state: Merged
+    evidence_fingerprint: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    audit_ids:
+    - audit-d960e1cbd976
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T02:00:38.982702+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-747
@@ -130,6 +140,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T01:36:09.804928+00:00'
     applied_at: '2026-08-04T01:36:14.879740+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-747
+    audit_id: audit-d960e1cbd976
+    attempt_id: attempt-e4a37a126bae
+    target_state: Merged
+    evidence_fingerprint: 6a3ce33c5f518abe994746e794f18baa65c9fdea45bfd1d9547187421ba5181b
+    status: Merged
+    audit_ids:
+    - audit-d960e1cbd976
+    applied: false
+    created_at: '2026-08-04T02:00:38.982721+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -171,7 +192,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-747
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,7 +240,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e4a37a126bae
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -230,13 +251,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T01:44:55.190871+00:00'
       branch_key: OOMPAH-747
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-04T02:00:38.982510+00:00'
+      ended_at: '2026-08-04T02:00:38.982510+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:25:39.651146+00:00'
-    updated_at: '2026-08-04T01:44:55.190871+00:00'
+    updated_at: '2026-08-04T02:00:38.982510+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83223ba19bd7
@@ -494,5 +518,22 @@ author: oompah
 created: 2026-08-04 01:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 02:00
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: c54a60a63a1742fa0dfa4ad2a68f46cc61d87fdf
+- implementation_commit: a8a9e2b2f51a581f9066736a9408f21adacffed5
+- pr: #697
+- changed_files: oompah/orchestrator.py (+255/-80), tests/test_epic_auto_close.py (+172)
+- focused_tests: test_epic_auto_close.py=27 pass; test_epic_strategy.py=233 pass
+- branch_gate: make test 411.9s green (per prior gate comment)
+- regression_tests: test_rebased_multi_commit_integration_evidence_unblocks_auto_close PASS; test_rebased_multi_commit_missing_patch_blocks_auto_close PASS
+- acceptance_criteria: canonical proof reused (auto-close + rollup + durable); range-complete equivalence prevents tip-only false positives; stuck-epic alert now includes precise child evidence reason
 ---
 <!-- COMMENTS:END -->
