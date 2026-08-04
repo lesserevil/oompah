@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T00:50:21.000268Z'
+updated_at: '2026-08-04T01:01:03.199161Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-04 00:50
 ---
 Discovery: The current classifier gives any recent question or handoff wording immediate human_blocked precedence, and run_watchdog_audit supplies only status plus comments. This explains the live false negatives; I am mapping existing Issue/tracker/audit/provider APIs before changing the evidence contract.
+---
+author: oompah
+created: 2026-08-04 01:01
+---
+Implementation: Added WatchdogEvidence normalization and precedence-aware classification. Current merged review/audit pass/target-head evidence reopens safely; provider failures, missing audit branches with resolvable canonical refs, and ambiguous SCM state become technical insufficient_evidence; only the newest explicit product/authority question remains human_blocked. Orchestrator now collects tracker metadata, reviews/merged branches, branch heads, CI, and provider health.
 ---
 <!-- COMMENTS:END -->

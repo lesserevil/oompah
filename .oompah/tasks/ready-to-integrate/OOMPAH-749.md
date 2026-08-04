@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-749
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bound historical audit replay so Ready integration claims cannot starve
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T01:00:49.026751Z'
+updated_at: '2026-08-04T01:01:00.620662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,6 +145,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-749
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:43:58.458602+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-749
+  head_sha: 713f7908041162620b6a2c587d2aac1c14bc3104
+  submitted_at: '2026-08-04T01:00:46.555314+00:00'
+  updated_at: '2026-08-04T01:00:46.555314+00:00'
 ---
 ## Summary
 
@@ -217,5 +225,10 @@ author: oompah
 created: 2026-08-04 01:00
 ---
 Completion: delivered and pushed commit 713f79080. Historical integrated-audit recovery is now cursor-based and batch-bounded, live Ready claims run first with dependency/lease behavior preserved, and integration queue progress exposes cursor/batch/Ready-age metrics plus a degraded alert for overdue eligible rows. Focused verification passed (171 affected tests plus the 200-history regression); branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-04 01:01
+---
+Bound historical integrated-audit replay with durable cursor and batch budget; prioritize live Ready claims and expose stalled progress.
 ---
 <!-- COMMENTS:END -->
