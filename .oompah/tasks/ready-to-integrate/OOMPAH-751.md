@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:32:08.203571Z'
+updated_at: '2026-08-04T02:32:30.430303Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,13 +73,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: f7d639e0-380b-4df2-982d-85cb546e5197
 oompah.task_costs:
-  total_input_tokens: 2536248
-  total_output_tokens: 12916
+  total_input_tokens: 2536330
+  total_output_tokens: 39091
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 2536248
       output_tokens: 12916
+      cost_usd: 0.0
+    opus:
+      input_tokens: 82
+      output_tokens: 26175
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +98,12 @@ oompah.task_costs:
     output_tokens: 10806
     cost_usd: 0.0
     recorded_at: '2026-08-04T01:57:37.174297+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 82
+    output_tokens: 26175
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T02:32:21.797004+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-751__20260804T014835Z
@@ -112,14 +122,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-751
     source_sha: b3e9fc225f169222978c366fffae5d86a6314c58
     completed_at: '2026-08-04T01:57:37.215525+00:00'
+  - run_id: OOMPAH-751__20260804T020719Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: security
+    source_branch: OOMPAH-751
+    source_sha: 38bb88c85d869a232a90974a07bacb5d20cd37d6
+    completed_at: '2026-08-04T02:32:21.801317+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-751
+  base_branch: main
+  base_sha: 9b3197a1156b117b35398c61a74fcc6b677c0f6b
   head_sha: 38bb88c85d869a232a90974a07bacb5d20cd37d6
   submitted_at: '2026-08-04T02:32:03.831369+00:00'
-  updated_at: '2026-08-04T02:32:03.831369+00:00'
+  updated_at: '2026-08-04T02:32:28.772049+00:00'
 ---
 ## Summary
 
@@ -287,5 +307,20 @@ author: oompah
 created: 2026-08-04 02:32
 ---
 Fix advisory coordination-send race: PermissionError from Orchestrator.coordination_send when a suggested peer is removed between discovery and send is now a structured 403 coordination_forbidden from api_task_handoff, not a 500. No task-handoff failure is recorded, worker-exit reconciliation preserves successful own-task completion, and auth-health treats it as an informational policy denial. Scope enforcement is unchanged: expired/wrong-scope tokens still 401 at authentication, and the denial is non-disclosing (stale, arbitrary, cross-project, and never-authorized recipients are indistinguishable). Regression tests in tests/test_task_handoff.py::TestCoordinationSendRaces cover the full docs matrix.
+---
+author: oompah
+created: 2026-08-04 02:32
+---
+Agent completed successfully in 1511s (26257 tokens)
+---
+author: oompah
+created: 2026-08-04 02:32
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 109, Tool calls: 76
+- Tokens: 82 in / 26.2K out [26.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 11s
+- Log: OOMPAH-751__20260804T020719Z.jsonl
 ---
 <!-- COMMENTS:END -->
