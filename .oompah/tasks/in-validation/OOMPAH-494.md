@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-494
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Consolidate Granian subprocess tests into complete scenarios
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:29.472352Z'
-updated_at: '2026-07-28T17:07:06.008353Z'
+updated_at: '2026-08-04T17:26:19.747805Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 14036
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:42:24.437692+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-83dd4686cc21
+    project_id: proj-14849f1b
+    task_id: OOMPAH-494
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a8906a5bf81696794eaa747a05560beafe444d92072d41204b307dbeffe2c2d8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:26:13.493645+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -169,5 +191,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 56s
 - Log: OOMPAH-494__20260728T153231Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:26
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
