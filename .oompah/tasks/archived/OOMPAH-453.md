@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:51.844079Z'
-updated_at: '2026-08-04T15:48:39.930690Z'
+updated_at: '2026-08-04T15:48:45.610860Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -59,8 +59,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-82794ee40c82
-    applied: false
+    applied: true
     created_at: '2026-08-04T15:48:36.577069+00:00'
+    applied_at: '2026-08-04T15:48:44.347553+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -266,5 +267,19 @@ author: oompah
 created: 2026-08-04 15:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 15:48
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- commit_on_origin_main: cf1f6e6ed is ancestor of origin/main
+- changed_files: oompah/server.py, oompah/webhooks.py, tests/test_webhooks.py (192 insertions / 2 deletions)
+- focused_tests: pytest tests/test_webhooks.py -q => 206 passed, 1 warning
+- regression_tests_added: test_mixed_forges_only_launch_github_forwarder, test_project_moved_to_gitlab_is_removed_from_forwarder, test_missing_project_credentials_degrades_without_api_retry, test_project_configuration_recovers_and_secrets_are_redacted, test_remove_without_access_token_skips_gitlab_api
+- acceptance_criteria_coverage: GitLab projects excluded from gh forwarder subprocess/gh-api lifecycle; GitHub forwarding intact; configured GitLab hooks reconcile only with token+secret+HTTPS URL; missing credentials produce one actionable health state without retry churn
 ---
 <!-- COMMENTS:END -->
