@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Open
+status: In Review
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:44:34.345907Z'
+updated_at: '2026-08-04T16:58:23.024933Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -292,5 +292,10 @@ Integration could not verify `epic-OOMPAH-765`: could not recover integration wo
 fatal: 'epic-OOMPAH-765' is already used by worktree at '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-765'
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 16:58
+---
+Branch quality gate passed for `c7bfbcc3b638b3ea28d241852af6345164ba86f6` using `make test` in 428.7s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
