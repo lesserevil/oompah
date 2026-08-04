@@ -17,7 +17,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:12:24.601166Z'
+updated_at: '2026-08-04T23:18:33.279817Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -29,6 +29,31 @@ oompah.work_branch: epic-OOMPAH-528
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a705eeb8efb0: '2026-08-04T23:18:23.346935+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-528
+    target_state: Archived
+    evidence_fingerprint: 76133fc83b06b40ae63cc8cc81948a6b5e3c3df59f90b3383af8ccd8ed516c55
+    audit_ids:
+    - audit-43da28b812da
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:18:23.346947+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-528
+    audit_id: audit-43da28b812da
+    attempt_id: attempt-a705eeb8efb0
+    target_state: Archived
+    evidence_fingerprint: 76133fc83b06b40ae63cc8cc81948a6b5e3c3df59f90b3383af8ccd8ed516c55
+    status: In Validation
+    audit_ids:
+    - audit-43da28b812da
+    applied: true
+    created_at: '2026-08-04T23:18:23.346964+00:00'
+    applied_at: '2026-08-04T23:18:30.761094+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -36,7 +61,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-528
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -45,7 +70,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a705eeb8efb0
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -55,13 +80,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T23:12:12.003450+00:00'
       branch_key: epic-OOMPAH-528
+      verdict: pass
+      completed_at: '2026-08-04T23:18:23.346770+00:00'
+      ended_at: '2026-08-04T23:18:23.346770+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T22:36:13.665152+00:00'
-    updated_at: '2026-08-04T23:12:12.003450+00:00'
+    updated_at: '2026-08-04T23:18:23.346770+00:00'
   - version: 1
     audit_id: audit-dde088fa5610
     project_id: proj-14849f1b
@@ -185,5 +213,22 @@ author: oompah
 created: 2026-08-04 23:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:18
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 70771b4e9f27cf454bd628c71d2ef957585fe033
+- merge_date: 2026-07-28 17:02:45 -0500
+- pr_number: #568
+- main_head: e1b0f4846054bacac48e667295e2c00733d86d8c
+- merge_ancestor_of_main: true
+- core_files_present_on_main: oompah/duplicate_screening.py, docs/duplicate-screening.md, tests/test_duplicate_screening.py, tests/test_duplicate_preflight.py, tests/test_dashboard_duplicate_screening.py
+- later_maintenance_commits: OOMPAH-706 (0b78028a6), OOMPAH-682 (71f87859f, d11354931)
+- days_since_merge: 7
 ---
 <!-- COMMENTS:END -->
