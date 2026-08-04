@@ -11,13 +11,15 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T22:51:55.935200Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T22:52:24.878814Z'
+work_branch: epic-OOMPAH-768--task-OOMPAH-812
+target_branch: epic-OOMPAH-768
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.target_branch: epic-OOMPAH-768
+oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-812
 ---
 ## Summary
 
