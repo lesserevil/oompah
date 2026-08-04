@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-755
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-04T11:04:47.253891Z'
-updated_at: '2026-08-04T11:05:24.568268Z'
+updated_at: '2026-08-04T11:05:37.554505Z'
 work_branch: null
 target_branch: main
 review_url: null
@@ -20,6 +20,7 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.target_branch: main
+oompah.agent_run_id: a42183e9-a872-493f-9ffe-efd11dd66915
 ---
 ## Summary
 

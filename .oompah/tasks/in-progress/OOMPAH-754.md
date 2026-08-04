@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:05:07.187778Z'
+updated_at: '2026-08-04T11:05:40.423477Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-08-04 11:05
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-04 11:05
+---
+UNDERSTANDING: The bug is that _detect_and_repair_integration_queue_staleness_block only inspects ready_items[0], missing repairable heads when an earlier queue item is blocked. Fix: scan all Ready items whose nonterminal prerequisites do not precede them, detect terminal-but-unreachable cross-epic dependencies, schedule exactly one repair task, and ensure API/maintenance metrics are consistent. Plan: (1) locate the detector and dependency resolution code, (2) implement topological-aware scanning, (3) add tests for mixed queue scenarios, (4) verify no regressions.
 ---
 <!-- COMMENTS:END -->
