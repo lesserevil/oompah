@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T17:06:03.778649Z'
+updated_at: '2026-08-04T17:06:23.086184Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -137,18 +137,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-765
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-b0e5cbc58f63
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+      created_at: '2026-08-04T17:06:14.019859+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T17:06:14.019859+00:00'
+      branch_key: epic-OOMPAH-765
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T17:00:39.012622+00:00'
+    updated_at: '2026-08-04T17:06:14.019859+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ded794f8821
@@ -162,6 +176,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-04T17:01:34.065164+00:00'
+    branch_key: epic-OOMPAH-765
+  - version: 1
+    attempt_id: attempt-b0e5cbc58f63
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    created_at: '2026-08-04T17:06:14.019859+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T17:06:14.019859+00:00'
     branch_key: epic-OOMPAH-765
 ---
 ## Summary
@@ -455,5 +482,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 25s
 - Log: OOMPAH-765__20260804T170144Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:06
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 17:06
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
