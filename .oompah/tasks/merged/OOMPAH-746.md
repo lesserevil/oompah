@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T04:18:58.426093Z'
+updated_at: '2026-08-04T04:22:43.521858Z'
 work_branch: OOMPAH-746
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/705
@@ -154,6 +154,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-c695de0c9e64: '2026-08-04T04:17:51.395652+00:00'
+    attempt-394f20833ba9: '2026-08-04T04:22:40.237673+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-746
@@ -164,6 +165,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T04:17:51.395664+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-746
+    target_state: Merged
+    evidence_fingerprint: d12eada73a917b2b224cf105aec888859901ebad08dfb4d8cedaa0616342924a
+    audit_ids:
+    - audit-eda06f0e4e58
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T04:22:40.237690+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-746
@@ -177,6 +187,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T04:17:51.395680+00:00'
     applied_at: '2026-08-04T04:17:58.223198+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-746
+    audit_id: audit-eda06f0e4e58
+    attempt_id: attempt-394f20833ba9
+    target_state: Merged
+    evidence_fingerprint: d12eada73a917b2b224cf105aec888859901ebad08dfb4d8cedaa0616342924a
+    status: Merged
+    audit_ids:
+    - audit-eda06f0e4e58
+    applied: false
+    created_at: '2026-08-04T04:22:40.237711+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -238,7 +259,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-746
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -247,7 +268,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-394f20833ba9
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -257,13 +278,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T04:18:49.240947+00:00'
       branch_key: OOMPAH-746
+      verdict: pass
+      completed_at: '2026-08-04T04:22:40.237514+00:00'
+      ended_at: '2026-08-04T04:22:40.237514+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T04:02:49.497557+00:00'
-    updated_at: '2026-08-04T04:18:49.240947+00:00'
+    updated_at: '2026-08-04T04:22:40.237514+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bd939000a2c0
