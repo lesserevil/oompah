@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:15:02.704004Z'
+updated_at: '2026-08-04T11:15:25.074463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,53 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 3a5cf97524206a21bd89f17e45fdeef379b3dbd1ac80288a363273f3e8bf57a8
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T11:15:15.825355+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 6c2832ec-e2f3-4e7f-8bb1-fbba0fb4c400
-  claim_owner: bb82706b-fb95-42cd-a68d-43d670f815c6
-  claimed_at: '2026-08-04T11:14:42.384037+00:00'
-  claim_expires_at: '2026-08-04T11:44:42.384037+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed the supplied peer corpus. Closest tasks were\
+    \ OOMPAH-163, OOMPAH-165, and OOMPAH-168, but all are terminal and address different\
+    \ epic workflow issues. No active duplicate was confirmed.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence:\
+    \ Reviewed the supplied peer corpus. Closest tasks were OOMPAH-163, OOMPAH-165,\
+    \ and OOMPAH-168, but all are terminal and address different epic workflow issues.\
+    \ No active duplicate was confirmed."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 54420ec4-e738-4970-9a71-cce91a679e87
+oompah.task_costs:
+  total_input_tokens: 46601
+  total_output_tokens: 240
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46601
+      output_tokens: 240
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46601
+    output_tokens: 240
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:15:15.823679+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-758__20260804T111458Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-758
+    source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    completed_at: '2026-08-04T11:15:15.842179+00:00'
 ---
 ## Summary
 
@@ -65,5 +98,15 @@ author: oompah
 created: 2026-08-04 11:15
 ---
 Task-specific recovery evidence: after duplicate screening finished and no OOMPAH-755 worker remained, the authenticated project-owner Done override was retried five times against the independently verified 5368e236 helper head. Every attempt returned HTTP 409 'The task changed before the override was requested' even though implementation/branch evidence was unchanged; the blocked ordinary queue row/refresh path keeps invalidating the fingerprint. No override committed. The fix must cancel/fence the obsolete row and compute current override evidence under the same ownership lock so OOMPAH-755 can converge without direct database/task-file edits.
+---
+author: oompah
+created: 2026-08-04 11:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.6K in / 240 out [46.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24s
+- Log: OOMPAH-758__20260804T111458Z.jsonl
 ---
 <!-- COMMENTS:END -->

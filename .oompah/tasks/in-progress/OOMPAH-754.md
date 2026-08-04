@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:14:01.712685Z'
+updated_at: '2026-08-04T11:15:20.503912Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-04 11:14
 ---
 IMPLEMENTATION: Modified _detect_and_repair_integration_queue_staleness_block to scan all Ready items instead of only ready_items[0]. Key changes: (1) Build ready_task_ids set for topological filtering, (2) iterate all Ready items identifying those with unsatisfied deps, (3) skip items whose unsatisfied deps include nonterminal items in the queue, (4) find first eligible item with terminal-unreachable deps for repair. Added test test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible verifying detector correctly skips blocked items and repairs eligible downstream heads. All 34 tests in test_parallel_epic_children.py and 20 in test_integration_queue.py pass.
+---
+author: oompah
+created: 2026-08-04 11:15
+---
+VERIFICATION: All 54 relevant tests pass (34 test_parallel_epic_children.py + 20 test_integration_queue.py). Specifically: all 4 existing staleness detector tests pass, plus new regression test test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible verifies the fix. The implementation correctly: scans all Ready items instead of only the first, skips items whose nonterminal dependencies appear in the queue, finds the first eligible item with terminal-unreachable deps, and files exactly one repair task. Branch is up to date and ready for review.
 ---
 <!-- COMMENTS:END -->
