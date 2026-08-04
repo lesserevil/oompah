@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-456
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Make state-branch activation atomic and forge-aware for GitLab projects
 parent: OOMPAH-451
@@ -13,7 +13,7 @@ labels:
 - focus-complete:security
 assignee: null
 created_at: '2026-07-28T12:36:06.205487Z'
-updated_at: '2026-07-28T15:10:36.697739Z'
+updated_at: '2026-08-04T15:19:44.314149Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -49,6 +49,28 @@ oompah.task_costs:
     output_tokens: 39848
     cost_usd: 0.0
     recorded_at: '2026-07-28T14:55:24.149157+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c4498df72707
+    project_id: proj-14849f1b
+    task_id: OOMPAH-456
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3342e76f20318a850762a858bbfa62c41b78471a8fc2c3612f16027c8d6722e1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T15:19:37.441316+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -320,5 +342,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: normal, Duration: 21m 31s
 - Log: OOMPAH-456__20260728T143354Z.jsonl
+---
+author: oompah
+created: 2026-08-04 15:19
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
