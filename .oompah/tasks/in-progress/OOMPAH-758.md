@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:49:58.140431Z'
+updated_at: '2026-08-04T11:51:34.750257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,25 @@ These fixes ensure:
 - Idempotent reconciliation of already-published exact heads
 
 All existing tests pass: test_worker_submission.py (14), test_integration_queue.py (20), test_epic_strategy.py (234).
+---
+author: oompah
+created: 2026-08-04 11:51
+---
+VERIFICATION: All tests pass.
+
+Test results:
+- test_worker_submission.py: 14 passed
+- test_integration_queue.py: 20 passed
+- test_integration_record.py: 11 passed
+- test_submit_queue_concurrency.py: 61 passed
+- test_epic_strategy.py: 234 passed
+
+Total: 340+ tests passed
+
+The fix correctly implements atomic fencing of direct epic maintenance from ordinary integration queue:
+1. _sync_ready_integration_submissions() now skips direct epic tasks
+2. complete_direct_epic_maintenance_submission() cancels stale concurrent rows before terminal transition
+3. Ensures exactly one Done-only lifecycle with zero ordinary rows
+4. All existing functionality preserved
 ---
 <!-- COMMENTS:END -->
