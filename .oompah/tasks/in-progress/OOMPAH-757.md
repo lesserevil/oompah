@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:25:19.603848Z'
+updated_at: '2026-08-04T11:26:01.263049Z'
 work_branch: null
 target_branch: null
 review_url: null
