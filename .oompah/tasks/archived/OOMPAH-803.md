@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-803
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService
 parent: OOMPAH-769
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T22:09:20.776218Z'
+updated_at: '2026-08-04T22:10:01.400330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,6 +45,23 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T21:36:12.621212+00:00'
     applied_at: '2026-08-04T21:36:20.741272+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0a0a61ca7301
+    project_id: proj-14849f1b
+    task_id: OOMPAH-803
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-04T22:09:56.032005+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
