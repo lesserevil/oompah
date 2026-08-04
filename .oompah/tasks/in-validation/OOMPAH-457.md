@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-04T21:33:15.305276Z'
+updated_at: '2026-08-04T21:35:39.408149Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -50,6 +50,40 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:09.639801+00:00'
+  - version: 1
+    audit_id: audit-70ee8bf012fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Validation
+    created_at: '2026-08-04T21:35:36.253495+00:00'
+  - version: 1
+    audit_id: audit-04b103e6d430
+    project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: In Validation
+    created_at: '2026-08-04T21:35:36.253495+00:00'
   attempt_history: []
 ---
 ## Summary
