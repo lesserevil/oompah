@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-490
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:06:14.646607Z'
+updated_at: '2026-08-04T18:10:17.981959Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -34,6 +34,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-4235dd76a811: '2026-08-04T17:57:31.777583+00:00'
+    infrastructure-exhausted-audit-801f3111cfd3-3: '2026-08-04T18:10:08.301436+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-490
@@ -44,6 +45,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T17:57:31.777594+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-490
+    target_state: Done
+    evidence_fingerprint: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    audit_ids:
+    - audit-801f3111cfd3
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T18:10:08.301450+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-490
@@ -57,6 +67,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T17:57:31.777609+00:00'
     applied_at: '2026-08-04T17:57:38.710214+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-490
+    audit_id: audit-801f3111cfd3
+    attempt_id: infrastructure-exhausted-audit-801f3111cfd3-3
+    target_state: Done
+    evidence_fingerprint: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    status: Needs Human
+    audit_ids:
+    - audit-801f3111cfd3
+    applied: true
+    created_at: '2026-08-04T18:10:08.301469+00:00'
+    applied_at: '2026-08-04T18:10:15.747570+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -98,7 +120,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-490
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -160,13 +182,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-490 (tried: origin/epic-OOMPAH-490, origin/OOMPAH-490)'
       next_retry_at: '2026-08-04T18:06:44.356424+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-801f3111cfd3-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T18:10:08.301325+00:00'
+      completed_at: '2026-08-04T18:10:08.301325+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T17:27:37.627571+00:00'
-    updated_at: '2026-08-04T18:06:04.356454+00:00'
+    updated_at: '2026-08-04T18:10:08.301325+00:00'
   - version: 1
     audit_id: audit-8170b4cbabb1
     project_id: proj-14849f1b
@@ -403,5 +437,12 @@ author: oompah
 created: 2026-08-04 18:06
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-490 (tried: origin/epic-OOMPAH-490, origin/OOMPAH-490). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 18:10
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
