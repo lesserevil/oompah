@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:20:18.117772Z'
+updated_at: '2026-08-04T20:24:08.330362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,16 +23,13 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: OOMPAH-793
   base_branch: epic-OOMPAH-768
   head_sha: ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584
-  submitted_at: '2026-08-04T20:19:43.006624+00:00'
-  updated_at: '2026-08-04T20:20:11.211064+00:00'
-  last_error: task worktree head 08f6a8c5afdaf904daaaeb625446aaec7e961a3c differs
-    from the published task head ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584; refusing
-    to reset a preserved recovery snapshot
+  submitted_at: '2026-08-04T20:23:59.604453+00:00'
+  updated_at: '2026-08-04T20:23:59.604453+00:00'
 ---
 ## Summary
 
@@ -62,5 +59,10 @@ created: 2026-08-04 20:20
 Integration could not verify `OOMPAH-793`: task worktree head 08f6a8c5afdaf904daaaeb625446aaec7e961a3c differs from the published task head ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 20:24
+---
+Reconciled the preserved canonical task worktree to the exact pushed head ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584. Durable implementation workflow ownership, generation fencing, restart-safe dispositions, bounded atomic scheduling batches, and regression coverage are complete; resubmitting for integration.
 ---
 <!-- COMMENTS:END -->

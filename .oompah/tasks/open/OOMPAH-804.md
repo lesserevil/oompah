@@ -15,8 +15,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T20:23:33.044199Z'
-work_branch: null
+updated_at: '2026-08-04T20:24:03.131567Z'
+work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
 review_number: null
@@ -40,6 +40,15 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 6c4de31c-49a0-44f1-9e63-48b2f843eb31
+oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-804
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-768--task-OOMPAH-804
+  base_branch: epic-OOMPAH-768
+  base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
+  updated_at: '2026-08-04T20:23:56.568541+00:00'
 ---
 ## Summary
 
@@ -51,3 +60,16 @@ Implement the final production-runtime integration for OOMPAH-768 after the doma
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:23
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 20:24
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
