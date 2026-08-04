@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T13:31:35.673787Z'
+updated_at: '2026-08-04T13:31:42.546025Z'
 work_branch: OOMPAH-757
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/711
@@ -161,8 +161,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-67e14e57baf6
-    applied: false
+    applied: true
     created_at: '2026-08-04T13:31:32.363713+00:00'
+    applied_at: '2026-08-04T13:31:40.528893+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -812,5 +813,31 @@ author: oompah
 created: 2026-08-04 13:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 13:31
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Instructions:
+- File a follow-up task to wire the new _canonical_landing_evidence_block_reason validator into the live landing consumers (_reported_commit_landed_on_refs, _trusted_completion_evidence_landed, _child_has_durable_landing_evidence) so canonical evidence actually influences readiness.
+- File a follow-up task to add the authorized EXOCOMP-130 historical repair entry (base eaeeaf08, head 8400a54a -> new 61141cb8/9663f4b2, target epic-EXOCOMP-130) to _BOUNDED_HISTORICAL_REPAIR_EVIDENCE, plus the required regression test with those exact SHAs.
+- File a follow-up task to add the required EXOCOMP-148 conflict-resolved rebase test asserting the two-commit range maps to 61141cb8/9663f4b2 with differing patch IDs, plus the partial-mapping/stale-target/deleted-ref/restart-idempotency/forged-comment security cases named in the task description.
+
+Safe evidence:
+- branch_head: 0d92e522f6010a24da1b5d5de8a79fd9010157fa
+- merge_commit: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+- merge_pr: #711
+- merge_parents: 5841eb680 (main) + 0d92e522f (OOMPAH-757 head)
+- ancestor_of_origin_main: true (git merge-base --is-ancestor returned 0)
+- prior_audit_target_done: PASS at 2026-08-04 13:26
+- make_test_result: 15350 passed, 7 skipped, 1 xfailed in 416.63s (as recorded on quality gate)
+- shadowing_repair: static _canonical_landing_evidence_block_reason (orchestrator.py:17397) distinct from instance _child_landing_evidence_block_reason (orchestrator.py:15048)
+- files_added: oompah/integration.py (+291), oompah/orchestrator.py (+116), tests/test_canonical_landing_evidence.py (+733)
+- gap_evidence_consumption_still_present: _canonical_landing_evidence_block_reason has no callers in oompah/orchestrator.py; existing landing consumers unchanged at merge SHA
+- gap_historical_whitelist_still_empty: _BOUNDED_HISTORICAL_REPAIR_EVIDENCE dict is empty at merge SHA; no EXOCOMP-130 recovery entry
+- gap_no_exocomp_148_test: no EXOCOMP-148 specific test with SHAs 4e013110/8400a54a/61141cb8/9663f4b2 present in tests/test_canonical_landing_evidence.py
 ---
 <!-- COMMENTS:END -->
