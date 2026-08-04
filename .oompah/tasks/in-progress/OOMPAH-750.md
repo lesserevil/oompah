@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-750
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make stalled-task watchdog prefer current evidence over handoff wording
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T00:48:52.407942Z'
+updated_at: '2026-08-04T00:49:30.492773Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 484d8670-f993-4d87-8fe9-874896cd1f26
+oompah.agent_run_id: 3967ca50-839e-4383-bc09-c9789dd49d35
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1312
@@ -128,5 +128,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 6s
 - Log: OOMPAH-750__20260804T004746Z.jsonl
+---
+author: oompah
+created: 2026-08-04 00:49
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 00:49
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
