@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-758
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Atomically fence direct epic maintenance from ordinary integration enqueue
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:03:59.236058Z'
+updated_at: '2026-08-04T12:13:22.145794Z'
 work_branch: OOMPAH-758
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/709
@@ -87,6 +87,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/709
 oompah.review_number: '709'
 oompah.work_branch: OOMPAH-758
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7f4ebb3f9e27
+    project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-04T12:13:11.213280+00:00'
+  - version: 1
+    audit_id: audit-ea12b4d7896e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-04T12:13:11.213280+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -252,5 +291,15 @@ author: oompah
 created: 2026-08-04 12:03
 ---
 Branch quality gate passed for `940b471c0b7fcec020b7b1f126e498903f4328af` using `make test` in 449.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 12:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 12:13
+---
+YOLO: merged PR #709.
 ---
 <!-- COMMENTS:END -->
