@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:07:42.137389Z'
+updated_at: '2026-08-04T16:07:56.847001Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -72,12 +72,14 @@ oompah.agent_run_id: 47c85803-5064-41c7-807f-cf6c5044bf48
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
   base_branch: epic-OOMPAH-740
   base_sha: b51047023a5a9d5a36d119260222fb57168cbf41
-  updated_at: '2026-08-04T15:37:18.077348+00:00'
+  head_sha: 1a6af40bf7b796d8c9984b49884088880b895388
+  submitted_at: '2026-08-04T16:07:52.347672+00:00'
+  updated_at: '2026-08-04T16:07:52.347672+00:00'
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1156
@@ -337,5 +339,10 @@ Key API differences fixed in test_dashboard_alert_experience.py:
 6. quality-gate-health-detail uses textContent (not innerText) since it's inside a closed <details>
 
 Focused tests: 136 passed (test_dashboard_alert_experience + alert_center + credential_warning + vertical_scroll + alert_safety + alert_contract + full_sync_atomic + integration_recovery_filter + ws_lifecycle + ws_full_sync + ws_fault_injection).
+---
+author: oompah
+created: 2026-08-04 16:07
+---
+Rebased OOMPAH-745 onto epic-OOMPAH-740 at b51047023. Resolved rebase conflicts by taking the upstream's evolved API for dashboard.html and related test files, and updating test_dashboard_alert_experience.py to match the upstream API (aria-live on separate #alert-center-live element, 'Active alert details' aria-label, terminal-audit panel correctly hidden when actionable alert exists, auth health banner stays visible as status info in recovered state, removed alerts-banner reference, use textContent for elements inside closed details). Delivers: headless-Chrome alert density and recovery coverage plus operator-runbook documentation. 136 focused tests pass.
 ---
 <!-- COMMENTS:END -->
