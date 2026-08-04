@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-756
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reconcile already-landed nested epics from In Review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:09:43.882803Z'
+updated_at: '2026-08-04T11:10:21.585323Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 29f767ab-dd9e-407b-aa72-6231c26c409d
+oompah.agent_run_id: 03a9911e-996a-424a-9054-f597f3f07002
 oompah.task_costs:
   total_input_tokens: 47084
   total_output_tokens: 233
@@ -104,5 +104,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 45s
 - Log: OOMPAH-756__20260804T110911Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:10
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 11:10
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
