@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-747
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Reuse trusted patch-equivalence evidence during epic auto-close
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T01:16:48.642704Z'
+updated_at: '2026-08-04T01:17:01.712444Z'
 work_branch: null
 target_branch: null
 review_url: null
