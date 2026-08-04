@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:09:09.269864Z'
+updated_at: '2026-08-04T02:12:33.057901Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-04 02:09
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-04 02:12
+---
+UNDERSTANDING: This is a security issue about auditor request handling. The problem: terminal auditors requesting non-mutating validation commands (e.g., pytest with output truncation) outside the project's validation contract are being denied, and these denials consume the fatal policy budget, terminating the auditor prematurely. OOMPAH-736 requires that policy-contract mismatches NOT exhaust candidates, but they currently do. The fix must: (1) classify non-mutating requests outside the contract as RECOVERABLE (not fatal), (2) return structured alternatives from the project contract, (3) keep auditors alive to run approved commands, and (4) preserve fatal handling for actual mutations, credentials, path escapes, and state changes. Next: map how orchestrator handles denials and identify where budget tracking happens.
 ---
 <!-- COMMENTS:END -->

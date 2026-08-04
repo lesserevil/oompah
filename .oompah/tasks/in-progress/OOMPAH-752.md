@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:07:34.611308Z'
+updated_at: '2026-08-04T02:12:27.883413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-04 02:07
 ---
 Discovery/implementation: staged standalone candidates without authority claims, sorted by priority then submitted-at FIFO, and limited delivery ownership to the selected candidate. Invalid candidates fall through to the next ordered row; project capacity is checked once per sweep and selected capacity waits remain informational. Existing exact-head, review adoption, gate, reservation, and queue paths remain in place.
+---
+author: oompah
+created: 2026-08-04 02:12
+---
+Verification: focused standalone reconciliation plus review-capacity and integration-queue suites pass: 60 tests. Coverage now includes priority/FIFO selection, oldest-row fallback on invalid remote branches, dependency-blocked fallback, no claims for unselected rows, and informational capacity waits; existing restart, review adoption, exact-head, gate, and reservation tests remain green.
 ---
 <!-- COMMENTS:END -->
