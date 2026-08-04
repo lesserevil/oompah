@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-751
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:31:56.117326Z'
+updated_at: '2026-08-04T02:32:08.203571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,6 +112,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-751
     source_sha: b3e9fc225f169222978c366fffae5d86a6314c58
     completed_at: '2026-08-04T01:57:37.215525+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-751
+  head_sha: 38bb88c85d869a232a90974a07bacb5d20cd37d6
+  submitted_at: '2026-08-04T02:32:03.831369+00:00'
+  updated_at: '2026-08-04T02:32:03.831369+00:00'
 ---
 ## Summary
 
@@ -274,5 +282,10 @@ author: oompah
 created: 2026-08-04 02:31
 ---
 Completion (security focus): Delivered and pushed commit 38bb88c85. Server-side fix in oompah/server.py::api_task_handoff catches PermissionError specifically in the coordination-send branch and returns a structured 403 coordination_forbidden response without recording a task-handoff failure or degrading auth-health. Non-disclosure is preserved (stale peer / arbitrary / cross-project / never-authorized all indistinguishable). Scope enforcement is unchanged (expired/wrong-scope tokens still 401 at authentication). Regression tests added in tests/test_task_handoff.py::TestCoordinationSendRaces cover the full docs matrix and pass alongside 120 focused coordination + auth-health tests and 352 broader adjacent tests. Branch clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-04 02:32
+---
+Fix advisory coordination-send race: PermissionError from Orchestrator.coordination_send when a suggested peer is removed between discovery and send is now a structured 403 coordination_forbidden from api_task_handoff, not a 500. No task-handoff failure is recorded, worker-exit reconciliation preserves successful own-task completion, and auth-health treats it as an informational policy denial. Scope enforcement is unchanged: expired/wrong-scope tokens still 401 at authentication, and the denial is non-disclosing (stale, arbitrary, cross-project, and never-authorized recipients are indistinguishable). Regression tests in tests/test_task_handoff.py::TestCoordinationSendRaces cover the full docs matrix.
 ---
 <!-- COMMENTS:END -->
