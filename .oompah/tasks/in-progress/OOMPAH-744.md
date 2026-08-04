@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:03:32.466760Z'
+updated_at: '2026-08-04T15:11:19.118308Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -370,5 +370,10 @@ author: oompah
 created: 2026-08-04 15:03
 ---
 DISCOVERY: The worktree and remote are clean at b51047023. Reflog confirms the previous submitted head adb19e571 was immediately rebased at 2026-08-04 15:01:46 onto the refreshed epic lineage, producing b51047023; this exact head rewrite explains why owner metadata recorded for the old candidate failed validation. The implementation diff remains confined to dashboard.html and its atomic-replacement test file. I will run make test at b51047023, then push/check parity and resubmit without another head mutation.
+---
+author: oompah
+created: 2026-08-04 15:11
+---
+VERIFICATION (full gate attempt 1): make test at exact head b51047023 completed with 15,392 passed, 7 skipped, 1 xfailed, and 3 failed in tests/test_epic_planning.py (TestEpicPlanningInTick: planned-epic suppression, plannable-epic dispatch, and available-slot behavior). All full-sync/fault-injection/dashboard replacement coverage passed. I am reproducing the three failures in isolation with full tracebacks to distinguish a deterministic combined-lineage defect from suite-order leakage before changing code or resubmitting.
 ---
 <!-- COMMENTS:END -->
