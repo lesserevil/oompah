@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:24:39.627664Z'
+updated_at: '2026-08-04T11:25:19.603848Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-08-04 11:24
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 11:25
+---
+Understanding: This is a backend bug, not a documentation gap. The fix must add durable, service-authored canonical landing mappings for authorized conflict-resolved epic rebases, validate freshness/completeness/epic identity, and preserve fail-closed review readiness. In the assigned docs focus I will locate the concrete implementation and test surfaces, confirm whether any documentation change is warranted, then leave a Focus handoff: docs comment and route to needs:feature without changing behavior.
 ---
 <!-- COMMENTS:END -->
