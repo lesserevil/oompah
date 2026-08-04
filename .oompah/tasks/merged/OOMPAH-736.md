@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-736
 type: bug
-status: Needs Human
+status: Merged
 priority: 1
 title: Align auditor command policy with project-required Makefile validation targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T21:39:52.121760Z'
+updated_at: '2026-08-04T00:42:03.399949Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -137,6 +137,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T21:39:43.978336+00:00'
     applied_at: '2026-08-03T21:39:50.245107+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-85c08cc7f709
+    project_id: proj-14849f1b
+    task_id: OOMPAH-736
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: PR 692 is merged, implementation head 460fd8b1 is an ancestor of origin/main,
+      and the complete branch gate passed. Three auditors exited without a verdict
+      due the already tracked OOMPAH-734 finalization defect; no implementation work
+      remains.
+    created_at: '2026-08-04T00:41:58.683913+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -621,5 +641,12 @@ created: 2026-08-03 21:39
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-04 00:42
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR 692 is merged, implementation head 460fd8b1 is an ancestor of origin/main, and the complete branch gate passed. Three auditors exited without a verdict due the already tracked OOMPAH-734 finalization defect; no implementation work remains.
 ---
 <!-- COMMENTS:END -->
