@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:12:27.883413Z'
+updated_at: '2026-08-04T02:13:56.706647Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-04 02:12
 ---
 Verification: focused standalone reconciliation plus review-capacity and integration-queue suites pass: 60 tests. Coverage now includes priority/FIFO selection, oldest-row fallback on invalid remote branches, dependency-blocked fallback, no claims for unselected rows, and informational capacity waits; existing restart, review adoption, exact-head, gate, and reservation tests remain green.
+---
+author: oompah
+created: 2026-08-04 02:13
+---
+Verification update: after adding the concurrent reservation safeguard, the focused standalone, review-capacity, and integration-queue suites remain green (60 passed). No lower-ranked candidate is claimed or gated after a selected candidate loses the shared review slot.
 ---
 <!-- COMMENTS:END -->
