@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:01:21.784354Z'
+updated_at: '2026-08-04T01:01:38.569247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,13 +72,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: c639d605-b673-4f1f-91f5-2f5a6a51e49f
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2384
+  total_input_tokens: 832
+  total_output_tokens: 2620
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2384
+      input_tokens: 832
+      output_tokens: 2620
       cost_usd: 0.0
   runs:
   - profile: default
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 2384
     cost_usd: 0.0
     recorded_at: '2026-08-04T00:42:31.989330+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 822
+    output_tokens: 236
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T01:01:36.116118+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-746__20260804T004146Z
@@ -252,5 +258,15 @@ Deliverables:
 - Branch ad5f2dff5 pushed and submitted
 
 The implementation resolves the EXOCOMP-130 issue where tasks without explicit work_branch but with canonical epic branches (origin/epic-ISSUE-ID) can now have their evidence properly resolved during terminal audits. The solution maintains backward compatibility with explicit work_branches and integration records.
+---
+author: oompah
+created: 2026-08-04 01:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 45
+- Tokens: 822 in / 236 out [1.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 40s
+- Log: OOMPAH-746__20260804T004416Z.jsonl
 ---
 <!-- COMMENTS:END -->
