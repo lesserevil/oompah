@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T22:32:58.517756Z'
+updated_at: '2026-08-04T22:40:45.176772Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -246,5 +246,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 31s
 - Log: OOMPAH-791__20260804T222820Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:40
+---
+The prior infrastructure failure occurred because integration rebased submitted head f8f9d382c to patch-equivalent head 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35 but retained stale quality-gate owner metadata. The deployed watchdog then cancelled the blocked queue row and redispatched a repair worker. I stopped that out-of-scope repair, quarantined its uncommitted gate-owner patch for OOMPAH-811, and revalidated the clean rewritten feature head: 744 focused tests pass. Freshly resubmitting 9e2ecc3ff without feature-scope changes.
 ---
 <!-- COMMENTS:END -->
