@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-778
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Route orchestrator lifecycle writes through TaskTransitionService
 parent: OOMPAH-769
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T14:05:26.617492Z'
+updated_at: '2026-08-04T16:37:33.322271Z'
 work_branch: null
 target_branch: null
 review_url: null

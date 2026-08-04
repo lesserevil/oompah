@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: In Progress
+status: Needs Rebase
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:36:46.688341Z'
+updated_at: '2026-08-04T16:37:29.489999Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -192,6 +192,24 @@ created: 2026-08-04 16:32
 ---
 author: oompah
 created: 2026-08-04 16:33
+---
+Branch quality gate blocked review creation.
+
+Branch: `epic-OOMPAH-765`
+Target: `epic-OOMPAH-763`
+Head: `40e46bf8e41c15a0a89529694cbb3aa3580f2f19`
+Command: `make test`
+Result: `needs_rebase`
+
+Required: rebase this branch onto the current deployed base so it contains the lifecycle safety prerequisite and does not replace the protected gate entrypoints. Run the full command, commit and push the repair, then leave the task in Done; Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+The quality-gate worktree has uncommitted changes. Commit and push the repair before rerunning the exact review-head gate.
+```
+---
+author: oompah
+created: 2026-08-04 16:37
 ---
 Branch quality gate blocked review creation.
 
