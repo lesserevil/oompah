@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:43:43.550396Z'
+updated_at: '2026-08-04T20:45:25.952386Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-08-04 20:43
 ---
 Implementation: added oompah/review_workflow.py as the forge-neutral durable review lane, with normalized GitHub/GitLab observations, explicit provider-unavailable vs successful-empty handling, durable controller projections, bounded route classification, and resumable worker actions. Expanded WorkDecision/facts/reasons for CI pending/failing/passing, conflicts, closed-unmerged, missing/deleted source, merge-target mismatch, capacity, exact-head changes, and positive LandingFact completion. Added 18 review workflow tests covering the required state families and decision/projection parity.
+---
+author: oompah
+created: 2026-08-04 20:45
+---
+Verification: focused review/CI, decision, reason, fact, queue, forge-parity, capacity, and review-UI suites pass (170 passed, 2 skipped). The adjacent durable integration/workflow suites pass; one existing stress test timed out at its 5-second limit while inserting 402 baseline history rows, including when isolated, so it is unrelated to this change.
 ---
 <!-- COMMENTS:END -->

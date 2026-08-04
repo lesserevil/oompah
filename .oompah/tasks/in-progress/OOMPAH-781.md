@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:41:24.743896Z'
+updated_at: '2026-08-04T20:45:32.845515Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -159,5 +159,11 @@ author: oompah
 created: 2026-08-04 20:41
 ---
 Verification: 189 focused tests pass across terminal_audit_workflow, workflow_jobs, workflow shadow, enforcement, workspace recovery, auditor exit/termination, and coordinator suites. Targeted Ruff checks, git diff --check, and direct terminal mutation scan pass. Make terminal-audit-scan could not initialize its task venv because uv failed with a DBus transient-scope error; underlying scan passed directly.
+---
+author: oompah
+created: 2026-08-04 20:45
+---
+Final verification: latest focused gate passes (177 tests). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781' is environment-blocked during task-venv setup by uv/DBus; direct full pytest is also environment-blocked at an unrelated ACP test because the default agent-log path is read-only. Targeted Ruff, mutation scan, and diff checks remain clean.
 ---
 <!-- COMMENTS:END -->
