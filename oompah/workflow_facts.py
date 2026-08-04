@@ -711,6 +711,37 @@ class GitLandingCollector:
                 durable=True,
             )
         if result.returncode == 1:
+            # A rebase or squash changes ancestry while preserving the full
+            # patch set.  ``git cherry`` emits one ``-`` line per source patch
+            # that has an equivalent patch on the target; requiring every
+            # source patch to match prevents a tip-only proof from hiding a
+            # missing commit.  This is durable evidence and remains useful
+            # after the source ref is pruned.
+            equivalent = self._run("cherry", target_revision, source_revision)
+            cherry_lines = [
+                line.strip()
+                for line in equivalent.stdout.splitlines()
+                if line.strip()
+            ]
+            if (
+                equivalent.returncode == 0
+                and cherry_lines
+                and all(line.startswith("- ") for line in cherry_lines)
+            ):
+                return LandingFact(
+                    source,
+                    target,
+                    source_revision,
+                    {
+                        "kind": LandingProofKind.PATCH_ID.value,
+                        **proof_base,
+                        "patches": len(cherry_lines),
+                    },
+                    observed_at,
+                    self.project_id,
+                    state=LandingState.LANDED,
+                    durable=True,
+                )
             return LandingFact(
                 source,
                 target,
@@ -805,6 +836,7 @@ class WorkflowFactCollector:
         project_id: str,
         tracker: TrackerProtocol,
         sources: Mapping[FactDomain | str, FactSource] | None = None,
+        containment_source: FactSource | None = None,
         landing_collector: GitLandingCollector | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -824,6 +856,11 @@ class WorkflowFactCollector:
             raise ValueError(
                 f"built-in fact domains cannot be overridden: {sorted(item.value for item in forbidden)!r}"
             )
+        # Epic workflows need richer, graph-wide containment facts than the
+        # generic direct-child projection provides.  Keep that provider
+        # explicit and scoped to containment so all other domains still share
+        # the same normalization and error boundary.
+        self.containment_source = containment_source
         self.landing_collector = landing_collector
         if (
             landing_collector is not None
@@ -846,7 +883,11 @@ class WorkflowFactCollector:
         now: datetime,
         now_iso: str,
     ) -> FactObservation:
-        source = self.sources.get(domain)
+        source = (
+            self.containment_source
+            if domain is FactDomain.CONTAINMENT and self.containment_source is not None
+            else self.sources.get(domain)
+        )
         if source is None:
             return FactObservation.missing(
                 domain, observed_at=now_iso, source=f"{domain.value}:unconfigured"
@@ -970,37 +1011,45 @@ class WorkflowFactCollector:
                 source="tracker",
             ),
         }
-        try:
-            children = self.tracker.fetch_children(issue.identifier)
-        except Exception as exc:  # noqa: BLE001 - tracker evidence boundary
-            observations[FactDomain.CONTAINMENT] = FactObservation.error(
+        if self.containment_source is not None:
+            observations[FactDomain.CONTAINMENT] = self._source_observation(
                 FactDomain.CONTAINMENT,
-                observed_at=now_iso,
-                source="tracker",
-                error_code=f"children_{type(exc).__name__.lower()}",
+                issue,
+                now=now,
+                now_iso=now_iso,
             )
         else:
-            observations[FactDomain.CONTAINMENT] = FactObservation.known(
-                FactDomain.CONTAINMENT,
-                {
-                    "parent_id": issue.parent_id,
-                    "children": sorted(
-                        [
-                            {
-                                "identifier": child.identifier,
-                                "status": canonicalize_status(child.state),
-                                "issue_type": child.issue_type,
-                            }
-                            for child in children
-                            if not child.project_id
-                            or str(child.project_id) == self.project_id
-                        ],
-                        key=lambda item: item["identifier"],
-                    ),
-                },
-                observed_at=now_iso,
-                source="tracker",
-            )
+            try:
+                children = self.tracker.fetch_children(issue.identifier)
+            except Exception as exc:  # noqa: BLE001 - tracker evidence boundary
+                observations[FactDomain.CONTAINMENT] = FactObservation.error(
+                    FactDomain.CONTAINMENT,
+                    observed_at=now_iso,
+                    source="tracker",
+                    error_code=f"children_{type(exc).__name__.lower()}",
+                )
+            else:
+                observations[FactDomain.CONTAINMENT] = FactObservation.known(
+                    FactDomain.CONTAINMENT,
+                    {
+                        "parent_id": issue.parent_id,
+                        "children": sorted(
+                            [
+                                {
+                                    "identifier": child.identifier,
+                                    "status": canonicalize_status(child.state),
+                                    "issue_type": child.issue_type,
+                                }
+                                for child in children
+                                if not child.project_id
+                                or str(child.project_id) == self.project_id
+                            ],
+                            key=lambda item: item["identifier"],
+                        ),
+                    },
+                    observed_at=now_iso,
+                    source="tracker",
+                )
         integration = _integration_value(issue)
         observations[FactDomain.INTEGRATION] = (
             FactObservation.known(
