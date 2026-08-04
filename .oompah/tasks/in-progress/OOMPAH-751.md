@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:02:28.891571Z'
+updated_at: '2026-08-04T02:03:54.241051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-08-04 02:02
 ---
 Implementation (docs focus): Updated docs/scoped-task-cli-authentication.md and plans/advisory-coordination-send-races.md to define recipient-policy denials as structured, non-disclosing, non-actionable results; clarify authorization-before-storage and idempotency; and distinguish terminal peers from Ready to Integrate or In Review peers that remain eligible for durable fallback. Also documented that uncheckpointed live changed-path evidence may disappear when a worker exits.
+---
+author: oompah
+created: 2026-08-04 02:03
+---
+Verification (docs focus): Focused coordination and task-handoff suites passed: 83 tests in tests/test_coordination.py, tests/test_server_coordination.py, and tests/test_task_handoff.py. git diff --check also passed. The first uv invocation was blocked before test collection by its systemd transient-scope launcher; rerunning with the available Python test runtime completed successfully.
 ---
 <!-- COMMENTS:END -->
