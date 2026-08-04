@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T23:16:00.393875Z'
+updated_at: '2026-08-04T23:24:11.753322Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -224,18 +224,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-502
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-d400bbba9978
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+      created_at: '2026-08-04T23:24:10.470037+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T23:24:10.470037+00:00'
+      branch_key: epic-OOMPAH-502
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T18:30:13.803900+00:00'
+    updated_at: '2026-08-04T23:24:10.470037+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-623e2bd6d3e7
@@ -322,6 +336,19 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-502 (tried: origin/epic-OOMPAH-502, origin/OOMPAH-502)'
     next_retry_at: '2026-08-04T22:56:39.362345+00:00'
+  - version: 1
+    attempt_id: attempt-d400bbba9978
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 368991f4b860d3150eec99c06ecc85cbe862b8f17388d2e10f0b3b668478f9c3
+    created_at: '2026-08-04T23:24:10.470037+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T23:24:10.470037+00:00'
+    branch_key: epic-OOMPAH-502
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 7374
