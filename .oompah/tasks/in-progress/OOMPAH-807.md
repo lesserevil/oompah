@@ -6,12 +6,13 @@ priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-806
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T21:56:31.726116Z'
+updated_at: '2026-08-04T22:11:25.708871Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -115,5 +116,10 @@ author: oompah
 created: 2026-08-04 21:51
 ---
 Direct-owner claim: terminal-audit backlog consumed the server's available dispatch lane while this audit-lifecycle repair remained runnable. OOMPAH-809 tracks the systemic capacity-starvation cause. Work will continue in the existing clean task worktree; no fake revision branch will be added as a product workaround.
+---
+author: oompah
+created: 2026-08-04 22:11
+---
+Landing-order dependency added on OOMPAH-806. Its complete clean pushed/submitted head is 8322a4d19. Rebase this task branch onto that exact head now, resolve only the localized legitimate overlap, run combined 806+807 focused verification, then commit/push/submit. The queue must integrate 806 first; this task may carry the exact prerequisite ancestry while waiting.
 ---
 <!-- COMMENTS:END -->
