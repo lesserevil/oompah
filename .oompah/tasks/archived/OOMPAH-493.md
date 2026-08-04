@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-493
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-08-04T18:06:17.488455Z'
+updated_at: '2026-08-04T18:09:21.194356Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -44,6 +44,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T15:29:39.940089+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-492bc0c0e535: '2026-08-04T18:09:18.058964+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-493
+    target_state: Archived
+    evidence_fingerprint: 51b206b136a05b8614cb2afee3eb2942b331aebef3195d9af63e010253f2f1e9
+    audit_ids:
+    - audit-a5f61ba90a42
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T18:09:18.058974+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-493
+    audit_id: audit-a5f61ba90a42
+    attempt_id: attempt-492bc0c0e535
+    target_state: Archived
+    evidence_fingerprint: 51b206b136a05b8614cb2afee3eb2942b331aebef3195d9af63e010253f2f1e9
+    status: Archived
+    audit_ids:
+    - audit-a5f61ba90a42
+    applied: false
+    created_at: '2026-08-04T18:09:18.058987+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -51,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-493
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -60,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-492bc0c0e535
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -70,13 +94,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T18:06:04.328509+00:00'
       branch_key: epic-OOMPAH-490
+      verdict: pass
+      completed_at: '2026-08-04T18:09:18.058856+00:00'
+      ended_at: '2026-08-04T18:09:18.058856+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T17:26:04.993556+00:00'
-    updated_at: '2026-08-04T18:06:04.328509+00:00'
+    updated_at: '2026-08-04T18:09:18.058856+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-492bc0c0e535
