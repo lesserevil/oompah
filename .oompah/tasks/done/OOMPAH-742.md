@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-04T14:32:31.147444Z'
+updated_at: '2026-08-04T14:41:42.959651Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -192,6 +192,30 @@ oompah.work_contributors:
     completed_at: '2026-08-03T23:05:48.946971+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-2df27b438345: '2026-08-04T14:41:39.906018+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-742
+    target_state: Done
+    evidence_fingerprint: 18f0f50cc2d18f48f763eaa10aaaffe1899604ac991c1a96b9806dd91ffe4264
+    audit_ids:
+    - audit-57045e98717f
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T14:41:39.906031+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-742
+    audit_id: audit-57045e98717f
+    attempt_id: attempt-2df27b438345
+    target_state: Done
+    evidence_fingerprint: 18f0f50cc2d18f48f763eaa10aaaffe1899604ac991c1a96b9806dd91ffe4264
+    status: Done
+    audit_ids:
+    - audit-57045e98717f
+    applied: false
+    created_at: '2026-08-04T14:41:39.906048+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -199,7 +223,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-742
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -208,7 +232,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2df27b438345
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -218,13 +242,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T14:32:21.468496+00:00'
       branch_key: epic-OOMPAH-740--task-OOMPAH-742
+      verdict: pass
+      completed_at: '2026-08-04T14:41:39.905787+00:00'
+      ended_at: '2026-08-04T14:41:39.905787+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T14:32:14.632484+00:00'
-    updated_at: '2026-08-04T14:32:21.468496+00:00'
+    updated_at: '2026-08-04T14:41:39.905787+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2df27b438345
