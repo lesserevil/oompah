@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-08-04T23:08:29.996227Z'
+updated_at: '2026-08-04T23:08:35.500613Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -76,8 +76,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-8eb77ffe3310
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:08:26.581974+00:00'
+    applied_at: '2026-08-04T23:08:34.288033+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -380,5 +381,23 @@ author: oompah
 created: 2026-08-04 22:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:08
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 70771b4e9
+- pr_number: 568
+- epic: OOMPAH-528
+- tip_commit: c4c7f5dfa
+- docs_file: docs/duplicate-screening.md (present, 7465 chars)
+- env_example_line: 194: # OOMPAH_DUPLICATE_PREFLIGHT_MAX_AGENTS=1
+- test_file: tests/test_duplicate_preflight.py (30+ test functions)
+- terminal_task_regression_test: test_only_active_verified_match_becomes_duplicate_candidate
+- test_gate: 13070 passed, 7 skipped
 ---
 <!-- COMMENTS:END -->
