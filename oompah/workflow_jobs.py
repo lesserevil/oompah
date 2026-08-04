@@ -634,6 +634,10 @@ class WorkflowJobStore:
                 self._conn.execute("PRAGMA foreign_keys=ON")
                 self._conn.execute("PRAGMA busy_timeout=10000")
                 self._conn.execute("PRAGMA journal_mode=WAL")
+                # WAL mode provides crash safety without requiring a full
+                # fsync on every commit. NORMAL keeps bounded workflow scans
+                # fast while retaining SQLite WAL recovery semantics.
+                self._conn.execute("PRAGMA synchronous=NORMAL")
                 self._initialize()
         except Exception:
             if hasattr(self, "_conn"):
