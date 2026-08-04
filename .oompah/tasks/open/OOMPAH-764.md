@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Validation
+status: Open
 priority: 1
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:42:15.836931Z'
+updated_at: '2026-08-04T14:43:07.760792Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -32,7 +32,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -56,12 +56,26 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-764 (tried: origin/OOMPAH-764)'
       next_retry_at: '2026-08-04T14:42:15.339705+00:00'
+    - version: 1
+      attempt_id: attempt-799768e2e86a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a896dca59b0518a9920ae5a6fbd185fa921267513316f4cea0b18c3840f78d8b
+      created_at: '2026-08-04T14:42:47.116394+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T14:42:47.116394+00:00'
+      branch_key: epic-OOMPAH-764
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-08-04T14:41:10.958074+00:00'
-    updated_at: '2026-08-04T14:42:05.339740+00:00'
+    updated_at: '2026-08-04T14:42:47.116394+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
@@ -81,6 +95,20 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-764 (tried: origin/OOMPAH-764)'
     next_retry_at: '2026-08-04T14:42:15.339705+00:00'
+  - version: 1
+    attempt_id: attempt-799768e2e86a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a896dca59b0518a9920ae5a6fbd185fa921267513316f4cea0b18c3840f78d8b
+    created_at: '2026-08-04T14:42:47.116394+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T14:42:47.116394+00:00'
+    branch_key: epic-OOMPAH-764
+    candidate_rotation_count: 1
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-764
 ---
@@ -119,5 +147,15 @@ author: oompah
 created: 2026-08-04 14:42
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-764 (tried: origin/OOMPAH-764). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 14:42
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-04 14:43
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
