@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:20:08.956520Z'
+updated_at: '2026-08-04T02:30:11.554846Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-04 02:20
 ---
 DISCOVERY: Found the root cause. In auditor.py::check_auditor_command() (line 1151-1209), when a command doesn't match the validation contract regex (line 1175), it returns a FATAL denial immediately, without checking if the command is syntactically non-mutating. This means read-only commands like 'pytest -q' or 'pytest --tb=short' (outside the contract) consume the fatal policy budget. The fix reorders checks: (1) security violations (path escapes, credentials) are fatal first, (2) regex contract check, then (3) for non-matching commands, check mutation status before deciding if denial is recoverable. Non-mutating contract mismatches return recoverable denials with allowed alternatives.
+---
+author: oompah
+created: 2026-08-04 02:30
+---
+IMPLEMENTATION: Modified auditor.py::check_auditor_command() to classify non-mutating validator requests outside the project contract as RECOVERABLE (not fatal). Key changes: (1) Security checks (path escapes, credentials) happen first and remain fatal, (2) State-changing mutations and dangerous constructs (process control, shell redirects) are fatal, (3) Non-mutating commands outside contract return recoverable denials with allowed alternatives, (4) git rev-list unsupported flags return recoverable errors. Added regression test test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable.
 ---
 <!-- COMMENTS:END -->
