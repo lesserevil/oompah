@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-746
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Resolve terminal-audit evidence from canonical epic branches when work_branch
   is absent
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T03:50:41.478888Z'
+updated_at: '2026-08-04T03:54:00.380412Z'
 work_branch: null
 target_branch: null
 review_url: null
