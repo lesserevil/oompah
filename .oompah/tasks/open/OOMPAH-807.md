@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T21:36:54.090616Z'
+updated_at: '2026-08-04T21:37:04.695977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Bug reproduction: OOMPAH-803 is a Backlog metadata duplicate of OOMPAH-775 with 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 21:37
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
