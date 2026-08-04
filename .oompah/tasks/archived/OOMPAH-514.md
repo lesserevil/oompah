@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-08-04T16:41:52.183483Z'
+updated_at: '2026-08-04T16:42:11.221548Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -97,6 +97,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T16:38:20.406622+00:00'
     branch_key: epic-OOMPAH-511
+oompah.task_costs:
+  total_input_tokens: 24
+  total_output_tokens: 4383
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 24
+      output_tokens: 4383
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 24
+    output_tokens: 4383
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T16:42:07.921591+00:00'
 ---
 ## Summary
 
@@ -263,5 +279,15 @@ Safe evidence:
 - coverage_ambiguous_context: ProjectError raised in _management_tracker_scope and _tracker_for_issue with unregistered workflow project
 - coverage_executor_drainage: _assert_no_live_owned_pool_threads plus blocked-maintenance-future stop() test
 - audit_reason: Aged Merged auto-archive queued 2026-08-04
+---
+author: oompah
+created: 2026-08-04 16:42
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 25, Tool calls: 18
+- Tokens: 24 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 36s
+- Log: OOMPAH-514__20260804T163847Z.jsonl
 ---
 <!-- COMMENTS:END -->
