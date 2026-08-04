@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:17:47.983121Z'
+updated_at: '2026-08-04T01:19:53.474047Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -364,5 +364,10 @@ author: oompah
 created: 2026-08-04 01:17
 ---
 Implementation: Stabilized the single failing dashboard API test by building the real serialized issue board and installing it as the snapshot for the exact mocked orchestrator before issuing GET /api/v1/issues. This preserves coverage of display_identifier serialization and endpoint response shape while removing dependence on a background thread completing inside a 250 ms timing window. No production or workflow code was changed.
+---
+author: oompah
+created: 2026-08-04 01:19
+---
+Verification / operator reconciliation: Commit 3ed0f959e is pushed to origin/OOMPAH-746. Gate-like focused run passed 44/44 dashboard and snapshot tests with four xdist workers; terminal-audit suite passed 38/38; git diff --check passed. make terminal-audit-scan could not provision the task venv because the Snap uv launcher failed its DBus transient-scope setup. An advisory oompah coordinate send to OOMPAH-734 then returned ERROR 500: task handoff operation failed. Per spawned-worker handoff security, I did not retry that operation or submit the task; an operator must reconcile the handoff capability/state and rearm submission for pushed head 3ed0f959e.
 ---
 <!-- COMMENTS:END -->
