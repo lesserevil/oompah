@@ -21975,6 +21975,27 @@ class Orchestrator:
         targets P's branch; the top-level epic targets
         ``project.default_branch`` (typically ``main``).
         """
+        if self.config.workflow_engine_mode == "enforce":
+            try:
+                shared = self._shared_epic_workflow_decision(epic, schedule=False)
+                if shared is not None:
+                    _decision, facts = shared
+                    containment = facts.fact(FactDomain.CONTAINMENT)
+                    if (
+                        containment.state.value == "known"
+                        and isinstance(containment.value, Mapping)
+                    ):
+                        target = str(
+                            containment.value.get("target_branch") or ""
+                        ).strip()
+                        if target:
+                            return target
+            except Exception as exc:  # noqa: BLE001 - legacy resolver remains fail-closed
+                logger.debug(
+                    "Shared target facts unavailable for %s: %s",
+                    epic.identifier,
+                    exc,
+                )
         parent_id = (epic.parent_id or "").strip()
         if not parent_id:
             target = str(getattr(project, "default_branch", "") or "main").strip()
