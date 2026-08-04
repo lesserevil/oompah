@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:14:44.047917Z'
+updated_at: '2026-08-04T11:17:44.655957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,17 @@ author: oompah
 created: 2026-08-04 11:14
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 11:17
+---
+Understanding: OOMPAH-757 requires implementing a new feature to persist canonical child landing evidence through conflict-resolved epic rebases. The task involves:
+
+1. Tracker metadata schema changes to store landing evidence (old base/head/range, new canonical range/head, target epic branch, rebase helper/task, pre/post refs, validation result, fingerprint)
+2. Implementation of evidence persistence and consumption in functions like _child_landing_evidence_block_reason, _trusted_completion_evidence_landed, _child_has_durable_landing_evidence
+3. Epic review readiness/auto-close logic updates
+4. Comprehensive test coverage including conflict-resolved rebase mappings, patch equivalence, partial/wrong mappings, stale targets, and security tests
+
+This is a backend/implementation-focused task requiring code changes, schema modifications, and integration testing. As a Technical Writer focused on documentation only, this is outside my scope. The appropriate next focus should be a backend/feature specialist who can implement the required code changes and write the corresponding tests.
 ---
 <!-- COMMENTS:END -->

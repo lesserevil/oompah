@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-758
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Atomically fence direct epic maintenance from ordinary integration enqueue
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:15:25.074463Z'
+updated_at: '2026-08-04T11:17:46.607805Z'
 work_branch: null
 target_branch: null
 review_url: null
