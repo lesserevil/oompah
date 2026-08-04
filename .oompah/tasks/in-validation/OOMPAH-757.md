@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T13:08:04.192357Z'
+updated_at: '2026-08-04T13:26:41.685208Z'
 work_branch: OOMPAH-757
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/711
@@ -107,6 +107,31 @@ oompah.work_branch: OOMPAH-757
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-97df84be1c4b: '2026-08-04T13:26:32.633470+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-757
+    target_state: Done
+    evidence_fingerprint: 1c2b44ec5ba4173571dee97e456b254f78763c9f518a043747ed09ae6f3fd6b5
+    audit_ids:
+    - audit-e4bd3e8e57ac
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T13:26:32.633483+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-757
+    audit_id: audit-e4bd3e8e57ac
+    attempt_id: attempt-97df84be1c4b
+    target_state: Done
+    evidence_fingerprint: 1c2b44ec5ba4173571dee97e456b254f78763c9f518a043747ed09ae6f3fd6b5
+    status: In Validation
+    audit_ids:
+    - audit-e4bd3e8e57ac
+    applied: true
+    created_at: '2026-08-04T13:26:32.633502+00:00'
+    applied_at: '2026-08-04T13:26:39.673690+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-757
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -123,7 +148,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-97df84be1c4b
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -133,13 +158,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T13:07:55.212953+00:00'
       branch_key: OOMPAH-757
+      verdict: pass
+      completed_at: '2026-08-04T13:26:32.633257+00:00'
+      ended_at: '2026-08-04T13:26:32.633257+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T13:06:20.442602+00:00'
-    updated_at: '2026-08-04T13:07:55.212953+00:00'
+    updated_at: '2026-08-04T13:26:32.633257+00:00'
   - version: 1
     audit_id: audit-67e14e57baf6
     project_id: proj-14849f1b
@@ -685,5 +713,23 @@ author: oompah
 created: 2026-08-04 13:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 13:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 0d92e522f6010a24da1b5d5de8a79fd9010157fa
+- merge_commit: 32d881aa2ac4f0fc0e1ef13df1a6c160096e6e65
+- merge_pr: #711
+- make_test_result: 15350 passed, 7 skipped, 1 xfailed in 416.63s
+- terminal_mutation_scan: 8 identified, 8 allowlisted (passed)
+- shadowing_fix: static _canonical_landing_evidence_block_reason (orchestrator.py:17397) distinct from instance _child_landing_evidence_block_reason (orchestrator.py:15048)
+- files_added: oompah/integration.py (+291 lines), oompah/orchestrator.py (+116 lines), tests/test_canonical_landing_evidence.py (+733 lines)
+- gap_evidence_consumption: _canonical_landing_evidence_block_reason has no callers in oompah/orchestrator.py outside its definition; existing landing consumers unchanged
+- gap_historical_whitelist: _BOUNDED_HISTORICAL_REPAIR_EVIDENCE dict is empty; no EXOCOMP-130 recovery entry; no EXOCOMP-148 specific test with SHAs 4e013110/8400a54a/61141cb8/9663f4b2
 ---
 <!-- COMMENTS:END -->
