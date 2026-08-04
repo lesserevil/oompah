@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T21:31:46.141439Z'
+updated_at: '2026-08-04T21:32:51.702021Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -85,13 +85,17 @@ oompah.integration:
   submitted_at: '2026-08-04T21:31:39.922144+00:00'
   updated_at: '2026-08-04T21:31:39.922144+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2234
+  total_input_tokens: 61
+  total_output_tokens: 13677
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2234
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 51
+      output_tokens: 11443
       cost_usd: 0.0
   runs:
   - profile: default
@@ -100,6 +104,12 @@ oompah.task_costs:
     output_tokens: 2234
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:26:03.969511+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 51
+    output_tokens: 11443
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:32:49.107941+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-804__20260804T202423Z
@@ -217,5 +227,15 @@ author: oompah
 created: 2026-08-04 21:31
 ---
 Delivered OOMPAH-804: production runtime wiring for durable workflow domains. WorkflowRuntime composition root constructs project-scoped collectors, transition journals, integration/implementation/terminal controllers, and one durable worker from the shared job store. Orchestrator start/stop/tick lifecycle gates handle enforce (single-writer) and shadow (parallel decision materialization) modes. Added WAL+NORMAL synchronous mode to WorkflowJobStore for 26x faster batch reconciles. 262 workflow module tests pass including full crash-recovery, shadow-parity, enforce-mode single-writer, and UI projection parity cases.
+---
+author: oompah
+created: 2026-08-04 21:32
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 55
+- Tokens: 51 in / 11.4K out [11.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26m 53s
+- Log: OOMPAH-804__20260804T210623Z.jsonl
 ---
 <!-- COMMENTS:END -->

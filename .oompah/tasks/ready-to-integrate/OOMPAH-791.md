@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T21:32:37.738574Z'
+updated_at: '2026-08-04T21:32:59.335111Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -53,12 +53,14 @@ oompah.agent_run_id: 8da0e789-eff0-44b4-8a5b-ba65283cf7d6
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T20:58:27.209376+00:00'
+  head_sha: f8f9d382c43d4cc002f34cbcac0410e5c1f6f38e
+  submitted_at: '2026-08-04T21:32:56.564220+00:00'
+  updated_at: '2026-08-04T21:32:56.564220+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 556
