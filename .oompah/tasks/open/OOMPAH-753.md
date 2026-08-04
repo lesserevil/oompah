@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:06:15.294839Z'
+updated_at: '2026-08-04T02:06:18.697411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,6 +52,16 @@ oompah.task_costs:
     output_tokens: 2535
     cost_usd: 0.0
     recorded_at: '2026-08-04T02:06:09.974209+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-753__20260804T020449Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-753
+    source_sha: 18e18a6b63b2f9a522b17c0132dac0f5a0d9e487
+    completed_at: '2026-08-04T02:06:09.985128+00:00'
 ---
 ## Summary
 
