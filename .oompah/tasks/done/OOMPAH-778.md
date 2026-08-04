@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-778
 type: task
-status: Open
+status: Done
 priority: 1
 title: Route orchestrator lifecycle writes through TaskTransitionService
 parent: OOMPAH-769
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T17:42:29.690749Z'
+updated_at: '2026-08-04T17:44:21.233396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,6 +32,29 @@ oompah.integration:
   last_error: task worktree head db015701875b7976bfdaa7993b4043f2a21f2817 differs
     from the published task head 6561d52e5a879375ea3587582f335419ed49310e; refusing
     to reset a preserved recovery snapshot
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f3ad3220be48
+    project_id: proj-14849f1b
+    task_id: OOMPAH-778
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e626484b0a37592c3e672ebc405760f10e3c1f9a3def9c8942e03319f229ee3f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Direct-owner implementation was fully tested and landed at exact pushed
+      head 6561d52e5 on epic-OOMPAH-769 after the integration worker incorrectly compared
+      against stale parent-worktree head db0157018.
+    created_at: '2026-08-04T17:44:18.062346+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
