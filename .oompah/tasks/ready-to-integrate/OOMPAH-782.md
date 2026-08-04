@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:51:37.185857Z'
+updated_at: '2026-08-04T20:51:46.015583Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -49,12 +49,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-782
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-782
   base_branch: epic-OOMPAH-768
   base_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
-  updated_at: '2026-08-04T20:28:41.283462+00:00'
+  head_sha: ee052e97be7e774c8a05c459b715094c9ea62927
+  submitted_at: '2026-08-04T20:51:35.607966+00:00'
+  updated_at: '2026-08-04T20:51:35.607966+00:00'
 oompah.task_costs:
   total_input_tokens: 46834
   total_output_tokens: 334
@@ -159,5 +161,10 @@ author: oompah
 created: 2026-08-04 20:51
 ---
 Completion: pushed ee052e97b to the issue branch. Delivered forge-neutral durable review workflow facts, unified In Review decisions and reason taxonomy, exact LandingFact terminal proof, durable review observation/repair jobs with restart-safe worker routes, TaskTransitionService transition boundary, and shared UI projection parity. Covered timeout versus empty provider results, deleted-source landing, head changes, capacity, CI delay, conflicts, GitHub/GitLab normalization, and worker restart behavior. Worktree is clean and matches origin.
+---
+author: oompah
+created: 2026-08-04 20:51
+---
+Delivered durable review and CI reconciliation with unified decisions, LandingFact completion proof, restart-safe observation and repair jobs, transition-service boundaries, and UI reason parity.
 ---
 <!-- COMMENTS:END -->
