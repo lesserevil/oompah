@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T22:15:52.710428Z'
+updated_at: '2026-08-04T22:17:38.868007Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-04 22:15
 ---
 Verification: Focused workflow/controller gate passes: 169 tests passed in 38.74s across controller, decision, facts, jobs, scheduler, reasons, shadow, and orchestrator integration suites. Coverage includes all canonical non-final statuses, duplicate/missing/expired/impossible ownership, missing queue/audit/review jobs, stale facts, due/exhausted retries, cycles, restart convergence, idempotent remediation, and enforce-mode read-only tracker integration.
+---
+author: oompah
+created: 2026-08-04 22:17
+---
+Completion: Delivered and pushed commit 7cdc30f36. Universal controller, durable reason-coded recovery metadata, enforce-mode dispatch integration, restart/idempotency safeguards, design notes, and regression coverage are complete. Branch is clean and up to date with origin; focused verification passed 169 tests.
 ---
 <!-- COMMENTS:END -->

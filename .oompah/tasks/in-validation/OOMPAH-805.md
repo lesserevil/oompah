@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T22:16:59.434066Z'
+updated_at: '2026-08-04T22:17:42.940787Z'
 work_branch: OOMPAH-805
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/715
@@ -540,5 +540,10 @@ author: oompah
 created: 2026-08-04 22:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 22:17
+---
+Terminal-audit evidence note: exact head 376e9a011 passed the configured isolated make test branch gate in 436.3s; PR #715 then passed Python 3.11/3.12/3.13 CI and merged as e1b0f4846054bacac48e667295e2c00733d86d8c. Prefer bounded read-only code/regression inspection and the existing exact-head evidence rather than blindly repeating the entire gate; OOMPAH-810 tracks the live ACP run_command result-return deadlock observed after a completed make test-serial.
 ---
 <!-- COMMENTS:END -->
