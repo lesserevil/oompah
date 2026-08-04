@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:11:46.743486Z'
+updated_at: '2026-08-04T11:12:33.435354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,21 @@ author: oompah
 created: 2026-08-04 11:11
 ---
 Task-specific recovery attempt: an authenticated project-owner terminal override to Merged was attempted for EXOCOMP-128 after independently confirming PR 21 target epic-EXOCOMP-127 and merge commit 2476a392 reachability. Live revision 5368e236 still rejected it with the old root-parent gate: 'parent epic EXOCOMP-127 could not be verified; parent review must land on its configured target branch first.' No tracker mutation occurred. This confirms the target-relative fix does not cover the terminal transition validator/override path; do not bypass it by editing task files.
+---
+author: oompah
+created: 2026-08-04 11:12
+---
+UNDERSTANDING: This issue is about nested epics that have already merged to their immediate parent epic, but remain stuck in In Review state. OOMPAH-748 partially fixed this with target-relative auto-close validation, but didn't address reconciliation for epics already in In Review.
+
+The core problem: nested epics in In Review don't naturally re-enter the auto-close validation path. The scheduler repeatedly runs review readiness checks instead, treating them as needing a new review despite the merged PR already existing.
+
+PLAN:
+1. Make merged-review reconciliation target-relative for nested epics (recognize PR with source=nested epic branch, target=immediate parent branch)
+2. Implement stale In Review reconciliation to route terminal state through coordinator
+3. Ensure don't reopen reviews or require deleted child branch refs after landing
+4. Make reconciliation idempotent while preserving wrong-target, missing-merge, source-advanced, and premature-root protections
+5. Add comprehensive tests for restart scenarios, branch presence/deletion, wrong targets, unreachable merges, and parent landing timing
+
+RELEVANT CODE: orchestrator.py - _epic_auto_close_check, _label_merged_epics, review readiness, terminal_transition_coordinator, and nested target resolution
 ---
 <!-- COMMENTS:END -->

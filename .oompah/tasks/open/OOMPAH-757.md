@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:12:22.102516Z'
+updated_at: '2026-08-04T11:12:34.804315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,16 @@ Regression/incomplete implementation of OOMPAH-747 on live revision 5368e236. EX
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 11:12
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 11:12
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
