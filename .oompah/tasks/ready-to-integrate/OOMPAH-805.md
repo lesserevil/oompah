@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:49:34.651744Z'
+updated_at: '2026-08-04T20:50:40.730661Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,13 +73,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9e281e57-3322-435f-81ee-1d34e1d41854
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2307
+  total_input_tokens: 420
+  total_output_tokens: 17536
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2307
+      input_tokens: 420
+      output_tokens: 17536
       cost_usd: 0.0
   runs:
   - profile: default
@@ -88,6 +88,12 @@ oompah.task_costs:
     output_tokens: 2307
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:29:29.202263+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 410
+    output_tokens: 15229
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T20:50:36.842317+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-805__20260804T202731Z
@@ -178,5 +184,15 @@ author: oompah
 created: 2026-08-04 20:49
 ---
 Fixed intermittent test failures under parallel load by replacing time-based sleeps with explicit asyncio event synchronization. Burst test now waits for tick completion instead of elapsed time. Tick-metrics test now properly drains background work and prevents archived-audit side effects. All 74 tests pass serially and with -n 4 parallel workers.
+---
+author: oompah
+created: 2026-08-04 20:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 50
+- Tokens: 410 in / 15.2K out [15.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 40s
+- Log: OOMPAH-805__20260804T203107Z.jsonl
 ---
 <!-- COMMENTS:END -->
