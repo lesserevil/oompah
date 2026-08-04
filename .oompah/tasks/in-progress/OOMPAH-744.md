@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:11:19.118308Z'
+updated_at: '2026-08-04T15:20:02.691544Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -375,5 +375,15 @@ author: oompah
 created: 2026-08-04 15:11
 ---
 VERIFICATION (full gate attempt 1): make test at exact head b51047023 completed with 15,392 passed, 7 skipped, 1 xfailed, and 3 failed in tests/test_epic_planning.py (TestEpicPlanningInTick: planned-epic suppression, plannable-epic dispatch, and available-slot behavior). All full-sync/fault-injection/dashboard replacement coverage passed. I am reproducing the three failures in isolation with full tracebacks to distinguish a deterministic combined-lineage defect from suite-order leakage before changing code or resubmitting.
+---
+author: oompah
+created: 2026-08-04 15:20
+---
+IMPLEMENTATION: No additional source change was needed on this dispatch. The frontend implementation already at b51047023 is the correct rebased candidate; the integration failure was caused by submission owner metadata remaining tied to pre-rebase adb19e571. I preserved b51047023 unchanged so the tested and resubmitted commit identity cannot drift.
+---
+author: oompah
+created: 2026-08-04 15:20
+---
+VERIFICATION: Full configured quality gate make test passes at exact head b51047023: 15,395 passed, 7 skipped, 1 xfailed, 56 warnings in 415.63s. The first attempt had 3 transient epic-planning failures; all three passed in isolation (3/3), the full epic-planning file passed under the same four-worker scheduler (59/59), and the unchanged complete rerun passed. WebSocket full-sync, fault-injection, dashboard replacement, submission fencing, and head-race suites all passed.
 ---
 <!-- COMMENTS:END -->
