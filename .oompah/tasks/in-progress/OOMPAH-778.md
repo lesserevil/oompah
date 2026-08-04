@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T16:37:33.322271Z'
+updated_at: '2026-08-04T17:41:24.456871Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Inventory and migrate every orchestrator.py status mutation to TaskTransitionSer
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 17:41
+---
+Implemented the complete orchestrator lifecycle-write migration through TaskTransitionService. All status mutations now carry stable reason/authority context and use durable journal ownership, fresh version/status fencing, exact-head/generation checks where required, and terminal audit staging. Added AST guards against direct status writes, recovery/race coverage, terminal-stage routing, false-terminal repair edges, and exact-head reconstruction for stale-review requeue. Validation: 958 lifecycle tests passed; 69 focused transition/workflow/submission tests passed; terminal-audit scan, secret scan, py_compile, diff check, and F821/F822/F823 checks passed.
+---
+<!-- COMMENTS:END -->
