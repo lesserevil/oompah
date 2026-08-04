@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-04T23:51:12.128869Z'
+updated_at: '2026-08-04T23:56:18.735461Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Bug reproduction: in Orchestrator._on_worker_exit, the accepted_submission_recor
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 23:56
+---
+Implementation started on exact OOMPAH-782 base a3948097f in branch epic-OOMPAH-768--task-OOMPAH-813. Scope is the minimal _on_worker_exit project-identity initialization fix plus wrapper-level revoked, cross-project, and non-revoked regression coverage; branch will remain unsubmitted for ordered landing.
+---
+<!-- COMMENTS:END -->
