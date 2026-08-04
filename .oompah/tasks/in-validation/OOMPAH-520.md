@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-520
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Re-run the branch quality gate when an open review head changes
 parent: OOMPAH-502
@@ -10,13 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:49:18.823929Z'
-updated_at: '2026-07-28T18:02:04.634852Z'
+updated_at: '2026-08-04T18:29:41.998557Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ee3efb94ff66
+    project_id: proj-14849f1b
+    task_id: OOMPAH-520
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2076952ea563505f7fffb4cc9669183c2bfdc2f1c88feb998c00f20722605d9c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:29:36.524473+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -49,5 +71,10 @@ author: oompah
 created: 2026-07-28 18:02
 ---
 Landed in merged epic PR #564 on main.
+---
+author: oompah
+created: 2026-08-04 18:29
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
