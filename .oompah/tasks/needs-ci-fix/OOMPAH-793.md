@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Open
+status: Needs CI Fix
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:42:38.280898Z'
+updated_at: '2026-08-04T20:44:34.992823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ created: 2026-08-04 20:42
 **Evidence:** current CI evidence is passing; safe to reopen the stalled task.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-04 20:44
+---
+Workaround for OOMPAH-806: the stalled-task watchdog incorrectly reopened this exact failed integration generation because unrelated external CI was green. Restoring Needs CI Fix manually; direct owner retains repair authority. OOMPAH-805 is producing the real deterministic gate-fixture fix that will create the required new head.
 ---
 <!-- COMMENTS:END -->
