@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-08-04T22:57:53.178682Z'
+updated_at: '2026-08-04T23:25:22.582619Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -62,6 +62,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T19:21:17.693779+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-93bf44b47c73: '2026-08-04T23:25:19.121380+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-524
+    target_state: Archived
+    evidence_fingerprint: 971c77b467c9286386eaecf67a32560615468d82adc4c5b277f64e5bf2e0788c
+    audit_ids:
+    - audit-41dbc4c0137f
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:25:19.121389+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-524
+    audit_id: audit-41dbc4c0137f
+    attempt_id: attempt-93bf44b47c73
+    target_state: Archived
+    evidence_fingerprint: 971c77b467c9286386eaecf67a32560615468d82adc4c5b277f64e5bf2e0788c
+    status: Archived
+    audit_ids:
+    - audit-41dbc4c0137f
+    applied: false
+    created_at: '2026-08-04T23:25:19.121400+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -69,7 +93,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-524
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,7 +133,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-93bf44b47c73
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -120,13 +144,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T22:57:36.854599+00:00'
       branch_key: epic-OOMPAH-521
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-04T23:25:19.121255+00:00'
+      ended_at: '2026-08-04T23:25:19.121255+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:42.627622+00:00'
-    updated_at: '2026-08-04T22:57:36.854599+00:00'
+    updated_at: '2026-08-04T23:25:19.121255+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-52d8744e60cc
