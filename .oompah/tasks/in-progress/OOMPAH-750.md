@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:01:03.199161Z'
+updated_at: '2026-08-04T01:04:46.399192Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-04 01:01
 ---
 Implementation: Added WatchdogEvidence normalization and precedence-aware classification. Current merged review/audit pass/target-head evidence reopens safely; provider failures, missing audit branches with resolvable canonical refs, and ambiguous SCM state become technical insufficient_evidence; only the newest explicit product/authority question remains human_blocked. Orchestrator now collects tracker metadata, reviews/merged branches, branch heads, CI, and provider health.
+---
+author: oompah
+created: 2026-08-04 01:04
+---
+Verification: Focused watchdog tests pass: 90 passed. Adjacent SCM, orchestrator tick telemetry, and terminal-audit metadata suites pass: 346 passed. Syntax compilation and git diff --check also pass. make setup could not create the task venv because the environment's astral-uv helper failed with a DBus transient-scope error, so tests ran with the existing Python runtime and importlib mode.
 ---
 <!-- COMMENTS:END -->
