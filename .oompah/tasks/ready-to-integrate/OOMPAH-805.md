@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:47:15.337879Z'
+updated_at: '2026-08-04T21:47:18.722996Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -400,5 +400,10 @@ author: oompah
 created: 2026-08-04 21:46
 ---
 Implementation + Verification: Serialized CheckpointQueue.flush() with a new _flush_serial lock. flush() now takes the serial lock, checks pending under the queue lock, resets counters + cancels timers under the queue lock, releases the queue lock, then runs flush_fn under the serial lock, and finally releases the serial lock. Concurrent flush() callers (test thread vs debounce timer thread) block until the in-flight git commit is durable, so state_count_after > state_count_before holds even when the timer wins the race. Regression test tests/test_checkpoint_coalescing.py::TestCheckpointQueueConcurrency::test_concurrent_flush_waits_for_in_flight_flush_fn uses a blocking flush_fn to prove the wait — it fails deterministically on the previous head and passes with the fix. Test results: 20/20 focused repeats of the original failing test pass; 8/8 stress rounds of TestCommitHistoryRegression under -n 4 pass; 106/106 tests in checkpoint + state-branch modules under -n 8; 351/351 tests across checkpoint, state-branch, event-loop, tick-metrics, orchestrator-merged, and archived-audit modules under -n 8 in five consecutive rounds. Pushed as 376e9a011.
+---
+author: oompah
+created: 2026-08-04 21:47
+---
+Serialize CheckpointQueue.flush(): closes an in-flight race where a concurrent flush() caller returned before the timer thread's git commit landed, causing tests/test_state_branch_e2e.py::TestCommitHistoryRegression::test_state_branch_gets_new_commits_after_cutover to flake under full-gate load. Added regression test that fails without the fix. Head 376e9a011.
 ---
 <!-- COMMENTS:END -->
