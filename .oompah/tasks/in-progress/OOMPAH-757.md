@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:45:18.198957Z'
+updated_at: '2026-08-04T12:46:41.612392Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -560,5 +560,10 @@ author: oompah
 created: 2026-08-04 12:45
 ---
 Discovery: GitHub Actions has no workflow run for OOMPAH-757 because review creation was blocked by Oompah's pre-review branch gate. I reproduced the gate failure at remote head a4945efdb: tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_idempotent_when_pr_already_exists raises TypeError because orchestrator.py defines _child_landing_evidence_block_reason twice (lines 15048 and 17397) with incompatible signatures; the later static IntegrationRecord validator shadows the established instance branch-containment method. The preserved checkpoint already renames the new helper and its eight focused test calls. Its uv.lock delta is unrelated generated churn and will be removed from the final repair.
+---
+author: oompah
+created: 2026-08-04 12:46
+---
+Implementation: Preserved the recovery checkpoint's minimal fix by renaming only the new static IntegrationRecord validator to _canonical_landing_evidence_block_reason and updating its eight focused tests. This avoids shadowing the established instance _child_landing_evidence_block_reason used by epic rollup/auto-close logic. Removed unrelated generated uv.lock churn so the net repair touches only orchestrator.py and tests/test_canonical_landing_evidence.py.
 ---
 <!-- COMMENTS:END -->
