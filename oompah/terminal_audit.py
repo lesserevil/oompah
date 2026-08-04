@@ -378,6 +378,39 @@ def compute_evidence_fingerprint(
     )
 
 
+def _resolve_epic_branch_names(
+    issue_identifier: str,
+    parent_id: str | None = None,
+    issue_type: str = "task",
+) -> list[str]:
+    """Return ordered canonical epic branch names to try for an issue.
+
+    For an epic without a parent, tries:
+      1. origin/epic-<issue_identifier>
+
+    For a nested epic (with parent_id), tries:
+      1. origin/epic-<parent_id> (shared with siblings)
+      2. origin/epic-<issue_identifier> (per-issue epic branch if independent)
+
+    Returns a list of branch names (without "origin/" prefix) to try in order.
+    Empty list if the issue is not an epic or has no meaningful branch names.
+    """
+    if not issue_identifier or (issue_type or "").strip().lower() not in ("epic",):
+        return []
+
+    branches: list[str] = []
+    if parent_id:
+        # Nested epic: try parent's epic branch first (shared landing),
+        # then this epic's own branch as fallback
+        branches.append(f"epic-{parent_id}")
+        branches.append(f"epic-{issue_identifier}")
+    else:
+        # Standalone epic: try its own epic branch
+        branches.append(f"epic-{issue_identifier}")
+
+    return branches
+
+
 def compute_issue_evidence_fingerprint(
     issue: Any,
     project_id: str,
@@ -415,6 +448,8 @@ def compute_issue_evidence_fingerprint(
         - review_state: review lifecycle state
         - contributors: list of ContributorIdentity or strings
         - child_audit_digests: list of child audit fingerprint digests
+        - issue_type: "epic" or other type (used to resolve epic branches)
+        - parent_id: parent epic ID (for nested epics)
         - integration: optional integration record with task_branch, head_sha, base_branch, integrated_sha, base_sha
     project_id : str
         The managed project ID that owns this issue.
@@ -458,6 +493,7 @@ def compute_issue_evidence_fingerprint(
                 ),
             )
     else:
+        # Try explicit branches first
         source_branch = str(
             getattr(issue, "source_branch", None)
             or getattr(issue, "work_branch", None)
@@ -465,6 +501,26 @@ def compute_issue_evidence_fingerprint(
             or getattr(issue, "branch_name", None)
             or ""
         )
+        
+        # If no explicit branch and it's an epic without work_branch,
+        # try canonical epic branch names
+        if not source_branch:
+            issue_identifier = str(
+                getattr(issue, "identifier", None)
+                or getattr(issue, "id", None)
+                or ""
+            )
+            parent_id = getattr(issue, "parent_id", None)
+            issue_type = str(getattr(issue, "issue_type", None) or "")
+            
+            epic_branches = _resolve_epic_branch_names(
+                issue_identifier, parent_id, issue_type
+            )
+            # Use the first candidate; callers needing remote verification
+            # should validate and fail closed on ambiguity
+            if epic_branches:
+                source_branch = epic_branches[0]
+        
         source_sha = str(
             getattr(issue, "source_sha", None)
             or getattr(integration, "head_sha", None)

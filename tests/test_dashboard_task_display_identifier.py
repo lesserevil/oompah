@@ -128,6 +128,8 @@ def test_api_issues_includes_project_scoped_display_identifier(api_client):
     orch = _make_orch(project, tracker)
 
     with patch.object(server_module, "_get_orchestrator", return_value=orch):
+        board = server_module._fetch_and_serialize_issues(orch)
+        server_module._set_issues_snapshot(board, duration_ms=0, orch_id=id(orch))
         resp = api_client.get("/api/v1/issues")
 
     assert resp.status_code == 200
