@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T21:16:09.219008Z'
+updated_at: '2026-08-04T21:45:30.419463Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -136,5 +136,27 @@ author: oompah
 created: 2026-08-04 21:16
 ---
 Discovery: Root cause traced. (1) oompah/stalled_task_watchdog.py:_current_evidence_decision() uses external CI signal ('ci_status' in {pass,green,success}) to reopen NEEDS_CI_FIX tasks — with no precedence check against an authoritative internal integration record. (2) oompah/orchestrator.py:_collect_stalled_watchdog_evidence and stalled_task_watchdog._tracker_issue_evidence do not include the integration record (metadata['oompah.integration']) — so classifier cannot see the blocked authority. (3) oompah/orchestrator.py:_retire_inactive_integration_rows cancels 'blocked' rows unconditionally when tracker state != READY_TO_INTEGRATE (line ~10236); a watchdog-driven Open transition therefore erases the internal gate authority. Fix plan: (a) include integration record in evidence; (b) add authority precedence in classifier: if integration.state=='blocked' and integration.head_sha matches, DO NOT reopen based on external CI — insufficient_evidence; (c) preserve 'blocked' rows in retirement unless task reached a terminal state (Done/Merged/Archived) or the branch head has moved past the blocked head_sha; (d) add deterministic tests.
+---
+author: oompah
+created: 2026-08-04 21:45
+---
+Implementation: Three surgical changes to fence stalled-task recovery behind internal gate authority.
+
+**oompah/stalled_task_watchdog.py**
+- Extended WatchdogEvidence with 'integration' field carrying the tracker's oompah.integration record.
+- _normalise_watchdog_evidence + _evidence_signals extract integration_state, integration_head_sha, integration_last_error, and branch_head_sha.
+- New _blocked_gate_authority_decision helper: if the internal integration record is 'blocked' at a head that equals (or is not superseded by) the current branch head, the classifier returns 'insufficient_evidence' / 'none' — the authoritative internal gate verdict outranks any generic forge CI signal.
+- The precedence check runs in both _current_evidence_decision (evidence-driven path) and classify_stalled_task's NEEDS_CI_FIX / NEEDS_REBASE branches (prose-comment fallback path), so neither a passing external-CI evidence signal nor a legacy 'CI passing' comment can override a blocked internal gate.
+- Merged review, audit-verdict pass, and branch-on-canonical-target signals still override the blocked record (authoritative repair evidence).
+- _tracker_issue_evidence now surfaces the integration record from either metadata['oompah.integration'] or issue.integration.
+
+**oompah/orchestrator.py**
+- _collect_stalled_watchdog_evidence includes metadata['oompah.integration'] (or issue.integration fallback) so the classifier can see the internal gate authority.
+- _retire_inactive_integration_rows preserves 'blocked' rows unless (a) the tracker task reached a terminal state (Done/Merged/Archived), (b) the tracker's integration record recorded a divergent head_sha (fresh submission), or (c) the tracker no longer reports the task at all. This prevents the reconciler from cancelling a blocked row on the strength of a watchdog-driven Open transition — the OOMPAH-793 reproduction.
+
+**Tests added**
+- tests/test_stalled_task_watchdog.py::TestInternalGateAuthorityPrecedence — 12 cases covering the blocked-gate + passing-CI reproduction, prose-comment fallback, newer-head repair evidence, NEEDS_REBASE symmetry, restart idempotence, and end-to-end run_watchdog_audit assertions.
+- test_collects_integration_record_for_internal_gate_authority — verifies the orchestrator evidence collector surfaces the integration record.
+- tests/test_delivery_plane_recovery.py — 6 new cases covering blocked-row preservation across watchdog-driven Open/Needs CI Fix/Needs Rebase/In Progress transitions, terminal-state retirement (parametrised across Done/Merged/Archived), head-divergence retirement, tracker-issue-absent retirement, non-blocked (ready) row retirement (OOMPAH-657 regression), and explicit_retry rearm-exactly-once via the queue.
 ---
 <!-- COMMENTS:END -->
