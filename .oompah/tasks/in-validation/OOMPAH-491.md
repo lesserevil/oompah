@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-08-04T20:21:43.868219Z'
+updated_at: '2026-08-04T20:21:55.909907Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-491
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -103,13 +103,27 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-04T20:21:42.470724+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-65f9630d57e2
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 812123744863a985526ca74f836141213395a48d8118814a1179041f55b36c20
+      created_at: '2026-08-04T20:21:46.821536+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T20:21:46.821536+00:00'
+      branch_key: epic-OOMPAH-490
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T17:25:47.367647+00:00'
-    updated_at: '2026-08-04T18:17:06.136464+00:00'
+    updated_at: '2026-08-04T20:21:46.821536+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-be11ca23afad
@@ -146,6 +160,20 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-04T20:21:42.470724+00:00'
     failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-65f9630d57e2
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 812123744863a985526ca74f836141213395a48d8118814a1179041f55b36c20
+    created_at: '2026-08-04T20:21:46.821536+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T20:21:46.821536+00:00'
+    branch_key: epic-OOMPAH-490
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -353,5 +381,15 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 50s
 - Log: OOMPAH-491__20260804T181718Z.jsonl
+---
+author: oompah
+created: 2026-08-04 20:21
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-04 20:21
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
