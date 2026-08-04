@@ -1,17 +1,19 @@
 ---
 id: OOMPAH-751
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Do not poison task completion when advisory peer authorization changes
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
+- needs:security
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:05:50.222616Z'
+updated_at: '2026-08-04T02:06:07.601096Z'
 work_branch: null
 target_branch: null
 review_url: null
