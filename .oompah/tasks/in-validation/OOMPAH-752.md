@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-752
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Select standalone Ready delivery fairly before claiming task authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T02:23:28.732400Z'
+updated_at: '2026-08-04T02:34:06.478173Z'
 work_branch: OOMPAH-752
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/700
@@ -105,6 +105,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/700
 oompah.review_number: '700'
 oompah.work_branch: OOMPAH-752
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-23ab74084109
+    project_id: proj-14849f1b
+    task_id: OOMPAH-752
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 40e0d5b46c5fba3c67f60c445ffe7cada4ddea298e85979faaae425f5fd12886
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:33:57.257550+00:00'
+  - version: 1
+    audit_id: audit-1783e534c137
+    project_id: proj-14849f1b
+    task_id: OOMPAH-752
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 40e0d5b46c5fba3c67f60c445ffe7cada4ddea298e85979faaae425f5fd12886
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T02:33:57.257550+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -194,5 +233,15 @@ author: oompah
 created: 2026-08-04 02:23
 ---
 Branch quality gate passed for `45fd50c6f56f22d8195ee2cb67ab84c57918d5ac` using `make test` in 413.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 02:34
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 02:34
+---
+YOLO: merged PR #700.
 ---
 <!-- COMMENTS:END -->
