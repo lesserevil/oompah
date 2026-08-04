@@ -12,9 +12,9 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:00:00.821046Z'
+updated_at: '2026-08-04T03:00:07.063905Z'
 work_branch: OOMPAH-735
-target_branch: null
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
 review_number: '702'
 review_head: null
@@ -118,6 +118,7 @@ oompah.integration:
 oompah.review_url: https://github.com/lesserevil/oompah/pull/702
 oompah.review_number: '702'
 oompah.work_branch: OOMPAH-735
+oompah.target_branch: main
 ---
 ## Summary
 
