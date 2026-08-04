@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-769
 type: epic
-status: Backlog
+status: In Progress
 priority: 1
 title: Make one transition service the only task-status writer
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-04T14:01:04.890742Z'
+updated_at: '2026-08-04T14:03:24.934049Z'
 work_branch: null
 target_branch: null
 review_url: null
