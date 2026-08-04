@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:48:03.570728Z'
+updated_at: '2026-08-04T23:48:39.423218Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 8d5fad9b-3946-4f2a-982a-67a88681bd50
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
-  total_input_tokens: 490
-  total_output_tokens: 43410
+  total_input_tokens: 500
+  total_output_tokens: 46123
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 356
-      output_tokens: 8848
+      input_tokens: 366
+      output_tokens: 11561
       cost_usd: 0.0
     sonnet:
       input_tokens: 67
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 2391
     cost_usd: 0.0
     recorded_at: '2026-08-04T22:31:54.045162+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2713
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:48:32.744889+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -220,14 +226,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 99a8dad5f6b4614d1ceb98dd44f6fee48b52633ff66fa3c706d9917c8f50ecc5
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T23:48:32.746392+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 48d71507-161c-4f51-886f-3d58295e29a8
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-04T23:47:00.856691+00:00'
-  claim_expires_at: '2026-08-05T00:17:00.856691+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-523 describes HTTP/WebSocket Basic auth enforcement\
+    \ at the ASGI boundary\u2014a distinct implementation from credential loading\
+    \ (OOMPAH-522, Archived), MCP gateway auth (OOMPAH-524, Archived), CLI auth support\
+    \ (OOMPAH-525, Archived), or documentation (OOMPAH-526, In Validation). No peer\
+    \ task covers route protection, 401 challenges, WebSocket handshake authentication,\
+    \ or webhook exemptions. The previous duplicate screening (2026-07-28 18:44) correctly\
+    \ found no duplicate. All other 30+ similarity candidates address unrelated features\
+    \ (tracker bugs, dashboard, epic workflow).\nLooking at the task corpus, I need\
+    \ to compare OOMPAH-523 against all peer tasks to determine if it's a duplicate.\n\
+    \n## Analysis\n\n**OOMPAH-523 Scope:**\n- Enforce Basic authentication at the\
+    \ ASGI boundary across HTTP and WebSocket surfaces\n- Apply the htpasswd verifier\
+    \ from OOMPAH-522 to route protection\n- Exempt only `/healthz`, webhook POST\
+    \ endpoints\n- Protect dashboard, APIs, WebSocket, MCP\n- Return 401 challenges\
+    \ with `WWW-Authenticate` headers\n- Redact Authorization values from logs\n\n\
+    **Related Tasks in Hierarchy:**\n\n1. **OOMPAH-521** (In Validation - Parent Epic):\
+    \ \"Add optional htpasswd authentication to the Oompah service\"\n   - Epic goal:\
+    \ adds optional HTTP Basic auth overall\n   - OOMPAH-523 is a direct child implementing\
+    \ ASGI enforcement\n\n2. **OOMPAH-522** (Archived - Dependency): \"Load and verify\
+    \ optional htpasswd credentials safely\"\n   - Implements `oompah/http_auth.py`\
+    \ and credential loading\n   - Explicitly does NOT apply authentication to routes\n\
+    \   - Foundation that OOMPAH-523 depends on \u2713 completed\n\n3. **OOMPAH-524**\
+    \ (Archived - Dependent): \"Integrate htpasswd authentication with the embedded\
+    \ MCP gateway\"\n   - Requires OOMPAH-523 to be done first\n   - MCP-specific\
+    \ auth concerns (separate from HTTP/WebSocket enforcement)\n   - Status: Archived\
+    \ with \"Audit PASS\" \u2713\n\n4. **OOMPAH-525** (Archived - Dependent): \"Add\
+    \ Basic auth support to Oompah CLIs and lifecycle commands\"\n   - Requires OOMPAH-523\
+    \ for server enforcement\n   - CLI/Makefile client concerns (separate)\n   - Status:\
+    \ Archived with \"Audit PASS\" \u2713\n\n5. **OOMPAH-526** (In Validation - Dependent):\
+    \ \"Document and validate secure htpasswd deployment\"\n   - Depends on OOMPAH-523\
+    \ implementation\n   - Documentation and integration verification\n\n**All Other\
+    \ Tasks:** Reviewed OOMPAH-1 through OOMPAH-185. All are about unrelated features:\n\
+    - CI fixes, markdown tracker bugs, dashboard controls, GitHub intake parsing,\
+    \ epic workflow refactoring\n- None describe HTTP/WebSocket authentication enforcement\n\
+    \n**Previous Duplicate S"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -241,6 +281,16 @@ oompah.integration:
   base_branch: epic-OOMPAH-521
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   updated_at: '2026-08-04T23:47:19.224138+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-523__20260804T234732Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-521--task-OOMPAH-523
+    source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+    completed_at: '2026-08-04T23:48:32.774730+00:00'
 ---
 ## Summary
 
@@ -672,5 +722,15 @@ author: oompah
 created: 2026-08-04 23:47
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 23:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.7K out [2.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-523__20260804T234732Z.jsonl
 ---
 <!-- COMMENTS:END -->
