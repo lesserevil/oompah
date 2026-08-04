@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:09:03.062071Z'
+updated_at: '2026-08-04T16:10:55.530804Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 47c85803-5064-41c7-807f-cf6c5044bf48
+oompah.agent_run_id: 290dee98-fe30-4fe4-af65-bf0411803c7f
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
@@ -389,5 +389,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-wz2ipoe2/workspace; actual /home/shedwards/src/oompah-779. Repair or replace the service test runtime before rerunning the branch gate.
 ```
+---
+author: oompah
+created: 2026-08-04 16:10
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
