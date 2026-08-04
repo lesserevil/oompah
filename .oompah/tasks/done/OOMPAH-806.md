@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T23:03:01.526870Z'
+updated_at: '2026-08-04T23:31:52.571783Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -101,6 +101,23 @@ oompah.work_contributors:
     completed_at: '2026-08-04T20:47:13.706379+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-58763dd2cc71
+    project_id: proj-14849f1b
+    task_id: OOMPAH-806
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-04T23:31:49.293779+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
