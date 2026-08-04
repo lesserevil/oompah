@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-08-04T20:39:47.339365Z'
+updated_at: '2026-08-04T20:39:56.169482Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -41,8 +41,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-0e35765539f9
-    applied: false
+    applied: true
     created_at: '2026-08-04T20:39:43.804635+00:00'
+    applied_at: '2026-08-04T20:39:53.848401+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -135,5 +136,22 @@ author: oompah
 created: 2026-08-04 20:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 20:39
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: c0de9b645090db2578b9b9dc87a96f720a7ff188
+- commit_subject: OOMPAH-517: reclaim read-only owned cleanup trees
+- storage_cleanup_helper: oompah/storage_cleanup.py:_make_owned_tree_removable (lines ~111-127)
+- storage_cleanup_callsite: oompah/storage_cleanup.py:_remove_owned_entry invokes helper on quarantined dir before shutil.rmtree
+- regression_test: tests/test_storage_cleanup.py:test_removes_stale_tree_with_read_only_directories_without_following_links
+- observability_test_retained: tests/test_storage_cleanup.py:test_permission_error_is_recorded_and_does_not_escape
+- on_main: true (origin/main contains c0de9b645)
+- previous_focused_result: 10 passed in 0.83s (recorded in prior task comment)
 ---
 <!-- COMMENTS:END -->
