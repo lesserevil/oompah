@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- needs:feature
+labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:23:55.583826Z'
+updated_at: '2026-08-04T11:24:39.627664Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 2a6369a3-3dec-483c-b5ae-5d825c54cd6c
 oompah.task_costs:
   total_input_tokens: 47331
   total_output_tokens: 265
@@ -159,5 +158,15 @@ author: oompah
 created: 2026-08-04 11:23
 ---
 Operator recovery for OOMPAH-759: the documentation focus completed a valid handoff, but its scheduled deep-profile retry self-aborted after writing In Progress, leaving this task without a worker. Returning only this task to Open now; duplicate screening is already current and the needs:feature label should route the next fresh dispatch to implementation. No branch or implementation evidence is being changed.
+---
+author: oompah
+created: 2026-08-04 11:24
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 11:24
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
