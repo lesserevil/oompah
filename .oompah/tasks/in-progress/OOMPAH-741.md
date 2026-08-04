@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:09:49.381740Z'
+updated_at: '2026-08-04T11:16:28.186351Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -236,5 +236,10 @@ author: oompah
 created: 2026-08-04 11:09
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 11:16
+---
+Rebase resolved: dashboard.html alert filter comment conflict merged in favor of the OOMPAH-741 wording that references both OOMPAH-735 automatic-recovery and OOMPAH-741 status/actionability. Rebased c3f9dbba onto current origin/epic-OOMPAH-740 (5368e2361, includes OOMPAH-735 0c7d9cbd4 reconciliation) as a6a023f46; force-pushed. Focused suites re-run green: test_dashboard_alert_contract (6), test_integration_retry_alert_recovery (21), test_dashboard_integration_recovery_filter (2), test_auth_health, test_terminal_audit_health*, test_dashboard_repo_hygiene_health, test_credential_error_alert, test_dashboard_credential_warning, test_dashboard_state_read_warning, test_state_api_responsiveness, test_dashboard_websocket_liveness, test_websocket_authenticated_bootstrap, test_server_issue_snapshot, test_orchestrator_repo_hygiene, test_repo_hygiene, test_epic_terminal_audit_contract (301 passed, 1 xfailed).
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:15:43.241382Z'
+updated_at: '2026-08-04T11:16:31.805079Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,13 +43,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d492709f-e4f1-4219-8cd5-ed3ded297577
 oompah.task_costs:
-  total_input_tokens: 47153
-  total_output_tokens: 504
+  total_input_tokens: 48111
+  total_output_tokens: 746
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47153
-      output_tokens: 504
+      input_tokens: 48111
+      output_tokens: 746
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 504
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:04:34.809015+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 958
+    output_tokens: 242
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:16:28.212007+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-754__20260804T110418Z
@@ -145,5 +151,15 @@ author: oompah
 created: 2026-08-04 11:15
 ---
 Fixed queue staleness detector to inspect all integration heads, not just the first ready item. The original implementation would miss repairable terminal-unreachable dependencies when earlier queue items were legitimately blocked on nonterminal dependencies. New implementation scans all Ready items topologically, skipping those blocked by nonterminal queue members, and files repair for the first eligible head. Added regression test. All 54 related tests pass.
+---
+author: oompah
+created: 2026-08-04 11:16
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 49
+- Tokens: 958 in / 242 out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 30s
+- Log: OOMPAH-754__20260804T110516Z.jsonl
 ---
 <!-- COMMENTS:END -->
