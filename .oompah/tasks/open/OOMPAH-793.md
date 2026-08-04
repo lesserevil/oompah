@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:19:48.964953Z'
+updated_at: '2026-08-04T20:20:18.117772Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,12 +23,16 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-793
+  base_branch: epic-OOMPAH-768
   head_sha: ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584
   submitted_at: '2026-08-04T20:19:43.006624+00:00'
-  updated_at: '2026-08-04T20:19:43.006624+00:00'
+  updated_at: '2026-08-04T20:20:11.211064+00:00'
+  last_error: task worktree head 08f6a8c5afdaf904daaaeb625446aaec7e961a3c differs
+    from the published task head ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584; refusing
+    to reset a preserved recovery snapshot
 ---
 ## Summary
 
@@ -51,5 +55,12 @@ author: oompah
 created: 2026-08-04 20:19
 ---
 Durable implementation, direct-owner, handoff, submission, exit, revocation, and retry workflow ownership is implemented at ef5e8c30e with restart/race coverage and independent approval.
+---
+author: oompah
+created: 2026-08-04 20:20
+---
+Integration could not verify `OOMPAH-793`: task worktree head 08f6a8c5afdaf904daaaeb625446aaec7e961a3c differs from the published task head ef5e8c30e0b5f9318db3b0c65a75dfc3c7811584; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
