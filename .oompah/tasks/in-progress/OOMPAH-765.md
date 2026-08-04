@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:41:57.262842Z'
+updated_at: '2026-08-04T16:42:43.217543Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -235,5 +235,10 @@ author: oompah
 created: 2026-08-04 16:41
 ---
 Discovery + Implementation: Confirmed root cause. AsyncMock() returns an AsyncMock instance whose child attribute .items() is a coroutine, not an iterable. When _tick() total_ms > 2000 (easily reached under CI parallel load in a quality-gate sandbox), the slow-tick diagnostic code path 'for k, v in dispatch_timings.items()' raises TypeError: 'coroutine' object is not iterable, which propagates out of await orch._tick() and fails the assertion. Fix: mirror the sibling test test_tick_sets_epic_maintenance_future by using AsyncMock(return_value={}) with the same explanatory comment. Verified: 14/14 TestRunStep5cEpicMaintenance tests pass; 279/279 test_orchestrator_handlers.py tests pass with parallel workers.
+---
+author: oompah
+created: 2026-08-04 16:42
+---
+Verification + Completion: Fix committed as c7bfbcc3b and pushed to epic-OOMPAH-765. Verified locally: TestRunStep5cEpicMaintenance (14/14) and full test_orchestrator_handlers.py suite (279/279) pass with parallel workers under 5s timeout. Minimal one-line change; no production code touched. Ready for the branch quality gate to rerun make test.
 ---
 <!-- COMMENTS:END -->
