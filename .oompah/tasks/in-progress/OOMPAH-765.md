@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:37:41.254616Z'
+updated_at: '2026-08-04T16:39:52.740195Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -225,5 +225,10 @@ Output tail:
 ```text
 The quality-gate worktree has uncommitted changes. Commit and push the repair before rerunning the exact review-head gate.
 ```
+---
+author: oompah
+created: 2026-08-04 16:39
+---
+Understanding: The CI failure is a flaky assertion in test_tick_does_not_await_epic_maintenance. Root cause: _handle_dispatch_needed is mocked as bare AsyncMock() which returns an AsyncMock instance whose .items() call yields a coroutine. When tick's total_ms > 2000ms under CI parallel load, _tick() executes _dispatch_detail = ' '.join(f'{k}={v:.0f}' for k, v in dispatch_timings.items()). Iterating the coroutine raises TypeError, propagating out of await orch._tick() and failing the test. The sibling test test_tick_sets_epic_maintenance_future already fixed this by using AsyncMock(return_value={}) and documents the exact contract. Plan: apply the same minimal fix to test_tick_does_not_await_epic_maintenance.
 ---
 <!-- COMMENTS:END -->
