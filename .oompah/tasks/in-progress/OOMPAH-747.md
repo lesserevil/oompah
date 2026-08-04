@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:44:24.068779Z'
+updated_at: '2026-08-04T00:44:55.294613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-04 00:44
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 00:44
+---
+Understanding: reuse the existing trusted patch-equivalence proof for child landing and epic auto-close, preserve fail-closed behavior for untrusted/ambiguous/missing evidence, add regression coverage for rebases and restart/idempotence, then verify and submit.
 ---
 <!-- COMMENTS:END -->
