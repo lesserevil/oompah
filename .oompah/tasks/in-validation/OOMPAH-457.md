@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-04T22:26:54.171762Z'
+updated_at: '2026-08-04T22:44:57.990124Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -113,18 +113,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-457
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-eb29de00961f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+      created_at: '2026-08-04T22:44:56.585956+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T22:44:56.585956+00:00'
+      branch_key: epic-OOMPAH-457
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:35:36.253495+00:00'
+    updated_at: '2026-08-04T22:44:56.585956+00:00'
   - version: 1
     audit_id: audit-04b103e6d430
     project_id: proj-14849f1b
@@ -172,6 +186,19 @@ oompah.terminal_audit:
     started_at: '2026-08-04T22:19:55.657378+00:00'
     branch_key: epic-OOMPAH-457
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-eb29de00961f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    created_at: '2026-08-04T22:44:56.585956+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T22:44:56.585956+00:00'
+    branch_key: epic-OOMPAH-457
 oompah.task_costs:
   total_input_tokens: 18
   total_output_tokens: 5780
