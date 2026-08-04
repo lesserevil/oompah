@@ -107,9 +107,9 @@ triple that was granted; a mismatch fails closed:
 Genuine failed operations are recorded on the grant via
 `record_task_handoff_failure` and consumed by the orchestrator when the worker
 exits — a worker whose handoff failed is held for a human rather than silently
-retried. An advisory `coordination-send` is the exception: if its recipient
-was suggested but is no longer authorized when the send is revalidated, the
-endpoint returns a structured policy-denial response without recording a
+retried. An advisory `coordination-send` recipient-policy denial is the
+exception. The endpoint returns the same structured, non-disclosing denial
+whether the peer became stale or was never authorized, without recording a
 handoff failure. The worker can still comment on and submit its own task.
 
 Spawned workers also receive the non-secret `OOMPAH_TASK_HANDOFF_TASK_ID`
@@ -124,19 +124,29 @@ read-only peer inspection, use `oompah task coordinate peers <task-id>` or
 ### Advisory coordination-send races
 
 Peer suggestions are dynamic: a peer can leave the suggested set between a
-worker listing peers and sending a message (for example, when its lifecycle
-state changes). The send must fail closed for that recipient, without
-persisting or delivering the message, but this expected policy result must not
-be treated as a task-handoff authentication failure or a worker-exit failure.
-It must be a structured non-500 response so the worker can continue its own
-comment and submission workflow.
+worker listing peers and sending a message when its graph relationship,
+changed-path evidence, or lifecycle eligibility changes. The send must fail
+closed for that recipient, without persisting or delivering the message, but
+this expected policy result must not be treated as a task-handoff
+authentication failure or a worker-exit failure. It must be a structured
+non-500 response so the worker can continue its own comment and submission
+workflow.
+
+Leaving the running set is not itself a lifecycle disqualifier. `Ready to
+Integrate` and `In Review` are non-terminal states, so a peer in either state
+remains authorized while its graph or durable changed-path relationship still
+qualifies it. Because that peer is no longer running, delivery uses the durable
+inbox fallback. If live worktree paths were its only qualifying evidence, the
+suggestion can disappear when that evidence does; a coordination checkpoint
+makes changed-path evidence durable. `Done`, `Merged`, and `Archived` are
+terminal and are excluded from suggestions.
 
 This exception does not weaken scope enforcement. Arbitrary recipients,
 cross-project recipients, expired or wrong-task capabilities, and mutations of
-another task remain denied without disclosing whether the target exists. A
-recipient that remains authorized but is not running uses the normal durable
-inbox fallback; idempotency still returns the original durable message on a
-retry.
+another task remain denied without disclosing whether the target exists. The
+recipient check happens before durable storage: a denied send creates no row,
+while an authorized retry with the same idempotency key returns the original
+durable message.
 
 ## Live least-privilege probe
 
