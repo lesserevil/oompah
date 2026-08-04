@@ -753,6 +753,45 @@ class TestOrchestratorIntegration:
         assert evidence["ci"]["status"] == "passed"
         assert evidence["audit"]["pending_chain"]
 
+    def test_collects_integration_record_for_internal_gate_authority(self, tmp_path):
+        """OOMPAH-806: the integration record must be exposed as evidence."""
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="T-806",
+            identifier="T-806",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="feature/T-806",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            "oompah.integration": {
+                "state": "blocked",
+                "head_sha": "ef5e8c30e" + "0" * 31,
+                "last_error": "combined-tree gate failed",
+                "task_branch": "feature/T-806",
+            },
+        }
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = None
+        provider.get_branch_head_sha.return_value = "ef5e8c30e" + "0" * 31
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+
+        assert "integration" in evidence
+        assert evidence["integration"]["state"] == "blocked"
+        assert evidence["integration"]["head_sha"] == "ef5e8c30e" + "0" * 31
+
     def test_scheduler_watchdog_wakes_once_after_clearing_stale_completed(
         self, tmp_path
     ):
