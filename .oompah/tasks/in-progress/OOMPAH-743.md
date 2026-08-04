@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-743
 type: bug
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T13:52:44.050344Z'
+updated_at: '2026-08-04T13:53:06.851672Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: d0b56b50-a47c-4c03-967a-05ec328dbfda
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-743
 oompah.integration:
   version: 2
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-08-04 13:52
 ---
 Integration found a rebase conflict on `epic-OOMPAH-740--task-OOMPAH-743`. Resolve it against `epic-OOMPAH-740`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-08-04 13:53
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
