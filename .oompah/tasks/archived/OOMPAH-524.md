@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-08-04T23:25:22.582619Z'
+updated_at: '2026-08-04T23:25:29.584145Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -84,8 +84,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-41dbc4c0137f
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:25:19.121400+00:00'
+    applied_at: '2026-08-04T23:25:27.991931+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -542,5 +543,19 @@ author: oompah
 created: 2026-08-04 22:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:25
+---
+Audit PASS — Archived
+
+OOMPAH-524 successfully implements htpasswd authentication for the embedded MCP gateway. Commit 224fd7305 merged to main. All 15,387 tests pass. Discovery reports auth status correctly. Object-identity sentinels prevent spoofing. Credentials properly redacted. All acceptance criteria met. Ready for archive.
+
+Safe evidence:
+- merged_commit: 224fd7305 - OOMPAH-524: Authenticate embedded MCP gateway
+- test_results: 15387 passed, 7 skipped, 1 xfailed
+- [REDACTED-credential-key]: passed
+- files_changed: oompah/mcp_gateway.py, oompah/server.py, tests/test_mcp_gateway.py
+- key_tests: test_authenticated_mcp_client_can_initialize_list_and_call_protected_api, test_mcp_transport_rejects_missing_or_invalid_credentials_before_dispatch, test_external_internal_marker_headers_cannot_bypass_rest_authentication
 ---
 <!-- COMMENTS:END -->

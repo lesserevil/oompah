@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T23:15:38.135869Z'
+updated_at: '2026-08-04T23:25:37.893290Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-812
 target_branch: epic-OOMPAH-768
 review_url: null
@@ -80,6 +80,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T23:15:15.985975+00:00'
     branch_key: epic-OOMPAH-768--task-OOMPAH-812
+oompah.task_costs:
+  total_input_tokens: 47
+  total_output_tokens: 1711
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 47
+      output_tokens: 1711
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 47
+    output_tokens: 1711
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:25:34.559016+00:00'
 ---
 ## Summary
 
@@ -117,5 +133,15 @@ author: oompah
 created: 2026-08-04 23:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:25
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 29
+- Tokens: 47 in / 1.7K out [1.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 6s
+- Log: OOMPAH-812__20260804T231541Z.jsonl
 ---
 <!-- COMMENTS:END -->
