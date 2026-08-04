@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:08:30.301545Z'
+updated_at: '2026-08-04T14:08:53.520016Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -234,5 +234,15 @@ author: oompah
 created: 2026-08-04 14:08
 ---
 Rebased the bounded alert transcript fix onto the structured dashboard fact contract; compact summaries are redacted and bounded at producer/API/renderer boundaries, sanitized diagnostics remain available in accessible details, and EXOCOMP-147 plus security/Unicode regressions are covered.
+---
+author: oompah
+created: 2026-08-04 14:08
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 126
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 46s
+- Log: OOMPAH-743__20260804T135322Z.jsonl
 ---
 <!-- COMMENTS:END -->
