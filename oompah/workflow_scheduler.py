@@ -219,30 +219,32 @@ class WorkflowJobScheduler:
             )
             ordered = (ordered[offset:] + ordered[:offset])[: self.decision_limit]
         applied = stale = created = replayed = superseded = 0
-        for decision in ordered:
-            cursor = self.store.activate_schedule(
-                project_id=decision.project_id,
-                task_id=decision.task_id,
-                decision_revision=decision.decision_revision,
-                snapshot_generation=generation,
-            )
-            if not cursor.accepted:
-                stale += 1
-                continue
-            write = self.store.reconcile_schedule(
-                project_id=decision.project_id,
-                task_id=decision.task_id,
-                snapshot_generation=generation,
-                job_generation=cursor.job_generation,
-                specs=self._specs(decision, cursor),
-            )
-            if not write.accepted:
-                stale += 1
-                continue
-            applied += 1
-            created += write.created
-            replayed += write.replayed
-            superseded += write.superseded
+        if ordered:
+            with self.store.scheduling_batch():
+                for decision in ordered:
+                    cursor = self.store.activate_schedule(
+                        project_id=decision.project_id,
+                        task_id=decision.task_id,
+                        decision_revision=decision.decision_revision,
+                        snapshot_generation=generation,
+                    )
+                    if not cursor.accepted:
+                        stale += 1
+                        continue
+                    write = self.store.reconcile_schedule(
+                        project_id=decision.project_id,
+                        task_id=decision.task_id,
+                        snapshot_generation=generation,
+                        job_generation=cursor.job_generation,
+                        specs=self._specs(decision, cursor),
+                    )
+                    if not write.accepted:
+                        stale += 1
+                        continue
+                    applied += 1
+                    created += write.created
+                    replayed += write.replayed
+                    superseded += write.superseded
         with self._metrics_lock:
             self._reconciled_decisions += applied
             self._stale_decisions += stale

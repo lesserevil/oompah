@@ -152,6 +152,69 @@ def test_duplicate_scheduling_replays_one_durable_job(store):
     )
 
 
+def test_decision_batch_rolls_back_all_tasks_on_late_enqueue_failure(
+    tmp_path, clock
+):
+    calls = 0
+
+    def job_id():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated late enqueue failure")
+        return f"job-{calls}"
+
+    store = WorkflowJobStore(
+        str(tmp_path / "batch-rollback.sqlite3"),
+        clock=clock,
+        id_factory=job_id,
+    )
+    scheduler = WorkflowJobScheduler(store=store)
+
+    with pytest.raises(RuntimeError, match="late enqueue"):
+        scheduler.reconcile(
+            (decision(task="OOMPAH-1"), decision(task="OOMPAH-2"))
+        )
+
+    assert store.list_jobs() == ()
+    assert store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-1"
+    ) is None
+    assert store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-2"
+    ) is None
+    store.close()
+
+
+def test_scheduling_batch_rolls_back_interrupt_and_allows_next_batch(store):
+    class BatchInterrupted(BaseException):
+        pass
+
+    with pytest.raises(BatchInterrupted):
+        with store.scheduling_batch():
+            store.activate_schedule(
+                project_id="project-a",
+                task_id="OOMPAH-1",
+                decision_revision=decision().decision_revision,
+                snapshot_generation=1,
+            )
+            raise BatchInterrupted
+
+    assert store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-1"
+    ) is None
+    with store.scheduling_batch():
+        store.activate_schedule(
+            project_id="project-a",
+            task_id="OOMPAH-1",
+            decision_revision=decision().decision_revision,
+            snapshot_generation=2,
+        )
+    assert store.schedule_cursor(
+        project_id="project-a", task_id="OOMPAH-1"
+    ).snapshot_generation == 2
+
+
 def test_recurring_semantic_decision_gets_new_activation_after_supersession(store):
     scheduler = WorkflowJobScheduler(store=store)
     first_decision = decision(evidence="facts-1")

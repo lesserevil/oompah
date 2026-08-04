@@ -359,6 +359,43 @@ def test_missing_implementation_authority_is_recovery_not_warning():
     assert decision.alert_level is AlertSeverity.INFO
 
 
+def test_duplicate_candidate_requires_duplicate_investigator_authority():
+    issue = _issue(DUPLICATE_CANDIDATE)
+    implementer = _facts(
+        issue,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {
+                    "owner_id": "implementer",
+                    "ownership_source": "agent",
+                    "lease_expires_at": (NOW + timedelta(minutes=5)).isoformat(),
+                },
+            )
+        },
+    )
+    investigator = _facts(
+        issue,
+        overrides={
+            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {
+                    "owner_id": "investigator",
+                    "ownership_source": "duplicate_investigator",
+                    "lease_expires_at": (NOW + timedelta(minutes=5)).isoformat(),
+                },
+            )
+        },
+    )
+
+    screened = evaluate_task(issue, implementer)
+    owned = evaluate_task(issue, investigator)
+
+    assert screened.durable_jobs == ("duplicate_screening",)
+    assert owned.reason_code == "duplicate.investigating"
+    assert owned.disposition is TaskDisposition.OWNED
+
+
 @pytest.mark.parametrize(
     ("review", "reason", "recommended", "action"),
     [
@@ -560,7 +597,11 @@ def test_duplicate_investigator_requires_a_live_lease():
         overrides={
             FactDomain.IMPLEMENTATION_AUTHORITY: _known(
                 FactDomain.IMPLEMENTATION_AUTHORITY,
-                {"lease_expires_at": (NOW + timedelta(minutes=1)).isoformat()},
+                {
+                    "owner_id": "investigator",
+                    "ownership_source": "duplicate_investigator",
+                    "lease_expires_at": (NOW + timedelta(minutes=1)).isoformat(),
+                },
             )
         },
     )
@@ -807,7 +848,15 @@ def test_incident_advisory_policy_denial_does_not_poison_implementation():
         overrides={
             FactDomain.CONFIG: _known(
                 FactDomain.CONFIG, {"coordination_policy_denied": True}
-            )
+            ),
+            FactDomain.IMPLEMENTATION_AUTHORITY: _known(
+                FactDomain.IMPLEMENTATION_AUTHORITY,
+                {
+                    "owner_id": "implementer",
+                    "ownership_source": "agent",
+                    "lease_expires_at": (NOW + timedelta(minutes=5)).isoformat(),
+                },
+            ),
         },
     )
 

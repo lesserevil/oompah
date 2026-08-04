@@ -52,6 +52,19 @@ from oompah.workflow_reasons import AlertSeverity, LIVENESS_SLOS
 
 WORK_DECISION_SCHEMA_VERSION = 1
 SATISFIED_DEPENDENCY_STATUSES = frozenset({DONE, MERGED, ARCHIVED})
+IMPLEMENTATION_ACTION_JOBS = frozenset(
+    {
+        "implementation_start",
+        "direct_owner_claim",
+        "duplicate_screening",
+        "focus_handoff",
+        "worker_exit",
+        "validation_submission",
+        "authority_revocation",
+        "implementation_retry",
+        "implementation_recovery",
+    }
+)
 
 _FIXED_DECISION_REASON_CODES = frozenset(
     {
@@ -65,6 +78,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "evidence.task_fact_identity_mismatch",
         "evidence.task_status_mismatch",
         "implementation.active",
+        "implementation.action_scheduled",
         "implementation.recovery_scheduled",
         "intake.awaiting_decision",
         "integration.active",
@@ -159,6 +173,7 @@ class PermittedAction(str, Enum):
     WAIT_DEPENDENCY = "wait_dependency"
     RECOVER_IMPLEMENTATION = "recover_implementation"
     CONTINUE_IMPLEMENTATION = "continue_implementation"
+    RECONCILE_IMPLEMENTATION = "reconcile_implementation"
     ANSWER_REQUEST = "answer_request"
     RESOLVE_OPERATOR_ACTION = "resolve_operator_action"
     CLAIM_REPAIR = "claim_repair"
@@ -523,16 +538,37 @@ def _implementation_decision(
 ) -> WorkDecision:
     config = facts.fact(FactDomain.CONFIG)
     config_value = _mapping(config.value) if config.state is FactState.KNOWN else None
-    if config_value and bool(config_value.get("coordination_policy_denied")):
+    pending_action = (
+        str(config_value.get("implementation_pending_action") or "").strip()
+        if config_value
+        else ""
+    )
+    if pending_action not in IMPLEMENTATION_ACTION_JOBS:
+        pending_action = ""
+    authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
+    authority_value = (
+        _mapping(authority.value) if authority.state is FactState.KNOWN else None
+    )
+    authority_independent_actions = {
+        "direct_owner_claim",
+        "duplicate_screening",
+        "implementation_recovery",
+        "implementation_start",
+    }
+    if pending_action and (
+        pending_action in authority_independent_actions
+        or (authority_value is not None and _valid_lease(authority_value, now))
+    ):
         return _decision(
             task,
             facts,
-            disposition=TaskDisposition.OWNED,
-            reason_code="coordination.policy_denied",
-            owner=WorkflowOwner.IMPLEMENTER,
-            actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="implementation.action_scheduled",
+            owner=WorkflowOwner.DISPATCHER,
+            actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+            alert=AlertSeverity.INFO,
+            durable_jobs=(pending_action,),
         )
-    authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
     if authority.state is not FactState.KNOWN or _mapping(authority.value) is None:
         return _fact_wait(
             task,
@@ -542,7 +578,31 @@ def _implementation_decision(
             action=PermittedAction.RECOVER_IMPLEMENTATION,
             job="implementation_recovery",
         )
-    value = _mapping(authority.value)
+    value = authority_value
+    assert value is not None
+    if bool(value.get("transition_pending")) and value.get("state") == "retry_wait":
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code="implementation.action_scheduled",
+            owner=WorkflowOwner.DISPATCHER,
+            actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+            alert=AlertSeverity.INFO,
+        )
+    if bool(value.get("transition_pending")) and value.get("state") in {
+        "submitted",
+        "revoked",
+        "completed",
+    }:
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="implementation.active",
+            owner=WorkflowOwner.DISPATCHER,
+            actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
+        )
     if _valid_lease(value, now):
         owner = (
             WorkflowOwner.DIRECT_OWNER
@@ -553,7 +613,12 @@ def _implementation_decision(
             task,
             facts,
             disposition=TaskDisposition.OWNED,
-            reason_code="implementation.active",
+            reason_code=(
+                "coordination.policy_denied"
+                if config_value
+                and bool(config_value.get("coordination_policy_denied"))
+                else "implementation.active"
+            ),
             owner=owner,
             actions=(PermittedAction.CONTINUE_IMPLEMENTATION,),
         )
@@ -1188,6 +1253,7 @@ def evaluate_task(
                 if view.status in {NEEDS_CI_FIX, NEEDS_REBASE}
                 else PermittedAction.CLAIM_IMPLEMENTATION,
             ),
+            durable_jobs=("implementation_start",),
         )
     if view.status == IN_PROGRESS:
         return _implementation_decision(view, facts, decision_now)
@@ -1224,7 +1290,11 @@ def evaluate_task(
         value = (
             _mapping(authority.value) if authority.state is FactState.KNOWN else None
         )
-        if value and _valid_lease(value, decision_now):
+        if (
+            value
+            and value.get("ownership_source") == "duplicate_investigator"
+            and _valid_lease(value, decision_now)
+        ):
             return _decision(
                 view,
                 facts,
@@ -1241,7 +1311,7 @@ def evaluate_task(
             owner=WorkflowOwner.DUPLICATE_INVESTIGATOR,
             actions=(PermittedAction.INVESTIGATE_DUPLICATE,),
             alert=AlertSeverity.INFO,
-            durable_jobs=("duplicate_investigation",),
+            durable_jobs=("duplicate_screening",),
         )
     if view.status == DONE:
         return _landing_decision(view, facts)
