@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:27:04.527271Z'
+updated_at: '2026-08-04T20:27:48.177750Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-04 20:27
 ---
 Understanding: migrate terminal-audit ownership, candidate/launch/rotation/finalization/result/retry/recovery into durable decisions and jobs, preserving TerminalTransitionCoordinator safety and independent-candidate/evidence guarantees. I will first map existing lifecycle and persistence patterns, then implement focused changes with restart/starvation/auth/retry coverage.
+---
+author: oompah
+created: 2026-08-04 20:27
+---
+Discovery: durable workflow_jobs/workflow_scheduler/workflow_worker infrastructure is present, while terminal-audit enforcement still owns a periodic monolithic scan and direct auditor launch. The cutover seam is the orchestrator enforcement/dispatch path; durable audit jobs will own phase/recovery and TerminalTransitionCoordinator will remain the sole result/status applicator.
 ---
 <!-- COMMENTS:END -->
