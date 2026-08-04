@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-778
 type: task
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Route orchestrator lifecycle writes through TaskTransitionService
 parent: OOMPAH-769
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:53.917290Z'
-updated_at: '2026-08-04T17:42:01.176225Z'
+updated_at: '2026-08-04T17:42:29.690749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,12 +22,16 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-778
+  base_branch: epic-OOMPAH-769
   head_sha: 6561d52e5a879375ea3587582f335419ed49310e
   submitted_at: '2026-08-04T17:41:55.468626+00:00'
-  updated_at: '2026-08-04T17:41:55.468626+00:00'
+  updated_at: '2026-08-04T17:42:23.215924+00:00'
+  last_error: task worktree head db015701875b7976bfdaa7993b4043f2a21f2817 differs
+    from the published task head 6561d52e5a879375ea3587582f335419ed49310e; refusing
+    to reset a preserved recovery snapshot
 ---
 ## Summary
 
@@ -50,5 +54,12 @@ author: oompah
 created: 2026-08-04 17:42
 ---
 Centralized every orchestrator lifecycle status mutation in TaskTransitionService with durable journaling, fresh CAS fencing, terminal audit staging, exact-head/generation authority checks, recovery-edge contract coverage, and race/restart regression tests. Pushed exact reviewed head 6561d52e5; 958 lifecycle tests and 69 focused transition/workflow/submission tests pass.
+---
+author: oompah
+created: 2026-08-04 17:42
+---
+Integration could not verify `OOMPAH-778`: task worktree head db015701875b7976bfdaa7993b4043f2a21f2817 differs from the published task head 6561d52e5a879375ea3587582f335419ed49310e; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
