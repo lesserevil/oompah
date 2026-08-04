@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-748
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Break nested-epic rollup cycle between Done child epics and parent landing
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T03:43:27.629865Z'
+updated_at: '2026-08-04T03:52:49.058206Z'
 work_branch: OOMPAH-748
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/704
@@ -85,6 +85,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/704
 oompah.review_number: '704'
 oompah.work_branch: OOMPAH-748
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0d33581cd593
+    project_id: proj-14849f1b
+    task_id: OOMPAH-748
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cbdf5d3e7e836ed994ab9357f8e9b6dfbe622fa8b4c7c80f3cdca1ac213d4a9a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:52:39.834965+00:00'
+  - version: 1
+    audit_id: audit-27343d5cba2c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-748
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cbdf5d3e7e836ed994ab9357f8e9b6dfbe622fa8b4c7c80f3cdca1ac213d4a9a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T03:52:39.834965+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -197,5 +236,15 @@ author: oompah
 created: 2026-08-04 03:28
 ---
 Branch quality gate passed for `d4282363c07b6607b75cdc32957730f37330e741` using `make test` in 421.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 03:52
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 03:52
+---
+YOLO: merged PR #704.
 ---
 <!-- COMMENTS:END -->
