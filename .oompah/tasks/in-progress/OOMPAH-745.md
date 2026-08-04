@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T15:40:12.463083Z'
+updated_at: '2026-08-04T16:01:14.382583Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ author: oompah
 created: 2026-08-04 15:40
 ---
 Understanding: Branch has a prior OOMPAH-745 commit (2361ecf83) but integration found a rebase conflict against epic-OOMPAH-740. The upstream now has refined versions of 742/743/744 plus OOMPAH-760 additions. I need to rebase the OOMPAH-745 commit onto the new origin/epic-OOMPAH-740 HEAD (b51047023). Conflicting files will include: oompah/templates/dashboard.html, tests/test_dashboard_alert_center.py, tests/test_dashboard_credential_warning.py, tests/test_dashboard_vertical_scroll.py. My plan: (1) attempt rebase, (2) resolve conflicts by reconciling our changes with the upstream's refined API, (3) run focused tests, (4) push + resubmit.
+---
+author: oompah
+created: 2026-08-04 16:01
+---
+Discovery: Rebase complete. The branch now has commit 91a817458 (OOMPAH-745) on top of b51047023 (OOMPAH-744). The conflicts were in test files and dashboard.html that were superseded by the upstream's evolved API. Key fixes made to test_dashboard_alert_experience.py: (1) ariaLive now reads from #alert-center-live element (separate from the list), (2) ariaLabel updated to 'Active alert details', (3) terminalAuditVisible corrected to False (terminal audit panel is hidden when an actionable terminal_audit: alert exists in the center), (4) genericBannerHidden removed (alerts-banner element no longer exists in upstream HTML), (5) authHealthHidden corrected to False (auth banner shows as status info even when healthy). Running focused tests now.
 ---
 <!-- COMMENTS:END -->
