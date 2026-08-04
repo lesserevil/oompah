@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:43:26.609981Z'
+updated_at: '2026-08-04T12:43:46.965831Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -550,5 +550,10 @@ author: oompah
 created: 2026-08-04 12:43
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-04 12:43
+---
+Understanding: The branch gate failure appears to be a method-shadowing regression: a new IntegrationRecord evidence validator reused the established child/epic landing method name with an incompatible signature. I will verify the branch and CI traceback, reproduce it, minimally rename the new helper and its focused tests, then run the directly affected suites before pushing and resubmitting OOMPAH-757.
 ---
 <!-- COMMENTS:END -->
