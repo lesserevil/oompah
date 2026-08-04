@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T20:49:20.418924Z'
+updated_at: '2026-08-04T21:16:09.219008Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-04 20:49
 ---
 Understanding: The bug is a churn scenario where the stalled-task watchdog reopens a task to Open based on unrelated passing external forge CI, causing the integration reconciler to cancel the authoritative internal gate 'Needs CI Fix' row (blocked at exact head). The fix must: (1) make current internal integration/gate records outrank generic forge CI; (2) never reopen or cancel a blocked integration generation based on external CI alone; (3) require newer pushed head, explicit same-gen retry, or authoritative repair evidence; (4) serialize watchdog + integration transitions through TaskTransitionService with generation CAS; (5) keep blocked evidence visible. Focus files: oompah/stalled_task_watchdog.py, oompah/integration_queue.py, oompah/integration_executor.py, oompah/task_transition_service.py, oompah/orchestrator.py. Starting exploration.
+---
+author: oompah
+created: 2026-08-04 21:16
+---
+Discovery: Root cause traced. (1) oompah/stalled_task_watchdog.py:_current_evidence_decision() uses external CI signal ('ci_status' in {pass,green,success}) to reopen NEEDS_CI_FIX tasks — with no precedence check against an authoritative internal integration record. (2) oompah/orchestrator.py:_collect_stalled_watchdog_evidence and stalled_task_watchdog._tracker_issue_evidence do not include the integration record (metadata['oompah.integration']) — so classifier cannot see the blocked authority. (3) oompah/orchestrator.py:_retire_inactive_integration_rows cancels 'blocked' rows unconditionally when tracker state != READY_TO_INTEGRATE (line ~10236); a watchdog-driven Open transition therefore erases the internal gate authority. Fix plan: (a) include integration record in evidence; (b) add authority precedence in classifier: if integration.state=='blocked' and integration.head_sha matches, DO NOT reopen based on external CI — insufficient_evidence; (c) preserve 'blocked' rows in retirement unless task reached a terminal state (Done/Merged/Archived) or the branch head has moved past the blocked head_sha; (d) add deterministic tests.
 ---
 <!-- COMMENTS:END -->
