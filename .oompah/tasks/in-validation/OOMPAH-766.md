@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-766
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Implement durable leased workflow jobs and restart-safe sagas
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:48:06.670083Z'
+updated_at: '2026-08-04T16:50:43.150982Z'
 work_branch: epic-OOMPAH-766
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/713
@@ -28,6 +28,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/713
 oompah.review_number: '713'
 oompah.work_branch: epic-OOMPAH-766
 oompah.target_branch: epic-OOMPAH-763
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cad15f0c8539
+    project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T16:50:31.930408+00:00'
+  - version: 1
+    audit_id: audit-48e0b754331c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-766
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa4c63e4c5e02fff4a69bc9b90425b9374715cca81060b65e6f682799a55e88a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T16:50:31.930408+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -45,5 +84,15 @@ author: oompah
 created: 2026-08-04 16:47
 ---
 Branch quality gate passed for `fd480f6bd8aeab2763b927bee841ffae52a345e1` using `make test` in 616.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 16:50
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 16:50
+---
+YOLO: merged PR #713.
 ---
 <!-- COMMENTS:END -->
