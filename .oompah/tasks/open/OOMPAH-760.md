@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:37:08.970722Z'
+updated_at: '2026-08-04T12:37:21.094119Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -253,5 +253,15 @@ Outcome: recovered the prior implementation, rebased it cleanly onto origin/main
 Evidence: changed files are oompah/acp_tools.py, oompah/focus.py, oompah/models.py, oompah/orchestrator.py, oompah/server.py, and tests/test_orchestrator_duplicate_detection.py. Focused handoff/capability/focus tests passed: 224 passed in 12.57s.
 Remaining work and risks: feature implementation must close restart recovery for a structured comment persisted while the task remains In Progress, require authenticated Oompah authorship for backfill, and add the exact docs -> feature race plus late/forced exit, retry/normal dispatch, restart-between-writes, already-completed, duplicate, and exactly-once successor tests. Re-run the focused suites and make test on the final head.
 Recommended next focus: feature
+---
+author: oompah
+created: 2026-08-04 12:37
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 41
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 36s
+- Log: OOMPAH-760__20260804T123155Z.jsonl
 ---
 <!-- COMMENTS:END -->
