@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-08-04T20:36:59.779916Z'
+updated_at: '2026-08-04T20:37:06.256946Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -73,8 +73,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-918c86e4f6dd
-    applied: false
+    applied: true
     created_at: '2026-08-04T20:36:56.418482+00:00'
+    applied_at: '2026-08-04T20:37:04.986876+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -300,5 +301,24 @@ author: oompah
 created: 2026-08-04 20:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 20:37
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- epic_merge_commit: 4b001b3a3 Merge pull request #563 from lesserevil/epic-OOMPAH-490
+- task_role: final test gate for pruning epic OOMPAH-490 (no code changes required)
+- closed_date: 2026-07-28
+- audit_date: 2026-08-04
+- days_since_closure: 7
+- reported_suite_result: 12,239 passed / 7 skipped / 0 failed / 12,246 collected / 235.57s
+- granian_e2e: 4/4 pass on rerun
+- git_remote_safety: 17/17 pass on rerun
+- process_leak_reconciliation: documented in comment #18 (pre-existing orphan terminated, no new leaks)
+- trigger_reason: Aged Merged auto-archive (>=7 days)
 ---
 <!-- COMMENTS:END -->
