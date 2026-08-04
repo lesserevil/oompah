@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:22:07.066115Z'
+updated_at: '2026-08-04T00:24:03.611368Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
