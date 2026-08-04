@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Validation
+status: Needs Human
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T22:57:05.215996Z'
+updated_at: '2026-08-04T22:57:22.121868Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -64,6 +64,31 @@ oompah.task_costs:
     recorded_at: '2026-08-04T22:31:54.045162+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-53c9ad335674-3: '2026-08-04T22:57:12.166343+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    target_state: Archived
+    evidence_fingerprint: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+    audit_ids:
+    - audit-53c9ad335674
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T22:57:12.166362+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    audit_id: audit-53c9ad335674
+    attempt_id: no-auditor-audit-53c9ad335674-3
+    target_state: Archived
+    evidence_fingerprint: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+    status: Needs Human
+    audit_ids:
+    - audit-53c9ad335674
+    applied: true
+    created_at: '2026-08-04T22:57:12.166386+00:00'
+    applied_at: '2026-08-04T22:57:19.740971+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -71,7 +96,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-523
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,13 +149,25 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-04T22:57:03.854527+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-53c9ad335674-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-04T22:57:12.166093+00:00'
+      completed_at: '2026-08-04T22:57:12.166093+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:35.336793+00:00'
-    updated_at: '2026-08-04T22:44:45.402997+00:00'
+    updated_at: '2026-08-04T22:57:12.166093+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
@@ -525,5 +562,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 24s
 - Log: OOMPAH-523__20260804T222142Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:57
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
