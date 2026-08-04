@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T04:07:31.255870Z'
+updated_at: '2026-08-04T04:08:08.339349Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8bb4fa88-f879-4730-b020-b60f1af71392
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48202
   total_output_tokens: 53530
@@ -107,9 +107,9 @@ oompah.integration:
   task_branch: OOMPAH-753
   base_branch: main
   base_sha: bc9c289f401b63603454cda00f7670c000354a21
-  head_sha: 7b4245335e4ba4ff9e63e2d23fa3add7592bb180
-  submitted_at: '2026-08-04T02:45:19.056943+00:00'
-  updated_at: '2026-08-04T02:45:59.434677+00:00'
+  head_sha: d9e937f7192866b0f45939da7e7eb1d642b0912c
+  submitted_at: '2026-08-04T04:07:37.669745+00:00'
+  updated_at: '2026-08-04T04:07:37.669745+00:00'
 ---
 ## Summary
 
@@ -319,5 +319,20 @@ author: oompah
 created: 2026-08-04 04:07
 ---
 Completion: Delivered and pushed commit d9e937f7192866b0f45939da7e7eb1d642b0912c to origin/OOMPAH-753. Fatal auditor mutation denials again expose the established read-only policy wording without changing fail-closed classification or recovery budgets. Focused gate suites pass (44 auditor/provider tests; 279 orchestrator-handler tests), and the worktree is clean/up to date. No GitHub PR or Actions run exists yet because Oompah's pre-review full branch gate must accept this submitted head before review creation.
+---
+author: oompah
+created: 2026-08-04 04:07
+---
+Fixed the CI regression by preserving read-only wording on fatal auditor mutation denials; pushed d9e937f71 after 44 auditor/provider and 279 orchestrator-handler tests passed.
+---
+author: oompah
+created: 2026-08-04 04:08
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 34
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 27s
+- Log: OOMPAH-753__20260804T040147Z.jsonl
 ---
 <!-- COMMENTS:END -->
