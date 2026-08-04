@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:14:13.468651Z'
+updated_at: '2026-08-04T13:15:45.962513Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,12 +47,14 @@ oompah.agent_run_id: 23af49eb-ddef-4572-8912-c896053edb76
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
   base_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
-  updated_at: '2026-08-04T13:08:19.023070+00:00'
+  head_sha: aae9534a2a9314e209d9823890fe4ae588f86835
+  submitted_at: '2026-08-04T13:15:42.426498+00:00'
+  updated_at: '2026-08-04T13:15:42.426498+00:00'
 oompah.task_costs:
   total_input_tokens: 46384
   total_output_tokens: 16826
@@ -409,5 +411,10 @@ author: oompah
 created: 2026-08-04 13:14
 ---
 Verification: Focused suites pass on current head aae9534a2 — test_dashboard_alert_contract (6), test_integration_retry_alert_recovery (21), test_dashboard_integration_recovery_filter (2), test_auth_health, test_terminal_audit_health, test_dashboard_terminal_audit_health, test_dashboard_repo_hygiene_health, test_dashboard_credential_warning (31), test_credential_error_alert (34), test_dashboard_state_read_warning (22), test_state_api_responsiveness (19), test_dashboard_websocket_liveness (9), test_websocket_authenticated_bootstrap (14), test_server_issue_snapshot (25), test_orchestrator_repo_hygiene (8), test_repo_hygiene (19), test_epic_terminal_audit_contract (20+1x), test_long_tick_regression (14). Branch head matches origin. Resubmitting to trigger a fresh gate run against the exact head.
+---
+author: oompah
+created: 2026-08-04 13:15
+---
+Structured server-side dashboard alert contract (oompah.dashboard_alerts) applied to generic orchestrator alerts, repo hygiene, terminal-audit health, auth health (operator+worker), and quality-gate lifecycle. Snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring highest current severity. Frontend uses action_required=false as the actionability decision without message parsing. OOMPAH-735 remains sole owner of integration_retry recovery classification. Focused alert/health/state-API/WebSocket suites pass (301 + 29 contract tests). Resubmitting after prior gate infrastructure_error metadata mismatch.
 ---
 <!-- COMMENTS:END -->
