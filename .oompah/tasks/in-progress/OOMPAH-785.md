@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-785
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Replace process-local workflow scheduling primitives with durable job ownership
 parent: OOMPAH-766
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:05.979634Z'
-updated_at: '2026-08-04T14:06:05.362428Z'
+updated_at: '2026-08-04T16:12:05.350920Z'
 work_branch: null
 target_branch: null
 review_url: null
