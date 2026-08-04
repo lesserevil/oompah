@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:45:24.369372Z'
+updated_at: '2026-08-04T02:46:01.230595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 83fef2af-a0d9-4a8d-bdb5-0d48c949fc39
 oompah.task_costs:
-  total_input_tokens: 47368
-  total_output_tokens: 2808
+  total_input_tokens: 48202
+  total_output_tokens: 53530
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47368
-      output_tokens: 2808
+      input_tokens: 48202
+      output_tokens: 53530
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +67,12 @@ oompah.task_costs:
     output_tokens: 273
     cost_usd: 0.0
     recorded_at: '2026-08-04T02:08:16.617344+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 834
+    output_tokens: 50722
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T02:45:50.955332+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-753__20260804T020449Z
@@ -85,14 +91,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-753
     source_sha: 18e18a6b63b2f9a522b17c0132dac0f5a0d9e487
     completed_at: '2026-08-04T02:08:16.632776+00:00'
+  - run_id: OOMPAH-753__20260804T020912Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: security
+    source_branch: OOMPAH-753
+    source_sha: 7b4245335e4ba4ff9e63e2d23fa3add7592bb180
+    completed_at: '2026-08-04T02:45:50.979476+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-753
+  base_branch: main
+  base_sha: bc9c289f401b63603454cda00f7670c000354a21
   head_sha: 7b4245335e4ba4ff9e63e2d23fa3add7592bb180
   submitted_at: '2026-08-04T02:45:19.056943+00:00'
-  updated_at: '2026-08-04T02:45:19.056943+00:00'
+  updated_at: '2026-08-04T02:45:59.434677+00:00'
 ---
 ## Summary
 
@@ -182,5 +198,20 @@ author: oompah
 created: 2026-08-04 02:45
 ---
 Implemented recoverable non-mutating validator requests for terminal auditors. Auditor command validation now classifies policy contract mismatches as recoverable (not consuming fatal budget), allowing auditors to continue after requesting commands outside the validation contract. Fixes OOMPAH-731 regression. All 66 auditor/contract tests passing.
+---
+author: oompah
+created: 2026-08-04 02:45
+---
+Agent completed successfully in 2210s (51556 tokens)
+---
+author: oompah
+created: 2026-08-04 02:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 218, Tool calls: 103
+- Tokens: 834 in / 50.7K out [51.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 36m 50s
+- Log: OOMPAH-753__20260804T020912Z.jsonl
 ---
 <!-- COMMENTS:END -->
