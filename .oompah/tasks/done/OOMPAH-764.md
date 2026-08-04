@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:44:13.107917Z'
+updated_at: '2026-08-04T14:44:23.317695Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -44,7 +44,19 @@ oompah.terminal_audit:
       target epic-OOMPAH-763 at the same revision. All canonical children are Done
       and 482 focused and adjacent tests passed.
     created_at: '2026-08-04T14:44:06.820415+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint: c048d70c3966e70e9a1d4a96a2a9740b821ab38d23f760587ec42d5eedcbd950
+    audit_ids:
+    - audit-a70c8beeb684
+    - audit-017862c7aec9
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T14:44:20.219011+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +113,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -113,6 +125,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Open
     created_at: '2026-08-04T14:43:55.858596+00:00'
+    updated_at: '2026-08-04T14:44:20.218984+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
@@ -194,5 +207,12 @@ author: oompah
 created: 2026-08-04 14:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 14:44
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner nested-epic landing recovery. Exact work branch epic-OOMPAH-764 at 73f5aeb26fc91f62a0bd9ac5ba544582b761f811 is contained by immediate parent target epic-OOMPAH-763 at the same revision. All canonical children are Done and 482 focused and adjacent tests passed.
 ---
 <!-- COMMENTS:END -->
