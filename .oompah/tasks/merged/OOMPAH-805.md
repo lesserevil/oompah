@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T22:32:29.926817Z'
+updated_at: '2026-08-04T22:42:38.895188Z'
 work_branch: OOMPAH-805
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/715
@@ -180,6 +180,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T22:26:15.319136+00:00'
     applied_at: '2026-08-04T22:26:22.872472+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9202a8903549
+    project_id: proj-14849f1b
+    task_id: OOMPAH-805
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #715 is merged at e1b0f4846054bacac48e667295e2c00733d86d8c; exact
+      task head 376e9a011a6ba90ed4160a9c2754844c2d37d809 passed make test and all
+      matrix CI; independent audit audit-3d1 recorded PASS, but its status application
+      left the task In Validation and the follow-up Merged audit was terminated during
+      the operator pause/restart. Applying the already-established terminal evidence
+      so the in-flight task is not stranded by audit finalization infrastructure.'
+    created_at: '2026-08-04T22:42:33.868914+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
