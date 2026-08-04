@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Merged
+status: In Validation
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-07-28T21:32:54.556922Z'
+updated_at: '2026-08-04T21:35:02.100272Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -45,6 +45,28 @@ oompah.task_costs:
     output_tokens: 15595
     cost_usd: 0.0
     recorded_at: '2026-07-28T20:16:54.043734+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d04490732e74
+    project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:57.078497+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -283,5 +305,10 @@ author: oompah
 created: 2026-07-28 20:40
 ---
 Documented and validated secure htpasswd deployment, client configuration, webhook boundaries, lifecycle operations, recovery, and rollback; added contract coverage and pushed the complete verified change.
+---
+author: oompah
+created: 2026-08-04 21:35
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
