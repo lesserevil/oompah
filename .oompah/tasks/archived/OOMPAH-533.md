@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-533
 type: task
-status: In Validation
+status: Archived
 priority: 3
 title: Expose duplicate-screening state in the API and dashboard
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:45.110386Z'
-updated_at: '2026-08-04T22:54:40.578352Z'
+updated_at: '2026-08-04T23:12:57.640492Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f7935578de9c: '2026-08-04T23:12:54.256797+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-533
+    target_state: Archived
+    evidence_fingerprint: e610bae7c893dac11cb38bb0e58d003450bc9faa874eb33a3b994afb4f62b354
+    audit_ids:
+    - audit-a7689a4beebe
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:12:54.256809+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-533
+    audit_id: audit-a7689a4beebe
+    attempt_id: attempt-f7935578de9c
+    target_state: Archived
+    evidence_fingerprint: e610bae7c893dac11cb38bb0e58d003450bc9faa874eb33a3b994afb4f62b354
+    status: Archived
+    audit_ids:
+    - audit-a7689a4beebe
+    applied: false
+    created_at: '2026-08-04T23:12:54.256826+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-533
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -50,7 +74,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f7935578de9c
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -61,13 +85,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T22:54:32.002844+00:00'
       branch_key: OOMPAH-533
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T23:12:54.256637+00:00'
+      ended_at: '2026-08-04T23:12:54.256637+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T22:36:56.312957+00:00'
-    updated_at: '2026-08-04T22:54:32.002844+00:00'
+    updated_at: '2026-08-04T23:12:54.256637+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6d5bbed0f36d
