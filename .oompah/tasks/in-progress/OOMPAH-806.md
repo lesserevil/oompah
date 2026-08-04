@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:08:17.094860Z'
+updated_at: '2026-08-04T22:09:30.552343Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -209,5 +209,15 @@ author: oompah
 created: 2026-08-04 22:08
 ---
 Final acceptance check before submission: run_watchdog_audit currently posts the [watchdog:stalled_task] action comment before the TaskTransitionService CAS. If CAS returns WAITING/rejected, ensure that sentinel does not make the next sweep classify already_actioned and suppress a required retry. Add a deterministic regression proving deferred/failed generation CAS remains retryable later, while an actually applied winner stays idempotent. Passing transition routing tests alone are insufficient if the comment becomes premature durable authority.
+---
+author: oompah
+created: 2026-08-04 22:09
+---
+Implementation update: Completed the writer-boundary gap. Orchestrator now owns a durable task_transitions.sqlite3 journal and routes stalled-watchdog reopen plus combined-tree integration failure status changes through TaskTransitionService. Intents carry the observed authority version, assignment generation when present, and exact tracker head; brief same-task claim races retry under one idempotency key. run_watchdog_audit fails closed without an injected transition boundary and posts its sentinel only after a verified reopen, so rejected generations are not suppressed. The blocked integration record is persisted before the gate status CAS; blocked rows remain authoritative; Open+blocked tasks are rejected from generic dispatch even without a direct-owner lease. Added the existing gate-routing/watchdog-recovery contract edges and deterministic production-path/race tests.
+---
+author: oompah
+created: 2026-08-04 22:09
+---
+Verification: 188 focused tests pass (test_stalled_task_watchdog, test_delivery_plane_recovery, test_task_transition_service, test_workflow_contract). An additional 334 neighboring tests pass (test_integration_retry_alert_recovery, test_parallel_epic_children, test_orchestrator_handlers). Terminal mutation scan passes: 8 identified, 8 allowlisted. git diff --check and py_compile pass. The normal Make bootstrap could not run because uv/systemd-run fails in this managed container (DBus rejects PID 2); after attempting the Make target, I ran its underlying scanner with the already provisioned project Python. GitHub has no PR or Actions run for this unpushed task branch, so there were no remote failure logs to inspect.
 ---
 <!-- COMMENTS:END -->
