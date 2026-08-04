@@ -1210,8 +1210,9 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
         else:
             # Actual mutation, file redirection, or process control: always fatal
             return AuditorCommandDenial(
-                "Error: auditor capability policy denied a mutating or compound "
-                "shell command; auditors cannot edit, commit, push, merge, or change state",
+                "Error: read-only auditor capability policy denied a mutating or "
+                "compound shell command; auditors cannot edit, commit, push, merge, "
+                "or change state",
                 reason="auditor_mutating_shell_command",
             )
     
