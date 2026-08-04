@@ -368,6 +368,12 @@ class RetryEntry:
     # can re-check the same authority boundary locally.
     workspace_path: str | None = None
     authority_generation: str | None = None
+    # A retry dispatch persists its intended status/assignment claims before
+    # mutating the tracker.  If the service restarts before worker
+    # registration, these fields prove that the observed active state belongs
+    # to this generation rather than to an unrelated operator edit.
+    dispatch_status: str | None = None
+    dispatch_assignment_id: str | None = None
     # Wall-clock due time is persisted separately from due_at_ms, which is a
     # process-local monotonic timestamp and cannot survive a restart.
     due_at_epoch_ms: float | None = None

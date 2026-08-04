@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.focus import BUILTIN_FOCI, select_focus
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RetryEntry, RunningEntry
 from oompah.orchestrator import DispatchAuthorityRevoked, Orchestrator
@@ -288,6 +290,516 @@ def test_replacement_attempt_cannot_inherit_failed_retry_generation(tmp_path):
     assert orch._retry_entry_matches_issue(replacement, retry) is False
 
 
+def test_exact_generation_tampering_is_rejected(tmp_path):
+    orch = _orchestrator(tmp_path)
+    retry = _schedule(orch, _issue())
+    retry.authority_generation = "tampered-generation"
+
+    assert orch._retry_entry_matches_issue(_issue(), retry) is False
+
+
+@pytest.mark.parametrize("source_state", ["Open", "In Progress"])
+def test_retry_authorizes_its_own_in_progress_write(tmp_path, source_state):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state=source_state)
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": source_state}
+        tracker = MagicMock()
+
+        def fetch(_issue_ids):
+            return [replace(issue, state=tracker_state["state"])]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+        await asyncio.sleep(0)
+
+        assert tracker_state["state"] == "In Progress"
+        assert tracker.update_issue.call_args_list == [
+            ((issue.identifier,), {"status": "In Progress"})
+        ]
+        orch._run_worker.assert_awaited_once()
+        assert issue.id in orch.state.running
+        assert retry.cancelled is True
+        assert issue.id not in orch.state.retry_attempts
+
+        running = orch.state.running.pop(issue.id)
+        if running.worker_task is not None and not running.worker_task.done():
+            running.worker_task.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="In Progress")
+        issue.labels = ["focus-complete:docs", "needs:feature"]
+        tracker_state = {"state": "In Progress"}
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = [
+            {
+                "text": (
+                    "Focus handoff: docs\n"
+                    "Documentation review is complete; implementation remains."
+                )
+            }
+        ]
+
+        def fetch(_issue_ids):
+            return [replace(issue, state=tracker_state["state"])]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+        writer_entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+            focus_name="docs",
+            focus_role="Technical Writer",
+            assignment_id="assignment-1",
+        )
+
+        assert orch._handoff_completed_focus(
+            writer_entry,
+            issue,
+            issue.project_id,
+        )
+        assert tracker_state["state"] == "Open"
+        assert select_focus(issue, foci=BUILTIN_FOCI).role == "Feature Developer"
+
+        orch._schedule_retry(
+            issue.id,
+            attempt=1,
+            identifier=issue.identifier,
+            delay_ms=60_000,
+            error="focus handoff retry",
+            escalated_profile="deep",
+            project_id=issue.project_id,
+            context_entry=writer_entry,
+            authority_issue=issue,
+        )
+        retry = orch.state.retry_attempts[issue.id]
+        orch._retry_dispatching[issue.id] = retry
+        profile = MagicMock(name="deep", model_role="deep")
+        profile.name = "deep"
+        orch._get_profile_by_name = MagicMock(return_value=profile)
+        started_roles: list[str] = []
+
+        async def run_worker(running_issue, *_args, **_kwargs):
+            started_roles.append(
+                select_focus(running_issue, foci=BUILTIN_FOCI).role
+            )
+
+        orch._run_worker = AsyncMock(side_effect=run_worker)
+
+        await orch._dispatch(
+            issue,
+            attempt=retry.attempt,
+            override_profile=retry.escalated_profile,
+            retry_entry=retry,
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+            if started_roles:
+                break
+
+        assert tracker_state["state"] == "In Progress"
+        assert started_roles == ["Feature Developer"]
+        assert orch._run_worker.await_count == 1
+        assert issue.id in orch.state.running
+        assert retry.cancelled is True
+
+    asyncio.run(scenario())
+
+
+def test_retry_authorizes_its_shared_tracker_assignment_claim(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        issue.tracker_kind = "oompah_md"
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {
+            "state": "Open",
+            "assignment_id": issue.assignment_id,
+        }
+        tracker = MagicMock()
+
+        def fetch(_issue_ids):
+            return [
+                replace(
+                    issue,
+                    state=tracker_state["state"],
+                    assignment_id=tracker_state["assignment_id"],
+                )
+            ]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+
+        def set_metadata(_identifier, field, value):
+            assert field == "oompah.agent_run_id"
+            tracker_state["assignment_id"] = value
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        tracker.set_metadata_field.side_effect = set_metadata
+        tracker.get_metadata.side_effect = lambda _identifier: {
+            "oompah.agent_run_id": tracker_state["assignment_id"]
+        }
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+        await asyncio.sleep(0)
+
+        running = orch.state.running[issue.id]
+        assert tracker_state["assignment_id"] != issue.assignment_id
+        assert running.assignment_id == tracker_state["assignment_id"]
+        assert retry.dispatch_assignment_id == tracker_state["assignment_id"]
+        orch._run_worker.assert_awaited_once()
+
+        if running.worker_task is not None and not running.worker_task.done():
+            running.worker_task.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_retry_status_write_failure_restores_open_and_rearms_generation(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Open"}
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            return [replace(issue, state=tracker_state["state"])]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+            if status == "In Progress":
+                raise RuntimeError("tracker write response lost after commit")
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert fetch_count == 3
+        assert [call.kwargs["status"] for call in tracker.update_issue.call_args_list] == [
+            "In Progress",
+            "Open",
+        ]
+        assert tracker_state["state"] == "Open"
+        assert issue.id not in orch.state.running
+        assert issue.id in orch.state.retry_attempts
+        assert orch.state.retry_attempts[issue.id] is retry
+        assert retry.timer_handle is not None
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
+        orch._run_worker.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("dimension", "expected_diagnostic"),
+    [
+        ("branch", "branch"),
+        ("assignment", "assignment"),
+        ("head", "head"),
+    ],
+)
+def test_retry_abort_after_status_write_restores_open_and_withdraws_drifted_generation(
+    tmp_path,
+    caplog,
+    dimension,
+    expected_diagnostic,
+):
+    async def scenario():
+        caplog.set_level("INFO")
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Open", "drifted": False}
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            values = {"state": tracker_state["state"]}
+            if tracker_state["drifted"]:
+                if dimension == "branch":
+                    values["work_branch"] = "task/replacement"
+                elif dimension == "assignment":
+                    values["assignment_id"] = "assignment-2"
+                else:
+                    values["integration"] = IntegrationRecord(
+                        state="ready",
+                        head_sha="b" * 40,
+                    )
+            return [replace(issue, **values)]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+            if status == "In Progress":
+                tracker_state["drifted"] = True
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert [call.kwargs["status"] for call in tracker.update_issue.call_args_list] == [
+            "In Progress",
+            "Open",
+        ]
+        assert tracker_state["state"] == "Open"
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        assert issue.id not in orch.state.retry_attempts
+        orch._run_worker.assert_not_awaited()
+        diagnostics = [
+            record.retry_authority
+            for record in caplog.records
+            if hasattr(record, "retry_authority")
+        ]
+        assert any(
+            expected_diagnostic in diagnostic["dimensions"]
+            for diagnostic in diagnostics
+        )
+
+    asyncio.run(scenario())
+
+
+def test_operator_open_wins_after_retry_status_write(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.side_effect = [
+            [issue],
+            [issue],
+            [_issue(state="Open")],
+        ]
+
+        def update(_identifier, *, status):
+            if status == "In Progress":
+                orch._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=issue.project_id,
+                    reason="operator moved task back to Open",
+                )
+
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert [call.kwargs["status"] for call in tracker.update_issue.call_args_list] == [
+            "In Progress",
+        ]
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.retry_attempts
+        assert retry.cancelled is True
+        orch._run_worker.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+def test_accepted_submission_wins_during_retry_setup(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Open"}
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            if fetch_count == 3:
+                tracker_state["state"] = "Ready to Integrate"
+                orch._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=issue.project_id,
+                    reason="task submitted for integration",
+                )
+                return [
+                    replace(
+                        issue,
+                        state=tracker_state["state"],
+                        integration=IntegrationRecord(
+                            state="ready",
+                            head_sha="b" * 40,
+                        ),
+                    )
+                ]
+            return [replace(issue, state=tracker_state["state"])]
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(state=status)
+        )
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert tracker_state["state"] == "Ready to Integrate"
+        assert [call.kwargs["status"] for call in tracker.update_issue.call_args_list] == [
+            "In Progress",
+        ]
+        assert retry.cancelled is True
+        assert issue.id not in orch.state.retry_attempts
+        assert issue.id not in orch.state.running
+        orch._run_worker.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+def test_failed_status_rollback_keeps_live_retry_owner(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {
+            "state": "Open",
+            "branch": issue.work_branch,
+        }
+        tracker = MagicMock()
+
+        def fetch(_issue_ids):
+            return [
+                replace(
+                    issue,
+                    state=tracker_state["state"],
+                    work_branch=tracker_state["branch"],
+                )
+            ]
+
+        def update(_identifier, *, status):
+            if status == "Open":
+                raise RuntimeError("temporary rollback failure")
+            tracker_state["state"] = status
+            tracker_state["branch"] = "task/replacement"
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert tracker_state["state"] == "In Progress"
+        assert issue.id not in orch.state.running
+        assert orch.state.retry_attempts[issue.id] is retry
+        assert retry.cancelled is False
+        assert retry.dispatch_status == "In Progress"
+        assert retry.timer_handle is not None
+        orch._run_worker.assert_not_awaited()
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
+
+    asyncio.run(scenario())
+
+
+def test_terminal_owner_fence_wins_after_retry_status_write(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker_state = {"state": "Open"}
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            if fetch_count == 3:
+                orch.state.completed.add(issue.id)
+            return [replace(issue, state=tracker_state["state"])]
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(state=status)
+        )
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert tracker_state["state"] == "In Progress"
+        assert issue.id in orch.state.completed
+        assert retry.cancelled is True
+        assert issue.id not in orch.state.retry_attempts
+        assert issue.id not in orch.state.running
+        orch._run_worker.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
 def test_due_retry_loses_to_submit_cancellation_race(tmp_path):
     async def scenario():
         orch = _orchestrator(tmp_path)
@@ -384,6 +896,95 @@ def test_restart_repersist_valid_retry_after_rearming(tmp_path):
     persisted = restarted._load_state().get("retry_attempts")
     assert set(persisted) == {"task-1"}
     assert persisted["task-1"]["authority_generation"]
+
+
+def test_restart_after_open_status_claim_starts_replacement_worker_once(tmp_path):
+    async def scenario():
+        original = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(original, issue)
+        # The dispatcher persists this intent before writing In Progress.  A
+        # restart at this point must recognize the resulting active state as
+        # self-authored and resume provider startup.
+        retry.dispatch_status = "In Progress"
+        retry.dispatch_assignment_id = "assignment-2"
+        original._persist_retry_entries()
+
+        restarted = _orchestrator(tmp_path)
+        active_issue = replace(
+            issue,
+            state="In Progress",
+            assignment_id="assignment-2",
+        )
+        restarted._fetch_retry_issue = MagicMock(return_value=active_issue)
+        await restarted._restore_persisted_retries()
+
+        restored = restarted.state.retry_attempts[issue.id]
+        assert restored.dispatch_status == "In Progress"
+        persisted = restarted._load_state()["retry_attempts"][issue.id]
+        assert persisted["dispatch_status"] == "In Progress"
+        assert persisted["dispatch_assignment_id"] == "assignment-2"
+
+        tracker_state = {"state": "In Progress"}
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
+            replace(active_issue, state=tracker_state["state"])
+        ]
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(state=status)
+        )
+        restarted._tracker_for_issue = MagicMock(return_value=tracker)
+        restarted._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="deep", model_role="deep")
+        )
+        restarted._run_worker = AsyncMock()
+
+        await restarted._on_retry_timer(issue.id)
+        await asyncio.sleep(0)
+
+        assert tracker_state["state"] == "In Progress"
+        restarted._run_worker.assert_awaited_once()
+        assert issue.id in restarted.state.running
+        assert issue.id not in restarted.state.retry_attempts
+        running = restarted.state.running.pop(issue.id)
+        if running.worker_task is not None and not running.worker_task.done():
+            running.worker_task.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_restart_restores_dispatchable_state_when_claim_authority_drifted(tmp_path):
+    async def scenario():
+        original = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        retry = _schedule(original, issue)
+        retry.dispatch_status = "In Progress"
+        original._persist_retry_entries()
+
+        restarted = _orchestrator(tmp_path)
+        tracker_state = {"state": "In Progress"}
+        drifted = replace(
+            issue,
+            state="In Progress",
+            work_branch="task/replacement",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
+            replace(drifted, state=tracker_state["state"])
+        ]
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(state=status)
+        )
+        restarted._fetch_retry_issue = MagicMock(return_value=drifted)
+        restarted._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await restarted._restore_persisted_retries()
+
+        assert tracker_state["state"] == "Open"
+        assert issue.id not in restarted.state.retry_attempts
+        assert restarted._load_state().get("retry_attempts") == {}
+
+    asyncio.run(scenario())
 
 
 def test_workspace_head_is_revalidated_when_tracker_has_no_head(tmp_path):
