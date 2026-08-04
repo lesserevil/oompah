@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-761
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:02:56.039392Z'
-updated_at: '2026-08-04T13:05:57.869646Z'
+updated_at: '2026-08-04T13:08:54.435485Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -30,14 +30,46 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: epic-OOMPAH-740
   base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
   head_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+  integrated_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
   submitted_at: '2026-08-04T13:05:40.275761+00:00'
-  updated_at: '2026-08-04T13:05:40.275761+00:00'
+  updated_at: '2026-08-04T13:08:44.638998+00:00'
+  canonical_landing_evidence:
+    old_base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    old_head_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    new_base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    new_head_sha: 5841eb680383563da6b5a5a6a96363b0b1463b4d
+    target_epic_branch: epic-OOMPAH-740
+    rebase_task_id: OOMPAH-761
+    created_at_utc: '2026-08-04T13:08:44.638932+00:00'
+    evidence_fingerprint: b39f9c4e21d14dafcb8ca7b6b16f85a345cae0e0b46ae0e47c58fd2d69568a53
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-878465aedc6b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-761
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adacd3ff2bdd3ff2b8521609669d66d3154d483b492e55f061f5ac9700a83436
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-epic-maintenance
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T13:08:47.955153+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -102,5 +134,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 20s
 - Log: OOMPAH-761__20260804T130351Z.jsonl
+---
+author: oompah
+created: 2026-08-04 13:08
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
