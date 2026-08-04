@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:merge_conflict
-- merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:10:25.530547Z'
+updated_at: '2026-08-04T03:10:46.552225Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -65,7 +64,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 15ed8f6b-02f1-4aea-a53f-c3c3abba0268
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 163
   total_output_tokens: 45542
@@ -113,9 +112,9 @@ oompah.integration:
   task_branch: OOMPAH-735
   base_branch: main
   base_sha: 42da24c2617b86610838c8097eaec2ede58ec44c
-  head_sha: bbdb6e8be192b95c924c882ccbadaebfc34f08c1
-  submitted_at: '2026-08-03T20:00:27.504873+00:00'
-  updated_at: '2026-08-03T20:01:00.165623+00:00'
+  head_sha: 0c7d9cbd41a03aa8092a0e82e10ec50862e143ed
+  submitted_at: '2026-08-04T03:10:30.658534+00:00'
+  updated_at: '2026-08-04T03:10:30.658534+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/702
 oompah.review_number: '702'
 oompah.work_branch: OOMPAH-735
@@ -344,5 +343,10 @@ author: oompah
 created: 2026-08-04 03:10
 ---
 Completion: Delivered and pushed rebased head 0c7d9cbd41a03aa8092a0e82e10ec50862e143ed. Normal authorized/fresh repair and bounded retry activity is structured as non-actionable info and excluded from global operator alerts; stopped, stale, revoked, exhausted, and unrecoverable recovery re-arms actionable warning/error state; successful delivery clears recovery alerts; diagnostics remain intact. The sole main overlap was resolved without dropping direct-epic cleanup behavior. Remote branch exactly matches HEAD and is one commit ahead of current origin/main.
+---
+author: oompah
+created: 2026-08-04 03:10
+---
+Rebased and delivered structured integration recovery actionability, snapshot reconciliation, dashboard filtering, and deterministic transition coverage; 752 focused/adjacent tests pass.
 ---
 <!-- COMMENTS:END -->
