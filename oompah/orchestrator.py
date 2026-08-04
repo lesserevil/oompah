@@ -201,6 +201,7 @@ from oompah.terminal_transition_coordinator import (
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, WorkflowFactCollector
+from oompah.workflow_jobs import WorkflowJobStore
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
     WorkflowShadowEvaluator,
@@ -1260,6 +1261,9 @@ class Orchestrator:
         # and survives a service restart.
         self.review_capacity_store = ReviewCapacityStore(
             os.path.join(_state_dir, "review_capacity.sqlite3")
+        )
+        self.workflow_job_store = WorkflowJobStore(
+            os.path.join(_state_dir, "workflow_jobs.sqlite3")
         )
         self.workflow_shadow = WorkflowShadowEvaluator(
             mode=config.workflow_engine_mode,
@@ -6015,6 +6019,7 @@ class Orchestrator:
             cancel_futures=False,
         )
         self.review_capacity_store.close()
+        self.workflow_job_store.close()
 
     def _workflow_shadow_running_entry(
         self,
@@ -38529,6 +38534,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
+            "workflow_jobs": self.workflow_job_store.health_snapshot(),
             "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {

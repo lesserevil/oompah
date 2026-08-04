@@ -168,6 +168,8 @@ def test_state_and_websocket_message_share_shadow_summary(tmp_path, monkeypatch)
     orch._run_workflow_shadow_sweep()
     snapshot = orch.get_snapshot()
     assert snapshot["workflow_shadow"]["tracked_task_count"] == 1
+    assert snapshot["workflow_jobs"]["schema_version"] == 3
+    assert snapshot["workflow_jobs"]["states"] == {}
 
     monkeypatch.setattr(server_module, "_orchestrator", orch)
     server_module._update_state_snapshot(snapshot)

@@ -229,7 +229,7 @@ def test_listener_runs_only_for_semantic_change():
 
 
 def test_diagnostics_are_secret_redacted_before_storage():
-    secret = "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
+    secret = "ghp_0123456789abcdefghijklmnopqrstuvwxyz"  # pragma: allowlist secret
     shadow = WorkflowShadowEvaluator(mode="shadow")
 
     result = shadow.evaluate(

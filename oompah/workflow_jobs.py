@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Any
 
 
-WORKFLOW_JOB_SCHEMA_VERSION = 2
+WORKFLOW_JOB_SCHEMA_VERSION = 3
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
@@ -273,6 +273,33 @@ class WorkflowJobEvent:
     created_at: float
 
 
+@dataclass(frozen=True, slots=True)
+class WorkflowScheduleCursor:
+    """Durable ordering fence for one task's latest evaluated decision."""
+
+    project_id: str
+    task_id: str
+    snapshot_generation: int
+    decision_revision: str
+    job_generation: str
+    changed: bool
+    accepted: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowScheduleWrite:
+    """Result of atomically materializing one accepted scheduling cursor."""
+
+    project_id: str
+    task_id: str
+    snapshot_generation: int
+    job_generation: str
+    accepted: bool
+    created: int = 0
+    replayed: int = 0
+    superseded: int = 0
+
+
 class WorkflowJobStoreError(RuntimeError):
     """Base class for workflow-job persistence errors."""
 
@@ -359,6 +386,25 @@ BEFORE DELETE ON workflow_job_events BEGIN
 END;
 """
 
+_CREATE_V3_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_schedule_cursors (
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    snapshot_generation INTEGER NOT NULL,
+    decision_revision TEXT NOT NULL,
+    job_generation TEXT NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY(project_id, task_id)
+);
+CREATE TABLE IF NOT EXISTS workflow_project_fairness (
+    project_id TEXT PRIMARY KEY,
+    claim_sequence INTEGER NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS workflow_schedule_generation_idx
+    ON workflow_schedule_cursors(snapshot_generation, project_id, task_id);
+"""
+
 _V2_COLUMNS: dict[str, str] = {
     "expected_evidence_revision": "TEXT",
     "expected_head_sha": "TEXT",
@@ -412,6 +458,7 @@ class WorkflowJobStore:
                     f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
                 )
         self._conn.executescript(_CREATE_V2_OBJECTS)
+        self._conn.executescript(_CREATE_V3_OBJECTS)
         self._conn.execute(
             "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
             ("workflow_jobs_version", str(WORKFLOW_JOB_SCHEMA_VERSION)),
@@ -431,6 +478,186 @@ class WorkflowJobStore:
         if row is None:
             raise WorkflowJobCorruptionError("workflow job schema version is missing")
         return int(row["value"])
+
+    def _next_counter_locked(self, key: str) -> int:
+        row = self._conn.execute(
+            "SELECT value FROM schema_meta WHERE key = ?", (key,)
+        ).fetchone()
+        current = int(row["value"]) if row is not None else 0
+        value = current + 1
+        self._conn.execute(
+            "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+            (key, str(value)),
+        )
+        return value
+
+    def allocate_snapshot_generation(self) -> int:
+        """Return a process-independent, monotonically increasing scan fence."""
+
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                value = self._next_counter_locked("workflow_snapshot_generation")
+                self._conn.commit()
+                return value
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def allocate_decision_window(self, *, total: int, limit: int) -> int:
+        """Return and advance a durable fair offset for a bounded task scan."""
+
+        if isinstance(total, bool) or int(total) < 1:
+            raise ValueError("total must be a positive integer")
+        bounded = _bounded_limit(limit)
+        count = int(total)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    """
+                    SELECT value FROM schema_meta
+                     WHERE key = 'workflow_decision_window_offset'
+                    """
+                ).fetchone()
+                offset = (int(row["value"]) if row is not None else 0) % count
+                next_offset = (offset + min(bounded, count)) % count
+                self._conn.execute(
+                    """
+                    INSERT OR REPLACE INTO schema_meta(key, value)
+                    VALUES('workflow_decision_window_offset', ?)
+                    """,
+                    (str(next_offset),),
+                )
+                self._conn.commit()
+                return offset
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    @staticmethod
+    def _schedule_cursor_from_row(
+        row: sqlite3.Row, *, changed: bool, accepted: bool = True
+    ) -> WorkflowScheduleCursor:
+        return WorkflowScheduleCursor(
+            project_id=str(row["project_id"]),
+            task_id=str(row["task_id"]),
+            snapshot_generation=int(row["snapshot_generation"]),
+            decision_revision=str(row["decision_revision"]),
+            job_generation=str(row["job_generation"]),
+            changed=changed,
+            accepted=accepted,
+        )
+
+    def schedule_cursor(
+        self, *, project_id: str, task_id: str
+    ) -> WorkflowScheduleCursor | None:
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM workflow_schedule_cursors
+                 WHERE project_id = ? AND task_id = ?
+                """,
+                (project, task),
+            ).fetchone()
+        return (
+            self._schedule_cursor_from_row(row, changed=False)
+            if row is not None
+            else None
+        )
+
+    def activate_schedule(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        decision_revision: str,
+        snapshot_generation: int,
+        now: float | None = None,
+    ) -> WorkflowScheduleCursor:
+        """CAS one decision into the durable task scheduling cursor.
+
+        A decision can recur after an intervening generation was superseded.
+        In that case it receives a new activation generation even though its
+        semantic decision revision is identical to an older historical row.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        revision = _required_text(decision_revision, "decision_revision")
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_schedule_cursors
+                     WHERE project_id = ? AND task_id = ?
+                    """,
+                    (project, task),
+                ).fetchone()
+                if existing is not None:
+                    previous_snapshot = int(existing["snapshot_generation"])
+                    if snapshot < previous_snapshot:
+                        self._conn.commit()
+                        return self._schedule_cursor_from_row(
+                            existing, changed=False, accepted=False
+                        )
+                    if snapshot == previous_snapshot:
+                        if str(existing["decision_revision"]) != revision:
+                            raise WorkflowJobStoreError(
+                                "one snapshot generation produced conflicting decisions"
+                            )
+                        self._conn.commit()
+                        return self._schedule_cursor_from_row(existing, changed=False)
+                    changed = str(existing["decision_revision"]) != revision
+                    job_generation = (
+                        f"{revision}:{snapshot}"
+                        if changed
+                        else str(existing["job_generation"])
+                    )
+                else:
+                    changed = True
+                    job_generation = f"{revision}:{snapshot}"
+                self._conn.execute(
+                    """
+                    INSERT INTO workflow_schedule_cursors(
+                        project_id, task_id, snapshot_generation,
+                        decision_revision, job_generation, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(project_id, task_id) DO UPDATE SET
+                        snapshot_generation = excluded.snapshot_generation,
+                        decision_revision = excluded.decision_revision,
+                        job_generation = excluded.job_generation,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        project,
+                        task,
+                        snapshot,
+                        revision,
+                        job_generation,
+                        timestamp,
+                    ),
+                )
+                row = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_schedule_cursors
+                     WHERE project_id = ? AND task_id = ?
+                    """,
+                    (project, task),
+                ).fetchone()
+                assert row is not None
+                self._conn.commit()
+                return self._schedule_cursor_from_row(row, changed=changed)
+            except Exception:
+                self._conn.rollback()
+                raise
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> WorkflowJob:
@@ -565,63 +792,202 @@ class WorkflowJobStore:
             ).fetchall()
         return tuple(self._event_from_row(row) for row in rows)
 
+    def _enqueue_locked(
+        self, spec: WorkflowJobSpec, *, now: float
+    ) -> tuple[WorkflowJob, bool]:
+        if not isinstance(spec, WorkflowJobSpec):
+            raise TypeError("spec must be a WorkflowJobSpec")
+        existing = self._conn.execute(
+            """
+            SELECT * FROM workflow_jobs
+             WHERE project_id = ? AND idempotency_key = ?
+            """,
+            (spec.project_id, spec.idempotency_key),
+        ).fetchone()
+        if existing is not None:
+            if str(existing["spec_revision"]) != spec.revision:
+                raise WorkflowJobIdempotencyConflict(
+                    f"idempotency key {spec.idempotency_key!r} already describes "
+                    "different workflow work"
+                )
+            return self._from_row(existing), False
+        job_id = _required_text(self._id_factory(), "generated job_id")
+        self._conn.execute(
+            """
+            INSERT INTO workflow_jobs(
+                job_id, project_id, task_id, generation, action, phase,
+                idempotency_key, spec_revision, spec_json,
+                expected_evidence_revision, expected_head_sha, state,
+                priority, attempts, max_attempts, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            """,
+            (
+                job_id,
+                spec.project_id,
+                spec.task_id,
+                spec.generation,
+                spec.action,
+                spec.phase,
+                spec.idempotency_key,
+                spec.revision,
+                _canonical_json(spec.to_dict()),
+                spec.expected_evidence_revision,
+                spec.expected_head_sha,
+                WorkflowJobState.QUEUED.value,
+                spec.priority,
+                spec.max_attempts,
+                now,
+                now,
+            ),
+        )
+        row = self._row_locked(job_id)
+        self._append_event_locked(row, "enqueued", now=now)
+        return self._from_row(row), True
+
     def enqueue(self, spec: WorkflowJobSpec) -> WorkflowJob:
         """Atomically insert immutable work or replay an identical enqueue."""
 
         if not isinstance(spec, WorkflowJobSpec):
             raise TypeError("spec must be a WorkflowJobSpec")
         now = float(self._clock())
-        job_id = _required_text(self._id_factory(), "generated job_id")
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                existing = self._conn.execute(
+                job, _created = self._enqueue_locked(spec, now=now)
+                self._conn.commit()
+                return job
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def reconcile_schedule(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        snapshot_generation: int,
+        job_generation: str,
+        specs: Sequence[WorkflowJobSpec],
+        reason: str = "superseded by a newer workflow decision",
+        now: float | None = None,
+    ) -> WorkflowScheduleWrite:
+        """Materialize one cursor and fence every non-current task job atomically."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        generation = _required_text(job_generation, "job_generation")
+        message = _required_text(reason, "reason")
+        if isinstance(snapshot_generation, bool) or int(snapshot_generation) < 1:
+            raise ValueError("snapshot_generation must be a positive integer")
+        snapshot = int(snapshot_generation)
+        normalized_specs = tuple(specs)
+        if any(not isinstance(spec, WorkflowJobSpec) for spec in normalized_specs):
+            raise TypeError("specs must contain WorkflowJobSpec values")
+        for spec in normalized_specs:
+            if (
+                spec.project_id != project
+                or spec.task_id != task
+                or spec.generation != generation
+            ):
+                raise WorkflowJobStoreError(
+                    "scheduled job spec escaped its task activation generation"
+                )
+        expected_keys = {spec.idempotency_key for spec in normalized_specs}
+        if len(expected_keys) != len(normalized_specs):
+            raise WorkflowJobStoreError("scheduled job specs contain duplicate keys")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                cursor = self._conn.execute(
                     """
-                    SELECT * FROM workflow_jobs
-                     WHERE project_id = ? AND idempotency_key = ?
+                    SELECT * FROM workflow_schedule_cursors
+                     WHERE project_id = ? AND task_id = ?
                     """,
-                    (spec.project_id, spec.idempotency_key),
+                    (project, task),
                 ).fetchone()
-                if existing is not None:
-                    if str(existing["spec_revision"]) != spec.revision:
-                        raise WorkflowJobIdempotencyConflict(
-                            f"idempotency key {spec.idempotency_key!r} already describes "
-                            "different workflow work"
-                        )
+                if (
+                    cursor is None
+                    or int(cursor["snapshot_generation"]) != snapshot
+                    or str(cursor["job_generation"]) != generation
+                ):
                     self._conn.commit()
-                    return self._from_row(existing)
-                self._conn.execute(
-                    """
-                    INSERT INTO workflow_jobs(
-                        job_id, project_id, task_id, generation, action, phase,
-                        idempotency_key, spec_revision, spec_json,
-                        expected_evidence_revision, expected_head_sha, state,
-                        priority, attempts, max_attempts, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                    return WorkflowScheduleWrite(
+                        project,
+                        task,
+                        snapshot,
+                        generation,
+                        accepted=False,
+                    )
+
+                created = 0
+                replayed = 0
+                for spec in normalized_specs:
+                    _job, inserted = self._enqueue_locked(spec, now=timestamp)
+                    created += int(inserted)
+                    replayed += int(not inserted)
+
+                active_rows = self._conn.execute(
+                    f"""
+                    SELECT * FROM workflow_jobs
+                     WHERE project_id = ? AND task_id = ?
+                       AND state IN ({",".join("?" for _ in ACTIVE_JOB_STATES)})
+                     ORDER BY enqueue_sequence
                     """,
                     (
-                        job_id,
-                        spec.project_id,
-                        spec.task_id,
-                        spec.generation,
-                        spec.action,
-                        spec.phase,
-                        spec.idempotency_key,
-                        spec.revision,
-                        _canonical_json(spec.to_dict()),
-                        spec.expected_evidence_revision,
-                        spec.expected_head_sha,
-                        WorkflowJobState.QUEUED.value,
-                        spec.priority,
-                        spec.max_attempts,
-                        now,
-                        now,
+                        project,
+                        task,
+                        *(state.value for state in ACTIVE_JOB_STATES),
                     ),
-                )
-                row = self._row_locked(job_id)
-                self._append_event_locked(row, "enqueued", now=now)
+                ).fetchall()
+                superseded = 0
+                for selected in active_rows:
+                    is_current = (
+                        str(selected["generation"]) == generation
+                        and str(selected["idempotency_key"]) in expected_keys
+                    )
+                    if is_current:
+                        continue
+                    self._conn.execute(
+                        """
+                        UPDATE workflow_jobs
+                           SET state = ?, lease_owner = NULL, lease_token = NULL,
+                               lease_expires_at = NULL, retry_at = NULL,
+                               superseded_by_generation = ?, last_error = ?,
+                               updated_at = ?, completed_at = ?
+                         WHERE job_id = ?
+                        """,
+                        (
+                            WorkflowJobState.SUPERSEDED.value,
+                            generation,
+                            message,
+                            timestamp,
+                            timestamp,
+                            selected["job_id"],
+                        ),
+                    )
+                    updated = self._row_locked(str(selected["job_id"]))
+                    self._append_event_locked(
+                        updated,
+                        "superseded",
+                        payload={
+                            "replacement_generation": generation,
+                            "reason": message,
+                        },
+                        now=timestamp,
+                    )
+                    superseded += 1
                 self._conn.commit()
-                return self._from_row(row)
+                return WorkflowScheduleWrite(
+                    project,
+                    task,
+                    snapshot,
+                    generation,
+                    accepted=True,
+                    created=created,
+                    replayed=replayed,
+                    superseded=superseded,
+                )
             except Exception:
                 self._conn.rollback()
                 raise
@@ -823,6 +1189,7 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         actions: Sequence[str] | None = None,
+        fair_across_projects: bool = False,
         now: float | None = None,
         recovery_limit: int = DEFAULT_SCAN_LIMIT,
     ) -> WorkflowJob | None:
@@ -834,8 +1201,15 @@ class WorkflowJobStore:
         timestamp = float(self._clock() if now is None else now)
         bounded_recovery = _bounded_limit(recovery_limit)
         clauses = [
-            "(state = ? OR (state = ? AND retry_at IS NOT NULL AND retry_at <= ?))",
-            "attempts < max_attempts",
+            "(candidate.state = ? OR (candidate.state = ? "
+            "AND candidate.retry_at IS NOT NULL AND candidate.retry_at <= ?))",
+            "candidate.attempts < candidate.max_attempts",
+            "NOT EXISTS ("
+            "SELECT 1 FROM workflow_jobs owned "
+            "WHERE owned.project_id = candidate.project_id "
+            "AND owned.task_id = candidate.task_id "
+            "AND owned.state = 'running'"
+            ")",
         ]
         values: list[object] = [
             WorkflowJobState.QUEUED.value,
@@ -848,14 +1222,23 @@ class WorkflowJobStore:
             ("generation", generation),
         ):
             if value is not None:
-                clauses.append(f"{column} = ?")
+                clauses.append(f"candidate.{column} = ?")
                 values.append(_required_text(value, column))
         if actions:
             normalized_actions = tuple(
                 _required_text(action, "action") for action in actions
             )
-            clauses.append(f"action IN ({','.join('?' for _ in normalized_actions)})")
+            clauses.append(
+                f"candidate.action IN ({','.join('?' for _ in normalized_actions)})"
+            )
             values.extend(normalized_actions)
+        fairness_order = (
+            "COALESCE((SELECT fairness.claim_sequence "
+            "FROM workflow_project_fairness fairness "
+            "WHERE fairness.project_id = candidate.project_id), 0),"
+            if fair_across_projects and project_id is None
+            else ""
+        )
         lease_token = uuid.uuid4().hex
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -863,11 +1246,13 @@ class WorkflowJobStore:
                 self._recover_expired_locked(now=timestamp, limit=bounded_recovery)
                 selected = self._conn.execute(
                     f"""
-                    SELECT * FROM workflow_jobs
+                    SELECT candidate.* FROM workflow_jobs candidate
                      WHERE {" AND ".join(clauses)}
-                     ORDER BY priority,
-                              CASE WHEN retry_at IS NULL THEN created_at ELSE retry_at END,
-                              enqueue_sequence
+                     ORDER BY {fairness_order} candidate.priority,
+                              CASE WHEN candidate.retry_at IS NULL
+                                   THEN candidate.created_at
+                                   ELSE candidate.retry_at END,
+                              candidate.enqueue_sequence
                      LIMIT 1
                     """,
                     values,
@@ -897,6 +1282,21 @@ class WorkflowJobStore:
                     self._conn.rollback()
                     return None
                 row = self._row_locked(str(selected["job_id"]))
+                if fair_across_projects and project_id is None:
+                    claim_sequence = self._next_counter_locked(
+                        "workflow_fair_claim_sequence"
+                    )
+                    self._conn.execute(
+                        """
+                        INSERT INTO workflow_project_fairness(
+                            project_id, claim_sequence, updated_at
+                        ) VALUES (?, ?, ?)
+                        ON CONFLICT(project_id) DO UPDATE SET
+                            claim_sequence = excluded.claim_sequence,
+                            updated_at = excluded.updated_at
+                        """,
+                        (row["project_id"], claim_sequence, timestamp),
+                    )
                 self._append_event_locked(
                     row,
                     "claimed",
@@ -1281,6 +1681,103 @@ class WorkflowJobStore:
             except Exception:
                 self._conn.rollback()
                 raise
+
+    def health_snapshot(
+        self,
+        *,
+        now: float | None = None,
+        project_limit: int = MAX_SCAN_LIMIT,
+    ) -> dict[str, Any]:
+        """Return bounded queue, lease, retry, and fairness telemetry."""
+
+        timestamp = float(self._clock() if now is None else now)
+        bounded_projects = _bounded_limit(project_limit)
+        with self._lock:
+            state_rows = self._conn.execute(
+                """
+                SELECT state, COUNT(*) AS count
+                  FROM workflow_jobs GROUP BY state ORDER BY state
+                """
+            ).fetchall()
+            project_rows = self._conn.execute(
+                """
+                SELECT project_id, state, COUNT(*) AS count
+                  FROM workflow_jobs
+                 GROUP BY project_id, state
+                 ORDER BY project_id, state
+                 LIMIT ?
+                """,
+                (bounded_projects,),
+            ).fetchall()
+            lease = self._conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN state = 'running' THEN 1 ELSE 0 END) AS running,
+                    SUM(CASE WHEN state = 'running' AND lease_expires_at <= ?
+                             THEN 1 ELSE 0 END) AS expired
+                  FROM workflow_jobs
+                """,
+                (timestamp,),
+            ).fetchone()
+            retry = self._conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN state = 'retry_wait' THEN 1 ELSE 0 END) AS waiting,
+                    SUM(CASE WHEN state = 'retry_wait' AND retry_at <= ?
+                             THEN 1 ELSE 0 END) AS due
+                  FROM workflow_jobs
+                """,
+                (timestamp,),
+            ).fetchone()
+            oldest = self._conn.execute(
+                """
+                SELECT MIN(CASE WHEN state = 'queued' THEN created_at
+                                WHEN state = 'retry_wait' AND retry_at <= ?
+                                THEN retry_at END) AS available_at
+                  FROM workflow_jobs
+                """,
+                (timestamp,),
+            ).fetchone()
+            cursors = self._conn.execute(
+                """
+                SELECT COUNT(*) AS count,
+                       COALESCE(MAX(snapshot_generation), 0) AS generation
+                  FROM workflow_schedule_cursors
+                """
+            ).fetchone()
+            fairness = self._conn.execute(
+                "SELECT COUNT(*) AS count FROM workflow_project_fairness"
+            ).fetchone()
+        per_project: dict[str, dict[str, int]] = {}
+        for row in project_rows:
+            per_project.setdefault(str(row["project_id"]), {})[str(row["state"])] = int(
+                row["count"]
+            )
+        available_at = (
+            float(oldest["available_at"])
+            if oldest is not None and oldest["available_at"] is not None
+            else None
+        )
+        return {
+            "schema_version": self.schema_version,
+            "states": {str(row["state"]): int(row["count"]) for row in state_rows},
+            "leases": {
+                "running": int(lease["running"] or 0) if lease is not None else 0,
+                "expired": int(lease["expired"] or 0) if lease is not None else 0,
+            },
+            "retries": {
+                "waiting": int(retry["waiting"] or 0) if retry is not None else 0,
+                "due": int(retry["due"] or 0) if retry is not None else 0,
+            },
+            "oldest_available_age_seconds": (
+                max(0.0, timestamp - available_at) if available_at is not None else None
+            ),
+            "schedule_cursor_count": int(cursors["count"] or 0),
+            "latest_snapshot_generation": int(cursors["generation"] or 0),
+            "fair_project_count": int(fairness["count"] or 0),
+            "projects": per_project,
+            "projects_truncated": len(project_rows) >= bounded_projects,
+        }
 
     def integrity_check(self) -> None:
         with self._lock:
