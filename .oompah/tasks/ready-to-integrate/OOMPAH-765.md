@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:42:43.217543Z'
+updated_at: '2026-08-04T16:43:24.716188Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -28,6 +28,15 @@ oompah.start_blocked_by: *id001
 oompah.target_branch: epic-OOMPAH-763
 oompah.work_branch: epic-OOMPAH-765
 oompah.agent_run_id: c97e7a73-ec45-4bc1-a474-7d01f357dcc7
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-765
+  base_branch: epic-OOMPAH-763
+  head_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+  submitted_at: '2026-08-04T16:43:17.687981+00:00'
+  updated_at: '2026-08-04T16:43:17.687981+00:00'
 ---
 ## Summary
 
@@ -240,5 +249,10 @@ author: oompah
 created: 2026-08-04 16:42
 ---
 Verification + Completion: Fix committed as c7bfbcc3b and pushed to epic-OOMPAH-765. Verified locally: TestRunStep5cEpicMaintenance (14/14) and full test_orchestrator_handlers.py suite (279/279) pass with parallel workers under 5s timeout. Minimal one-line change; no production code touched. Ready for the branch quality gate to rerun make test.
+---
+author: oompah
+created: 2026-08-04 16:43
+---
+Fixed slow-tick AsyncMock coroutine iteration in test_tick_does_not_await_epic_maintenance by mirroring the sibling test's return_value={} pattern. 14/14 epic maintenance tests and 279/279 orchestrator handler tests pass locally with parallel workers.
 ---
 <!-- COMMENTS:END -->
