@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:46:41.612392Z'
+updated_at: '2026-08-04T12:48:41.581176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -565,5 +565,10 @@ author: oompah
 created: 2026-08-04 12:46
 ---
 Implementation: Preserved the recovery checkpoint's minimal fix by renaming only the new static IntegrationRecord validator to _canonical_landing_evidence_block_reason and updating its eight focused tests. This avoids shadowing the established instance _child_landing_evidence_block_reason used by epic rollup/auto-close logic. Removed unrelated generated uv.lock churn so the net repair touches only orchestrator.py and tests/test_canonical_landing_evidence.py.
+---
+author: oompah
+created: 2026-08-04 12:48
+---
+Verification: Reproduced the remote-head failure locally (1 failed with the shadowed-method TypeError), then confirmed the repaired test passes. Focused neighboring run completed with 367 passed and 1 expected xfail across test_canonical_landing_evidence.py, test_epic_strategy.py, test_epic_terminal_audit_contract.py, test_nested_epic_cycle_fix.py, test_yolo_watchdog.py, and test_merged_labels_scope.py. make terminal-audit-scan also passed (8/8 mutations allowlisted), and git diff --check is clean.
 ---
 <!-- COMMENTS:END -->
