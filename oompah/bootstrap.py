@@ -76,6 +76,10 @@ class Services:
     workflow_path: str
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
     terminal_transition_coordinator: object | None = None
+    # Shared durable workflow composition root.  Kept as an object rather
+    # than a collection of ad-hoc globals so ASGI and scheduler startup use
+    # the same project-scoped stores and transition services.
+    workflow_runtime: object | None = None
     # Keep direct construction compatible with callers that do not need the
     # optional auth bundle. Real bootstrap always supplies the resolved value.
     http_credentials: "oompah.http_auth.HtpasswdCredentials | None" = None
@@ -201,6 +205,7 @@ async def setup_services(
     )
     from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
     from oompah.webhooks import GitLabHookManager, WebhookForwarder
+    from oompah.workflow_runtime import build_workflow_runtime
 
     # Granian workers import the ASGI app directly and do not execute the
     # normal CLI logging setup.  Initialise the same process-local registry
@@ -410,6 +415,11 @@ async def setup_services(
         orchestrator._terminal_audit_metrics
     )
     orchestrator.terminal_transition_coordinator = terminal_transition_coordinator
+    workflow_runtime = build_workflow_runtime(
+        orchestrator,
+        terminal_transition_coordinator=terminal_transition_coordinator,
+    )
+    orchestrator.workflow_runtime = workflow_runtime
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
     attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)
@@ -448,4 +458,5 @@ async def setup_services(
         workflow_path=workflow_path,
         workflow=workflow,
         terminal_transition_coordinator=terminal_transition_coordinator,
+        workflow_runtime=workflow_runtime,
     )

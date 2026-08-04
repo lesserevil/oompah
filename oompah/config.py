@@ -668,6 +668,11 @@ class ServiceConfig:
     workflow_engine_mode: str = "off"
     workflow_shadow_scan_limit: int = 100
     workflow_diagnostic_max_bytes: int = 64 * 1024
+    # Durable runtime bounds.  These values apply to the shared workflow
+    # scheduler/worker and are environment-only so rollout tuning does not
+    # become candidate-controlled workflow input.
+    workflow_runtime_decision_limit: int = 100
+    workflow_runtime_batch_size: int = 32
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -912,6 +917,12 @@ class ServiceConfig:
         self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
         self.audit_priority = max(int(self.audit_priority), 1)
         self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
+        self.workflow_runtime_decision_limit = min(
+            max(int(self.workflow_runtime_decision_limit), 1), 1000
+        )
+        self.workflow_runtime_batch_size = min(
+            max(int(self.workflow_runtime_batch_size), 1), 1000
+        )
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
             self.workspace_root = default_workspace_root()
@@ -1349,6 +1360,12 @@ class ServiceConfig:
             ),
             workflow_diagnostic_max_bytes=_env_int(
                 "OOMPAH_WORKFLOW_DIAGNOSTIC_MAX_BYTES", None, 64 * 1024
+            ),
+            workflow_runtime_decision_limit=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT", None, 100
+            ),
+            workflow_runtime_batch_size=_env_int(
+                "OOMPAH_WORKFLOW_RUNTIME_BATCH_SIZE", None, 32
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(
