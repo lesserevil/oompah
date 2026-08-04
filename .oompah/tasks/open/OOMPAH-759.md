@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-759
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Preserve focus-handoff authority across Open-to-In-Progress retry dispatch
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T11:23:16.197569Z'
+updated_at: '2026-08-04T11:23:26.381104Z'
 work_branch: null
 target_branch: null
 review_url: null
