@@ -1,161 +1,83 @@
-"""Canonical oompah lifecycle statuses."""
+"""Compatibility facade for canonical oompah lifecycle statuses.
+
+The authoritative status, phase, disposition, transition, ownership, and
+reassessment contract lives in :mod:`oompah.workflow_contract`.  Existing
+callers may continue importing the historic names from this module while
+lifecycle components migrate to the richer contract.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 
-
-PROPOSED = "Proposed"
-BACKLOG = "Backlog"
-OPEN = "Open"
-IN_PROGRESS = "In Progress"
-NEEDS_ANSWER = "Needs Answer"
-NEEDS_HUMAN = "Needs Human"
-NEEDS_CI_FIX = "Needs CI Fix"
-NEEDS_REBASE = "Needs Rebase"
-IN_REVIEW = "In Review"
-IN_VALIDATION = "In Validation"
-READY_TO_INTEGRATE = "Ready to Integrate"
-DECOMPOSED = "Decomposed"
-DUPLICATE_CANDIDATE = "Duplicate Candidate"
-DONE = "Done"
-MERGED = "Merged"
-ARCHIVED = "Archived"
-
-CANONICAL_STATUSES: tuple[str, ...] = (
-    PROPOSED,
+from oompah.workflow_contract import (
+    ARCHIVED,
     BACKLOG,
-    OPEN,
+    CANONICAL_STATUSES,
+    DECOMPOSED,
+    DEFAULT_STATUS,
+    DISPATCHABLE_STATUSES,
+    DONE,
+    DUPLICATE_CANDIDATE,
     IN_PROGRESS,
-    NEEDS_ANSWER,
-    NEEDS_HUMAN,
-    NEEDS_CI_FIX,
-    NEEDS_REBASE,
     IN_REVIEW,
     IN_VALIDATION,
-    READY_TO_INTEGRATE,
-    DECOMPOSED,
-    DUPLICATE_CANDIDATE,
-    DONE,
     MERGED,
-    ARCHIVED,
+    NEEDS_ANSWER,
+    NEEDS_CI_FIX,
+    NEEDS_HUMAN,
+    NEEDS_REBASE,
+    OPEN,
+    PROPOSED,
+    READY_TO_INTEGRATE,
+    REVIEW_STATUSES,
+    TERMINAL_STATUSES,
+    WAITING_STATUSES,
+    WORKING_STATUSES,
+    canonical_statuses_with,
+    canonicalize_status,
+    is_dispatchable_status,
+    is_terminal_status,
+    is_working_status,
+    more_advanced_status,
+    status_key,
+    status_rank,
 )
 
-DEFAULT_STATUS = BACKLOG
-DISPATCHABLE_STATUSES: frozenset[str] = frozenset({
-    OPEN,
-    NEEDS_CI_FIX,
-    NEEDS_REBASE,
-})
-WORKING_STATUSES: frozenset[str] = frozenset({IN_PROGRESS})
-WAITING_STATUSES: frozenset[str] = frozenset({NEEDS_ANSWER, NEEDS_HUMAN})
-REVIEW_STATUSES: frozenset[str] = frozenset({
-    IN_REVIEW,
-    NEEDS_CI_FIX,
-    NEEDS_REBASE,
-})
-TERMINAL_STATUSES: frozenset[str] = frozenset({DONE, MERGED, ARCHIVED})
-
-
-def status_key(status: str | None) -> str:
-    return str(status or "").strip().lower().replace("-", " ").replace("_", " ")
-
-
-_ALIASES = {
-    "": DEFAULT_STATUS,
-    "proposed": PROPOSED,
-    "to do": BACKLOG,
-    "todo": BACKLOG,
-    "deferred": BACKLOG,
-    "proposed": PROPOSED,
-    "backlog": BACKLOG,
-    "open": OPEN,
-    "in progress": IN_PROGRESS,
-    "doing": IN_PROGRESS,
-    "started": IN_PROGRESS,
-    "asking question": NEEDS_ANSWER,
-    "asking_question": NEEDS_ANSWER,
-    "needs answer": NEEDS_ANSWER,
-    "needs info": NEEDS_ANSWER,
-    "needs information": NEEDS_ANSWER,
-    "human only": NEEDS_HUMAN,
-    "human-only": NEEDS_HUMAN,
-    "needs human": NEEDS_HUMAN,
-    "ci fix": NEEDS_CI_FIX,
-    "ci-fix": NEEDS_CI_FIX,
-    "needs ci fix": NEEDS_CI_FIX,
-    "merge conflict": NEEDS_REBASE,
-    "merge-conflict": NEEDS_REBASE,
-    "needs rebase": NEEDS_REBASE,
-    "in review": IN_REVIEW,
-    "review": IN_REVIEW,
-    "in validation": IN_VALIDATION,
-    "validation": IN_VALIDATION,
-    "ready to integrate": READY_TO_INTEGRATE,
-    "ready-to-integrate": READY_TO_INTEGRATE,
-    "ready for integration": READY_TO_INTEGRATE,
-    "decomposed": DECOMPOSED,
-    "duplicate candidate": DUPLICATE_CANDIDATE,
-    "duplicate-candidate": DUPLICATE_CANDIDATE,
-    "closed": DONE,
-    "done": DONE,
-    "merged": MERGED,
-    "archive:yes": ARCHIVED,
-    "archived": ARCHIVED,
-}
-
-
-def canonicalize_status(status: str | None) -> str:
-    """Return the canonical oompah status for a user-supplied value."""
-    key = status_key(status)
-    return _ALIASES.get(key, str(status or DEFAULT_STATUS).strip() or DEFAULT_STATUS)
-
-
-def canonical_statuses_with(existing: Iterable[str] | None = None) -> list[str]:
-    """Return canonical statuses plus custom statuses.
-
-    ``To Do``/``deferred`` are intentionally not preserved as custom
-    statuses because they are compatibility aliases for ``Backlog``.
-    """
-    values = list(CANONICAL_STATUSES)
-    seen = {status_key(value) for value in values}
-    for raw in existing or []:
-        value = str(raw).strip()
-        if not value:
-            continue
-        canonical = canonicalize_status(value)
-        key = status_key(canonical)
-        if key in seen:
-            continue
-        seen.add(key)
-        values.append(value)
-    return values
-
-
-def is_dispatchable_status(status: str | None) -> bool:
-    return canonicalize_status(status) in DISPATCHABLE_STATUSES
-
-
-def is_working_status(status: str | None) -> bool:
-    return canonicalize_status(status) in WORKING_STATUSES
-
-
-def is_terminal_status(status: str | None) -> bool:
-    return canonicalize_status(status) in TERMINAL_STATUSES
-
-
-# Workflow rank for "which status is further along" comparisons.
-_STATUS_RANK = {s: i for i, s in enumerate(CANONICAL_STATUSES)}
-
-
-def status_rank(status: str | None) -> int:
-    """Position of *status* in the canonical workflow order, or -1 if unknown."""
-    return _STATUS_RANK.get(canonicalize_status(status), -1)
-
-
-def more_advanced_status(a: str | None, b: str | None) -> str:
-    """Return whichever of *a*/*b* is further along the workflow (ties → a)."""
-    return a if status_rank(a) >= status_rank(b) else b  # type: ignore[return-value]
+__all__ = [
+    "ARCHIVED",
+    "BACKLOG",
+    "CANONICAL_STATUSES",
+    "DECOMPOSED",
+    "DEFAULT_STATUS",
+    "DISPATCHABLE_STATUSES",
+    "DONE",
+    "DUPLICATE_CANDIDATE",
+    "IN_PROGRESS",
+    "IN_REVIEW",
+    "IN_VALIDATION",
+    "MERGED",
+    "NEEDS_ANSWER",
+    "NEEDS_CI_FIX",
+    "NEEDS_HUMAN",
+    "NEEDS_REBASE",
+    "OPEN",
+    "PROPOSED",
+    "READY_TO_INTEGRATE",
+    "REVIEW_STATUSES",
+    "TERMINAL_STATUSES",
+    "WAITING_STATUSES",
+    "WORKING_STATUSES",
+    "canonical_statuses_with",
+    "canonicalize_status",
+    "epic_rollup_state",
+    "is_dispatchable_status",
+    "is_terminal_status",
+    "is_working_status",
+    "more_advanced_status",
+    "status_key",
+    "status_rank",
+]
 
 
 # Child statuses that mean "work is actively underway" for epic rollup.
