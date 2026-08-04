@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T21:44:45.644312Z'
+updated_at: '2026-08-04T21:44:49.152192Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -303,5 +303,10 @@ author: oompah
 created: 2026-08-04 21:44
 ---
 Reconciled onto landed OOMPAH-793 head a744be37d: retained the review/CI domain commit as 687af6c1d and dropped only redundant batching alternative 37731edc8, because the epic already contains the authoritative atomic scheduling implementation with stronger rollback coverage. Focused verification: 108 passed (review workflow, WorkDecision, workflow facts/reasons). Branch is clean and force-updated with an exact old-head lease.
+---
+author: oompah
+created: 2026-08-04 21:44
+---
+Rebased review/CI domain onto a744be37; dropped redundant batching alternative; 108 focused tests pass.
 ---
 <!-- COMMENTS:END -->
