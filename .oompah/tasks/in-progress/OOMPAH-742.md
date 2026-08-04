@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-04T13:55:18.653121Z'
+updated_at: '2026-08-04T14:14:40.580929Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -133,7 +133,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 355ea8a2-87f9-44c5-9e70-e6b89fff0419
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-742
 oompah.integration:
   version: 2
@@ -449,5 +449,10 @@ author: oompah
 created: 2026-08-04 13:55
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 14:14
+---
+Rebased OOMPAH-742 onto submitted OOMPAH-743 (f745082a0) and resolved the dashboard template conflict by normalizing bounded/redacted alerts before identity deduplication and actionability partitioning. The compact alert center remains the only actionable surface; diagnostics stay in expandable details. Focused reconciliation suite: 57 passed, including alert safety, dashboard contract/center/safety, credentials, scrolling, and retry recovery; terminal mutation scan passed. Local make test is blocked before collection by the managed uv launcher's DBus transient-scope error (exit 46), so the configured gate must run on the exact pushed head 494c39f8f.
 ---
 <!-- COMMENTS:END -->
