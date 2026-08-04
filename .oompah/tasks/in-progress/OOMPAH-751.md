@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:52:15.592162Z'
+updated_at: '2026-08-04T01:57:45.381079Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,13 +72,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: e2a3a69e-0639-424c-ada4-fba6ddda3e4e
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2110
+  total_input_tokens: 2536248
+  total_output_tokens: 12916
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2110
+      input_tokens: 2536248
+      output_tokens: 12916
       cost_usd: 0.0
   runs:
   - profile: default
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 2110
     cost_usd: 0.0
     recorded_at: '2026-08-04T01:49:57.184350+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2536238
+    output_tokens: 10806
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T01:57:37.174297+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-751__20260804T014835Z
@@ -97,6 +103,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-751
     source_sha: c54a60a63a1742fa0dfa4ad2a68f46cc61d87fdf
     completed_at: '2026-08-04T01:49:57.203109+00:00'
+  - run_id: OOMPAH-751__20260804T015230Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: docs
+    source_branch: OOMPAH-751
+    source_sha: b3e9fc225f169222978c366fffae5d86a6314c58
+    completed_at: '2026-08-04T01:57:37.215525+00:00'
 ---
 ## Summary
 
@@ -141,5 +155,25 @@ author: oompah
 created: 2026-08-04 01:52
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 01:57
+---
+Agent completed successfully in 331s (2547044 tokens)
+---
+author: oompah
+created: 2026-08-04 01:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 21
+- Tokens: 2.5M in / 10.8K out [2.5M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 31s
+- Log: OOMPAH-751__20260804T015230Z.jsonl
+---
+author: oompah
+created: 2026-08-04 01:57
+---
+Agent completed without closing this issue (331s (2547044 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
