@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-457
 type: epic
-status: Merged
+status: In Validation
 priority: 0
 title: Build the terminal-audit state model and transition coordinator
 parent: null
@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-07-28T21:17:38.827762Z'
+updated_at: '2026-08-04T21:33:15.305276Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -29,6 +29,28 @@ oompah.review_number: '565'
 oompah.work_branch: epic-OOMPAH-457
 oompah.target_branch: main
 oompah.agent_run_id: d58c06c0-a435-492e-aa36-13e0fccab150
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e210194f8664
+    project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 14b6de4be4102cebf7887c3fd29606f7e26cb0e48a2766af964ff91d7bb88078
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:33:09.639801+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -135,5 +157,10 @@ author: oompah
 created: 2026-07-28 21:15
 ---
 YOLO: merged PR #565.
+---
+author: oompah
+created: 2026-08-04 21:33
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
