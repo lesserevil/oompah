@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:29:30.857654Z'
+updated_at: '2026-08-04T15:35:37.392883Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -129,6 +129,30 @@ oompah.work_contributors:
     completed_at: '2026-08-03T23:06:20.621019+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-094ec4b93abc: '2026-08-04T15:35:34.287281+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-744
+    target_state: Done
+    evidence_fingerprint: 50ed42fd2b392ecf55ebc34d86726347a8c06023ac4bc92d4f6269a5455524a0
+    audit_ids:
+    - audit-780da94d36c5
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T15:35:34.287294+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-744
+    audit_id: audit-780da94d36c5
+    attempt_id: attempt-094ec4b93abc
+    target_state: Done
+    evidence_fingerprint: 50ed42fd2b392ecf55ebc34d86726347a8c06023ac4bc92d4f6269a5455524a0
+    status: Done
+    audit_ids:
+    - audit-780da94d36c5
+    applied: false
+    created_at: '2026-08-04T15:35:34.287314+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -136,7 +160,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-744
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -145,7 +169,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-094ec4b93abc
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -155,13 +179,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T15:29:21.625362+00:00'
       branch_key: epic-OOMPAH-740--task-OOMPAH-744
+      verdict: pass
+      completed_at: '2026-08-04T15:35:34.287083+00:00'
+      ended_at: '2026-08-04T15:35:34.287083+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T15:29:13.572788+00:00'
-    updated_at: '2026-08-04T15:29:21.625362+00:00'
+    updated_at: '2026-08-04T15:35:34.287083+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-094ec4b93abc
