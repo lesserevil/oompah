@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-758
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Atomically fence direct epic maintenance from ordinary integration enqueue
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:35:59.250994Z'
+updated_at: '2026-08-04T12:40:20.359121Z'
 work_branch: OOMPAH-758
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/709
@@ -101,6 +101,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8ae9b9f500a2: '2026-08-04T12:33:43.956813+00:00'
+    attempt-a03ade15c0b1: '2026-08-04T12:40:17.307187+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-758
@@ -111,6 +112,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T12:33:43.956825+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    target_state: Merged
+    evidence_fingerprint: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    audit_ids:
+    - audit-ea12b4d7896e
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T12:40:17.307204+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-758
@@ -124,6 +134,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T12:33:43.956843+00:00'
     applied_at: '2026-08-04T12:33:50.498189+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    audit_id: audit-ea12b4d7896e
+    attempt_id: attempt-a03ade15c0b1
+    target_state: Merged
+    evidence_fingerprint: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    status: Merged
+    audit_ids:
+    - audit-ea12b4d7896e
+    applied: false
+    created_at: '2026-08-04T12:40:17.307224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -165,7 +186,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-758
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -174,7 +195,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a03ade15c0b1
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -184,13 +205,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T12:35:49.928765+00:00'
       branch_key: OOMPAH-758
+      verdict: pass
+      completed_at: '2026-08-04T12:40:17.307020+00:00'
+      ended_at: '2026-08-04T12:40:17.307020+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-04T12:13:11.213280+00:00'
-    updated_at: '2026-08-04T12:35:49.928765+00:00'
+    updated_at: '2026-08-04T12:40:17.307020+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8ae9b9f500a2
