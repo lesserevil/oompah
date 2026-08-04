@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T22:48:21.494857Z'
+updated_at: '2026-08-04T22:51:55.935200Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live exact-head gate reproduction on OOMPAH-781 at 41f717cd46baf4e8ba455586b39ce
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 22:51
+---
+Implemented at exact head 1230456cc7834d14b8064d73e1742734ab670d2a. The ordering test now disables unrelated durable lanes, waits for its actual step-5b future, and drains every owned future/pool/store in finally under a lifecycle-sized timeout. Verification: exact test 1/1; 100/100 same-process invocations; module 14/14 serial and 14/14 with -n 4; combined event-loop/long-tick/orchestrator/Granian/GitHub fixture slice 284/284 with -n 4; terminal mutation scan 8/8; diff check clean.
+---
+<!-- COMMENTS:END -->
