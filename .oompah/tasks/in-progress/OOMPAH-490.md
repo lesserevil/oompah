@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-490
 type: epic
-status: Needs Human
+status: In Progress
 priority: 1
 title: Prune redundant tests and isolate the suite from live infrastructure
 parent: null
@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T18:10:17.981959Z'
+updated_at: '2026-08-04T18:10:43.576009Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
