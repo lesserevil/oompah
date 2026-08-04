@@ -459,6 +459,18 @@ CREATE TABLE IF NOT EXISTS workflow_project_fairness (
 );
 CREATE INDEX IF NOT EXISTS workflow_schedule_generation_idx
     ON workflow_schedule_cursors(snapshot_generation, project_id, task_id);
+CREATE TABLE IF NOT EXISTS workflow_landing_facts (
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    target TEXT NOT NULL,
+    evidence_revision TEXT NOT NULL,
+    fact_json TEXT NOT NULL,
+    recorded_at REAL NOT NULL,
+    PRIMARY KEY(project_id, task_id, source, target, evidence_revision)
+);
+CREATE INDEX IF NOT EXISTS workflow_landing_facts_lookup_idx
+    ON workflow_landing_facts(project_id, task_id, source, target, recorded_at);
 """
 
 _CREATE_V5_OBJECTS = """
@@ -655,6 +667,91 @@ class WorkflowJobStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    def record_landing_facts(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        facts: Sequence[Mapping[str, Any]],
+        now: float | None = None,
+    ) -> int:
+        """Append durable positive landing evidence for later source pruning.
+
+        Landing proof is immutable evidence, so recording a newer observation
+        never overwrites an older proof.  This lets a restarted collector
+        recover the exact prior fact before asking Git about a ref that may no
+        longer exist.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        timestamp = float(self._clock() if now is None else now)
+        rows: list[tuple[str, str, str, str]] = []
+        for raw in facts:
+            value = _json_object(raw, "landing_fact")
+            if value is None:
+                raise ValueError("landing_fact must be a mapping")
+            if str(value.get("project_id") or "") != project:
+                raise WorkflowJobStoreError("landing fact escaped project scope")
+            source = _required_text(value.get("source"), "landing source")
+            target = _required_text(value.get("target"), "landing target")
+            revision = _required_text(
+                value.get("evidence_revision"), "landing evidence_revision"
+            )
+            rows.append((source, target, revision, _canonical_json(value)))
+        if not rows:
+            return 0
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                inserted = 0
+                for source, target, revision, encoded in rows:
+                    cursor = self._conn.execute(
+                        """
+                        INSERT OR IGNORE INTO workflow_landing_facts(
+                            project_id, task_id, source, target,
+                            evidence_revision, fact_json, recorded_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (project, task, source, target, revision, encoded, timestamp),
+                    )
+                    inserted += int(cursor.rowcount == 1)
+                self._conn.commit()
+                return inserted
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def landing_facts(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        limit: int = DEFAULT_SCAN_LIMIT,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return bounded immutable landing evidence for one task."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        bounded = _bounded_limit(limit)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT fact_json FROM workflow_landing_facts
+                 WHERE project_id = ? AND task_id = ?
+                 ORDER BY recorded_at, source, target, evidence_revision
+                 LIMIT ?
+                """,
+                (project, task, bounded),
+            ).fetchall()
+        values: list[dict[str, Any]] = []
+        for row in rows:
+            value = _decode_json_object(row["fact_json"], "landing_fact")
+            if value is None or str(value.get("project_id") or "") != project:
+                raise WorkflowJobCorruptionError("landing fact project scope is invalid")
+            values.append(value)
+        return tuple(values)
 
     @property
     def schema_version(self) -> int:
