@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T20:34:14.853417Z'
+updated_at: '2026-08-04T20:34:45.124998Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-08-04 20:34
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 20:34
+---
+Understanding: I will inspect the durable workflow adapters and service startup lifecycle, then wire production construction/shutdown, routing, projections, and shadow/enforce single-writer controls with focused tests.
 ---
 <!-- COMMENTS:END -->
