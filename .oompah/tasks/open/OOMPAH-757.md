@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:13:14.968133Z'
+updated_at: '2026-08-04T11:13:24.433025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,32 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 0021a13a-33cc-42a5-9a34-2df7be1ee15f
+oompah.task_costs:
+  total_input_tokens: 47149
+  total_output_tokens: 216
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 47149
+      output_tokens: 216
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 47149
+    output_tokens: 216
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:13:08.529965+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-757__20260804T111243Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-757
+    source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
+    completed_at: '2026-08-04T11:13:08.554499+00:00'
 ---
 ## Summary
 
