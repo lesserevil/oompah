@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-752
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Select standalone Ready delivery fairly before claiming task authority
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:54:29.023994Z'
-updated_at: '2026-08-04T01:59:49.153061Z'
+updated_at: '2026-08-04T02:01:04.613038Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3be33a00-e4df-4d7e-9a07-753289d2e55f
+oompah.agent_run_id: 5e9e1235-5a50-4579-a336-777b297df5da
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1899
@@ -127,5 +127,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 12s
 - Log: OOMPAH-752__20260804T015847Z.jsonl
+---
+author: oompah
+created: 2026-08-04 02:01
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
