@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:22:14.977516Z'
+updated_at: '2026-08-04T13:30:28.125779Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -460,5 +460,15 @@ author: oompah
 created: 2026-08-04 13:22
 ---
 Discovery: Current local and remote task heads both resolve to d3cc87e7f, whose single parent is the exact current epic head 32d881aa2; a fresh fetch confirms no divergence. Reflog shows the server rebased the implementation from aae9534a2 to d3cc87e7f at 13:20 after the prior submission, explaining why gate-owner metadata tied to the former exact head failed. The seven-path implementation diff is intact and git diff --check is clean.
+---
+author: oompah
+created: 2026-08-04 13:30
+---
+Implementation: No source rewrite was needed in this recovery run. Preserved the existing seven-file contract implementation and used the server-created rebase d3cc87e7f, whose parent is the exact current epic head 32d881aa2. This avoids creating another candidate SHA and directly corrects the stale exact-head ownership condition behind the infrastructure_error.
+---
+author: oompah
+created: 2026-08-04 13:30
+---
+Verification: On exact head d3cc87e7f, focused alert/health/state-API/WebSocket/integration-recovery/long-tick suites pass: 344 passed, 1 xfailed. Full configured gate 'make test' passes: terminal mutation scan 8/8 allowlisted; 15,381 passed, 7 skipped, 1 xfailed in 422.26s. The formerly flaky test_long_tick_regression suite passed within both runs.
 ---
 <!-- COMMENTS:END -->
