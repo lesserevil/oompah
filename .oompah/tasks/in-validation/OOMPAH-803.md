@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:37:25.403607Z'
+updated_at: '2026-08-04T21:42:27.185297Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,18 +138,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1e4106a86d01
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
+      created_at: '2026-08-04T21:42:25.794331+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T21:42:25.794331+00:00'
+      branch_key: OOMPAH-803
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:37:21.180442+00:00'
+    updated_at: '2026-08-04T21:42:25.794331+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-869dd7e8a2d7
@@ -207,6 +221,19 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-803 (tried: origin/OOMPAH-803)'
     next_retry_at: '2026-08-04T21:30:24.081307+00:00'
+  - version: 1
+    attempt_id: attempt-1e4106a86d01
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f158a5811617c0dda6071439e6af35d3aaa01293aed054abe9b066b777ed82a5
+    created_at: '2026-08-04T21:42:25.794331+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T21:42:25.794331+00:00'
+    branch_key: OOMPAH-803
 ---
 ## Summary
 
