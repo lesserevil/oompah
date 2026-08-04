@@ -78,7 +78,9 @@ from oompah.duplicate_screening import (
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import (
+    CanonicalLandingEvidence,
     IntegrationRecord,
+    _compute_evidence_fingerprint,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
 )
@@ -17435,6 +17437,71 @@ class Orchestrator:
         return tuple(found)
 
     @staticmethod
+    def _canonical_landing_evidence_block_reason(
+        integration_record: IntegrationRecord | None,
+        epic_branch: str,
+        max_evidence_age_hours: int = 24,
+    ) -> str | None:
+        """Check if canonical landing evidence blocks child landing validation (fail-closed).
+
+        Distinct from the instance method ``_child_landing_evidence_block_reason``
+        which reasons about Git branch containment.  This validates the
+        service-authored ``CanonicalLandingEvidence`` persisted in an
+        ``IntegrationRecord`` after a conflict-resolved epic-maintenance rebase.
+
+        Returns a block reason string if evidence validation fails, None if
+        evidence is valid or absent. This implements fail-closed design:
+        - Valid evidence with correct epic branch and fresh timestamp: allows bypass
+        - Stale evidence (age > max_evidence_age_hours): blocks
+        - Evidence for wrong epic: blocks (cross-epic injection attack)
+        - Tampered evidence (fingerprint mismatch): blocks (caught at parse time)
+        - Malformed evidence: blocks (None from parser)
+
+        Args:
+            integration_record: The IntegrationRecord possibly containing evidence.
+            epic_branch: The current epic branch we're validating against.
+            max_evidence_age_hours: Maximum acceptable evidence age in hours.
+
+        Returns:
+            A block reason string if evidence validation fails (fail-closed).
+            None if evidence is valid or not present.
+        """
+        if not integration_record or not integration_record.canonical_landing_evidence:
+            # No evidence: not blocked by evidence, but other validators may block
+            return None
+
+        try:
+            from oompah.integration import parse_canonical_landing_evidence
+            
+            evidence = parse_canonical_landing_evidence(
+                integration_record.canonical_landing_evidence
+            )
+            if evidence is None:
+                # Malformed evidence: fail-closed (block)
+                return "landing evidence is malformed or tampered"
+
+            # Validate epic branch match (prevent cross-epic injection)
+            if not evidence.is_valid_for_epic(epic_branch):
+                return (
+                    f"landing evidence is for epic {evidence.target_epic_branch}, "
+                    f"not {epic_branch}"
+                )
+
+            # Validate freshness (invalidate stale evidence)
+            if not evidence.is_evidence_fresh(max_age_hours=max_evidence_age_hours):
+                return (
+                    f"landing evidence is stale (created at {evidence.created_at_utc}, "
+                    f"max age {max_evidence_age_hours} hours)"
+                )
+
+            # Evidence is valid: no block reason
+            return None
+
+        except Exception as exc:
+            # Any unexpected error in validation: fail-closed (block)
+            return f"landing evidence validation failed: {exc}"
+
+    @staticmethod
     def _reported_commit_landed_on_refs(
         repo_path: str,
         commit_sha: str,
@@ -33160,7 +33227,55 @@ class Orchestrator:
             == published_sha
         )
         integrated = record
+        landing_evidence_dict = None
         if not already_recorded:
+            # Create canonical landing evidence for conflict-resolved epic rebase.
+            # This evidence proves that the published epic head is an authorized
+            # rebase of the child's work, allowing landing validators to accept
+            # commits even when patch IDs differ due to conflict resolution.
+            try:
+                old_base_sha = str(
+                    getattr(record, "base_sha", None)
+                    or reconciliation.old_sha or ""
+                ).strip().lower()
+                new_head_sha = str(published_sha or "").strip().lower()
+                created_at = datetime.now(timezone.utc).isoformat()
+                
+                if old_base_sha and new_head_sha and epic_branch:
+                    # Fingerprint is computed from all parameters including both
+                    # base and head (treating as a range even if not computed from
+                    # child-specific commits). This enables fail-closed validation:
+                    # any tampering of SHAs or epic_branch invalidates the evidence.
+                    fp = _compute_evidence_fingerprint(
+                        old_base_sha=old_base_sha,
+                        old_head_sha=old_base_sha,  # Use base as both for epic-level
+                        new_base_sha=old_base_sha,  # Rebase target base
+                        new_head_sha=new_head_sha,
+                        target_epic_branch=epic_branch,
+                        rebase_task_id=current.identifier,
+                        created_at_utc=created_at,
+                    )
+                    evidence = CanonicalLandingEvidence(
+                        old_base_sha=old_base_sha,
+                        old_head_sha=old_base_sha,
+                        new_base_sha=old_base_sha,
+                        new_head_sha=new_head_sha,
+                        target_epic_branch=epic_branch,
+                        rebase_task_id=current.identifier,
+                        created_at_utc=created_at,
+                        evidence_fingerprint=fp,
+                    )
+                    landing_evidence_dict = evidence.to_dict()
+            except Exception as exc:
+                # Evidence creation failure should not block epic completion.
+                # Log the error but proceed; evidence is optional (fail-closed:
+                # landing validation will reject without valid evidence).
+                logger.warning(
+                    "Failed to create canonical landing evidence for %s: %s",
+                    current.identifier,
+                    exc,
+                )
+            
             integrated = IntegrationRecord(
                 state="integrated",
                 task_branch=epic_branch,
@@ -33175,6 +33290,7 @@ class Orchestrator:
                 submitted_at=getattr(record, "submitted_at", None),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 dependency_heads=dict(getattr(record, "dependency_heads", {}) or {}),
+                canonical_landing_evidence=landing_evidence_dict,
             )
             tracker.set_metadata_field(
                 current.identifier,

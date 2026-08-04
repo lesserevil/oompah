@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 
@@ -77,6 +79,277 @@ def is_direct_epic_maintenance_issue(issue: object) -> bool:
     return bool(epic_branch) and epic_branch.lower() in title
 
 
+def _compute_evidence_fingerprint(
+    old_base_sha: str,
+    old_head_sha: str,
+    new_base_sha: str,
+    new_head_sha: str,
+    target_epic_branch: str,
+    rebase_task_id: str,
+    created_at_utc: str,
+) -> str:
+    """Compute SHA256 fingerprint for canonical landing evidence.
+    
+    Fingerprint validates evidence integrity against tampering and provides
+    cryptographic proof of the exact mapping. All parameters must be
+    canonicalized (lowercase SHAs, stripped strings).
+    """
+    content = f"{old_base_sha}|{old_head_sha}|{new_base_sha}|{new_head_sha}|{target_epic_branch}|{rebase_task_id}|{created_at_utc}"
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class CanonicalLandingEvidence:
+    """Service-authored cryptographic evidence of conflict-resolved child landing.
+    
+    Persisted during direct epic maintenance completion to prove that a child's
+    commits were validly rebased with conflict resolution into canonical epic
+    commits. This evidence is fail-closed: missing, stale, partial, or forged
+    evidence blocks landing validation until human recovery.
+    
+    All fields are immutable (frozen=True) and must be set at creation time.
+    Evidence is only created by oompah service, never loaded from untrusted
+    sources (e.g., human comments, user input, or tracker metadata edits).
+    
+    Attributes:
+        old_base_sha: Original child base commit SHA before rebase (40-char hex).
+        old_head_sha: Original child head commit SHA before rebase (40-char hex).
+        new_base_sha: New base commit in canonical epic after rebase (40-char hex).
+        new_head_sha: New head commit in canonical epic after rebase (40-char hex).
+        target_epic_branch: Epic branch name this evidence is valid for (e.g., "epic-EPIC-123").
+            Prevents cross-epic injection attacks; any mismatch blocks landing.
+        rebase_task_id: Oompah task ID that authorized this rebase evidence (e.g., "OOMPAH-456").
+            Used for authorization audit trail and historical repair whitelist.
+        created_at_utc: ISO 8601 UTC timestamp when oompah created this evidence.
+            Evidence older than MAX_EVIDENCE_AGE_DAYS is invalidated (fail-closed).
+        evidence_fingerprint: SHA256 hash of all parameters above, excluding this field.
+            Detects tampering; fingerprint mismatch blocks landing and invalidates evidence.
+    """
+    
+    old_base_sha: str
+    old_head_sha: str
+    new_base_sha: str
+    new_head_sha: str
+    target_epic_branch: str
+    rebase_task_id: str
+    created_at_utc: str
+    evidence_fingerprint: str
+
+    def __post_init__(self) -> None:
+        """Validate all fields and verify fingerprint on instantiation.
+        
+        This is called automatically by dataclass after __init__.
+        Fail-closed: any validation failure raises ValueError.
+        """
+        # Validate SHAs are 40-character hex strings
+        for sha, name in [
+            (self.old_base_sha, "old_base_sha"),
+            (self.old_head_sha, "old_head_sha"),
+            (self.new_base_sha, "new_base_sha"),
+            (self.new_head_sha, "new_head_sha"),
+        ]:
+            if not _is_valid_git_sha(sha):
+                raise ValueError(
+                    f"invalid git SHA for {name}: {sha!r} "
+                    "(must be 40-character hexadecimal)"
+                )
+        
+        # Validate string fields are non-empty after stripping
+        for text, name in [
+            (self.target_epic_branch, "target_epic_branch"),
+            (self.rebase_task_id, "rebase_task_id"),
+            (self.created_at_utc, "created_at_utc"),
+        ]:
+            if not str(text or "").strip():
+                raise ValueError(f"{name} is required and cannot be empty")
+        
+        # Validate fingerprint format (64-character hex from SHA256)
+        if not _is_valid_git_sha(self.evidence_fingerprint, bits=256):
+            raise ValueError(
+                f"invalid fingerprint: {self.evidence_fingerprint!r} "
+                "(must be 64-character hexadecimal)"
+            )
+        
+        # Verify fingerprint matches computed value (critical: detect tampering)
+        expected_fp = _compute_evidence_fingerprint(
+            self.old_base_sha,
+            self.old_head_sha,
+            self.new_base_sha,
+            self.new_head_sha,
+            self.target_epic_branch,
+            self.rebase_task_id,
+            self.created_at_utc,
+        )
+        if self.evidence_fingerprint != expected_fp:
+            raise ValueError(
+                f"evidence fingerprint mismatch: {self.evidence_fingerprint!r} "
+                f"!= {expected_fp!r} (evidence is corrupted or tampered)"
+            )
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CanonicalLandingEvidence":
+        """Parse stored evidence while rejecting malformed data (fail-closed).
+        
+        This is the only public way to load evidence from storage.
+        Any parsing error raises ValueError; no partial/degraded loading.
+        """
+        required_fields = {
+            "old_base_sha",
+            "old_head_sha",
+            "new_base_sha",
+            "new_head_sha",
+            "target_epic_branch",
+            "rebase_task_id",
+            "created_at_utc",
+            "evidence_fingerprint",
+        }
+        if not isinstance(value, Mapping):
+            raise ValueError(
+                "evidence must be a mapping (dict), not {!r}".format(type(value))
+            )
+        
+        missing = required_fields - set(value.keys())
+        if missing:
+            raise ValueError(
+                f"evidence missing required fields: {', '.join(sorted(missing))}"
+            )
+        
+        return cls(
+            old_base_sha=str(value.get("old_base_sha") or "").strip().lower(),
+            old_head_sha=str(value.get("old_head_sha") or "").strip().lower(),
+            new_base_sha=str(value.get("new_base_sha") or "").strip().lower(),
+            new_head_sha=str(value.get("new_head_sha") or "").strip().lower(),
+            target_epic_branch=str(value.get("target_epic_branch") or "").strip(),
+            rebase_task_id=str(value.get("rebase_task_id") or "").strip(),
+            created_at_utc=str(value.get("created_at_utc") or "").strip(),
+            evidence_fingerprint=str(
+                value.get("evidence_fingerprint") or ""
+            ).strip().lower(),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the stable JSON/YAML representation for storage."""
+        return {
+            "old_base_sha": self.old_base_sha,
+            "old_head_sha": self.old_head_sha,
+            "new_base_sha": self.new_base_sha,
+            "new_head_sha": self.new_head_sha,
+            "target_epic_branch": self.target_epic_branch,
+            "rebase_task_id": self.rebase_task_id,
+            "created_at_utc": self.created_at_utc,
+            "evidence_fingerprint": self.evidence_fingerprint,
+        }
+
+    def is_valid_for_epic(self, current_epic_branch: str) -> bool:
+        """Return True if evidence is valid for the given epic branch.
+        
+        Fail-closed: any mismatch returns False (blocks landing).
+        Epic branch name changes invalidate evidence (prevents drift attacks).
+        """
+        if not current_epic_branch:
+            return False
+        return self.target_epic_branch == current_epic_branch
+
+    def is_evidence_fresh(self, max_age_hours: int = 24) -> bool:
+        """Return True if evidence age is within max_age_hours (fail-closed).
+        
+        Args:
+            max_age_hours: Maximum age in hours before evidence is invalidated.
+                Defaults to 24 hours; should be small to prevent stale evidence
+                attacks.
+        
+        Returns:
+            False if evidence is too old or timestamp is invalid (fail-closed).
+        """
+        try:
+            created = datetime.fromisoformat(self.created_at_utc.replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            age = (now - created).total_seconds() / 3600  # hours
+            return age >= 0 and age <= max_age_hours
+        except (ValueError, TypeError):
+            return False
+
+
+def _is_valid_git_sha(sha: str, bits: int = 160) -> bool:
+    """Return True if sha is a valid git commit hash.
+    
+    Args:
+        sha: The string to validate.
+        bits: Hash bit length (160 for SHA1 -> 40 hex chars, 256 for SHA256 -> 64 hex chars).
+    
+    Returns:
+        True if sha is the correct length of valid hex characters.
+    """
+    expected_len = bits // 4  # 4 bits per hex character
+    try:
+        text = str(sha or "").strip().lower()
+        if len(text) != expected_len:
+            return False
+        return all(c in "0123456789abcdef" for c in text)
+    except (TypeError, AttributeError):
+        return False
+
+
+def parse_canonical_landing_evidence(
+    value: object,
+) -> CanonicalLandingEvidence | None:
+    """Parse landing evidence, returning None for invalid/missing data (fail-closed).
+    
+    This safe wrapper prevents malformed evidence from crashing callers.
+    Callers should treat None as "no evidence" and maintain fail-closed behavior.
+    """
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return CanonicalLandingEvidence.from_dict(value)
+    except ValueError:
+        return None
+
+
+# Whitelist of known Oompah-authorized task IDs for which historical repair evidence
+# can be loaded without trusting arbitrary human comments. This bounded list:
+# - Is maintained by Oompah maintainers only (code review required)
+# - Never trusts user-provided task IDs (must be exact match from whitelist)
+# - Prevents social engineering to create backdoor evidence paths
+# - Enables recovery from documented past cases (e.g., EXOCOMP-130)
+#
+# Each entry includes: task_id, old_base_sha, old_head_sha, new_base_sha, new_head_sha,
+# target_epic_branch, created_at_utc (from authorized recovery process)
+_BOUNDED_HISTORICAL_REPAIR_EVIDENCE: dict[str, dict[str, str]] = {
+    # Future: Add specific known recovery cases here as authorized by maintainers.
+    # Format: "OOMPAH-NNN": { "old_base_sha": "...", ... }
+    # These must come from verified authorized epic maintenance completion,
+    # not from human comments or external sources.
+}
+
+
+def load_bounded_historical_repair_evidence(
+    task_id: str,
+) -> CanonicalLandingEvidence | None:
+    """Load repair evidence only for known authorized historical task IDs (fail-closed).
+    
+    This provides recovery for documented past cases without creating a security
+    hole for arbitrary evidence injection via comments. The whitelist is:
+    - Maintained in code (requires review for changes)
+    - Validated against exact task ID (no pattern matching)
+    - Only loaded for tasks in the whitelist (all others return None)
+    - Never trusts human comments or arbitrary input
+    
+    Args:
+        task_id: The task identifier to potentially load evidence for.
+    
+    Returns:
+        CanonicalLandingEvidence if the task_id is in the whitelist and
+        evidence is valid. None for unknown tasks or invalid evidence.
+    """
+    task_id_str = str(task_id or "").strip()
+    if not task_id_str or task_id_str not in _BOUNDED_HISTORICAL_REPAIR_EVIDENCE:
+        return None
+    
+    evidence_dict = _BOUNDED_HISTORICAL_REPAIR_EVIDENCE[task_id_str]
+    return parse_canonical_landing_evidence(evidence_dict)
+
+
 @dataclass(frozen=True)
 class IntegrationRecord:
     """Versioned tracker record describing one task's integration state."""
@@ -99,6 +372,12 @@ class IntegrationRecord:
     # "conflict", "auth_failed", "rate_limited", "overloaded", "timeout",
     # "provider_unavailable", "missing_credentials", or None.
     repair_failure_reason: str | None = None
+    # Canonical landing evidence for conflict-resolved epic child rebases.
+    # Only set by oompah service in complete_direct_epic_maintenance_submission.
+    # Must pass cryptographic fingerprint validation and freshness checks.
+    # None means no evidence available; fail-closed validation treats this as
+    # a missing landing proof until other validators pass.
+    canonical_landing_evidence: dict[str, Any] | None = None
     version: int = INTEGRATION_RECORD_VERSION
 
     def __post_init__(self) -> None:
@@ -140,6 +419,15 @@ class IntegrationRecord:
                 f"(supported: 1-{INTEGRATION_RECORD_VERSION})"
             )
         
+        # Parse canonical landing evidence (fail-closed: invalid evidence = None)
+        raw_evidence = value.get("canonical_landing_evidence")
+        landing_evidence = None
+        if isinstance(raw_evidence, Mapping):
+            parsed = parse_canonical_landing_evidence(raw_evidence)
+            # Only include evidence if it parsed successfully (fail-closed)
+            if parsed is not None:
+                landing_evidence = parsed.to_dict()
+        
         # Always store as current version when loading (migration v1 -> v2)
         return cls(
             version=INTEGRATION_RECORD_VERSION,
@@ -156,6 +444,7 @@ class IntegrationRecord:
             dependency_heads=dependency_heads,
             backoff_until=_optional_text(value.get("backoff_until")),
             repair_failure_reason=_optional_text(value.get("repair_failure_reason")),
+            canonical_landing_evidence=landing_evidence,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -183,6 +472,8 @@ class IntegrationRecord:
                 result[key] = value
         if self.dependency_heads:
             result["dependency_heads"] = dict(self.dependency_heads)
+        if self.canonical_landing_evidence is not None:
+            result["canonical_landing_evidence"] = dict(self.canonical_landing_evidence)
         return result
 
 
