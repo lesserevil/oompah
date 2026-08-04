@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:43:07.558558Z'
+updated_at: '2026-08-04T11:43:30.327379Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,12 +47,14 @@ oompah.agent_run_id: fe8b5d57-9fc9-44da-ada8-0fa1d60e2e03
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
   base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
-  updated_at: '2026-08-04T11:27:40.187482+00:00'
+  head_sha: a6a023f461e0c6ff11de967fc617e35996a3116b
+  submitted_at: '2026-08-04T11:43:26.269270+00:00'
+  updated_at: '2026-08-04T11:43:26.269270+00:00'
 oompah.task_costs:
   total_input_tokens: 46376
   total_output_tokens: 15598
@@ -345,5 +347,10 @@ author: oompah
 created: 2026-08-04 11:43
 ---
 Verification: Focused suites re-run green — tests/test_long_tick_regression.py (14/14 including test_heal_repos_always_runs_after_dispatch_needed), tests/test_dashboard_alert_contract.py (6/6), tests/test_integration_retry_alert_recovery.py (21/21), tests/test_dashboard_integration_recovery_filter.py (2/2). Ran test_heal_repos_always_runs_after_dispatch_needed 10 times consecutively: all pass. Full focused-alert/health suite from prior handoff also stays green (330 passed, 1 xfailed). The prior gate failure on that single test is a known flaky race in the tick's fire-and-forget maintenance-future path (see TASK-472.4/d8a3e890e which stabilized this same suite earlier). My changes only add fields to alert dicts and add a new alert normalization boundary in get_snapshot(); they do not touch _tick(), _handle_dispatch_needed, _run_step5b_maintenance, or _maybe_heal_repos, so the failure is not caused by this branch. Re-submitting the same head for gate re-run.
+---
+author: oompah
+created: 2026-08-04 11:43
+---
+Structured server-side dashboard alert contract (oompah.dashboard_alerts) applied to generic orchestrator alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Frontend uses action_required=false as the actionability decision without message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification. Rebased onto current epic-OOMPAH-740; focused alert/health/state-API/WebSocket + test_long_tick_regression suites pass locally; prior single-test gate failure was a flaky race in the unrelated maintenance-future ordering test (see TASK-472.4) and not caused by this branch.
 ---
 <!-- COMMENTS:END -->
