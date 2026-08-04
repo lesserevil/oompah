@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T12:34:53.400428Z'
-updated_at: '2026-08-04T15:36:41.020544Z'
+updated_at: '2026-08-04T15:36:48.592714Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -72,8 +72,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-46f9be89689a
-    applied: false
+    applied: true
     created_at: '2026-08-04T15:36:37.739482+00:00'
+    applied_at: '2026-08-04T15:36:46.379778+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -376,5 +377,21 @@ author: oompah
 created: 2026-08-04 15:31
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 15:36
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- frontend_commit: 5c4c63ea2 OOMPAH-455: Send only external_issue_intake_enabled from Projects editor
+- backend_commit: 48a793f90 OOMPAH-455: Make project edits forge-aware
+- commits_on_main: both commits verified as ancestors of main via git merge-base --is-ancestor
+- forge_aware_guard_create: oompah/server.py:15357 forge_kind.strip().lower() == 'github' guard added to api_create_project before _resolve_github_token_owner call
+- forge_aware_guard_update: oompah/server.py:15508-15514 effective_forge_kind = fields.get('forge_kind', existing_project.forge_kind); resolve_github_identity flag gates both _resolve_github_token_owner call sites in api_update_project
+- conflict_error_message: Conflicting values for 'external_issue_intake_enabled' and 'github_issue_intake_enabled'; when both are provided they must match
+- regression_tests: tests/test_projects_crud.py: test_gitlab_ui_edit_enables_state_branch_without_github_identity_call, test_gitlab_token_update_does_not_resolve_github_identity, test_create_gitlab_project_does_not_resolve_github_token_owner, test_update_accepts_matching_intake_aliases, test_update_rejects_conflicting_intake_aliases, test_patch_accepts_matching_intake_aliases, test_patch_rejects_conflicting_intake_aliases_precisely; tests/test_projects_gitlab_ui.py: TestSaveProjectIntakeAliasPayload (4 tests)
 ---
 <!-- COMMENTS:END -->
