@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:25:52.548587Z'
+updated_at: '2026-08-04T20:30:01.760939Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ddc8845e-c594-4cd3-b909-15b857f238ad
+oompah.agent_run_id: 822dba52-2fd5-4853-a32c-633c8f9469ed
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
@@ -116,5 +116,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 32s
 - Log: OOMPAH-791__20260804T202331Z.jsonl
+---
+author: oompah
+created: 2026-08-04 20:30
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

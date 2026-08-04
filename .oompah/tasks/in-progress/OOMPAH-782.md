@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:28:46.495089Z'
+updated_at: '2026-08-04T20:29:53.399978Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-08-04 20:28
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-04 20:29
+---
+Understanding: migrate In Review review/CI progression to durable facts and observation/action jobs, with explicit handling for PR/source/head/capacity/CI/conflict/merge-target states and UI reason parity. I will trace the existing review/CI state machine and tests, implement the narrowest compatible cutover, and add focused regression coverage.
 ---
 <!-- COMMENTS:END -->
