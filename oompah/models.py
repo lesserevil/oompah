@@ -1474,6 +1474,11 @@ class RunningEntry:
     is_auditor: bool = False
     audit_id: str | None = None
     audit_attempt_id: str | None = None
+    # Durable terminal-audit workflow ownership.  The lease token is an
+    # in-process secret and is intentionally never included in snapshots or
+    # comments; the job id is safe operational identity only.
+    audit_workflow_job_id: str | None = None
+    audit_workflow_lease_token: str | None = field(default=None, repr=False)
     branch_key: str | None = None
     # Unique assignment identity for this worker run.  Retry authority is
     # bound to this value so a replacement assignment cannot inherit it.

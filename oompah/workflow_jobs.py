@@ -1870,6 +1870,7 @@ class WorkflowJobStore:
         category: WorkflowFailureCategory,
         error: str,
         now: float,
+        phase: str | None = None,
     ) -> int:
         recovered = 0
         for selected in rows:
@@ -1880,12 +1881,14 @@ class WorkflowJobStore:
                 UPDATE workflow_jobs
                    SET state = ?, lease_owner = NULL, lease_token = NULL,
                        lease_expires_at = NULL, retry_at = NULL,
+                       phase = COALESCE(?, phase),
                        failure_category = ?, last_error = ?, updated_at = ?,
                        completed_at = ?
                  WHERE job_id = ? AND state = ? AND lease_token = ?
                 """,
                 (
                     state.value,
+                    phase,
                     category.value,
                     error,
                     now,
@@ -1943,6 +1946,7 @@ class WorkflowJobStore:
         self,
         *,
         lease_owner: str | None = None,
+        phase: str | None = None,
         project_id: str | None = None,
         actions: Sequence[str] | None = None,
         now: float | None = None,
@@ -1991,6 +1995,7 @@ class WorkflowJobStore:
                     category=WorkflowFailureCategory.ABANDONED,
                     error="workflow job lease was abandoned during restart",
                     now=timestamp,
+                    phase=phase,
                 )
                 self._conn.commit()
                 return recovered
@@ -2267,6 +2272,7 @@ class WorkflowJobStore:
         error: str,
         retryable: bool,
         retry_delay_seconds: float = 0,
+        phase: str | None = None,
         now: float | None = None,
     ) -> WorkflowJob:
         timestamp = float(self._clock() if now is None else now)
@@ -2274,6 +2280,9 @@ class WorkflowJobStore:
         message = _required_text(error, "error")
         if retry_delay_seconds < 0:
             raise ValueError("retry_delay_seconds cannot be negative")
+        normalized_phase = (
+            _required_text(phase, "phase") if phase is not None else None
+        )
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
@@ -2290,8 +2299,9 @@ class WorkflowJobStore:
                 self._conn.execute(
                     """
                     UPDATE workflow_jobs
-                       SET state = ?, lease_owner = NULL, lease_token = NULL,
+                    SET state = ?, lease_owner = NULL, lease_token = NULL,
                            lease_expires_at = NULL, retry_at = ?,
+                           phase = COALESCE(?, phase),
                            failure_category = ?, last_error = ?, updated_at = ?,
                            completed_at = ?
                      WHERE job_id = ?
@@ -2299,6 +2309,7 @@ class WorkflowJobStore:
                     (
                         state.value,
                         retry_at,
+                        normalized_phase,
                         failure.value,
                         message,
                         timestamp,
@@ -2517,6 +2528,13 @@ class WorkflowJobStore:
                   FROM workflow_jobs GROUP BY state ORDER BY state
                 """
             ).fetchall()
+            phase_rows = self._conn.execute(
+                """
+                SELECT action, phase, COUNT(*) AS count
+                  FROM workflow_jobs
+                 GROUP BY action, phase ORDER BY action, phase
+                """
+            ).fetchall()
             project_rows = self._conn.execute(
                 """
                 SELECT project_id, state, COUNT(*) AS count
@@ -2571,6 +2589,11 @@ class WorkflowJobStore:
             per_project.setdefault(str(row["project_id"]), {})[str(row["state"])] = int(
                 row["count"]
             )
+        phases: dict[str, dict[str, int]] = {}
+        for row in phase_rows:
+            phases.setdefault(str(row["action"]), {})[str(row["phase"])] = int(
+                row["count"]
+            )
         available_at = (
             float(oldest["available_at"])
             if oldest is not None and oldest["available_at"] is not None
@@ -2579,6 +2602,8 @@ class WorkflowJobStore:
         return {
             "schema_version": self.schema_version,
             "states": {str(row["state"]): int(row["count"]) for row in state_rows},
+            "phases": phases,
+            "terminal_audit_phases": phases.get("terminal_audit", {}),
             "leases": {
                 "running": int(lease["running"] or 0) if lease is not None else 0,
                 "expired": int(lease["expired"] or 0) if lease is not None else 0,

@@ -190,6 +190,7 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
+from oompah.terminal_audit_workflow import AuditWorkflowPhase, TerminalAuditWorkflow
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
     DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
@@ -217,7 +218,11 @@ from oompah.terminal_transition_coordinator import (
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
-from oompah.workflow_jobs import WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJobState,
+    WorkflowJobStore,
+)
 from oompah.workflow_shadow import (
     LegacyWorkflowProjection,
     WorkflowShadowEvaluator,
@@ -1349,6 +1354,14 @@ class Orchestrator:
         self.task_transition_journal = TransitionJournal(
             os.path.join(_state_dir, "task_transitions.sqlite3")
         )
+        # Terminal audits use the same durable lease ledger as the other
+        # workflow domains.  The audit metadata remains the evidence/source
+        # of truth; this adapter owns only execution and recovery.
+        self.terminal_audit_workflow = TerminalAuditWorkflow(
+            self.workflow_job_store,
+            lease_owner="terminal-audit",
+            max_attempts=config.audit_max_attempts,
+        )
         self.workflow_shadow = WorkflowShadowEvaluator(
             mode=config.workflow_engine_mode,
             max_diagnostic_bytes=config.workflow_diagnostic_max_bytes,
@@ -2061,6 +2074,7 @@ class Orchestrator:
                 self._terminal_audit_scopes(),
                 defer_lifecycle_reconciliation=True,
             )
+            self._sync_terminal_audit_workflow_jobs()
             metrics = self._terminal_audit_metrics
             metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
             # Recovery just rebuilt the same metadata-backed set used by the
@@ -6715,6 +6729,54 @@ class Orchestrator:
 
         def terminal_audit(current: Issue) -> dict[str, Any]:
             running = self._workflow_shadow_running_entry(current, auditor=True)
+            # The durable job is the execution authority.  Keep the legacy
+            # ``active`` value for compatibility with the pure decision
+            # evaluator, while exposing the exact durable phase for UI and
+            # recovery consumers.
+            try:
+                document = self._audit_store(current).read(current.identifier)
+                record = AuditorDispatchLane.pending_record(document.pending_chain)
+                if record is not None:
+                    disposition = self.terminal_audit_workflow.decision(record)
+                    if disposition.phase is AuditWorkflowPhase.ACTION_REQUIRED:
+                        return {
+                            "phase": "queued",
+                            "workflow_phase": disposition.phase.value,
+                            "action_required": True,
+                            "action_code": disposition.action_code
+                            or "audit.action_required",
+                        }
+                    if disposition.phase in {
+                        AuditWorkflowPhase.RUNNING,
+                        AuditWorkflowPhase.FINALIZING,
+                    }:
+                        return {
+                            "phase": "active",
+                            "workflow_phase": disposition.phase.value,
+                            "audit_id": record.audit_id,
+                            "owner_id": (
+                                getattr(running, "run_id", None)
+                                if running is not None
+                                else None
+                            ),
+                            "lease_expires_at": (
+                                datetime.now(timezone.utc) + timedelta(seconds=60)
+                            ).isoformat(),
+                        }
+                    return {
+                        "phase": "queued",
+                        "workflow_phase": disposition.phase.value,
+                        "audit_id": record.audit_id,
+                        "retry_at": (
+                            datetime.fromtimestamp(
+                                disposition.retry_at, tz=timezone.utc
+                            ).isoformat()
+                            if disposition.retry_at is not None
+                            else None
+                        ),
+                    }
+            except Exception:  # noqa: BLE001 - shadow facts are best effort
+                pass
             if running is not None:
                 return {
                     "phase": "active",
@@ -7565,6 +7627,127 @@ class Orchestrator:
         store.update(issue.identifier, _updater)
         return updated
 
+    def _sync_terminal_audit_workflow_jobs(self) -> None:
+        """Materialize and recover the durable audit disposition projection.
+
+        Tracker metadata remains authoritative for evidence and attempt
+        history.  The workflow ledger is reconciled from that snapshot so an
+        enforcement restart cannot lose a queued audit or revive a completed
+        one.  Recovery uses the in-memory attempt registry only as a liveness
+        hint; the durable job lease is the ownership fence.
+        """
+
+        active_attempts = {
+            entry.audit_attempt_id
+            for entry in self._running_values_snapshot()
+            if entry.is_auditor and entry.audit_attempt_id
+        }
+        materialized = 0
+        recovered = 0
+        for pending in self._terminal_audit_enforcement.pending_audits:
+            record = pending.record
+            if record is None:
+                continue
+            try:
+                before = self.terminal_audit_workflow.decision(record)
+                after = self.terminal_audit_workflow.recover(
+                    record,
+                    active_attempt_ids=active_attempts,
+                )
+                materialized += 1
+                recovered += int(
+                    before.phase is not after.phase
+                    and after.phase is AuditWorkflowPhase.QUEUED
+                )
+            except Exception as exc:  # noqa: BLE001 - one task must not hide the queue
+                logger.warning(
+                    "Could not materialize terminal-audit workflow job for %s: %s",
+                    pending.task_id,
+                    type(exc).__name__,
+                )
+        self._maintenance_status["terminal_audit_workflow"] = {
+            "materialized": materialized,
+            "recovered": recovered,
+        }
+
+    @staticmethod
+    def _audit_record_for_result(issue: Issue, result: Any) -> Any:
+        """Build the minimal trusted record needed for job finalization."""
+
+        from oompah.terminal_audit import TerminalAuditRecord
+
+        return TerminalAuditRecord(
+            audit_id=str(result.audit_id),
+            project_id=str(issue.project_id or "legacy"),
+            task_id=str(issue.identifier),
+            target_state=result.target_state,
+            evidence_fingerprint=result.evidence_fingerprint,
+            request_state=RequestState.IN_PROGRESS,
+        )
+
+    def _begin_terminal_audit_finalization(self, issue: Issue, result: Any) -> Any:
+        """Persist ``finalizing`` before coordinator side effects begin."""
+
+        entry = self._current_running_entry(issue.id)
+        if entry is None or not entry.audit_workflow_job_id:
+            return None
+        try:
+            job = self.workflow_job_store.get(entry.audit_workflow_job_id)
+            record = self._audit_record_for_result(issue, result)
+            return self.terminal_audit_workflow.mark_finalizing(
+                job,
+                record,
+                verdict=str(getattr(result.verdict, "value", result.verdict)),
+                failure_classification=(
+                    str(getattr(result.failure_classification, "value", result.failure_classification))
+                    if result.failure_classification is not None
+                    else None
+                ),
+                result_idempotency=str(getattr(result, "attempt_id", None) or ""),
+            )
+        except Exception as exc:  # noqa: BLE001 - coordinator remains fail-closed
+            logger.warning(
+                "Could not reserve terminal-audit finalization for %s: %s",
+                issue.identifier,
+                type(exc).__name__,
+            )
+            return None
+
+    def _finish_terminal_audit_workflow(
+        self,
+        issue: Issue,
+        result: Any,
+        outcome: Any,
+        finalizing_job: Any,
+    ) -> None:
+        """Acknowledge coordinator success, or durably retry a rejected result."""
+
+        if finalizing_job is None:
+            return
+        try:
+            if getattr(outcome, "success", False):
+                self.terminal_audit_workflow.complete(
+                    finalizing_job,
+                    result={
+                        "accepted": True,
+                        "audit_id": str(getattr(outcome, "audit_id", result.audit_id)),
+                        "applied_status": getattr(outcome, "applied_status", None),
+                        "idempotent": bool(getattr(outcome, "idempotent", False)),
+                    },
+                )
+            else:
+                self.terminal_audit_workflow.retry(
+                    finalizing_job,
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    reason="coordinator did not acknowledge the audit result",
+                )
+        except Exception as exc:  # noqa: BLE001 - result intent remains coordinator-owned
+            logger.warning(
+                "Could not close terminal-audit workflow job for %s: %s",
+                issue.identifier,
+                type(exc).__name__,
+            )
+
     def _audit_branch_busy(
         self,
         issue: Issue,
@@ -7820,6 +8003,20 @@ class Orchestrator:
                         # the stale recovery object.
                         continue
                     record = recovery.record
+                # Reconcile the execution ledger independently of tracker
+                # metadata.  A running metadata attempt without a live
+                # worker becomes queued durable work after restart.
+                try:
+                    self.terminal_audit_workflow.recover(
+                        record,
+                        active_attempt_ids=active,
+                    )
+                except Exception as exc:  # noqa: BLE001 - preserve legacy lane safety
+                    logger.warning(
+                        "Terminal-audit workflow recovery failed for %s: %s",
+                        issue.identifier,
+                        type(exc).__name__,
+                    )
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
                         metrics["in_progress_count"] += 1
@@ -7849,6 +8046,18 @@ class Orchestrator:
                     record, contributors, branch_key=branch_key
                 )
                 if plan is None:
+                    try:
+                        self.terminal_audit_workflow.require_action(
+                            record,
+                            action_code="no_independent_auditor",
+                            reason=no_candidate.detail if no_candidate else "no candidate",
+                        )
+                    except Exception as exc:  # noqa: BLE001 - coordinator remains authority
+                        logger.warning(
+                            "Could not persist audit action-required disposition for %s: %s",
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
                     await self._route_no_auditor(
                         issue,
                         record,
@@ -7870,6 +8079,21 @@ class Orchestrator:
                     # PASS/override may have retired this identity between
                     # the candidate read and the launch fence.
                     continue
+                workflow_job = self.terminal_audit_workflow.start(
+                    persisted,
+                    attempt_id=plan.attempt_id,
+                    candidate=plan.candidate,
+                )
+                if workflow_job is None:
+                    # Another durable owner won the launch race.  The
+                    # metadata attempt remains fenced and will be recovered
+                    # by that owner or by the next bounded scan.
+                    continue
+                plan = replace(
+                    plan,
+                    workflow_job_id=workflow_job.job_id,
+                    workflow_lease_token=workflow_job.lease_token,
+                )
                 self._audit_branch_claims[branch_key] = plan.attempt_id
                 try:
                     await self._dispatch(
@@ -7904,6 +8128,20 @@ class Orchestrator:
                             append_attempt=r.attempts[-1],
                         ),
                     )
+                    try:
+                        launch_job = self.workflow_job_store.get(plan.workflow_job_id)
+                        if launch_job.state is WorkflowJobState.RUNNING:
+                            self.terminal_audit_workflow.retry(
+                                launch_job,
+                                category=WorkflowFailureCategory.TRANSPORT,
+                                reason="auditor launch failed before worker ownership",
+                            )
+                    except Exception as workflow_exc:  # noqa: BLE001 - metadata remains durable
+                        logger.warning(
+                            "Could not persist launch retry for %s: %s",
+                            issue.identifier,
+                            type(workflow_exc).__name__,
+                        )
                     raise
                 dispatched += 1
                 metrics["dispatch_count"] += 1
@@ -33128,6 +33366,12 @@ class Orchestrator:
             is_auditor=auditor_plan is not None,
             audit_id=auditor_plan.audit_id if auditor_plan else None,
             audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
+            audit_workflow_job_id=(
+                auditor_plan.workflow_job_id if auditor_plan else None
+            ),
+            audit_workflow_lease_token=(
+                auditor_plan.workflow_lease_token if auditor_plan else None
+            ),
             branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
             assignment_id=assignment_id,
             run_id=run_id,
@@ -34470,11 +34714,20 @@ class Orchestrator:
                     _pid=_api_project_id,
                     _loop=_api_dispatch_loop,
                 ):
+                    finalizing_job = self._begin_terminal_audit_finalization(_issue, result)
                     future = asyncio.run_coroutine_threadsafe(
                         _coord.apply_audit_result(_issue, result, _pid),
                         _loop,
                     )
-                    outcome = future.result(timeout=60)
+                    try:
+                        outcome = future.result(timeout=60)
+                    except Exception:
+                        # A coordinator transport failure leaves the durable
+                        # finalizing boundary recoverable by the next worker.
+                        raise
+                    self._finish_terminal_audit_workflow(
+                        _issue, result, outcome, finalizing_job
+                    )
                     self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
@@ -35101,11 +35354,18 @@ class Orchestrator:
                     _pid=_acp_project_id,
                     _loop=_acp_dispatch_loop,
                 ):
+                    finalizing_job = self._begin_terminal_audit_finalization(_issue, result)
                     future = asyncio.run_coroutine_threadsafe(
                         _coord.apply_audit_result(_issue, result, _pid),
                         _loop,
                     )
-                    outcome = future.result(timeout=60)
+                    try:
+                        outcome = future.result(timeout=60)
+                    except Exception:
+                        raise
+                    self._finish_terminal_audit_workflow(
+                        _issue, result, outcome, finalizing_job
+                    )
                     self._record_audit_outcome_ownership(_issue.id, outcome)
                     # Clear alerts for any sibling audits that were cancelled due to duplicate
                     # fingerprint detection (duplicate audit race condition prevention)
@@ -37694,7 +37954,7 @@ class Orchestrator:
                 ),
                 failure_classification=failure_classification,
             )
-            self._audit_update_record(
+            metadata_updated = self._audit_update_record(
                 store,
                 entry.issue,
                 updated,
@@ -37702,6 +37962,28 @@ class Orchestrator:
                 if updated.attempts and updated.attempts[-1].attempt_id == entry.audit_attempt_id
                 else None,
             )
+            if metadata_updated and entry.audit_workflow_job_id:
+                try:
+                    workflow_job = self.workflow_job_store.get(
+                        entry.audit_workflow_job_id
+                    )
+                    if workflow_job.state is WorkflowJobState.RUNNING:
+                        self.terminal_audit_workflow.retry(
+                            workflow_job,
+                            category=(
+                                WorkflowFailureCategory.POLICY
+                                if failure_classification
+                                is FailureClassification.POLICY_INCOMPATIBILITY
+                                else WorkflowFailureCategory.TRANSPORT
+                            ),
+                            reason="auditor attempt ended before finalization",
+                        )
+                except Exception as workflow_exc:  # noqa: BLE001 - metadata remains authoritative
+                    logger.warning(
+                        "Could not schedule durable audit retry for %s: %s",
+                        entry.identifier,
+                        type(workflow_exc).__name__,
+                    )
             return True
         except Exception as exc:  # noqa: BLE001 - exit cleanup must not wedge loop
             logger.warning(
