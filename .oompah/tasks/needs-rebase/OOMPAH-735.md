@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:merge_conflict
+- merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:00:07.063905Z'
+updated_at: '2026-08-04T03:01:10.763645Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -303,5 +304,10 @@ author: oompah
 created: 2026-08-04 02:59
 ---
 Branch quality gate passed for `bbdb6e8be192b95c924c882ccbadaebfc34f08c1` using `make test` in 407.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 03:01
+---
+YOLO: Merge conflict detected on MR #702. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
