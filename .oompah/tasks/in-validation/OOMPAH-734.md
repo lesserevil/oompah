@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T01:42:27.796551Z'
+updated_at: '2026-08-04T01:49:21.939209Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -122,6 +122,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/698
 oompah.review_number: '698'
 oompah.work_branch: OOMPAH-734
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-92a798a574d7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-734
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:49:12.453114+00:00'
+  - version: 1
+    audit_id: audit-78f902ca8093
+    project_id: proj-14849f1b
+    task_id: OOMPAH-734
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:49:12.453114+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -640,5 +679,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 14s
 - Log: OOMPAH-734__20260804T013534Z.jsonl
+---
+author: oompah
+created: 2026-08-04 01:49
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 01:49
+---
+YOLO: merged PR #698.
 ---
 <!-- COMMENTS:END -->
