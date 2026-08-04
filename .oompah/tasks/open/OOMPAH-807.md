@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-04T21:37:20.193643Z'
+updated_at: '2026-08-04T21:39:21.557232Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -22,14 +22,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 5d8823017faedc20e0c4fc8b58a6f30dc19338faf49501d69680a12207539d23
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T21:39:15.100094+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 0f4c566b-60ad-495b-994d-086ae90260fd
-  claim_owner: f75f2e47-c230-48b7-9af8-09eea50f8e9b
-  claimed_at: '2026-08-04T21:36:39.967987+00:00'
-  claim_expires_at: '2026-08-04T22:06:39.967987+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-763 is a broad parent epic, while OOMPAH-806 concerns\
+    \ integration-gate watchdog fencing. Neither addresses revisionless metadata-only\
+    \ Archived audits; all other reviewed candidates are terminal and excluded.\n\
+    Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: OOMPAH-763 is a broad parent epic, while OOMPAH-806\
+    \ concerns integration-gate watchdog fencing. Neither addresses revisionless metadata-only\
+    \ Archived audits; all other reviewed candidates are terminal and excluded."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -45,6 +52,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
   updated_at: '2026-08-04T21:37:12.679978+00:00'
+oompah.task_costs:
+  total_input_tokens: 46207
+  total_output_tokens: 292
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46207
+      output_tokens: 292
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46207
+    output_tokens: 292
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:39:15.097392+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-807__20260804T213742Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-807
+    source_sha: f1e7925b7263f980517f943291102c8c83335ed2
+    completed_at: '2026-08-04T21:39:15.159731+00:00'
 ---
 ## Summary
 
@@ -67,5 +100,15 @@ author: oompah
 created: 2026-08-04 21:37
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 21:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.2K in / 292 out [46.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 12s
+- Log: OOMPAH-807__20260804T213742Z.jsonl
 ---
 <!-- COMMENTS:END -->
