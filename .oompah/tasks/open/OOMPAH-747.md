@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:42:14.970043Z'
+updated_at: '2026-08-04T00:42:22.749405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 1f9c08d70a8de1c46153484200e417859077a231cd898475c6e870568917d478
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T00:42:11.699007+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 0d4bc758-85fc-4583-a60b-de641cbc224f
-  claim_owner: b6e50576-eec3-4dce-bc89-fe685f70768e
-  claimed_at: '2026-08-04T00:41:16.932481+00:00'
-  claim_expires_at: '2026-08-04T01:11:16.932481+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: No active non-terminal task matches this issue. The closest\
+    \ reviewed tasks\u2014OOMPAH-162, OOMPAH-165, and OOMPAH-168\u2014are terminal\
+    \ Archived items and address related but distinct epic-landing behavior.\nFocus\
+    \ handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \n\
+    Matches: none  \n\nEvidence: No active non-terminal task matches this issue. The\
+    \ closest reviewed tasks\u2014OOMPAH-162, OOMPAH-165, and OOMPAH-168\u2014are\
+    \ terminal Archived items and address related but distinct epic-landing behavior."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -52,6 +59,16 @@ oompah.task_costs:
     output_tokens: 179
     cost_usd: 0.0
     recorded_at: '2026-08-04T00:42:11.694581+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-747__20260804T004147Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-747
+    source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+    completed_at: '2026-08-04T00:42:11.720378+00:00'
 ---
 ## Summary
 
