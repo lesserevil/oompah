@@ -13,7 +13,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:09.831740Z'
-updated_at: '2026-08-04T16:33:10.978311Z'
+updated_at: '2026-08-04T16:33:23.930437Z'
 work_branch: epic-OOMPAH-511
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/562
@@ -91,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-511
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +100,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ea5e085db1ce
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -110,13 +110,18 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T16:32:59.944603+00:00'
       branch_key: epic-OOMPAH-511
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-04T16:33:13.293305+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511)'
+      next_retry_at: '2026-08-04T16:33:23.293270+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T16:25:26.662298+00:00'
-    updated_at: '2026-08-04T16:32:59.944603+00:00'
+    updated_at: '2026-08-04T16:33:13.293305+00:00'
   - version: 1
     audit_id: audit-35731bc0bd87
     project_id: proj-14849f1b
@@ -151,7 +156,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ea5e085db1ce
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -161,6 +166,11 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T16:32:59.944603+00:00'
     branch_key: epic-OOMPAH-511
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-04T16:33:13.293305+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511)'
+    next_retry_at: '2026-08-04T16:33:23.293270+00:00'
 oompah.task_costs:
   total_input_tokens: 45
   total_output_tokens: 8447
@@ -280,5 +290,10 @@ Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 6s
+---
+author: oompah
+created: 2026-08-04 16:33
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-511 (tried: origin/epic-OOMPAH-511, origin/OOMPAH-511). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
