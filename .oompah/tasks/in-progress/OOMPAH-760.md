@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:31:11.119391Z'
+updated_at: '2026-08-04T12:31:45.369888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,7 +108,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 140b90e1-6383-41b2-8885-83dccc52558a
+oompah.agent_run_id: 34b837ca-e9e5-49a4-ae65-1cd22455507e
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2071
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-04 12:31
 ---
 Agent stalled 1 time(s) (3628s). Escalating from 'default' to 'deep'. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-04 12:31
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
