@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T03:33:03.664709Z'
+updated_at: '2026-08-04T03:33:25.124569Z'
 work_branch: OOMPAH-749
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/703
@@ -120,13 +120,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: f37b7591-ad0f-4b51-8f58-04c97793e447
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2521
+  total_input_tokens: 16
+  total_output_tokens: 2717
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2521
+      cost_usd: 0.0
+    opus:
+      input_tokens: 6
+      output_tokens: 196
       cost_usd: 0.0
   runs:
   - profile: default
@@ -135,6 +139,12 @@ oompah.task_costs:
     output_tokens: 2521
     cost_usd: 0.0
     recorded_at: '2026-08-04T00:43:58.453230+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 6
+    output_tokens: 196
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T03:33:23.005369+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-749__20260804T004313Z
@@ -285,5 +295,15 @@ author: oompah
 created: 2026-08-04 03:33
 ---
 Rebased OOMPAH-749 onto origin/main. Resolved conflicts in oompah/config.py (kept both integration_recovery_freshness_seconds from OOMPAH-735 and integration_audit_batch_size + integration_ready_claim_timeout_seconds from OOMPAH-749) and oompah/orchestrator.py (preserved OOMPAH-731 direct-rebase recovery block and OOMPAH-749 bounded-lane ready/integrating query with counters). Focused + adjacent tests pass (246 tests).
+---
+author: oompah
+created: 2026-08-04 03:33
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 42
+- Tokens: 6 in / 196 out [202 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 58s
+- Log: OOMPAH-749__20260804T032244Z.jsonl
 ---
 <!-- COMMENTS:END -->
