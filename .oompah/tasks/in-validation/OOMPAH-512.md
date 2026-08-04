@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-512
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Route managed tracker mutations through project-scoped trackers
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T15:16:42.904572Z'
-updated_at: '2026-07-28T16:24:11.715007Z'
+updated_at: '2026-08-04T16:24:49.474666Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 2776
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:41:40.717347+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2aec2f89198c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-512
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f525bf1a560a05b3bad92a50acf26ee9d63d5f9b7292c2d580e3e4f2c1829c00
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T16:24:43.299559+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -216,5 +238,10 @@ author: oompah
 created: 2026-07-28 15:41
 ---
 Routed managed runtime task mutations through canonical project trackers and removed writable cwd-tracker fallbacks from confirmed server/orchestrator consumers.
+---
+author: oompah
+created: 2026-08-04 16:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
