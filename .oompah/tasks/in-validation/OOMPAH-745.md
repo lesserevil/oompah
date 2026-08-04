@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:15:50.538589Z'
+updated_at: '2026-08-04T16:24:35.020641Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -72,14 +72,19 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-745
   base_branch: epic-OOMPAH-740
   base_sha: b51047023a5a9d5a36d119260222fb57168cbf41
   head_sha: b08a12057afed4e7af5080e7e47522eed16dc2ce
+  integrated_sha: b08a12057afed4e7af5080e7e47522eed16dc2ce
   submitted_at: '2026-08-04T16:15:35.000873+00:00'
-  updated_at: '2026-08-04T16:15:35.000873+00:00'
+  updated_at: '2026-08-04T16:24:25.099594+00:00'
+  dependency_heads:
+    OOMPAH-744: b51047023a5a9d5a36d119260222fb57168cbf41
+    OOMPAH-742: 494c39f8f06ec986bd4efb345ea59e359cf95aed
+    OOMPAH-743: f745082a0eedbc0ff899222e7643ef590216000d
 oompah.task_costs:
   total_input_tokens: 151
   total_output_tokens: 47141
@@ -134,6 +139,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-745
     source_sha: 1a6af40bf7b796d8c9984b49884088880b895388
     completed_at: '2026-08-04T16:08:13.207316+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e1f46d62a09b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-745
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T16:24:28.373263+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -423,5 +450,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 57s
 - Log: OOMPAH-745__20260804T161114Z.jsonl
+---
+author: oompah
+created: 2026-08-04 16:24
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
