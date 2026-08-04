@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: Needs Human
+status: Merged
 priority: 0
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T01:59:21.325474Z'
+updated_at: '2026-08-04T02:03:38.292055Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -198,6 +198,27 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T01:59:10.570417+00:00'
     applied_at: '2026-08-04T01:59:19.306879+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-488c8ba18fc8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-731
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: PR 696 is merged as 3c104973 with exact head a3bfbb3e; GitHub CI passed
+      on Python 3.11, 3.12, and 3.13; that head is an ancestor of the live revision;
+      and the independent Opus auditor verified the merge and implementation before
+      recoverable non-mutating command-policy mismatches exhausted its session. OOMPAH-753
+      tracks the audit-policy regression. No implementation work remains.
+    created_at: '2026-08-04T02:03:29.182456+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -763,5 +784,12 @@ created: 2026-08-04 01:59
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-04 02:03
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR 696 is merged as 3c104973 with exact head a3bfbb3e; GitHub CI passed on Python 3.11, 3.12, and 3.13; that head is an ancestor of the live revision; and the independent Opus auditor verified the merge and implementation before recoverable non-mutating command-policy mismatches exhausted its session. OOMPAH-753 tracks the audit-policy regression. No implementation work remains.
 ---
 <!-- COMMENTS:END -->
