@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-812
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Drain synthetic long-tick ordering fixtures under full-gate load
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:47:56.569040Z'
-updated_at: '2026-08-04T23:13:38.231167Z'
+updated_at: '2026-08-04T23:13:54.769554Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-812
 target_branch: epic-OOMPAH-768
 review_url: null
@@ -31,6 +31,28 @@ oompah.integration:
   integrated_sha: 1230456cc7834d14b8064d73e1742734ab670d2a
   submitted_at: '2026-08-04T22:52:34.629625+00:00'
   updated_at: '2026-08-04T23:13:37.122553+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7f5bb039e5df
+    project_id: proj-14849f1b
+    task_id: OOMPAH-812
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5cc3b17ae25ba98859760a47dbbd8c39110fd131c8b1ce951676f4fc85cceaf2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T23:13:49.092144+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -53,5 +75,10 @@ author: oompah
 created: 2026-08-04 22:52
 ---
 Made the full-load synthetic ordering fixture deterministic and leak-free at 1230456cc; 100x repeat, serial/parallel module, 284-test combined fixture slice, and mutation scan pass.
+---
+author: oompah
+created: 2026-08-04 23:13
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
