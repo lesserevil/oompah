@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T23:00:00.347668Z'
+updated_at: '2026-08-04T23:28:28.348262Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-08-04 22:41
 ---
 Revalidated the integration-rewritten, patch-equivalent exact head 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35 with 744 focused tests; resubmitting without the quarantined out-of-scope infrastructure patch.
+---
+author: oompah
+created: 2026-08-04 23:28
+---
+Independent acceptance review repaired the domain adapter at exact pushed head dab74228dc85f74fdfdab64b1f22660ae2287cf8 on gated parent 1230456cc. Fixes: direct-child-only containment with full-graph cycle validation; Archived child handling; target-rewrite-safe durable landing replay and newest-window persistence; action/project/dead-owner-scoped restart recovery; one-snapshot scheduling; evidence-bound epic_auto_close with no parallel enforce-mode terminal writer. New real-Git and restart regressions cover source advance vs explicit immutable SHA, target rewrite, shared aggregate ancestry, stale snapshot scheduling, recovery isolation, and auto-close fencing. Verification: 555 combined workflow/legacy epic tests passed; 70 post-rebase smoke tests passed; terminal mutation scan 8/8; focused Ruff and diff checks clean. OOMPAH-804 remains the declared production handler/single-writer composition dependency. Holding submission until OOMPAH-812 reaches terminal Done.
 ---
 <!-- COMMENTS:END -->
