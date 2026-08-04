@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T23:00:46.792679Z'
+updated_at: '2026-08-04T23:01:21.820032Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -99,6 +99,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-806
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T20:47:13.706379+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e95e35ff5779
+    project_id: proj-14849f1b
+    task_id: OOMPAH-806
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11ab1dfd8cf4bcfcfaf6ab5f6ac31aab28ab666033c89441eea41e7a808b7694
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T23:01:11.209732+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -346,5 +368,10 @@ author: oompah
 created: 2026-08-04 22:38
 ---
 Rebased the authoritative-gate watchdog fix onto the reconciled root at exact head 30dc2b2075a48c6c542da55a46ad0285f492d527. Prior gate-only failures pass 25x stress and 496 combined focused tests.
+---
+author: oompah
+created: 2026-08-04 23:01
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
