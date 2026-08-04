@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T00:41:14.615074Z'
+updated_at: '2026-08-04T00:42:50.151660Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: c9fbcc861c522c73c72cc1ac5637b98b071961b57276069044961a27cbe66c16
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: c6f318f9-40ae-4edd-862b-2c5bda4714f0
+  claim_owner: b6e50576-eec3-4dce-bc89-fe685f70768e
+  claimed_at: '2026-08-04T00:42:28.225032+00:00'
+  claim_expires_at: '2026-08-04T01:12:28.225032+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 82407244-35fe-46b1-8da2-e804f3a98724
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Live reproduction: EXOCOMP-128 passed a Merged audit after PR 21 landed its nest
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 00:42
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 00:42
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
