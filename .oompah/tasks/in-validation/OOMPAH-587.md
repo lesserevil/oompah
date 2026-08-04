@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-04T00:11:17.236592Z'
+updated_at: '2026-08-04T00:12:17.180003Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -705,18 +705,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e3747a7713a5
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+      created_at: '2026-08-04T00:12:07.753828+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T00:12:07.753828+00:00'
+      branch_key: epic-OOMPAH-587
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T00:09:12.669485+00:00'
+    updated_at: '2026-08-04T00:12:07.753828+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -878,6 +892,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-03T23:57:49.708320+00:00'
+    branch_key: epic-OOMPAH-587
+  - version: 1
+    attempt_id: attempt-e3747a7713a5
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    created_at: '2026-08-04T00:12:07.753828+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T00:12:07.753828+00:00'
     branch_key: epic-OOMPAH-587
 oompah.task_costs:
   total_input_tokens: 382
@@ -1611,5 +1638,15 @@ author: oompah
 created: 2026-08-04 00:08
 ---
 Lifecycle reconciliation restored OOMPAH-587 to audited Done: Cannot transition shared-epic child OOMPAH-587 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
+---
+author: oompah
+created: 2026-08-04 00:12
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 00:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
