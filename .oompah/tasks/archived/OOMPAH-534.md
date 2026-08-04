@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-534
 type: task
-status: In Validation
+status: Archived
 priority: 3
 title: Add end-to-end duplicate-preflight regressions and operator documentation
 parent: OOMPAH-528
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:20:02.804008Z'
-updated_at: '2026-08-04T22:54:53.836497Z'
+updated_at: '2026-08-04T23:08:29.996227Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -54,6 +54,30 @@ oompah.task_costs:
     recorded_at: '2026-08-04T22:44:11.393582+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-c782e6087dcd: '2026-08-04T23:08:26.581943+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-534
+    target_state: Archived
+    evidence_fingerprint: 838b285675c0a1d84af99cb495f92d1f35444bd4046d1e6ca4cb2f8398d7a147
+    audit_ids:
+    - audit-8eb77ffe3310
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:08:26.581956+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-534
+    audit_id: audit-8eb77ffe3310
+    attempt_id: attempt-c782e6087dcd
+    target_state: Archived
+    evidence_fingerprint: 838b285675c0a1d84af99cb495f92d1f35444bd4046d1e6ca4cb2f8398d7a147
+    status: Archived
+    audit_ids:
+    - audit-8eb77ffe3310
+    applied: false
+    created_at: '2026-08-04T23:08:26.581974+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +85,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-534
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -85,7 +109,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c782e6087dcd
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -96,13 +120,16 @@ oompah.terminal_audit:
       started_at: '2026-08-04T22:54:43.261066+00:00'
       branch_key: epic-OOMPAH-528
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-04T23:08:26.581775+00:00'
+      ended_at: '2026-08-04T23:08:26.581775+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T22:37:05.290529+00:00'
-    updated_at: '2026-08-04T22:54:43.261066+00:00'
+    updated_at: '2026-08-04T23:08:26.581775+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c21d1171e2a7
