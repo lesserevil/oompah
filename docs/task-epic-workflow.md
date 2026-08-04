@@ -93,6 +93,34 @@ Runnable, but an unmet hard-start dependency makes that task Blocked with the
 dependency as its named prerequisite. The tracker status remains `Open`; the
 derived disposition explains why it is not currently selectable.
 
+### Reason codes and reassessment SLOs
+
+Derived workflow decisions use the versioned schema in
+`oompah.workflow_reasons`. A reason record contains a stable code, canonical
+status, classification, presentation severity, responsible subsystem,
+evidence object, observation time, and bounded `reassess_at` deadline. Clients
+must use those fields directly; log or comment text is not an API.
+
+Conditions fall into three classes:
+
+| Class | Dashboard treatment | Examples |
+|---|---|---|
+| `normal` | No alert | eligible dispatch work, active owner lease, queued integration |
+| `informational` | Context only | dependency wait, normal retry, restart convergence |
+| `action_required` | Warning with a named remedy | requestor answer, operator action, missed reassessment deadline |
+
+Normal recovery is never a warning. For example,
+`integration.retry_scheduled` remains informational until its bounded
+reassessment deadline is actually missed. Only then may the liveness
+controller emit `liveness.reassessment_overdue` with the original reason,
+deadline, overdue duration, responsible subsystem, and operator remedy.
+
+Every non-final canonical status has a bounded reassessment SLO, including
+states that legitimately wait for a person. The deadline is a requirement to
+refresh the decision and its visibility; it does not automatically promote a
+Backlog task or fabricate a requestor answer. Implementations may reassess
+sooner than the contract ceiling but cannot report SLO compliance after it.
+
 ```mermaid
 flowchart TD
     Request[New request] --> Entry{Entry point}
