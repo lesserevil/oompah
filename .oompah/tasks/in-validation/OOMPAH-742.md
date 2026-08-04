@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-04T14:32:08.975414Z'
+updated_at: '2026-08-04T14:32:31.147444Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -190,6 +190,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-742
     source_sha: 583fb236963493a820f36eabdd29789fa5497e6b
     completed_at: '2026-08-03T23:05:48.946971+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-57045e98717f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-742
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 18f0f50cc2d18f48f763eaa10aaaffe1899604ac991c1a96b9806dd91ffe4264
+    attempts:
+    - version: 1
+      attempt_id: attempt-2df27b438345
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 18f0f50cc2d18f48f763eaa10aaaffe1899604ac991c1a96b9806dd91ffe4264
+      created_at: '2026-08-04T14:32:21.468496+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T14:32:21.468496+00:00'
+      branch_key: epic-OOMPAH-740--task-OOMPAH-742
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-04T14:32:14.632484+00:00'
+    updated_at: '2026-08-04T14:32:21.468496+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-2df27b438345
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 18f0f50cc2d18f48f763eaa10aaaffe1899604ac991c1a96b9806dd91ffe4264
+    created_at: '2026-08-04T14:32:21.468496+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T14:32:21.468496+00:00'
+    branch_key: epic-OOMPAH-740--task-OOMPAH-742
 ---
 ## Summary
 
@@ -484,5 +533,20 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 45s
 - Log: OOMPAH-742__20260804T135529Z.jsonl
+---
+author: oompah
+created: 2026-08-04 14:32
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 14:32
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 14:32
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
