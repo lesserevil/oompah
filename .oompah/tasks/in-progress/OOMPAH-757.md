@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:51:54.928526Z'
+updated_at: '2026-08-04T11:58:23.790554Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -321,5 +321,41 @@ Completed:
    - IntegrationRecord integration
 
 Next: Update complete_direct_epic_maintenance_submission() to create and persist evidence during epic rebase completion.
+---
+author: oompah
+created: 2026-08-04 11:58
+---
+**Implementation Phase 2 Complete: Evidence Creation & Orchestrator Integration**
+
+Completed:
+1. Updated complete_direct_epic_maintenance_submission() in orchestrator.py to:
+   - Create CanonicalLandingEvidence when epic rebase completes
+   - Compute cryptographic fingerprint for evidence integrity
+   - Store evidence in IntegrationRecord.canonical_landing_evidence
+   - Log warning (non-fatal) if evidence creation fails
+   - Fail-closed: missing evidence doesn't block completion, but landing validators will reject
+
+2. Added _child_landing_evidence_block_reason() method to validate evidence:
+   - Returns None if evidence valid (no block)
+   - Returns block reason string if validation fails (fail-closed)
+   - Checks: epic branch match, freshness, fingerprint validity, completeness
+   - Configurable max_evidence_age_hours (default 24)
+
+3. Comprehensive test coverage expanded to 41 tests:
+   - All 33 original evidence schema tests still passing
+   - Added 8 orchestrator integration tests
+   - Tests cover: valid evidence acceptance, cross-epic injection blocks, stale evidence blocks, malformed evidence blocks, freshness validation
+
+Security Validation:
+- Fingerprint tampering: DETECTED (fails instantiation)
+- Human comment injection: PREVENTED (service-authored only)
+- Cross-epic injection: BLOCKED (epic branch validation)
+- Stale evidence: BLOCKED (age validation)
+- Authorization bypass: PREVENTED (task ID in fingerprint)
+- Fail-closed design: PRESERVED (all validators return None for valid, string for block)
+
+All tests passing (15336 total, no regressions)
+Branch: OOMPAH-757
+Ready for security auditor handoff or next focus.
 ---
 <!-- COMMENTS:END -->
