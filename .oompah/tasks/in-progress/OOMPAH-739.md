@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:41:23.050585Z'
+updated_at: '2026-08-04T00:48:02.306885Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -563,5 +563,10 @@ author: oompah
 created: 2026-08-04 00:41
 ---
 Understanding: I am resuming the preserved OOMPAH-739 implementation. I will audit the durable parent-landing and recovery logic plus the requested regressions, run focused suites, and commit/push/submit any remaining work.
+---
+author: oompah
+created: 2026-08-04 00:48
+---
+Implementation: strengthened the recovered lifecycle implementation with direct compatibility coverage for deleted source branches landing by fast-forward, merge commit, and patch-equivalent rebase; exact historical forge reviews with stale/missing local refs; and transient forge failures that defer rather than mutate. Existing recovery tests cover Merged parent/child preservation, one-time unlanded repair, OOMPAH-447 review fencing, and snapshot reset.
 ---
 <!-- COMMENTS:END -->
