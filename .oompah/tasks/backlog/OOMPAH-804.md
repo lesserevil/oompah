@@ -6,12 +6,16 @@ priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-781
+- OOMPAH-782
+- OOMPAH-791
+- OOMPAH-793
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-04T19:34:18.669662Z'
+updated_at: '2026-08-04T19:34:48.068853Z'
 work_branch: null
 target_branch: null
 review_url: null
