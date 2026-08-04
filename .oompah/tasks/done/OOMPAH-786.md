@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:07.630785Z'
-updated_at: '2026-08-04T15:13:08.875711Z'
+updated_at: '2026-08-04T15:13:16.187853Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-786
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -51,7 +51,17 @@ oompah.terminal_audit:
       target. Evidence: 116 adjacent tests and final 33 focused tests passed; Ruff,
       formatting, diff, secret, and terminal mutation checks clean.'
     created_at: '2026-08-04T15:13:05.081368+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-786
+    target_state: Done
+    evidence_fingerprint: cd08e3b546a99e8dced6d5cb84c4085a5e75cfb8c76c112d8b0ad4b99ec427e5
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T15:13:14.902223+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -77,5 +87,12 @@ author: oompah
 created: 2026-08-04 15:12
 ---
 Implemented immutable versioned WorkflowFacts, explicit missing/stale/error evidence, project-scoped collectors, and durable target-specific LandingFact/Git proof with deleted-ref and nested-epic incident coverage (116 adjacent tests passed).
+---
+author: oompah
+created: 2026-08-04 15:13
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner exact fast-forward integration. Published head b0ec9eb4ec1b43c2ad26f166b252dc3a4babe16b was proven to descend from epic-OOMPAH-765 and pushed exactly to that immediate target. Evidence: 116 adjacent tests and final 33 focused tests passed; Ruff, formatting, diff, secret, and terminal mutation checks clean.
 ---
 <!-- COMMENTS:END -->
