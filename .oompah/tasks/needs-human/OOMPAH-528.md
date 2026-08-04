@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-528
 type: epic
-status: In Validation
+status: Needs Human
 priority: 2
 title: Pre-dispatch duplicate screening for Open tasks
 parent: null
@@ -17,7 +17,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-08-04T23:42:50.934601Z'
+updated_at: '2026-08-04T23:45:29.022757Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -31,6 +31,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a705eeb8efb0: '2026-08-04T23:18:23.346935+00:00'
+    infrastructure-exhausted-audit-dde088fa5610-3: '2026-08-04T23:45:18.828829+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-528
@@ -41,6 +42,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T23:18:23.346947+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-528
+    target_state: Done
+    evidence_fingerprint: e281ecd2c5582a00d1246aa72f4437b2b68c48f071b713b91597af9b7f6093d6
+    audit_ids:
+    - audit-dde088fa5610
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T23:45:18.828845+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-528
@@ -54,6 +64,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T23:18:23.346964+00:00'
     applied_at: '2026-08-04T23:18:30.761094+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-528
+    audit_id: audit-dde088fa5610
+    attempt_id: infrastructure-exhausted-audit-dde088fa5610-3
+    target_state: Done
+    evidence_fingerprint: e281ecd2c5582a00d1246aa72f4437b2b68c48f071b713b91597af9b7f6093d6
+    status: Needs Human
+    audit_ids:
+    - audit-dde088fa5610
+    applied: true
+    created_at: '2026-08-04T23:45:18.828861+00:00'
+    applied_at: '2026-08-04T23:45:26.497495+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -95,7 +117,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-528
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -157,13 +179,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-528 (tried: origin/epic-OOMPAH-528, origin/OOMPAH-528)'
       next_retry_at: '2026-08-04T23:43:23.868332+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-dde088fa5610-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e281ecd2c5582a00d1246aa72f4437b2b68c48f071b713b91597af9b7f6093d6
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-04T23:45:18.828725+00:00'
+      completed_at: '2026-08-04T23:45:18.828725+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T22:37:37.756901+00:00'
-    updated_at: '2026-08-04T23:42:43.868361+00:00'
+    updated_at: '2026-08-04T23:45:18.828725+00:00'
   - version: 1
     audit_id: audit-a45d3bca4588
     project_id: proj-14849f1b
@@ -426,5 +460,12 @@ author: oompah
 created: 2026-08-04 23:42
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-528 (tried: origin/epic-OOMPAH-528, origin/OOMPAH-528). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-04 23:45
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
