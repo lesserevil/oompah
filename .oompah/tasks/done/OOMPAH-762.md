@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-762
 type: task
-status: In Validation
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-740 onto main
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:16:19.341290Z'
-updated_at: '2026-08-04T13:20:55.216696Z'
+updated_at: '2026-08-04T13:23:09.184697Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: null
@@ -76,6 +76,30 @@ oompah.work_contributors:
     completed_at: '2026-08-04T13:20:12.954634+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-3ac4c15d8588: '2026-08-04T13:23:05.854321+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-762
+    target_state: Done
+    evidence_fingerprint: 38bbc968e2fd5f4e7b6bc847ebb7695347c4b7aa67c63a7d67e2bec1f986a896
+    audit_ids:
+    - audit-f793ad0066b7
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T13:23:05.854335+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-762
+    audit_id: audit-f793ad0066b7
+    attempt_id: attempt-3ac4c15d8588
+    target_state: Done
+    evidence_fingerprint: 38bbc968e2fd5f4e7b6bc847ebb7695347c4b7aa67c63a7d67e2bec1f986a896
+    status: Done
+    audit_ids:
+    - audit-f793ad0066b7
+    applied: false
+    created_at: '2026-08-04T13:23:05.854354+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -83,7 +107,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-762
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -92,7 +116,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3ac4c15d8588
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -102,13 +126,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T13:20:46.550510+00:00'
       branch_key: epic-OOMPAH-740
+      verdict: pass
+      completed_at: '2026-08-04T13:23:05.854159+00:00'
+      ended_at: '2026-08-04T13:23:05.854159+00:00'
     requested_by:
       version: 1
       identity: oompah-epic-maintenance
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-04T13:20:29.451586+00:00'
-    updated_at: '2026-08-04T13:20:46.550510+00:00'
+    updated_at: '2026-08-04T13:23:05.854159+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3ac4c15d8588
