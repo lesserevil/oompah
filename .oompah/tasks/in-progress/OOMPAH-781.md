@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T22:52:59.357267Z'
+updated_at: '2026-08-04T23:10:39.766683Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -415,5 +415,10 @@ FAILED tests/test_long_tick_regression.py::TestSyntheticSlowJobs::test_heal_repo
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-04 23:10
+---
+Repair checkpoint pushed at 94295b3b90530c1e927f4bb5f662464c2722c5b7. Durable terminal-audit finalization now persists a bounded replayable result identity, replays crash-before-apply and coordinator-applied/job-unacked outcomes, fences callbacks/recovery/exit handling to the exact audit+target+evidence+attempt+job+lease, recovers only one exact abandoned lease, retries structured nonterminal outcomes, and acknowledges ordinary shutdown exactly. Added real Done→In Validation→Merged crash/retry/restart coverage plus policy-denial, revocation, legacy-checkpoint, starvation, backoff, and deep-history regressions. Verification: 648 terminal-audit/auditor/workflow tests passed; direct terminal mutation scan passed 8/8; targeted Ruff and diff checks passed. The Makefile scan target could not create its task-private venv because this claimed worktree's .venv is a wrapper, so the identical scanner was run directly with the source venv. Waiting for OOMPAH-812 to land on the epic target before rebase; not submitted.
 ---
 <!-- COMMENTS:END -->
