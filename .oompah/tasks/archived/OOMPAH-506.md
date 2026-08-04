@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-08-04T23:59:36.978902Z'
+updated_at: '2026-08-04T23:59:44.746298Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -41,8 +41,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-fda7781897f2
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:59:31.046701+00:00'
+    applied_at: '2026-08-04T23:59:42.759783+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -210,5 +211,12 @@ author: oompah
 created: 2026-08-04 23:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:59
+---
+Audit PASS — Archived
+
+OOMPAH-506 storage cleanup implementation is complete and verified: daily throttled scan with pressure-triggered acceleration, bounded batch deletion of aged stale entries, preservation of active/unknown/Done/Conflict paths and symlinks/VM images, comprehensive test coverage (11 storage_cleanup tests pass), environment tunables in .env.example, operator recovery docs in docs/operator-runbook.md, integrated into orchestrator.py, merged to main branch.
 ---
 <!-- COMMENTS:END -->
