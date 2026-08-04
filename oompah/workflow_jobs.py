@@ -17,12 +17,14 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
+from types import MappingProxyType
 from typing import Any
 
 
-WORKFLOW_JOB_SCHEMA_VERSION = 3
+WORKFLOW_JOB_SCHEMA_VERSION = 5
 DEFAULT_SCAN_LIMIT = 100
 MAX_SCAN_LIMIT = 1000
 _INITIALIZE_LOCK = threading.Lock()
@@ -42,11 +44,39 @@ def _optional_text(value: object | None) -> str | None:
     return text or None
 
 
+def _freeze_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {
+                str(key): _freeze_json(item)
+                for key, item in sorted(value.items(), key=lambda item: str(item[0]))
+            }
+        )
+    if isinstance(value, list | tuple):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+def _thaw_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_thaw_json(item) for item in value]
+    return value
+
+
 def _canonical_json(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return json.dumps(
+        _thaw_json(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
 
 
-def _json_object(value: Mapping[str, Any] | None, name: str) -> dict[str, Any] | None:
+def _json_object(
+    value: Mapping[str, Any] | None, name: str
+) -> Mapping[str, Any] | None:
     if value is None:
         return None
     if not isinstance(value, Mapping):
@@ -55,7 +85,7 @@ def _json_object(value: Mapping[str, Any] | None, name: str) -> dict[str, Any] |
     # not later reproduce (sets, byte strings, custom objects, and NaN).
     try:
         raw = json.dumps(
-            dict(value),
+            _thaw_json(value),
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=True,
@@ -66,10 +96,10 @@ def _json_object(value: Mapping[str, Any] | None, name: str) -> dict[str, Any] |
         raise ValueError(f"{name} must be JSON serializable") from exc
     if not isinstance(decoded, dict):
         raise TypeError(f"{name} must be a JSON object")
-    return decoded
+    return _freeze_json(decoded)
 
 
-def _decode_json_object(value: object, name: str) -> dict[str, Any] | None:
+def _decode_json_object(value: object, name: str) -> Mapping[str, Any] | None:
     if value is None:
         return None
     try:
@@ -78,7 +108,7 @@ def _decode_json_object(value: object, name: str) -> dict[str, Any] | None:
         raise WorkflowJobCorruptionError(f"invalid {name} JSON") from exc
     if not isinstance(decoded, dict):
         raise WorkflowJobCorruptionError(f"{name} must be a JSON object")
-    return decoded
+    return _freeze_json(decoded)
 
 
 def _bounded_limit(limit: int) -> int:
@@ -137,6 +167,8 @@ class WorkflowJobSpec:
     expected_head_sha: str | None = None
     priority: int = 100
     max_attempts: int = 5
+    payload: Mapping[str, Any] | None = None
+    scheduling_lane: str = "decision"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -153,6 +185,12 @@ class WorkflowJobSpec:
             _required_text(self.idempotency_key, "idempotency_key"),
         )
         object.__setattr__(self, "phase", _required_text(self.phase, "phase"))
+        object.__setattr__(self, "payload", _json_object(self.payload, "payload"))
+        object.__setattr__(
+            self,
+            "scheduling_lane",
+            _required_text(self.scheduling_lane, "scheduling_lane"),
+        )
         object.__setattr__(
             self,
             "expected_evidence_revision",
@@ -176,6 +214,8 @@ class WorkflowJobSpec:
             "action": self.action,
             "idempotency_key": self.idempotency_key,
             "phase": self.phase,
+            "payload": _thaw_json(self.payload),
+            "scheduling_lane": self.scheduling_lane,
             "expected_evidence_revision": self.expected_evidence_revision,
             "expected_head_sha": self.expected_head_sha,
             "priority": self.priority,
@@ -196,6 +236,8 @@ class WorkflowJob:
     generation: str
     action: str
     phase: str
+    payload: Mapping[str, Any] | None
+    scheduling_lane: str
     idempotency_key: str
     spec_revision: str
     expected_evidence_revision: str | None
@@ -210,8 +252,8 @@ class WorkflowJob:
     retry_at: float | None
     failure_category: WorkflowFailureCategory | None
     last_error: str | None
-    checkpoint: dict[str, Any] | None
-    result_transition: dict[str, Any] | None
+    checkpoint: Mapping[str, Any] | None
+    result_transition: Mapping[str, Any] | None
     superseded_by_generation: str | None
     created_at: float
     updated_at: float
@@ -234,6 +276,8 @@ class WorkflowJob:
             "generation": self.generation,
             "action": self.action,
             "phase": self.phase,
+            "payload": _thaw_json(self.payload),
+            "scheduling_lane": self.scheduling_lane,
             "idempotency_key": self.idempotency_key,
             "spec_revision": self.spec_revision,
             "expected_evidence_revision": self.expected_evidence_revision,
@@ -250,8 +294,8 @@ class WorkflowJob:
                 self.failure_category.value if self.failure_category else None
             ),
             "last_error": self.last_error,
-            "checkpoint": self.checkpoint,
-            "result_transition": self.result_transition,
+            "checkpoint": _thaw_json(self.checkpoint),
+            "result_transition": _thaw_json(self.result_transition),
             "superseded_by_generation": self.superseded_by_generation,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -269,7 +313,7 @@ class WorkflowJobEvent:
     state: WorkflowJobState
     phase: str
     lease_owner: str | None
-    payload: dict[str, Any] | None
+    payload: Mapping[str, Any] | None
     created_at: float
 
 
@@ -298,6 +342,16 @@ class WorkflowScheduleWrite:
     created: int = 0
     replayed: int = 0
     superseded: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowEventWrite:
+    """Atomic materialization result for one semantic event lane."""
+
+    job: WorkflowJob | None
+    accepted: bool
+    created: bool
+    superseded: int
 
 
 class WorkflowJobStoreError(RuntimeError):
@@ -332,6 +386,8 @@ CREATE TABLE IF NOT EXISTS workflow_jobs (
     idempotency_key TEXT NOT NULL,
     spec_revision TEXT NOT NULL,
     spec_json TEXT NOT NULL,
+    payload_json TEXT,
+    scheduling_lane TEXT NOT NULL DEFAULT 'decision',
     expected_evidence_revision TEXT,
     expected_head_sha TEXT,
     state TEXT NOT NULL,
@@ -405,12 +461,44 @@ CREATE INDEX IF NOT EXISTS workflow_schedule_generation_idx
     ON workflow_schedule_cursors(snapshot_generation, project_id, task_id);
 """
 
+_CREATE_V5_OBJECTS = """
+CREATE TABLE IF NOT EXISTS workflow_event_cursors (
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    event_namespace TEXT NOT NULL,
+    event_revision TEXT NOT NULL,
+    event_generation TEXT NOT NULL,
+    event_sequence INTEGER NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY(project_id, task_id, event_namespace)
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_event_cursors_sequence
+    ON workflow_event_cursors(event_sequence, project_id, task_id);
+CREATE TABLE IF NOT EXISTS workflow_event_ordering (
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    ordering_namespace TEXT NOT NULL,
+    source_generation INTEGER NOT NULL,
+    decision_revision TEXT NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY(project_id, task_id, ordering_namespace)
+);
+"""
+
 _V2_COLUMNS: dict[str, str] = {
     "expected_evidence_revision": "TEXT",
     "expected_head_sha": "TEXT",
     "checkpoint_json": "TEXT",
     "result_transition_json": "TEXT",
     "superseded_by_generation": "TEXT",
+}
+
+_V4_COLUMNS: dict[str, str] = {
+    "payload_json": "TEXT",
+}
+
+_V5_COLUMNS: dict[str, str] = {
+    "scheduling_lane": "TEXT NOT NULL DEFAULT 'decision'",
 }
 
 
@@ -457,13 +545,112 @@ class WorkflowJobStore:
                 self._conn.execute(
                     f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
                 )
+        for name, declaration in _V4_COLUMNS.items():
+            if name not in columns:
+                self._conn.execute(
+                    f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
+                )
+        for name, declaration in _V5_COLUMNS.items():
+            if name not in columns:
+                self._conn.execute(
+                    f"ALTER TABLE workflow_jobs ADD COLUMN {name} {declaration}"
+                )
         self._conn.executescript(_CREATE_V2_OBJECTS)
         self._conn.executescript(_CREATE_V3_OBJECTS)
+        self._conn.executescript(_CREATE_V5_OBJECTS)
+        if version < 4:
+            self._migrate_v4_payloads()
+        if version < 5:
+            self._migrate_v5_lanes()
         self._conn.execute(
             "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
             ("workflow_jobs_version", str(WORKFLOW_JOB_SCHEMA_VERSION)),
         )
         self._conn.commit()
+
+    @contextmanager
+    def scheduling_batch(self):
+        """Commit one bounded decision scan as a single durable transaction."""
+
+        with self._lock:
+            if self._conn.in_transaction:
+                raise WorkflowJobStoreError(
+                    "cannot nest a workflow scheduling transaction"
+                )
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def _migrate_v4_payloads(self) -> None:
+        """Canonicalize legacy specs after payload joins their identity."""
+
+        rows = self._conn.execute(
+            "SELECT job_id, spec_json FROM workflow_jobs"
+        ).fetchall()
+        for row in rows:
+            try:
+                raw_spec = json.loads(str(row["spec_json"]))
+                if not isinstance(raw_spec, dict):
+                    raise TypeError("workflow job spec must be a JSON object")
+                raw_spec.setdefault("payload", None)
+                spec = WorkflowJobSpec(**raw_spec)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise WorkflowJobCorruptionError(
+                    f"invalid workflow job spec: {row['job_id']}"
+                ) from exc
+            self._conn.execute(
+                """
+                UPDATE workflow_jobs
+                   SET spec_revision = ?, spec_json = ?, payload_json = ?
+                 WHERE job_id = ?
+                """,
+                (
+                    spec.revision,
+                    _canonical_json(spec.to_dict()),
+                    (
+                        _canonical_json(spec.payload)
+                        if spec.payload is not None
+                        else None
+                    ),
+                    row["job_id"],
+                ),
+            )
+
+    def _migrate_v5_lanes(self) -> None:
+        """Add the decision lane to legacy immutable spec identities."""
+
+        rows = self._conn.execute(
+            "SELECT job_id, spec_json FROM workflow_jobs"
+        ).fetchall()
+        for row in rows:
+            try:
+                raw_spec = json.loads(str(row["spec_json"]))
+                if not isinstance(raw_spec, dict):
+                    raise TypeError("workflow job spec must be a JSON object")
+                raw_spec.setdefault("payload", None)
+                raw_spec.setdefault("scheduling_lane", "decision")
+                spec = WorkflowJobSpec(**raw_spec)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise WorkflowJobCorruptionError(
+                    f"invalid workflow job spec: {row['job_id']}"
+                ) from exc
+            self._conn.execute(
+                """
+                UPDATE workflow_jobs
+                   SET spec_revision = ?, spec_json = ?, scheduling_lane = ?
+                 WHERE job_id = ?
+                """,
+                (
+                    spec.revision,
+                    _canonical_json(spec.to_dict()),
+                    spec.scheduling_lane,
+                    row["job_id"],
+                ),
+            )
 
     def close(self) -> None:
         with self._lock:
@@ -592,7 +779,9 @@ class WorkflowJobStore:
         snapshot = int(snapshot_generation)
         timestamp = float(self._clock() if now is None else now)
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 existing = self._conn.execute(
                     """
@@ -604,7 +793,8 @@ class WorkflowJobStore:
                 if existing is not None:
                     previous_snapshot = int(existing["snapshot_generation"])
                     if snapshot < previous_snapshot:
-                        self._conn.commit()
+                        if owns_transaction:
+                            self._conn.commit()
                         return self._schedule_cursor_from_row(
                             existing, changed=False, accepted=False
                         )
@@ -613,7 +803,8 @@ class WorkflowJobStore:
                             raise WorkflowJobStoreError(
                                 "one snapshot generation produced conflicting decisions"
                             )
-                        self._conn.commit()
+                        if owns_transaction:
+                            self._conn.commit()
                         return self._schedule_cursor_from_row(existing, changed=False)
                     changed = str(existing["decision_revision"]) != revision
                     job_generation = (
@@ -653,10 +844,12 @@ class WorkflowJobStore:
                     (project, task),
                 ).fetchone()
                 assert row is not None
-                self._conn.commit()
+                if owns_transaction:
+                    self._conn.commit()
                 return self._schedule_cursor_from_row(row, changed=changed)
             except Exception:
-                self._conn.rollback()
+                if owns_transaction:
+                    self._conn.rollback()
                 raise
 
     @staticmethod
@@ -677,6 +870,8 @@ class WorkflowJobStore:
             generation=str(row["generation"]),
             action=str(row["action"]),
             phase=str(row["phase"]),
+            payload=_decode_json_object(row["payload_json"], "payload"),
+            scheduling_lane=str(row["scheduling_lane"]),
             idempotency_key=str(row["idempotency_key"]),
             spec_revision=str(row["spec_revision"]),
             expected_evidence_revision=_optional_text(
@@ -816,10 +1011,11 @@ class WorkflowJobStore:
             """
             INSERT INTO workflow_jobs(
                 job_id, project_id, task_id, generation, action, phase,
-                idempotency_key, spec_revision, spec_json,
+                idempotency_key, spec_revision, spec_json, payload_json,
+                scheduling_lane,
                 expected_evidence_revision, expected_head_sha, state,
                 priority, attempts, max_attempts, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
             """,
             (
                 job_id,
@@ -831,6 +1027,8 @@ class WorkflowJobStore:
                 spec.idempotency_key,
                 spec.revision,
                 _canonical_json(spec.to_dict()),
+                _canonical_json(spec.payload) if spec.payload is not None else None,
+                spec.scheduling_lane,
                 spec.expected_evidence_revision,
                 spec.expected_head_sha,
                 WorkflowJobState.QUEUED.value,
@@ -856,6 +1054,492 @@ class WorkflowJobStore:
                 job, _created = self._enqueue_locked(spec, now=now)
                 self._conn.commit()
                 return job
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def materialize_event(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        decision_revision: str,
+        action: str,
+        idempotency_namespace: str,
+        scheduling_lane: str | None = None,
+        ordering_namespace: str | None = None,
+        source_generation: int | None = None,
+        source_revision: str | None = None,
+        supersede_scheduling_lanes: Sequence[str] = (),
+        protected_scheduling_lanes: Sequence[str] = (),
+        payload: Mapping[str, Any] | None = None,
+        expected_evidence_revision: str | None = None,
+        expected_head_sha: str | None = None,
+        priority: int = 100,
+        max_attempts: int = 5,
+        reason: str = "superseded by a newer workflow event",
+        now: float | None = None,
+    ) -> WorkflowEventWrite:
+        """Atomically activate, enqueue, and fence one semantic task event.
+
+        Imperative workflow events cannot safely use the scheduler's three-call
+        scan protocol: a process death between cursor activation and enqueue
+        would lose the event payload.  This transaction gives repeated equal
+        events one generation/job and gives an intervening different event a
+        fresh generation while superseding every older active disposition.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        revision = _required_text(decision_revision, "decision_revision")
+        normalized_action = _required_text(action, "action")
+        namespace = _required_text(idempotency_namespace, "idempotency_namespace")
+        lane = (
+            _required_text(scheduling_lane, "scheduling_lane")
+            if scheduling_lane is not None
+            else f"event:{namespace}"
+        )
+        message = _required_text(reason, "reason")
+        if (ordering_namespace is None) is not (source_generation is None):
+            raise ValueError(
+                "ordering_namespace and source_generation must be supplied together"
+            )
+        ordering = (
+            _required_text(ordering_namespace, "ordering_namespace")
+            if ordering_namespace is not None
+            else None
+        )
+        ordering_revision = (
+            _required_text(source_revision, "source_revision")
+            if source_revision is not None
+            else revision
+        )
+        supersede_lanes = {
+            _required_text(value, "supersede_scheduling_lane")
+            for value in supersede_scheduling_lanes
+        }
+        protected_lanes = {
+            _required_text(value, "protected_scheduling_lane")
+            for value in protected_scheduling_lanes
+        }
+        if source_generation is not None and (
+            isinstance(source_generation, bool) or int(source_generation) < 1
+        ):
+            raise ValueError("source_generation must be a positive integer")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                if ordering is not None:
+                    ordered = self._conn.execute(
+                        """
+                        SELECT * FROM workflow_event_ordering
+                         WHERE project_id = ? AND task_id = ?
+                           AND ordering_namespace = ?
+                        """,
+                        (project, task, ordering),
+                    ).fetchone()
+                    if ordered is not None and int(source_generation) < int(
+                        ordered["source_generation"]
+                    ):
+                        if str(ordered["decision_revision"]) == ordering_revision:
+                            cursor = self._conn.execute(
+                                """
+                                SELECT * FROM workflow_event_cursors
+                                 WHERE project_id = ? AND task_id = ?
+                                   AND event_namespace = ?
+                                   AND event_revision = ?
+                                """,
+                                (project, task, lane, revision),
+                            ).fetchone()
+                            if cursor is not None:
+                                current_key = (
+                                    f"{namespace}:{revision}:"
+                                    f"{cursor['event_generation']}"
+                                )
+                                current = self._conn.execute(
+                                    """
+                                    SELECT * FROM workflow_jobs
+                                     WHERE project_id = ? AND idempotency_key = ?
+                                    """,
+                                    (project, current_key),
+                                ).fetchone()
+                                if current is not None:
+                                    self._conn.commit()
+                                    return WorkflowEventWrite(
+                                        self._from_row(current), True, False, 0
+                                    )
+                        self._conn.commit()
+                        return WorkflowEventWrite(None, False, False, 0)
+                    if (
+                        ordered is not None
+                        and int(source_generation)
+                        == int(ordered["source_generation"])
+                        and str(ordered["decision_revision"]) != ordering_revision
+                    ):
+                        raise WorkflowJobStoreError(
+                            "one event snapshot produced conflicting decisions"
+                        )
+                    self._conn.execute(
+                        """
+                        INSERT INTO workflow_event_ordering(
+                            project_id, task_id, ordering_namespace,
+                            source_generation, decision_revision, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(
+                            project_id, task_id, ordering_namespace
+                        ) DO UPDATE SET
+                            source_generation = excluded.source_generation,
+                            decision_revision = excluded.decision_revision,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            project,
+                            task,
+                            ordering,
+                            int(source_generation),
+                            ordering_revision,
+                            timestamp,
+                        ),
+                    )
+                if protected_lanes:
+                    protected = self._conn.execute(
+                        f"""
+                        SELECT * FROM workflow_jobs
+                         WHERE project_id = ? AND task_id = ?
+                           AND scheduling_lane IN (
+                               {','.join('?' for _ in protected_lanes)}
+                           )
+                           AND state IN (
+                               {','.join('?' for _ in ACTIVE_JOB_STATES)}
+                           )
+                         ORDER BY enqueue_sequence DESC LIMIT 1
+                        """,
+                        (
+                            project,
+                            task,
+                            *sorted(protected_lanes),
+                            *(state.value for state in ACTIVE_JOB_STATES),
+                        ),
+                    ).fetchone()
+                    if protected is not None:
+                        protected_payload = _decode_json_object(
+                            protected["payload_json"], "payload"
+                        )
+                        same_event = (
+                            str(protected["action"]) == normalized_action
+                            and _thaw_json(protected_payload)
+                            == _thaw_json(payload)
+                            and _optional_text(protected["expected_head_sha"])
+                            == _optional_text(expected_head_sha)
+                        )
+                        self._conn.commit()
+                        return WorkflowEventWrite(
+                            self._from_row(protected) if same_event else None,
+                            True,
+                            False,
+                            0,
+                        )
+                sequence = self._next_counter_locked("workflow_event_sequence")
+                existing = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_event_cursors
+                     WHERE project_id = ? AND task_id = ? AND event_namespace = ?
+                    """,
+                    (project, task, lane),
+                ).fetchone()
+                changed = (
+                    existing is None
+                    or str(existing["event_revision"]) != revision
+                )
+                generation = (
+                    f"{revision}:{sequence}"
+                    if changed
+                    else str(existing["event_generation"])
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO workflow_event_cursors(
+                        project_id, task_id, event_namespace, event_revision,
+                        event_generation, event_sequence, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(project_id, task_id, event_namespace) DO UPDATE SET
+                        event_revision = excluded.event_revision,
+                        event_generation = excluded.event_generation,
+                        event_sequence = excluded.event_sequence,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        project,
+                        task,
+                        lane,
+                        revision,
+                        generation,
+                        sequence,
+                        timestamp,
+                    ),
+                )
+                key = f"{namespace}:{revision}:{generation}"
+                spec = WorkflowJobSpec(
+                    project_id=project,
+                    task_id=task,
+                    generation=generation,
+                    action=normalized_action,
+                    idempotency_key=key,
+                    payload=payload,
+                    scheduling_lane=lane,
+                    expected_evidence_revision=expected_evidence_revision,
+                    expected_head_sha=expected_head_sha,
+                    priority=priority,
+                    max_attempts=max_attempts,
+                )
+                job, created = self._enqueue_locked(spec, now=timestamp)
+                selected_lanes = {spec.scheduling_lane, "decision", *supersede_lanes}
+                active_rows = self._conn.execute(
+                    f"""
+                    SELECT * FROM workflow_jobs
+                     WHERE project_id = ? AND task_id = ?
+                       AND scheduling_lane IN (
+                           {','.join('?' for _ in selected_lanes)}
+                       )
+                       AND state IN ({','.join('?' for _ in ACTIVE_JOB_STATES)})
+                     ORDER BY enqueue_sequence
+                    """,
+                    (
+                        project,
+                        task,
+                        *sorted(selected_lanes),
+                        *(state.value for state in ACTIVE_JOB_STATES),
+                    ),
+                ).fetchall()
+                superseded = 0
+                for selected in active_rows:
+                    if (
+                        str(selected["generation"]) == generation
+                        and str(selected["idempotency_key"]) == key
+                    ):
+                        continue
+                    self._conn.execute(
+                        """
+                        UPDATE workflow_jobs
+                           SET state = ?, lease_owner = NULL, lease_token = NULL,
+                               lease_expires_at = NULL, retry_at = NULL,
+                               superseded_by_generation = ?, last_error = ?,
+                               updated_at = ?, completed_at = ?
+                         WHERE job_id = ?
+                        """,
+                        (
+                            WorkflowJobState.SUPERSEDED.value,
+                            generation,
+                            message,
+                            timestamp,
+                            timestamp,
+                            selected["job_id"],
+                        ),
+                    )
+                    updated = self._row_locked(str(selected["job_id"]))
+                    self._append_event_locked(
+                        updated,
+                        "superseded",
+                        payload={
+                            "replacement_generation": generation,
+                            "reason": message,
+                        },
+                        now=timestamp,
+                    )
+                    superseded += 1
+                result = self._from_row(self._row_locked(job.job_id))
+                self._conn.commit()
+                return WorkflowEventWrite(result, True, created, superseded)
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def retire_event_lane(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        scheduling_lane: str,
+        ordering_namespace: str,
+        source_generation: int,
+        decision_revision: str,
+        reason: str = "retired by a newer workflow decision",
+        now: float | None = None,
+    ) -> WorkflowEventWrite:
+        """Atomically order a no-job decision and retire its fact-derived lane."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        lane = _required_text(scheduling_lane, "scheduling_lane")
+        ordering = _required_text(ordering_namespace, "ordering_namespace")
+        revision = _required_text(decision_revision, "decision_revision")
+        message = _required_text(reason, "reason")
+        if isinstance(source_generation, bool) or int(source_generation) < 1:
+            raise ValueError("source_generation must be a positive integer")
+        generation = int(source_generation)
+        timestamp = float(self._clock() if now is None else now)
+        replacement = f"decision:{generation}:{revision}"
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                ordered = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_event_ordering
+                     WHERE project_id = ? AND task_id = ?
+                       AND ordering_namespace = ?
+                    """,
+                    (project, task, ordering),
+                ).fetchone()
+                if ordered is not None and generation < int(
+                    ordered["source_generation"]
+                ):
+                    self._conn.commit()
+                    return WorkflowEventWrite(None, False, False, 0)
+                if (
+                    ordered is not None
+                    and generation == int(ordered["source_generation"])
+                    and str(ordered["decision_revision"]) != revision
+                ):
+                    raise WorkflowJobStoreError(
+                        "one event snapshot produced conflicting decisions"
+                    )
+                self._conn.execute(
+                    """
+                    INSERT INTO workflow_event_ordering(
+                        project_id, task_id, ordering_namespace,
+                        source_generation, decision_revision, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(
+                        project_id, task_id, ordering_namespace
+                    ) DO UPDATE SET
+                        source_generation = excluded.source_generation,
+                        decision_revision = excluded.decision_revision,
+                        updated_at = excluded.updated_at
+                    """,
+                    (project, task, ordering, generation, revision, timestamp),
+                )
+                active_rows = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_jobs
+                     WHERE project_id = ? AND task_id = ?
+                       AND scheduling_lane IN (?, 'decision')
+                       AND state IN (?, ?)
+                     ORDER BY enqueue_sequence
+                    """,
+                    (
+                        project,
+                        task,
+                        lane,
+                        WorkflowJobState.QUEUED.value,
+                        WorkflowJobState.RETRY_WAIT.value,
+                    ),
+                ).fetchall()
+                retired_rows = []
+                for selected in active_rows:
+                    if str(selected["state"]) == WorkflowJobState.RETRY_WAIT.value:
+                        checkpoint = _decode_json_object(
+                            selected["checkpoint_json"], "checkpoint"
+                        )
+                        if isinstance(checkpoint, Mapping) and isinstance(
+                            checkpoint.get("verification"), Mapping
+                        ):
+                            continue
+                    self._conn.execute(
+                        """
+                        UPDATE workflow_jobs
+                           SET state = ?, lease_owner = NULL, lease_token = NULL,
+                               lease_expires_at = NULL, retry_at = NULL,
+                               superseded_by_generation = ?, last_error = ?,
+                               updated_at = ?, completed_at = ?
+                         WHERE job_id = ?
+                        """,
+                        (
+                            WorkflowJobState.SUPERSEDED.value,
+                            replacement,
+                            message,
+                            timestamp,
+                            timestamp,
+                            selected["job_id"],
+                        ),
+                    )
+                    updated = self._row_locked(str(selected["job_id"]))
+                    self._append_event_locked(
+                        updated,
+                        "superseded",
+                        payload={
+                            "replacement_generation": replacement,
+                            "reason": message,
+                        },
+                        now=timestamp,
+                    )
+                    retired_rows.append(selected)
+                self._conn.commit()
+                return WorkflowEventWrite(
+                    None, True, False, len(retired_rows)
+                )
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def activate_event_order(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        ordering_namespace: str,
+        source_generation: int,
+        decision_revision: str,
+        now: float | None = None,
+    ) -> bool:
+        """Fence slow event-producing decisions before they materialize jobs."""
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        namespace = _required_text(ordering_namespace, "ordering_namespace")
+        revision = _required_text(decision_revision, "decision_revision")
+        if isinstance(source_generation, bool) or int(source_generation) < 1:
+            raise ValueError("source_generation must be a positive integer")
+        generation = int(source_generation)
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_event_ordering
+                     WHERE project_id = ? AND task_id = ?
+                       AND ordering_namespace = ?
+                    """,
+                    (project, task, namespace),
+                ).fetchone()
+                if existing is not None:
+                    observed_generation = int(existing["source_generation"])
+                    if generation < observed_generation:
+                        self._conn.commit()
+                        return False
+                    if generation == observed_generation:
+                        if str(existing["decision_revision"]) != revision:
+                            raise WorkflowJobStoreError(
+                                "one event snapshot produced conflicting decisions"
+                            )
+                        self._conn.commit()
+                        return True
+                self._conn.execute(
+                    """
+                    INSERT INTO workflow_event_ordering(
+                        project_id, task_id, ordering_namespace,
+                        source_generation, decision_revision, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(project_id, task_id, ordering_namespace) DO UPDATE SET
+                        source_generation = excluded.source_generation,
+                        decision_revision = excluded.decision_revision,
+                        updated_at = excluded.updated_at
+                    """,
+                    (project, task, namespace, generation, revision, timestamp),
+                )
+                self._conn.commit()
+                return True
             except Exception:
                 self._conn.rollback()
                 raise
@@ -892,12 +1576,18 @@ class WorkflowJobStore:
                 raise WorkflowJobStoreError(
                     "scheduled job spec escaped its task activation generation"
                 )
+            if spec.scheduling_lane != "decision":
+                raise WorkflowJobStoreError(
+                    "decision reconciliation cannot materialize an event lane"
+                )
         expected_keys = {spec.idempotency_key for spec in normalized_specs}
         if len(expected_keys) != len(normalized_specs):
             raise WorkflowJobStoreError("scheduled job specs contain duplicate keys")
         timestamp = float(self._clock() if now is None else now)
         with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
+            owns_transaction = not self._conn.in_transaction
+            if owns_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._conn.execute(
                     """
@@ -911,7 +1601,8 @@ class WorkflowJobStore:
                     or int(cursor["snapshot_generation"]) != snapshot
                     or str(cursor["job_generation"]) != generation
                 ):
-                    self._conn.commit()
+                    if owns_transaction:
+                        self._conn.commit()
                     return WorkflowScheduleWrite(
                         project,
                         task,
@@ -942,6 +1633,8 @@ class WorkflowJobStore:
                 ).fetchall()
                 superseded = 0
                 for selected in active_rows:
+                    if str(selected["scheduling_lane"]) != "decision":
+                        continue
                     is_current = (
                         str(selected["generation"]) == generation
                         and str(selected["idempotency_key"]) in expected_keys
@@ -977,7 +1670,8 @@ class WorkflowJobStore:
                         now=timestamp,
                     )
                     superseded += 1
-                self._conn.commit()
+                if owns_transaction:
+                    self._conn.commit()
                 return WorkflowScheduleWrite(
                     project,
                     task,
@@ -989,7 +1683,8 @@ class WorkflowJobStore:
                     superseded=superseded,
                 )
             except Exception:
-                self._conn.rollback()
+                if owns_transaction:
+                    self._conn.rollback()
                 raise
 
     def list_jobs(
@@ -1000,6 +1695,7 @@ class WorkflowJobStore:
         generation: str | None = None,
         states: Sequence[WorkflowJobState | str] | None = None,
         limit: int = DEFAULT_SCAN_LIMIT,
+        newest_first: bool = False,
     ) -> tuple[WorkflowJob, ...]:
         bounded = _bounded_limit(limit)
         clauses: list[str] = []
@@ -1017,11 +1713,12 @@ class WorkflowJobStore:
             clauses.append(f"state IN ({','.join('?' for _ in normalized)})")
             values.extend(normalized)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        order = "DESC" if newest_first else "ASC"
         with self._lock:
             rows = self._conn.execute(
                 f"""
                 SELECT * FROM workflow_jobs {where}
-                 ORDER BY enqueue_sequence LIMIT ?
+                 ORDER BY enqueue_sequence {order} LIMIT ?
                 """,
                 (*values, bounded),
             ).fetchall()
@@ -1798,6 +2495,14 @@ class WorkflowJobStore:
                 if spec.revision != job.spec_revision:
                     raise WorkflowJobCorruptionError(
                         f"workflow job spec revision mismatch: {job.job_id}"
+                    )
+                if spec.payload != job.payload:
+                    raise WorkflowJobCorruptionError(
+                        f"workflow job payload mismatch: {job.job_id}"
+                    )
+                if spec.scheduling_lane != job.scheduling_lane:
+                    raise WorkflowJobCorruptionError(
+                        f"workflow job scheduling lane mismatch: {job.job_id}"
                     )
                 if job.state is WorkflowJobState.RUNNING:
                     if (

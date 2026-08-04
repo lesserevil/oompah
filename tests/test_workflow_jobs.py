@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -39,6 +40,7 @@ def spec(
     generation: str = "g1",
     action: str = "terminal_audit",
     phase: str = "intent",
+    payload: dict | None = None,
     priority: int = 100,
     max_attempts: int = 3,
 ) -> WorkflowJobSpec:
@@ -49,6 +51,7 @@ def spec(
         action=action,
         idempotency_key=key,
         phase=phase,
+        payload=payload,
         expected_evidence_revision=f"facts-{generation}",
         expected_head_sha=f"head-{generation}",
         priority=priority,
@@ -84,13 +87,36 @@ def test_spec_is_strict_and_revision_is_stable():
         WorkflowJobSpec("p", "task", "g", "action", "key", max_attempts=0)
 
 
+def test_spec_payload_is_canonical_json_and_part_of_identity():
+    first = spec(payload={"z": [3, {"b": True, "a": None}], "a": "value"})
+    reordered = spec(payload={"a": "value", "z": [3, {"a": None, "b": True}]})
+    changed = spec(payload={"a": "different"})
+
+    assert first.to_dict()["payload"] == {
+        "a": "value",
+        "z": [3, {"a": None, "b": True}],
+    }
+    with pytest.raises(TypeError):
+        first.payload["a"] = "mutated"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        first.payload["z"][1]["a"] = "mutated"  # type: ignore[index]
+    assert first.payload["z"][0] == 3
+    assert first.revision == reordered.revision
+    assert first.revision != changed.revision
+    with pytest.raises(TypeError, match="mapping"):
+        spec(payload=["not", "an", "object"])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="JSON serializable"):
+        spec(payload={"not-json": {1, 2}})
+
+
 def test_enqueue_persists_every_execution_fence_and_event(store):
-    job = store.enqueue(spec())
+    job = store.enqueue(spec(payload={"review_id": 42, "refresh": True}))
 
     assert job.state is WorkflowJobState.QUEUED
     assert job.attempts == 0
     assert job.expected_evidence_revision == "facts-g1"
     assert job.expected_head_sha == "head-g1"
+    assert job.payload == {"refresh": True, "review_id": 42}
     assert job.lease_token is None
     assert job.to_dict()["state"] == "queued"
     assert [event.event_type for event in store.events(job.job_id)] == ["enqueued"]
@@ -110,6 +136,74 @@ def test_idempotency_conflict_cannot_alias_different_work(store):
 
     with pytest.raises(WorkflowJobIdempotencyConflict):
         store.enqueue(spec(generation="g2"))
+
+
+def test_idempotency_conflict_cannot_alias_different_payload(store):
+    store.enqueue(spec(payload={"review_id": 41}))
+
+    with pytest.raises(WorkflowJobIdempotencyConflict):
+        store.enqueue(spec(payload={"review_id": 42}))
+
+
+def test_event_cursor_enqueue_and_supersession_are_one_transaction(store):
+    first = store.materialize_event(
+        project_id="project-1",
+        task_id="TASK-1",
+        decision_revision="event-1",
+        action="focus_handoff",
+        idempotency_namespace="implementation-event",
+        scheduling_lane="event:implementation",
+        payload={"focus": "testing"},
+    )
+    cursor_before = store._conn.execute(  # noqa: SLF001
+        "SELECT * FROM workflow_event_cursors"
+    ).fetchone()
+
+    def fail_id():
+        raise RuntimeError("crash before enqueue")
+
+    store._id_factory = fail_id  # noqa: SLF001
+    with pytest.raises(RuntimeError, match="crash before enqueue"):
+        store.materialize_event(
+            project_id="project-1",
+            task_id="TASK-1",
+            decision_revision="event-2",
+            action="validation_submission",
+            idempotency_namespace="implementation-event",
+            scheduling_lane="event:implementation",
+            payload={"head_sha": "a" * 40},
+        )
+
+    cursor_after = store._conn.execute(  # noqa: SLF001
+        "SELECT * FROM workflow_event_cursors"
+    ).fetchone()
+    assert dict(cursor_after) == dict(cursor_before)
+    assert store.get(first.job.job_id).state is WorkflowJobState.QUEUED
+    assert len(store.list_jobs()) == 1
+
+
+def test_payload_round_trips_across_store_restart(tmp_path, clock):
+    path = str(tmp_path / "payload-restart.sqlite3")
+    first = WorkflowJobStore(path, clock=clock)
+    created = first.enqueue(
+        spec(payload={"nested": {"enabled": True}, "targets": ["a", "b"]})
+    )
+    first.close()
+
+    reopened = WorkflowJobStore(path, clock=clock)
+    try:
+        observed = reopened.get(created.job_id)
+        assert observed.to_dict()["payload"] == {
+            "nested": {"enabled": True},
+            "targets": ["a", "b"],
+        }
+        assert observed.payload["targets"] == ("a", "b")
+        assert reopened.enqueue(
+            spec(payload={"targets": ["a", "b"], "nested": {"enabled": True}})
+        ).job_id == created.job_id
+        reopened.integrity_check()
+    finally:
+        reopened.close()
 
 
 def test_idempotency_is_project_scoped(store):
@@ -531,6 +625,16 @@ def test_schema_v1_is_upgraded_without_losing_job(tmp_path):
         """
     )
     old_spec = spec()
+    legacy_spec_dict = old_spec.to_dict()
+    legacy_spec_dict.pop("payload")
+    legacy_spec_revision = hashlib.sha256(
+        json.dumps(
+            legacy_spec_dict,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
+    ).hexdigest()
     connection.execute(
         """
         INSERT INTO workflow_jobs(
@@ -547,8 +651,8 @@ def test_schema_v1_is_upgraded_without_losing_job(tmp_path):
             old_spec.action,
             old_spec.phase,
             old_spec.idempotency_key,
-            old_spec.revision,
-            json.dumps(old_spec.to_dict(), sort_keys=True, separators=(",", ":")),
+            legacy_spec_revision,
+            json.dumps(legacy_spec_dict, sort_keys=True, separators=(",", ":")),
             "queued",
             old_spec.priority,
             0,
@@ -564,6 +668,8 @@ def test_schema_v1_is_upgraded_without_losing_job(tmp_path):
     try:
         assert upgraded.schema_version == WORKFLOW_JOB_SCHEMA_VERSION
         assert upgraded.get("old-job").expected_head_sha is None
+        assert upgraded.get("old-job").payload is None
+        assert upgraded.enqueue(old_spec).job_id == "old-job"
         assert claim(upgraded).job_id == "old-job"
         upgraded.integrity_check()
     finally:
@@ -594,6 +700,18 @@ def test_integrity_check_detects_tampered_spec(store):
     store._conn.commit()  # noqa: SLF001
 
     with pytest.raises(WorkflowJobCorruptionError, match="revision mismatch"):
+        store.integrity_check()
+
+
+def test_integrity_check_detects_tampered_payload(store):
+    job = store.enqueue(spec(payload={"review_id": 42}))
+    store._conn.execute(  # noqa: SLF001 - deliberate corruption boundary test
+        "UPDATE workflow_jobs SET payload_json = ? WHERE job_id = ?",
+        ('{"review_id":41}', job.job_id),
+    )
+    store._conn.commit()  # noqa: SLF001
+
+    with pytest.raises(WorkflowJobCorruptionError, match="payload mismatch"):
         store.integrity_check()
 
 
