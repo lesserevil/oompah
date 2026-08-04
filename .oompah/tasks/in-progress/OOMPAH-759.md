@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:15:15.789211Z'
+updated_at: '2026-08-04T12:16:45.794144Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-04 12:15
 ---
 Implementation: retry entries now durably record dispatcher-authored status and assignment intents while retaining the exact pre-write authority generation. Final CAS accepts only the intended active state/new run ID plus unchanged task/project/branch/head authority; mismatches report structured dimensions. Pre-start abort recovery restores the captured dispatchable status, or keeps a persisted retry owner when rollback is temporarily unavailable. Timer, reconciliation, and restart paths now recover the same claim without overriding submission, cancellation, terminal, or operator authority.
+---
+author: oompah
+created: 2026-08-04 12:16
+---
+Verification: focused retry/dispatch/owner/submission/focus suites passed (168 tests), followed by a post-rebase retry + worker-submission + close-race run (72 tests). The Makefile terminal-audit scan also passed (8/8 mutations allowlisted), and git diff --check is clean. Coverage includes Open and already-In-Progress retries, Technical Writer -> Feature Developer handoff exactly once, authorized run-ID assignment, operator/submission/cancellation/terminal fences, branch/head/assignment drift diagnostics, rollback failure ownership, and valid/stale restart recovery.
 ---
 <!-- COMMENTS:END -->
