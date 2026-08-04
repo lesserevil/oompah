@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T16:58:27.554503Z'
+updated_at: '2026-08-04T17:00:50.497247Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -59,6 +59,45 @@ oompah.task_costs:
     recorded_at: '2026-08-04T16:43:42.184185+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/714
 oompah.review_number: '714'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d5e425f65f54
+    project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T17:00:39.012622+00:00'
+  - version: 1
+    audit_id: audit-17b3b9d996a9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8ac2f4d2299a22299901e973d2e24b421d666f96026491e4233126b32b4c3e9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T17:00:39.012622+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -299,5 +338,15 @@ author: oompah
 created: 2026-08-04 16:58
 ---
 Branch quality gate passed for `c7bfbcc3b638b3ea28d241852af6345164ba86f6` using `make test` in 428.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 17:00
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 17:00
+---
+YOLO: merged PR #714.
 ---
 <!-- COMMENTS:END -->
