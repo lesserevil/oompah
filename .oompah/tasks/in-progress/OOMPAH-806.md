@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T22:26:14.333993Z'
+updated_at: '2026-08-04T22:28:21.756564Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
