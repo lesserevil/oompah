@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:52.177276Z'
-updated_at: '2026-08-04T15:14:02.407399Z'
+updated_at: '2026-08-04T15:27:58.844032Z'
 work_branch: epic-OOMPAH-765--task-OOMPAH-777
 target_branch: epic-OOMPAH-765
 review_url: null
@@ -33,3 +33,11 @@ Implement evaluate_task(task, facts) -> WorkDecision using the workflow contract
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 15:27
+---
+Implemented the pure, deterministic WorkDecision evaluator with stable reason codes, owner/disposition/action output, dependency semantics, lease/retry recovery, audit/integration/rollup/landing decisions, and structural alert-severity invariants. Added 40 focused tests plus incident-contract coverage. Verification: 195 focused/adjacent tests passed; ruff check and format-check passed; make terminal-audit-scan passed; staged secret scan and git diff --check passed.
+---
+<!-- COMMENTS:END -->
