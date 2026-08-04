@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-739
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Preserve verified nested-epic Merged state when historical source branches
   are deleted
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-04T00:51:02.239756Z'
+updated_at: '2026-08-04T01:12:24.916610Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
@@ -141,6 +141,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-2f32a1a374de: '2026-08-04T00:20:55.601100+00:00'
+    attempt-bd7faddf226e: '2026-08-04T01:12:19.057323+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-739
@@ -151,6 +152,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T00:20:55.601112+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    target_state: Merged
+    evidence_fingerprint: a69a5687969a595e95d067aa7551349d2e3dc0de8ff05637606550fe1fb714bb
+    audit_ids:
+    - audit-cf066dee4fe2
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T01:12:19.057340+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-739
@@ -164,6 +174,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T00:20:55.601129+00:00'
     applied_at: '2026-08-04T00:21:00.035045+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-739
+    audit_id: audit-cf066dee4fe2
+    attempt_id: attempt-bd7faddf226e
+    target_state: Merged
+    evidence_fingerprint: a69a5687969a595e95d067aa7551349d2e3dc0de8ff05637606550fe1fb714bb
+    status: Merged
+    audit_ids:
+    - audit-cf066dee4fe2
+    applied: false
+    created_at: '2026-08-04T01:12:19.057359+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -239,7 +260,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-739
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -248,7 +269,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bd7faddf226e
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -258,13 +279,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T00:50:47.768824+00:00'
       branch_key: OOMPAH-739
+      verdict: pass
+      completed_at: '2026-08-04T01:12:19.057111+00:00'
+      ended_at: '2026-08-04T01:12:19.057111+00:00'
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-04T00:50:08.559190+00:00'
-    updated_at: '2026-08-04T00:50:47.768824+00:00'
+    updated_at: '2026-08-04T01:12:19.057111+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ca080198b28b
@@ -643,5 +667,24 @@ author: oompah
 created: 2026-08-04 00:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 01:12
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: aca4bd09e2f69f5b8c5a1818c1b6ddc61d941e96
+- origin_head: aca4bd09e2f69f5b8c5a1818c1b6ddc61d941e96
+- new_commit_since_prior_audit: aca4bd09e OOMPAH-739: Cover durable nested epic landing evidence
+- terminal_audit_enforcement_tests: 54 passed
+- epic_strategy_tests: 238 passed
+- workspace_recovery_and_lifecycle_tests: 247 passed
+- orchestrator_merged_and_reviews_tests: 218 passed
+- recovery_snapshot_regression: test_recovery_snapshot_preserves_merged_child_with_merged_parent asserts child.state stays Merged, snapshot is not None during recovery, and get_recovery_snapshot() returns None after recovery ends
+- unlanded_parent_repair_regression: test_unlanded_parent_repair_runs_once_and_keeps_done_audit demotes child once then verifies second restart does not repeat status update
+- oompah_447_regression: test_later_open_shared_branch_review_does_not_reopen_historical_sibling asserts historical review 603 lands and find_pr_for_branch is not called for reused branch
 ---
 <!-- COMMENTS:END -->
