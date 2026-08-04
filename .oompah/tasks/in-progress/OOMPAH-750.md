@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T00:49:49.716954Z'
+updated_at: '2026-08-04T00:50:21.000268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-08-04 00:49
 ---
 Understanding: The watchdog must classify from current tracker, audit, branch, review, CI, and provider evidence before relying on comment wording. I will trace the evidence pipeline, add regressions for stale handoffs, technical blockers, genuine human decisions, stale/new comments, provider/SCM ambiguity, and idempotent restart, then run focused checks and submit the branch.
+---
+author: oompah
+created: 2026-08-04 00:50
+---
+Discovery: The current classifier gives any recent question or handoff wording immediate human_blocked precedence, and run_watchdog_audit supplies only status plus comments. This explains the live false negatives; I am mapping existing Issue/tracker/audit/provider APIs before changing the evidence contract.
 ---
 <!-- COMMENTS:END -->
