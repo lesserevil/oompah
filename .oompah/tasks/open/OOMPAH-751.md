@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T01:48:31.412930Z'
+updated_at: '2026-08-04T01:50:06.360223Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,81 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 2f733d40f8ef116556b2dfd652bf5659d4526315156e002142c846059300d610
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-04T01:49:57.194431+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 228aa7a7-5443-41fe-a9ec-a02306c2c74f
-  claim_owner: 1c23f4c6-4c13-43af-86f6-1edf14468b70
-  claimed_at: '2026-08-04T01:48:19.602196+00:00'
-  claim_expires_at: '2026-08-04T02:18:19.602196+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-751 addresses a race condition in advisory peer\
+    \ authorization during coordination message send that poisons task completion\
+    \ by triggering HTTP 500 and handoff failure reconciliation. Searched all 34 included\
+    \ corpus candidates: all are Archived (terminal state, excluded per instructions)\
+    \ and cover unrelated domains (git sync, UI, release delivery, epic workflow,\
+    \ GitHub API access, agent workflow). No active task duplicates OOMPAH-751's specific\
+    \ scope: preventing HTTP 500 and completion poisoning when recipients transition\
+    \ out of suggested-peer authorization mid-send. Referenced OOMPAH-689 (expected\
+    \ peer denials) and OOMPAH-746 (trigger incident) do not appear in corpus to verify\
+    \ status.\nI'm performing duplicate investigation for OOMPAH-751. Let me analyze\
+    \ the task corpus carefully.\n\n**OOMPAH-751 Summary:**\nThis task addresses a\
+    \ race condition where advisory peer authorization changes between peer discovery\
+    \ and coordination message send. When OOMPAH-746 tried to send a coordination\
+    \ message to OOMPAH-734, the recipient was no longer in the suggested-peer set.\
+    \ The system raised PermissionError \u2192 HTTP 500, recorded a handoff failure,\
+    \ and incorrectly moved the completed task to Needs Human. The issue requires\
+    \ distinguishing between expected peer denials (OOMPAH-689 scope) and race-closed\
+    \ coordination policy results.\n\n**Corpus Analysis:**\n\nReviewing all 34 included\
+    \ similarity candidates:\n- **OOMPAH-10, 189, 190, 191, 204**: Native tracker\
+    \ git sync errors (different issue domain)\n- **OOMPAH-157, 187, 209, 211**: Dashboard\
+    \ UI and task comment delivery (unrelated)\n- **OOMPAH-158, 161, 165, 166, 168**:\
+    \ Task tracking and epic workflow (unrelated)\n- **OOMPAH-175, 177, 178, 183,\
+    \ 195, 201, 214, 215, 216**: Release delivery and branch management (unrelated)\n\
+    - **OOMPAH-188, 210**: GitHub API permission errors (different surface, not about\
+    \ peer authorization race)\n- **OOMPAH-203**: Auto-update service restart behavior\
+    \ (unrelated)\n- **OOMPAH-207**: PR merge conflict (unrelated)\n- **OOMPAH-212**:\
+    \ Duplicate task record deduplication (unrelated)\n- **OOMPAH-217, 218**: Agent\
+    \ workflow and safety limits (unrelated)\n- **OOMPAH-1, 2, 100**: CI failures\
+    \ or stale issues (unrelated)\n\n**Critical finding:** All 34 candidates are in\
+    \ **Archived** status (terminal state). Per the instructions, completed tasks\
+    \ are historical context, not active duplicate targets. No active peer-authorization-race\
+    \ or coordination-send-failure task exists in the corpus besides OOMPAH-751 itself.\n\
+    \nThe task references OOMPAH-689 as covering a related but distinct scenario (expected\
+    \ read-only peer denials), and OOMPAH-746 as the trigger incident, but neither\
+    \ appears in the corpus to evaluate.\n\n---\n\nFocus"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 4f0597bb-1ee4-4047-967c-ed64442c8041
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2110
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2110
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2110
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T01:49:57.184350+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-751__20260804T014835Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-751
+    source_sha: c54a60a63a1742fa0dfa4ad2a68f46cc61d87fdf
+    completed_at: '2026-08-04T01:49:57.203109+00:00'
 ---
 ## Summary
 
@@ -60,5 +121,15 @@ author: oompah
 created: 2026-08-04 01:48
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 01:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 31s
+- Log: OOMPAH-751__20260804T014835Z.jsonl
 ---
 <!-- COMMENTS:END -->
