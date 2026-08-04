@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T23:10:39.766683Z'
+updated_at: '2026-08-04T23:44:10.855161Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -420,5 +420,10 @@ author: oompah
 created: 2026-08-04 23:10
 ---
 Repair checkpoint pushed at 94295b3b90530c1e927f4bb5f662464c2722c5b7. Durable terminal-audit finalization now persists a bounded replayable result identity, replays crash-before-apply and coordinator-applied/job-unacked outcomes, fences callbacks/recovery/exit handling to the exact audit+target+evidence+attempt+job+lease, recovers only one exact abandoned lease, retries structured nonterminal outcomes, and acknowledges ordinary shutdown exactly. Added real Done→In Validation→Merged crash/retry/restart coverage plus policy-denial, revocation, legacy-checkpoint, starvation, backoff, and deep-history regressions. Verification: 648 terminal-audit/auditor/workflow tests passed; direct terminal mutation scan passed 8/8; targeted Ruff and diff checks passed. The Makefile scan target could not create its task-private venv because this claimed worktree's .venv is a wrapper, so the identical scanner was run directly with the source venv. Waiting for OOMPAH-812 to land on the epic target before rebase; not submitted.
+---
+author: oompah
+created: 2026-08-04 23:44
+---
+Prepared final domain-stack order while predecessor gates run: rebased the two-commit OOMPAH-781 stack onto exact OOMPAH-791 head 82f0ffd70, itself based on OOMPAH-782 a3948097f. Resolved only the two independently predicted union conflicts: orchestrator imports preserve LandingState plus terminal job types; WorkflowJobStore.recover_abandoned now supports lease_owner, phase, project_id, and actions together. New clean pushed head: 4aba71a7146b345210407320ea9f3ed170a7aae0. Post-rebase combined domain/audit verification: 565 passed, 1 xfailed; core four-module smoke 106 passed; diff check clean. Hold submission until OOMPAH-791 lands to the parent.
 ---
 <!-- COMMENTS:END -->
