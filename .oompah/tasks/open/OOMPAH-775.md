@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:32:15.204502Z'
+updated_at: '2026-08-04T21:32:24.676612Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -208,5 +208,15 @@ author: oompah
 created: 2026-08-04 21:32
 ---
 Dispatch raced the newly added hard-start OOMPAH-806 edge. The managed worktree is still clean at base 6561d52e5 with no task commit or local edits. Returning to Open revokes the empty run; the hard-start dependency must keep this overlapping writer migration undispatched until OOMPAH-806 is terminal.
+---
+author: oompah
+created: 2026-08-04 21:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 9
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 57s
+- Log: OOMPAH-775__20260804T213040Z.jsonl
 ---
 <!-- COMMENTS:END -->
