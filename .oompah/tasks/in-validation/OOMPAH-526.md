@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-04T22:58:04.629672Z'
+updated_at: '2026-08-04T23:49:22.978335Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -54,7 +54,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-526
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -91,13 +91,27 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-04T22:58:01.670761+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-cc0dc685ef9e
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+      created_at: '2026-08-04T23:49:15.419800+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-04T23:49:15.419800+00:00'
+      branch_key: epic-OOMPAH-521
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:57.078497+00:00'
-    updated_at: '2026-08-04T22:44:54.626963+00:00'
+    updated_at: '2026-08-04T23:49:15.419800+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc08a582ec99
@@ -130,6 +144,20 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-04T22:58:01.670761+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-cc0dc685ef9e
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+    created_at: '2026-08-04T23:49:15.419800+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-04T23:49:15.419800+00:00'
+    branch_key: epic-OOMPAH-521
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -373,5 +401,10 @@ author: oompah
 created: 2026-08-04 21:35
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-04 23:49
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
