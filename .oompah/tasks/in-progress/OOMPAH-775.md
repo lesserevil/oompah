@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:31:01.692402Z'
+updated_at: '2026-08-04T21:31:34.885340Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-08-04 21:30
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-04 21:31
+---
+Understanding: I will inventory all production tracker status writes after the existing transition-service work, route API/CLI handoffs and auxiliary/intake/maintenance paths through TaskTransitionService while preserving auth/owner behavior, and add focused regression plus AST/terminal-audit boundary tests. I will verify with focused suites and the Makefile architectural scan before committing and submitting.
 ---
 <!-- COMMENTS:END -->
