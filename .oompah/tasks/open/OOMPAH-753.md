@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:03:18.427470Z'
+updated_at: '2026-08-04T02:04:47.174169Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 1e1a9046dd4acfb0dbe57f6a0b46d6b1c6201c151525cb893dd9f2792744659e
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 8176b80e-a5b9-4de5-9316-c0a6f9ceb4c5
+  claim_owner: 1c23f4c6-4c13-43af-86f6-1edf14468b70
+  claimed_at: '2026-08-04T02:04:37.314155+00:00'
+  claim_expires_at: '2026-08-04T02:34:37.314155+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: ae9a47db-7783-47e9-b959-e820e3255e58
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Live regression after merged OOMPAH-736 on OOMPAH-731 Merged audit attempt OOMPA
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 02:04
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 02:04
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
