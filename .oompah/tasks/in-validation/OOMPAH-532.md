@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T21:19:28.624983Z'
-updated_at: '2026-08-04T22:44:30.892296Z'
+updated_at: '2026-08-04T22:55:03.170432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9ea66d0519c5
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,18 +45,34 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T22:42:07.443185+00:00'
       branch_key: OOMPAH-532
+      ended_at: '2026-08-04T22:54:54.665625+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-2bba9a7b923f
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f27213465bfff8140a3998693fe6a0a61a164e67cfd0816b12fc8ed672fb76f6
+      created_at: '2026-08-04T22:54:56.972549+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T22:54:56.972549+00:00'
+      branch_key: OOMPAH-532
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T22:36:46.855034+00:00'
-    updated_at: '2026-08-04T22:42:07.443185+00:00'
+    updated_at: '2026-08-04T22:54:56.972549+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ea66d0519c5
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,6 +82,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T22:42:07.443185+00:00'
     branch_key: OOMPAH-532
+    ended_at: '2026-08-04T22:54:54.665625+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-2bba9a7b923f
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f27213465bfff8140a3998693fe6a0a61a164e67cfd0816b12fc8ed672fb76f6
+    created_at: '2026-08-04T22:54:56.972549+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T22:54:56.972549+00:00'
+    branch_key: OOMPAH-532
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 80
@@ -185,5 +217,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 19s
 - Log: OOMPAH-532__20260804T224226Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:55
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
