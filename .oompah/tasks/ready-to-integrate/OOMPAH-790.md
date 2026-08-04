@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-790
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Build a stateful reference model and generative workflow harness
 parent: OOMPAH-767
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:16.097978Z'
-updated_at: '2026-08-04T17:57:06.570198Z'
+updated_at: '2026-08-04T17:58:06.163080Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,15 +22,13 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: OOMPAH-790
   base_branch: epic-OOMPAH-767
   head_sha: fee2b7a57f1f85b44b82cc23b4e6734d27d5e4d1
-  submitted_at: '2026-08-04T17:56:29.186599+00:00'
-  updated_at: '2026-08-04T17:56:59.871479+00:00'
-  last_error: 'could not recover integration worktrees: git worktree add failed: fatal:
-    invalid reference: origin/epic-OOMPAH-767'
+  submitted_at: '2026-08-04T17:57:59.423194+00:00'
+  updated_at: '2026-08-04T17:57:59.423194+00:00'
 ---
 ## Summary
 
@@ -60,5 +58,10 @@ created: 2026-08-04 17:57
 Integration could not verify `OOMPAH-790`: could not recover integration worktrees: git worktree add failed: fatal: invalid reference: origin/epic-OOMPAH-767
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 17:58
+---
+Resubmitted exact verified head fee2b7a57 after creating the previously absent parent epic branch epic-OOMPAH-767.
 ---
 <!-- COMMENTS:END -->

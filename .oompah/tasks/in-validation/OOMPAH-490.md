@@ -20,7 +20,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T13:51:11.052512Z'
-updated_at: '2026-08-04T17:57:40.015413Z'
+updated_at: '2026-08-04T17:58:11.723092Z'
 work_branch: epic-OOMPAH-490
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/563
@@ -98,18 +98,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-490
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-74fd51f376da
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+      created_at: '2026-08-04T17:57:59.615207+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T17:57:59.615207+00:00'
+      branch_key: epic-OOMPAH-490
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T17:27:37.627571+00:00'
+    updated_at: '2026-08-04T17:57:59.615207+00:00'
   - version: 1
     audit_id: audit-8170b4cbabb1
     project_id: proj-14849f1b
@@ -141,6 +155,35 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T17:52:47.841469+00:00'
     branch_key: epic-OOMPAH-490
+  - version: 1
+    attempt_id: attempt-74fd51f376da
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3ebbd825ceb8284c0daae2bdfe287fe0a0e42fe8992650b4137ffb0d1d32e2c
+    created_at: '2026-08-04T17:57:59.615207+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T17:57:59.615207+00:00'
+    branch_key: epic-OOMPAH-490
+oompah.task_costs:
+  total_input_tokens: 37
+  total_output_tokens: 9274
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 37
+      output_tokens: 9274
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 37
+    output_tokens: 9274
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T17:57:55.966575+00:00'
 ---
 ## Summary
 
@@ -207,5 +250,20 @@ Safe evidence:
 - children_in_validation: OOMPAH-491, 492, 493, 494, 500
 - child_commits_verified: 491:0af15d271, 492:e8e03d7d1, 493:7cdbba3d9, 494:14a319df7, 495:93fbea87d, 496:bba2829f0, 497:09b4fbee0, 498:b8571c21d, 499:3b75371d8
 - reachable_from_main: yes (a681ec2fc..4b001b3a3 chain)
+---
+author: oompah
+created: 2026-08-04 17:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 45, Tool calls: 31
+- Tokens: 37 in / 9.3K out [9.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 4s
+- Log: OOMPAH-490__20260804T175259Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:58
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
