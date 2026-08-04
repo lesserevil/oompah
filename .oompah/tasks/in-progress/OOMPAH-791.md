@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T20:30:12.378133Z'
+updated_at: '2026-08-04T20:31:12.473168Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-04 20:30
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-04 20:31
+---
+Understanding: migrate epic and nested-epic readiness, landing proof, rollup, lifecycle, repair, cleanup, and restart reconciliation to shared LandingFact-driven jobs while preserving patch-equivalence and durable evidence. I will first map existing facts/decisions/jobs and epic consumers, then implement small tested refactors and validate required real-Git scenarios.
 ---
 <!-- COMMENTS:END -->
