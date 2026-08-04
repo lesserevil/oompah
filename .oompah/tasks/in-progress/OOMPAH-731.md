@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:33:38.240045Z'
+updated_at: '2026-08-04T00:35:43.534082Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -429,5 +429,10 @@ author: oompah
 created: 2026-08-04 00:33
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-08-04 00:35
+---
+Understanding: This is a merge conflict resolution task. The OOMPAH-731 branch has 2 commits on top of f035aa3e6 that need to be rebased onto origin/main. The branch adds direct epic rebase completion logic to prevent self-invalidating submission (EXOCOMP-244 bug). Main has moved significantly ahead with 22 commits from OOMPAH-724 through OOMPAH-739, several overlapping with our changed paths (orchestrator.py, server.py, integration.py, projects.py). Starting rebase now.
 ---
 <!-- COMMENTS:END -->
