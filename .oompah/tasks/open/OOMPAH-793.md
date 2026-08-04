@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-793
 type: feature
-status: Needs CI Fix
+status: Open
 priority: 1
 title: Cut implementation, direct-owner, handoff, and retry ownership over to durable
   jobs
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:21.541694Z'
-updated_at: '2026-08-04T20:41:00.244625Z'
+updated_at: '2026-08-04T20:42:38.280898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,17 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-04 20:42
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #60)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing; safe to reopen the stalled task.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
