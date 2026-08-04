@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:01:14.382583Z'
+updated_at: '2026-08-04T16:07:42.137389Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -318,5 +318,24 @@ author: oompah
 created: 2026-08-04 16:01
 ---
 Discovery: Rebase complete. The branch now has commit 91a817458 (OOMPAH-745) on top of b51047023 (OOMPAH-744). The conflicts were in test files and dashboard.html that were superseded by the upstream's evolved API. Key fixes made to test_dashboard_alert_experience.py: (1) ariaLive now reads from #alert-center-live element (separate from the list), (2) ariaLabel updated to 'Active alert details', (3) terminalAuditVisible corrected to False (terminal audit panel is hidden when an actionable terminal_audit: alert exists in the center), (4) genericBannerHidden removed (alerts-banner element no longer exists in upstream HTML), (5) authHealthHidden corrected to False (auth banner shows as status info even when healthy). Running focused tests now.
+---
+author: oompah
+created: 2026-08-04 16:07
+---
+Verification: Rebased onto epic-OOMPAH-740 at b51047023. New HEAD is 1a6af40bf.
+
+Conflicts resolved:
+- test_dashboard_alert_center.py, test_dashboard_credential_warning.py, test_dashboard_vertical_scroll.py, dashboard.html → all superseded by upstream's refined API; reset to upstream versions
+- test_dashboard_alert_experience.py → updated to match upstream API changes
+
+Key API differences fixed in test_dashboard_alert_experience.py:
+1. ariaLive now reads from #alert-center-live (separate element, not list)
+2. ariaLabel corrected to 'Active alert details'
+3. terminalAuditVisible: False when actionable terminal_audit: alert is in the center (no duplication)
+4. authHealthHidden: False in recovered state (auth banner stays visible as status info)
+5. alerts-banner reference removed (element no longer in upstream HTML)
+6. quality-gate-health-detail uses textContent (not innerText) since it's inside a closed <details>
+
+Focused tests: 136 passed (test_dashboard_alert_experience + alert_center + credential_warning + vertical_scroll + alert_safety + alert_contract + full_sync_atomic + integration_recovery_filter + ws_lifecycle + ws_full_sync + ws_fault_injection).
 ---
 <!-- COMMENTS:END -->
