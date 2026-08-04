@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-507
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-07-28T17:59:03.424721Z'
+updated_at: '2026-08-04T18:28:40.479908Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 6664
     cost_usd: 0.0
     recorded_at: '2026-07-28T17:48:45.090926+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f827c1e91924
+    project_id: proj-14849f1b
+    task_id: OOMPAH-507
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 859963d73184aecd00c8c97de76214d2bb41d3ed640dc354a768d7229c5ed4a8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:34.036972+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -138,5 +160,10 @@ author: oompah
 created: 2026-07-28 17:54
 ---
 Restored after patch-equivalent commit 8e9455a92 was verified on the rebased epic branch; graceful draining restart remains fully implemented and live-validated.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
