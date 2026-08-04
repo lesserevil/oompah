@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T21:48:47.174441Z'
+updated_at: '2026-08-04T21:49:25.693344Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: aa5fe509-6fa9-4c00-be8b-9657114f2280
+oompah.agent_run_id: 85da4349-ac06-446d-9250-722ffd493c01
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-806
 oompah.integration:
   version: 2
@@ -179,5 +179,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: stalled, Duration: 1h 1m 0s
 - Log: OOMPAH-806__20260804T204754Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:49
+---
+Acceptance-gap handoff after the 3600s agent timeout: the preserved four-file worktree has 288 focused tests passing, but current code still lets run_watchdog_audit() call tracker.update_issue(..., status=Open) directly. Before submission, either route watchdog/integration status races through TaskTransitionService with generation CAS and prove one authoritative winner, or explicitly narrow this task and add a dependency/handoff to OOMPAH-775 for the remaining writer-boundary invariant. Do not submit solely on the passing focused suite.
+---
+author: oompah
+created: 2026-08-04 21:49
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
