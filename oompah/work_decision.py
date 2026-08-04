@@ -1220,6 +1220,7 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         kind = str(child.get("kind") or "normal")
         status = canonicalize_status(child.get("status"))
         maintenance = bool(child.get("maintenance")) or kind == "maintenance"
+        archived = kind == "archived" or status == ARCHIVED
         nested = kind == "nested_epic" or (
             kind == "nested" and str(child.get("issue_type") or "").lower() == "epic"
         )
@@ -1231,6 +1232,9 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
                 )
             continue
 
+        if archived:
+            # Safely retired children carry no code landing obligation.
+            continue
         if nested:
             # Nested epic readiness is target evidence, never the parent's
             # lifecycle status (which may itself be derived from this child).
@@ -1324,6 +1328,46 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
                 "child_landing_verification" if target_relative else "rollup_reconciliation",
             ),
         )
+
+    epic_source = str(value.get("epic_branch") or "").strip()
+    epic_target = str(value.get("target_branch") or "").strip()
+    if target_relative and epic_source and epic_target:
+        epic_landing = next(
+            (
+                item
+                for item in facts.landings
+                if item.source == epic_source and item.target == epic_target
+            ),
+            None,
+        )
+        if epic_landing is not None and epic_landing.state is LandingState.LANDED:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.RUNNABLE,
+                reason_code="terminal.immediate_target_landing_proven",
+                owner=WorkflowOwner.ROLLUP,
+                actions=(PermittedAction.REQUEST_MERGED,),
+                durable_jobs=("epic_auto_close",),
+            )
+        if epic_landing is None or epic_landing.state is LandingState.UNKNOWN:
+            return _decision(
+                task,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="landing.evidence_unknown",
+                owner=WorkflowOwner.ROLLUP,
+                prerequisites=(
+                    UnmetPrerequisite(
+                        "landing.unknown",
+                        f"{epic_source}->{epic_target}",
+                        epic_landing.error_code if epic_landing is not None else None,
+                    ),
+                ),
+                actions=(PermittedAction.REFRESH_LANDING,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=("epic_terminal_validation",),
+            )
     return _decision(
         task,
         facts,
