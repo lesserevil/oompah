@@ -411,12 +411,12 @@ def test_duplicate_candidate_requires_duplicate_investigator_authority():
             NEEDS_REBASE,
             PermittedAction.ROUTE_REBASE,
         ),
-        (
-            {"ci": "passed", "mergeable": True},
-            "review.monitoring",
-            None,
-            PermittedAction.REFRESH_REVIEW,
-        ),
+            (
+                {"ci": "passed", "mergeable": True},
+                "review.ready_to_merge",
+                None,
+                PermittedAction.MERGE_REVIEW,
+            ),
     ],
 )
 def test_review_decisions_share_normalized_evidence(
