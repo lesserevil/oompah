@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:04:46.399192Z'
+updated_at: '2026-08-04T01:05:58.619501Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-04 01:04
 ---
 Verification: Focused watchdog tests pass: 90 passed. Adjacent SCM, orchestrator tick telemetry, and terminal-audit metadata suites pass: 346 passed. Syntax compilation and git diff --check also pass. make setup could not create the task venv because the environment's astral-uv helper failed with a DBus transient-scope error, so tests ran with the existing Python runtime and importlib mode.
+---
+author: oompah
+created: 2026-08-04 01:05
+---
+Verification update: Final focused run passes (90 tests), and the adjacent SCM/orchestrator/terminal-audit run passes (346 tests). Both were rerun after the final precedence and audit-envelope fixes.
 ---
 <!-- COMMENTS:END -->
