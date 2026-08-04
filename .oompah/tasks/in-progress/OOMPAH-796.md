@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T22:13:26.779782Z'
+updated_at: '2026-08-04T22:13:50.437299Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-08-04 22:07
 ---
 Implementation: Added UniversalTotalityLivenessController with bounded rotating evaluation, generation-fenced reconciliation, ownership/graph/liveness/retry safeguards, explicit missing-job recovery, restart recovery, and structured escalation evidence. Workflow jobs now persist reason_code metadata. Enforce-mode orchestrator sweeps invoke the controller without writing tracker status; controller health is published in snapshots.
+---
+author: oompah
+created: 2026-08-04 22:13
+---
+Landing order tightened to OOMPAH-806 -> OOMPAH-807 -> OOMPAH-796 because 807's audit preflight/runtime wiring also legitimately touches projects.py/orchestrator.py. Preserve your current scoped work, then rebase after both exact predecessor heads land and run the combined workflow-controller/audit/watchdog suites before final submission.
 ---
 <!-- COMMENTS:END -->

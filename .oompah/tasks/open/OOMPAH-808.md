@@ -8,10 +8,11 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T22:13:20.206169Z'
+updated_at: '2026-08-04T22:13:47.201484Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -181,5 +182,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 27s
 - Log: OOMPAH-808__20260804T221110Z.jsonl
+---
+author: oompah
+created: 2026-08-04 22:13
+---
+Collision/topology fence: this implementation was dispatched from f1e7925b7 just as OOMPAH-806/807/796 were legitimately modifying projects.py/orchestrator.py/workflow_contract.py. No OOMPAH-808 edits existed, so the stale run was revoked cleanly. A direct hard-start edge to nested OOMPAH-796 was correctly rejected because it would create container reachability cycle OOMPAH-763 -> OOMPAH-770 -> OOMPAH-763. The temporary human-only label is therefore the explicit dispatch fence; remove it after OOMPAH-796 lands, then redispatch from the updated common root lineage. This is the exact topology bug OOMPAH-808 will fix.
 ---
 <!-- COMMENTS:END -->
