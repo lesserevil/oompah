@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T12:31:54.029528Z'
+updated_at: '2026-08-04T12:36:27.418561Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-04 12:31
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-04 12:36
+---
+Continuation discovery: the recovered patch rebased cleanly onto origin/main, but it does not yet cover all required failure modes. The observer records a pending generation and adds the completion label, while Open/finalization still depend on later mutations or exit/reconcile. Restart recovery only backfills dispatch candidates, so a restart after the structured comment but before Open can leave an orphaned In Progress task. The trusted-comment parser also accepts records with neither author nor provider identity. Required docs -> feature, forced/late exit, normal/retry dispatch, and restart-between-write tests are absent.
 ---
 <!-- COMMENTS:END -->
