@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:46.269128Z'
-updated_at: '2026-08-04T14:40:41.314422Z'
+updated_at: '2026-08-04T14:40:47.476678Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-774
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -53,7 +53,17 @@ oompah.terminal_audit:
       and fast-forwarded exactly to epic-OOMPAH-764. Evidence: 482 tests passed; Ruff
       and diff checks clean.'
     created_at: '2026-08-04T14:40:37.752003+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-774
+    target_state: Done
+    evidence_fingerprint: 0fc6c9ca3ac40030a937b55d8ef98422a002773abb3e727c17419f034b247214
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T14:40:45.403900+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -86,5 +96,12 @@ created: 2026-08-04 14:38
 Integration could not verify `epic-OOMPAH-764--task-OOMPAH-774`: task worktree head e34e3c58b8f99cda238df44d1e59d816303d3112 differs from the published task head 73f5aeb26fc91f62a0bd9ac5ba544582b761f811; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-04 14:40
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project-owner recovery for a stale integration worktree. Published head 73f5aeb26fc91f62a0bd9ac5ba544582b761f811 was proven to descend from parent e34e3c58b8f99cda238df44d1e59d816303d3112 and fast-forwarded exactly to epic-OOMPAH-764. Evidence: 482 tests passed; Ruff and diff checks clean.
 ---
 <!-- COMMENTS:END -->
