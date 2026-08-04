@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:31:28.563586Z'
+updated_at: '2026-08-04T11:32:12.536356Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -234,5 +234,57 @@ Attack vectors to prevent:
 - State inconsistency: evidence accepted despite branch drift
 
 Implementation plan: Add CanonicalLandingEvidence dataclass to integration.py with cryptographic fingerprinting; update complete_direct_epic_maintenance_submission to capture and sign evidence; add validation in landing consumers; provide read-only historical repair path for specific past task IDs only.
+---
+author: oompah
+created: 2026-08-04 11:32
+---
+**Security Discovery:**
+
+Analyzed codebase to identify implementation points:
+
+1. **Evidence Storage (integration.py):**
+   - IntegrationRecord v2 needs new CanonicalLandingEvidence field containing:
+     - old_base_sha, old_head_sha: Original child commit range before rebase
+     - new_base_sha, new_head_sha: New canonical range after conflict resolution
+     - target_epic_branch: Exact epic branch name for which evidence is valid
+     - rebase_task_id: Task identifier that authorized this evidence (authorization anchor)
+     - validation_result: cryptographic proof that mapping is correct
+     - evidence_fingerprint: hash(old_range + new_range + epic_branch + task_id + timestamp)
+     - created_at_utc: immutable timestamp when service created evidence
+   - Must NOT accept human-provided evidence - only service-authored in complete_direct_epic_maintenance_submission
+
+2. **Evidence Validation (orchestrator.py):**
+   - Add _validate_landing_evidence() to ensure:
+     - Evidence source is service-only (not from comments/metadata)
+     - Fingerprint validates correctly (prevents tampering)
+     - Target epic branch matches current epic_branch (prevents cross-epic injection)
+     - Evidence timestamp is recent enough (invalidates stale evidence)
+     - Rebase task ID matches submitted task (authorization check)
+   - Add _child_landing_evidence_block_reason() to consume evidence fail-closed
+     - If evidence present, valid, and complete: accept landing
+     - If evidence stale/partial/wrong epic: block with actionable reason
+     - If no evidence but landing validators pass: accept (backward compat)
+     - If conflicted state: block permanently
+
+3. **Cryptographic Fingerprinting:**
+   - Fingerprint = SHA256(old_base + old_head + new_base + new_head + epic_branch + task_id + utc_timestamp)
+   - Must validate on every access to detect tampering
+   - Prevents database-level attacks (tracker corruption)
+   - Supports audit trail reconstruction
+
+4. **Fail-Closed Design:**
+   - Any fingerprint mismatch = block (don't log in-memory state)
+   - Any missing evidence field = block
+   - Any epic_branch mismatch = block
+   - Any evidence age > MAX_EVIDENCE_AGE_DAYS = invalidate
+   - Unknown rebase_task_id = block (no historical repair for unknown tasks)
+
+5. **Historical Repair Path:**
+   - Add _load_bounded_historical_evidence(task_id) for known past cases
+   - Only loads evidence for OOMPAH-authorized task IDs in hardcoded whitelist
+   - Prevents arbitrary human comments from creating evidence
+   - Serves EXOCOMP-130 recovery case explicitly
+
+Relevant files: oompah/integration.py (schema), oompah/orchestrator.py (consumers + validation), tests/test_landing_evidence.py (new)
 ---
 <!-- COMMENTS:END -->
