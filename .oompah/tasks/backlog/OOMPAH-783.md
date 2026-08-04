@@ -7,17 +7,19 @@ title: Implement the durable workflow worker and resumable external-effect saga
 parent: OOMPAH-766
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-780
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T13:59:02.492322Z'
+updated_at: '2026-08-04T14:05:54.609801Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

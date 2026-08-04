@@ -7,17 +7,19 @@ title: Replace process-local workflow scheduling primitives with durable job own
 parent: OOMPAH-766
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-783
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:05.979634Z'
-updated_at: '2026-08-04T13:59:05.979634Z'
+updated_at: '2026-08-04T14:05:58.536120Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

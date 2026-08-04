@@ -8,17 +8,19 @@ title: Route API and auxiliary status writes through TaskTransitionService and e
 parent: OOMPAH-769
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-776
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T13:58:48.205609Z'
+updated_at: '2026-08-04T14:05:31.029639Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

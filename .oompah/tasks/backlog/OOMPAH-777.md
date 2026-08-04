@@ -7,17 +7,19 @@ title: Implement the pure total WorkDecision evaluator
 parent: OOMPAH-765
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-786
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:52.177276Z'
-updated_at: '2026-08-04T13:58:52.177276Z'
+updated_at: '2026-08-04T14:05:39.638116Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
