@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:22:39.677091Z'
+updated_at: '2026-08-04T21:23:26.469832Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,19 +27,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-869dd7e8a2d7
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+      created_at: '2026-08-04T21:23:15.732289+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-04T21:23:15.732289+00:00'
+      branch_key: OOMPAH-803
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Backlog
     created_at: '2026-08-04T21:22:32.673831+00:00'
-  attempt_history: []
+    updated_at: '2026-08-04T21:23:15.732289+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-869dd7e8a2d7
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb494fb935fa376f8b9ef3849f383fa4b43dcddb370660c2f1dac3efd75d5585
+    created_at: '2026-08-04T21:23:15.732289+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-04T21:23:15.732289+00:00'
+    branch_key: OOMPAH-803
 ---
 ## Summary
 
@@ -62,5 +89,19 @@ author: oompah
 created: 2026-08-04 21:22
 ---
 Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 21:23
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 21:23
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 5s
 ---
 <!-- COMMENTS:END -->
