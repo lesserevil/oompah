@@ -19,7 +19,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:35.430103Z'
-updated_at: '2026-08-04T20:37:06.256946Z'
+updated_at: '2026-08-04T20:37:43.189151Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -28,13 +28,17 @@ merged_at: null
 oompah.agent_run_id: 4f273d3e-28e5-4b94-a174-6870c850ff84
 oompah.work_branch: epic-OOMPAH-490
 oompah.task_costs:
-  total_input_tokens: 702305
-  total_output_tokens: 10585
+  total_input_tokens: 702320
+  total_output_tokens: 13576
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 702305
       output_tokens: 10585
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 15
+      output_tokens: 2991
       cost_usd: 0.0
   runs:
   - profile: default
@@ -49,6 +53,12 @@ oompah.task_costs:
     output_tokens: 6125
     cost_usd: 0.0
     recorded_at: '2026-07-28T16:57:10.950953+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 15
+    output_tokens: 2991
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T20:37:40.564086+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -320,5 +330,15 @@ Safe evidence:
 - git_remote_safety: 17/17 pass on rerun
 - process_leak_reconciliation: documented in comment #18 (pre-existing orphan terminated, no new leaks)
 - trigger_reason: Aged Merged auto-archive (>=7 days)
+---
+author: oompah
+created: 2026-08-04 20:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 15, Tool calls: 9
+- Tokens: 15 in / 3.0K out [3.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 22s
+- Log: OOMPAH-500__20260804T203327Z.jsonl
 ---
 <!-- COMMENTS:END -->
