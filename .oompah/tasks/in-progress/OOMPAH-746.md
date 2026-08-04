@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T00:44:04.622976Z'
+updated_at: '2026-08-04T00:44:33.564475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,23 @@ author: oompah
 created: 2026-08-04 00:44
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-04 00:44
+---
+**Understanding**: This is a terminal-audit resolution bug where evidence collection fails to find canonical epic branches (e.g., origin/epic-EXOCOMP-130) when work_branch is absent. The resolver currently only tries origin/ISSUE-ID and fails. I need to:
+
+1. Enhance terminal-audit staging to resolve epic branch names (origin/epic-ID for standard issues, origin/epic-parent-ID for nested epics)
+2. Persist exact work_branch and immutable SHA when requesting terminal transitions
+3. Verify remote refs and fail safely on ambiguity
+4. Handle absent metadata, deleted branches, and provider failures gracefully
+5. Ensure rearm/restart is idempotent
+
+**Planned approach**:
+- Examine oompah/orchestrator.py terminal-audit staging and evidence collection logic
+- Find branch-resolution and transition metadata helpers
+- Implement canonical epic branch resolution using issue type/parent/project metadata
+- Add tests covering EXOCOMP-130 scenario, nested epics, deleted branches, ambiguity
+- Preserve immutable-SHA recovery from OOMPAH-671
 ---
 <!-- COMMENTS:END -->
