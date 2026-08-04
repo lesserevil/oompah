@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: In Validation
+status: Done
 priority: 1
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:43:59.115582Z'
+updated_at: '2026-08-04T14:44:13.107917Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -25,6 +25,26 @@ review_head: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f6b2d320f767
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c048d70c3966e70e9a1d4a96a2a9740b821ab38d23f760587ec42d5eedcbd950
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Project-owner nested-epic landing recovery. Exact work branch epic-OOMPAH-764
+      at 73f5aeb26fc91f62a0bd9ac5ba544582b761f811 is contained by immediate parent
+      target epic-OOMPAH-763 at the same revision. All canonical children are Done
+      and 482 focused and adjacent tests passed.
+    created_at: '2026-08-04T14:44:06.820415+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
