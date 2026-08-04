@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-07-28T17:58:59.152336Z'
+updated_at: '2026-08-04T18:28:23.340418Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 26148
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:41:30.391589+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-84ef9133aa36
+    project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 63cda162ec602371956f484e3244861e3b583d5bc473100ecca2ed8b86256ab6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:16.713563+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -265,5 +287,10 @@ author: oompah
 created: 2026-07-28 16:11
 ---
 Live verification correction: the initial Claude fast mapping used literal fable. Two dispatches failed before any tool call with SDK invalid_request and 'selected model (fable) may not exist or you may not have access'; Anthropic also classifies Fable as a highest-capability tier, not fast. Updated live fast/default candidates to Claude haiku (standard=sonnet, deep=opus unchanged), and updated regression coverage in the pushed epic commit. Direct Claude CLI smoke resolved haiku to claude-haiku-4-5-20251001 and completed successfully; 48 ACP handoff tests pass. Codex remains gpt-5.6-luna/terra/sol.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
