@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-522
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Load and verify optional htpasswd credentials safely
 parent: OOMPAH-521
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:34.097786Z'
-updated_at: '2026-07-28T21:31:07.384021Z'
+updated_at: '2026-08-04T21:34:33.138249Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -47,6 +47,28 @@ oompah.task_costs:
     output_tokens: 281
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:42:09.289867+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a3decb2d7ba3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-522
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89849dc0b70d16a9a5fb171c4122873a48bd308f4a38fc24d2870d5ace97137b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:26.819575+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -315,5 +337,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 39s
 - Log: OOMPAH-522__20260728T183532Z.jsonl
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->

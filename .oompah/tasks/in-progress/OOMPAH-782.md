@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T21:33:43.098188Z'
+updated_at: '2026-08-04T21:34:31.093711Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -276,5 +276,10 @@ created: 2026-08-04 21:33
 ---
 Verification: focused parallel workflow-job/scheduler/integration suites pass (68 passed). The full isolated four-worker gate passes 15,710 passed, 7 skipped, 1 xfailed in 10m31s; the terminal-mutation scanner passes (8/8 allowlisted). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-782'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-782' remains unable to initialize its local venv because snap uv hits a DBus kernel-thread error before tests start, so the same configured runner was executed using the already-prepared project environment.
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Completion: pushed 37731edc8. The combined-gate regression is fixed by atomically materializing bounded scheduler snapshots instead of committing every task cursor/job pair; the 402-row history case remains fully visible and now passes within its timeout. Working tree is clean and aligned with origin.
 ---
 <!-- COMMENTS:END -->
