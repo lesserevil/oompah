@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T20:51:00.145035Z'
+updated_at: '2026-08-04T20:51:37.185857Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1b1016c3-ad4d-4954-b0f3-016e8bbeb5a7
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-782
 oompah.integration:
   version: 2
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-04 20:51
 ---
 Verification final: added regression coverage for a deleted source after merge; the exact-head LandingFact still drives terminal Merged. Focused review/decision/fact/reason/queue/forge/capacity/UI suites now pass 173 passed, 2 skipped. Git diff check and compile checks pass.
+---
+author: oompah
+created: 2026-08-04 20:51
+---
+Completion: pushed ee052e97b to the issue branch. Delivered forge-neutral durable review workflow facts, unified In Review decisions and reason taxonomy, exact LandingFact terminal proof, durable review observation/repair jobs with restart-safe worker routes, TaskTransitionService transition boundary, and shared UI projection parity. Covered timeout versus empty provider results, deleted-source landing, head changes, capacity, CI delay, conflicts, GitHub/GitLab normalization, and worker restart behavior. Worktree is clean and matches origin.
 ---
 <!-- COMMENTS:END -->
