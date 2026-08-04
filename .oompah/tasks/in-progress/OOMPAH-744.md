@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-04T15:02:46.875311Z'
+updated_at: '2026-08-04T15:03:32.466760Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-08-04 15:02
 ---
 UNDERSTANDING: The frontend fix and focused tests are already implemented and pushed, but integration rejected the submission because quality-gate owner metadata did not match the exact resolved candidate head. I will verify the current branch/task/head relationship, inspect repository state, run the configured full make test gate, fix any reproducible issue, push the exact tested head, and immediately resubmit OOMPAH-744 so owner metadata is recorded against that commit.
+---
+author: oompah
+created: 2026-08-04 15:03
+---
+DISCOVERY: The worktree and remote are clean at b51047023. Reflog confirms the previous submitted head adb19e571 was immediately rebased at 2026-08-04 15:01:46 onto the refreshed epic lineage, producing b51047023; this exact head rewrite explains why owner metadata recorded for the old candidate failed validation. The implementation diff remains confined to dashboard.html and its atomic-replacement test file. I will run make test at b51047023, then push/check parity and resubmit without another head mutation.
 ---
 <!-- COMMENTS:END -->
