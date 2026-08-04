@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T21:53:33.392621Z'
+updated_at: '2026-08-04T22:03:10.865207Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -25,13 +25,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 64b7728e-79b2-43da-bb30-8cb28a85af72
-  claim_owner: f75f2e47-c230-48b7-9af8-09eea50f8e9b
-  claimed_at: '2026-08-04T21:52:47.770161+00:00'
-  claim_expires_at: '2026-08-04T22:22:47.770161+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-08-04T22:03:09.560651+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -67,5 +67,15 @@ author: oompah
 created: 2026-08-04 21:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-04 22:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 53s
+- Log: OOMPAH-808__20260804T215342Z.jsonl
 ---
 <!-- COMMENTS:END -->
