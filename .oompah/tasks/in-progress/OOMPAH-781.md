@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T20:45:32.845515Z'
+updated_at: '2026-08-04T20:46:15.115415Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ created: 2026-08-04 20:45
 ---
 Final verification: latest focused gate passes (177 tests). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-781' is environment-blocked during task-venv setup by uv/DBus; direct full pytest is also environment-blocked at an unrelated ACP test because the default agent-log path is read-only. Targeted Ruff, mutation scan, and diff checks remain clean.
+---
+author: oompah
+created: 2026-08-04 20:46
+---
+Completion: delivered and pushed eba03a422. Terminal audits now materialize exact evidence-bound durable jobs with queued/running/finalizing/retry-wait/action-required dispositions; candidate launch/rotation/recovery, coordinator finalization, result acknowledgement, and exhaustion are lease-fenced and restart-safe. Added 209 lines of focused lifecycle/restart/security tests; branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
