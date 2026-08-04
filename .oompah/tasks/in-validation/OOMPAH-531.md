@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-531
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Schedule duplicate preflight from spare agent capacity
 parent: OOMPAH-528
@@ -14,7 +14,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-07-28T21:19:12.151334Z'
-updated_at: '2026-07-28T22:14:47.653826Z'
+updated_at: '2026-08-04T22:36:44.320125Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -44,6 +44,28 @@ oompah.task_costs:
     output_tokens: 2781
     cost_usd: 0.0
     recorded_at: '2026-07-28T22:02:03.075494+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6f439353f931
+    project_id: proj-14849f1b
+    task_id: OOMPAH-531
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ad9fed55b0801ba2f2b18563060d9c0886ed4609bdd48d0ef4c488c46a04c335
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:36:38.202855+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -329,5 +351,10 @@ author: oompah
 created: 2026-07-28 22:13
 ---
 Verified the completed duplicate-preflight work landed in PR #568; removed stale divergent worktree evidence.
+---
+author: oompah
+created: 2026-08-04 22:36
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
