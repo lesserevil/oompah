@@ -151,6 +151,43 @@ def test_deleted_source_ref_preserves_durable_landing_fact(tmp_path):
     assert preserved.evidence_revision == durable.evidence_revision
 
 
+def test_landing_fact_ledger_survives_controller_restart_and_ref_pruning(tmp_path):
+    make_git_fixture(tmp_path)
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    mid = issue("MID", state=IN_PROGRESS, issue_type="epic", parent_id="TOP")
+    leaf = issue("LEAF", state=DONE, parent_id="MID", work_branch="leaf")
+    tracker = Tracker([top, mid, leaf])
+    store_path = tmp_path / "jobs.sqlite3"
+    first_store = WorkflowJobStore(str(store_path))
+    first = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=first_store,
+    )
+    first.evaluate([mid])
+    first_store.close()
+
+    git(tmp_path, "branch", "-D", "leaf")
+    second_store = WorkflowJobStore(str(store_path))
+    second = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=second_store,
+    )
+    batch = second.evaluate([mid])
+
+    assert batch.tasks[0].decision.disposition is TaskDisposition.RUNNABLE
+    assert any(
+        item.source == "leaf"
+        and item.target == "epic-MID"
+        and item.durable
+        for item in batch.tasks[0].facts.landings
+    )
+    second_store.close()
+
+
 def test_rebased_source_is_proven_by_patch_equivalence(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()

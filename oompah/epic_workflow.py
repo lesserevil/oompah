@@ -17,6 +17,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+import re
 from typing import Any
 
 from oompah.models import Issue
@@ -113,7 +114,8 @@ def _revision(issue: Issue) -> str | None:
         or integration.get("integrated_sha")
         or integration.get("head_sha")
     )
-    return str(value).strip() or None if value else None
+    normalized = str(value).strip() if value else ""
+    return normalized if re.fullmatch(r"[0-9a-fA-F]{7,64}", normalized) else None
 
 
 def _is_maintenance(issue: Issue) -> bool:
@@ -201,6 +203,13 @@ class EpicFactCollector:
                 maintenance = _is_maintenance(child)
                 target = epic_branch(parent.identifier)
                 source = epic_branch(identifier) if nested else _source_branch(child)
+                revision = _revision(child)
+                # A shared child may report the parent epic branch as its
+                # work branch.  Without an exact head SHA that is not proof
+                # of the child's work; use the task identity so the evidence
+                # collector fails closed instead of proving source==target.
+                if source == target and revision is None:
+                    source = identifier
                 direct.append(
                     {
                         "identifier": identifier,
@@ -216,7 +225,7 @@ class EpicFactCollector:
                         "requires_landing": not maintenance,
                         "landing_source": source,
                         "landing_target": target,
-                        "revision": _revision(child),
+                        "revision": revision,
                     }
                 )
                 # Walk every node, not only declared epics.  A malformed
@@ -272,7 +281,20 @@ class EpicFactCollector:
                 clock=self.clock,
             )
             return collector.collect(task_id)
-        graph = self._graph(root)
+        try:
+            graph = self._graph(root)
+        except Exception as exc:  # noqa: BLE001 - evidence boundary
+            def failed(_current: Issue, error: Exception = exc) -> Any:
+                raise error
+
+            base = WorkflowFactCollector(
+                project_id=self.project_id,
+                tracker=self.tracker,
+                sources=self.sources,
+                containment_source=failed,
+                clock=self.clock,
+            )
+            return base.collect(task_id)
         requests = [
             LandingRequest(
                 str(child["landing_source"]),
@@ -386,10 +408,34 @@ class EpicWorkflowController:
                 continue
             if canonicalize_status(task.state) in {MERGED, ARCHIVED}:
                 continue
-            facts = self.collector.collect(task.identifier, prior_landings=self._landings)
+            prior = dict(self._landings)
+            try:
+                persisted = self.store.landing_facts(
+                    project_id=self.collector.project_id,
+                    task_id=task.identifier,
+                )
+            except Exception:
+                # Evidence storage is fail-closed for writes but must not
+                # prevent a fresh Git observation from being evaluated.
+                persisted = ()
+            for raw in persisted:
+                try:
+                    landing = LandingFact.from_dict(raw)
+                except (TypeError, ValueError):
+                    continue
+                if landing.durable:
+                    prior[(landing.source, landing.target)] = landing
+            facts = self.collector.collect(task.identifier, prior_landings=prior)
             for landing in facts.landings:
                 if landing.durable:
                     self._landings[(landing.source, landing.target)] = landing
+            durable = [landing.to_dict() for landing in facts.landings if landing.durable]
+            if durable:
+                self.store.record_landing_facts(
+                    project_id=self.collector.project_id,
+                    task_id=task.identifier,
+                    facts=durable,
+                )
             evaluated.append(EpicTaskDecision(task, facts, evaluate_task(task, facts)))
         self._latest = {item.task.identifier: item for item in evaluated}
         return EpicDecisionBatch(tuple(evaluated))
