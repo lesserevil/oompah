@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-04T00:57:13.893816Z'
+updated_at: '2026-08-04T01:02:04.991609Z'
 work_branch: OOMPAH-731
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/696
@@ -133,6 +133,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/696
 oompah.review_number: '696'
 oompah.work_branch: OOMPAH-731
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2e459c6f3eb8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-731
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:01:55.615178+00:00'
+  - version: 1
+    audit_id: audit-8dcbe9f79e40
+    project_id: proj-14849f1b
+    task_id: OOMPAH-731
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7db4a249a6fa4474a59750affdd1041de072c8dec8243e2d5bc624fbcd0d31f4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-04T01:01:55.615178+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -485,5 +524,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 22m 57s
 - Log: OOMPAH-731__20260804T003340Z.jsonl
+---
+author: oompah
+created: 2026-08-04 01:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 01:02
+---
+YOLO: merged PR #696.
 ---
 <!-- COMMENTS:END -->
