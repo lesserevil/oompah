@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-514
 type: chore
-status: Merged
+status: In Validation
 priority: 1
 title: Prove maintenance cannot dirty or push the server code checkout
 parent: OOMPAH-511
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:16:44.915690Z'
-updated_at: '2026-07-28T16:24:16.815330Z'
+updated_at: '2026-08-04T16:25:06.090407Z'
 work_branch: epic-OOMPAH-511
 target_branch: null
 review_url: null
@@ -20,6 +20,28 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 695b9b0e-146c-419d-a026-9b0adefe1d92
 oompah.work_branch: epic-OOMPAH-511
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-96a8011ef3fe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-514
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 22445caa8c8b73dcb16d7959adc53991fff2bbf5e9e7076ae79f17a72e360881
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T16:25:00.158393+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -151,5 +173,10 @@ author: oompah
 created: 2026-07-28 16:16
 ---
 Added and pushed deterministic server/scheduler state-branch isolation and executor-drainage regressions.
+---
+author: oompah
+created: 2026-08-04 16:25
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
