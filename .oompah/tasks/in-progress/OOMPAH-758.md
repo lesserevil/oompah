@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T11:25:34.786537Z'
+updated_at: '2026-08-04T11:30:51.338267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,31 @@ Required fixes:
 4. Fence late worker-exit and duplicate-screening paths
 
 Next: explore orchestrator.complete_direct_epic_maintenance_submission() and integration_queue enqueue/claim logic to find the race window.
+---
+author: oompah
+created: 2026-08-04 11:30
+---
+DISCOVERY: Found the race window. The issue is in _sync_ready_integration_submissions() in orchestrator.py (line ~7060). This background maintenance method:
+1. Scans for all READY_TO_INTEGRATE issues
+2. Enqueues them into the ordinary integration queue
+3. WITHOUT checking is_direct_epic_maintenance_issue()
+
+Meanwhile, api_submit_issue correctly:
+1. Calls complete_direct_epic_maintenance_submission for direct tasks
+2. Skips _enqueue_worker_submission (which already has the guard)
+3. Publishes coordination
+
+And _on_worker_exit normal case correctly:
+1. Checks is_direct_epic_maintenance_issue for READY_TO_INTEGRATE tasks
+2. Calls complete_direct_epic_maintenance_submission if direct
+3. Skips _accept_worker_submission enqueue if direct
+
+But _sync_ready_integration_submissions is missing the guard. When a direct epic task reaches READY_TO_INTEGRATE state and this background sync runs, it enqueues the task into the ordinary queue without checking the direct flag.
+
+Need to fix:
+1. Add is_direct_epic_maintenance_issue guard to _sync_ready_integration_submissions
+2. Add atomic cancel of stale concurrent ordinary rows before direct completion
+3. Clear alerts and ensure atomicity under ownership lock
+4. Add tests for the exact race window
 ---
 <!-- COMMENTS:END -->

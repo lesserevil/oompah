@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:29:39.014900Z'
+updated_at: '2026-08-04T11:30:45.536315Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,7 +108,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d917a910-5de3-4bec-adf1-0b59914e90e6
+oompah.agent_run_id: 140b90e1-6383-41b2-8885-83dccc52558a
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2071
@@ -177,5 +177,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 5s
 - Log: OOMPAH-760__20260804T112834Z.jsonl
+---
+author: oompah
+created: 2026-08-04 11:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-04 11:30
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
