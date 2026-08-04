@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-04T02:12:11.869012Z'
+updated_at: '2026-08-04T02:28:53.363033Z'
 work_branch: OOMPAH-734
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/698
@@ -136,6 +136,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-7498160e6709: '2026-08-04T02:10:26.842748+00:00'
+    attempt-f915e689e3ef: '2026-08-04T02:28:47.034090+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-734
@@ -146,6 +147,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T02:10:26.842760+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-734
+    target_state: Merged
+    evidence_fingerprint: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+    audit_ids:
+    - audit-78f902ca8093
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T02:28:47.034103+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-734
@@ -159,6 +169,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T02:10:26.842776+00:00'
     applied_at: '2026-08-04T02:10:36.726490+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-734
+    audit_id: audit-78f902ca8093
+    attempt_id: attempt-f915e689e3ef
+    target_state: Merged
+    evidence_fingerprint: 771df30b6887deff76ec6fde5e0b4b75e1f582288e6b2874373043a74d96b2d2
+    status: Merged
+    audit_ids:
+    - audit-78f902ca8093
+    applied: false
+    created_at: '2026-08-04T02:28:47.034121+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -200,7 +221,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-734
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -209,7 +230,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f915e689e3ef
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -219,13 +240,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T02:12:03.157133+00:00'
       branch_key: OOMPAH-734
+      verdict: pass
+      completed_at: '2026-08-04T02:28:47.033922+00:00'
+      ended_at: '2026-08-04T02:28:47.033922+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T01:49:12.453114+00:00'
-    updated_at: '2026-08-04T02:12:03.157133+00:00'
+    updated_at: '2026-08-04T02:28:47.033922+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7498160e6709
@@ -829,5 +853,26 @@ author: oompah
 created: 2026-08-04 02:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 02:28
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 199812413bb8d69f7485075f4e06d7b2c66c5ad5
+- merge_commit: 18e18a6b63b2f9a522b17c0132dac0f5a0d9e487
+- pr_number: 698
+- focused_tests_passed: 390
+- commit_before_comment: verified in TerminalTransitionCoordinator._apply_result_locked (oompah/terminal_transition_coordinator.py)
+- reserved_finalization_turn: verified in ApiAgentSession run_task loop and _call_api tool_choice (oompah/api_agent.py)
+- sibling_cancellation_on_pass: verified via test_pass_cancels_sibling_audits_with_same_fingerprint and test_stale_request_rejected_after_pass_completion
+- authority_revocation: verified via test_owner_authority_revocation_fences_live_auditor
+- exit_before_commit_failclosed: verified via test_uncommitted_normal_exit_is_a_finalization_failure
+- override_ordering: verified via test_comment_failure_follows_status_write and test_metadata_failure_precedes_comment_and_status
+- finalization_health_fact: wired in terminal_audit_health.py, terminal_audit_enforcement.py, orchestrator.py, templates/dashboard.html
+- full_make_test: previously passed 408.6s for 17f0b2a29 (pre-rebase head)
 ---
 <!-- COMMENTS:END -->
