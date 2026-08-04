@@ -9,12 +9,14 @@ children:
 - OOMPAH-775
 - OOMPAH-776
 - OOMPAH-778
+- OOMPAH-801
+- OOMPAH-802
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:56:01.554943Z'
-updated_at: '2026-08-04T13:58:54.542374Z'
+updated_at: '2026-08-04T14:00:59.871414Z'
 work_branch: null
 target_branch: null
 review_url: null
