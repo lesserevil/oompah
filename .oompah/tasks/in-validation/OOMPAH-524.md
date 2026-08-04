@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-524
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Integrate htpasswd authentication with the embedded MCP gateway
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-07-28T21:31:13.383947Z'
+updated_at: '2026-08-04T21:34:47.543303Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -60,6 +60,28 @@ oompah.task_costs:
     output_tokens: 11651
     cost_usd: 0.0
     recorded_at: '2026-07-28T19:21:17.693779+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-41dbc4c0137f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-524
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 971c77b467c9286386eaecf67a32560615468d82adc4c5b277f64e5bf2e0788c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:42.627622+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -387,5 +409,10 @@ author: oompah
 created: 2026-07-28 19:27
 ---
 Authenticated MCP gateway integrated and verified
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
