@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:29:41.114599Z'
+updated_at: '2026-08-04T03:37:22.719791Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -133,6 +133,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-13320428803e: '2026-08-04T03:28:48.553458+00:00'
+    attempt-33a989b604af: '2026-08-04T03:37:19.448310+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-735
@@ -143,6 +144,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T03:28:48.553471+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-735
+    target_state: Merged
+    evidence_fingerprint: 1d818b590605c25ba03df13c287aacb18ffdf6925ab41d1c954ee1a34c00f1b8
+    audit_ids:
+    - audit-542965ce82f2
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T03:37:19.448331+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-735
@@ -156,6 +166,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T03:28:48.553489+00:00'
     applied_at: '2026-08-04T03:28:54.926569+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-735
+    audit_id: audit-542965ce82f2
+    attempt_id: attempt-33a989b604af
+    target_state: Merged
+    evidence_fingerprint: 1d818b590605c25ba03df13c287aacb18ffdf6925ab41d1c954ee1a34c00f1b8
+    status: Merged
+    audit_ids:
+    - audit-542965ce82f2
+    applied: false
+    created_at: '2026-08-04T03:37:19.448353+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -197,7 +218,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-735
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -206,7 +227,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-33a989b604af
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -216,13 +237,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-04T03:29:33.795472+00:00'
       branch_key: OOMPAH-735
+      verdict: pass
+      completed_at: '2026-08-04T03:37:19.448070+00:00'
+      ended_at: '2026-08-04T03:37:19.448070+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T03:19:20.068819+00:00'
-    updated_at: '2026-08-04T03:29:33.795472+00:00'
+    updated_at: '2026-08-04T03:37:19.448070+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-13320428803e
