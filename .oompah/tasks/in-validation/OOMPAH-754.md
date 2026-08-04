@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:48:05.701050Z'
+updated_at: '2026-08-04T11:49:01.113061Z'
 work_branch: OOMPAH-754
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/707
@@ -43,13 +43,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d492709f-e4f1-4219-8cd5-ed3ded297577
 oompah.task_costs:
-  total_input_tokens: 48111
-  total_output_tokens: 746
+  total_input_tokens: 48117
+  total_output_tokens: 1601
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 48111
       output_tokens: 746
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 855
       cost_usd: 0.0
   runs:
   - profile: default
@@ -64,6 +68,12 @@ oompah.task_costs:
     output_tokens: 242
     cost_usd: 0.0
     recorded_at: '2026-08-04T11:16:28.212007+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 855
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T11:48:57.942268+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-754__20260804T110418Z
@@ -300,5 +310,15 @@ Safe evidence:
 - focused_tests: test_parallel_epic_children.py 34/34, test_integration_queue.py 20/20, test_epic_staleness.py + test_epic_rebase_state.py 55/55
 - branch_gate: make test passed in 444.3s for 0440a66b1
 - regression_test: test_detector_skips_nonterminal_blocked_head_and_repairs_later_eligible passes
+---
+author: oompah
+created: 2026-08-04 11:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 49, Tool calls: 36
+- Tokens: 6 in / 855 out [861 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 14s
+- Log: OOMPAH-754__20260804T113352Z.jsonl
 ---
 <!-- COMMENTS:END -->
