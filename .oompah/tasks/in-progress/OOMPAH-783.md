@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T15:41:57.962186Z'
+updated_at: '2026-08-04T15:50:16.589672Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Build the worker that consumes WorkDecision actions as jobs and executes persist
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 15:50
+---
+Implemented the durable workflow worker saga: token-fenced leases and heartbeats; exact generation/evidence/head revalidation; idempotency inspection; bounded external effects and verification; durable phase checkpoints; TaskTransitionService routing; retry/error taxonomy; stale-race supersession; cooperative interruption; graceful drain; and restart recovery. Added 31 focused tests including process-death injection at leased, revalidated, effect pending/returned/verified, transition returned/applied, and completed boundaries; effect-before-ack and transition-before-ack recovery; lost leases; timeouts; and cancellation. Verification: 206 focused/adjacent tests passed; ruff check/format, make terminal-audit-scan, staged secret scan, and diff check passed.
+---
+<!-- COMMENTS:END -->
