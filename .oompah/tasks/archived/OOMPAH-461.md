@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:05:03.234325Z'
-updated_at: '2026-08-04T22:08:55.776019Z'
+updated_at: '2026-08-04T22:09:01.554291Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -59,8 +59,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-4de729228280
-    applied: false
+    applied: true
     created_at: '2026-08-04T22:08:52.475420+00:00'
+    applied_at: '2026-08-04T22:09:00.277485+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -318,5 +319,24 @@ author: oompah
 created: 2026-08-04 21:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 22:08
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- commit: eb8da0e97
+- commit_message: OOMPAH-461: add In Validation lifecycle status
+- on_main: true
+- focused_tests_passed: 701
+- files_changed: 13
+- in_canonical_statuses: true
+- not_in_terminal_statuses: true
+- not_in_working_statuses: true
+- not_in_dispatchable_statuses: true
+- aliases_present: in validation, validation
 ---
 <!-- COMMENTS:END -->
