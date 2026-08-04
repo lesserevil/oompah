@@ -14,7 +14,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-28T18:12:19.566427Z'
-updated_at: '2026-08-04T21:42:12.672247Z'
+updated_at: '2026-08-04T21:50:24.419961Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -69,7 +69,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-524
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -78,7 +78,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-52d8744e60cc
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -88,6 +88,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:42:10.087203+00:00'
       branch_key: epic-OOMPAH-521
+      ended_at: '2026-08-04T21:50:21.662152+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah
@@ -99,7 +101,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-52d8744e60cc
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,6 +111,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:42:10.087203+00:00'
     branch_key: epic-OOMPAH-521
+    ended_at: '2026-08-04T21:50:21.662152+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
