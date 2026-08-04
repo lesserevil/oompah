@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T11:16:28.186351Z'
+updated_at: '2026-08-04T11:17:01.190342Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -47,12 +47,14 @@ oompah.agent_run_id: 8f1ccb07-693d-42f2-ae79-47fb9b8b3967
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-741
   base_branch: epic-OOMPAH-740
   base_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
-  updated_at: '2026-08-04T11:09:42.666150+00:00'
+  head_sha: a6a023f461e0c6ff11de967fc617e35996a3116b
+  submitted_at: '2026-08-04T11:16:52.969567+00:00'
+  updated_at: '2026-08-04T11:16:52.969567+00:00'
 oompah.task_costs:
   total_input_tokens: 46316
   total_output_tokens: 9830
@@ -241,5 +243,10 @@ author: oompah
 created: 2026-08-04 11:16
 ---
 Rebase resolved: dashboard.html alert filter comment conflict merged in favor of the OOMPAH-741 wording that references both OOMPAH-735 automatic-recovery and OOMPAH-741 status/actionability. Rebased c3f9dbba onto current origin/epic-OOMPAH-740 (5368e2361, includes OOMPAH-735 0c7d9cbd4 reconciliation) as a6a023f46; force-pushed. Focused suites re-run green: test_dashboard_alert_contract (6), test_integration_retry_alert_recovery (21), test_dashboard_integration_recovery_filter (2), test_auth_health, test_terminal_audit_health*, test_dashboard_repo_hygiene_health, test_credential_error_alert, test_dashboard_credential_warning, test_dashboard_state_read_warning, test_state_api_responsiveness, test_dashboard_websocket_liveness, test_websocket_authenticated_bootstrap, test_server_issue_snapshot, test_orchestrator_repo_hygiene, test_repo_hygiene, test_epic_terminal_audit_contract (301 passed, 1 xfailed).
+---
+author: oompah
+created: 2026-08-04 11:17
+---
+Structured server-side dashboard alert contract (oompah.dashboard_alerts) applied to generic orchestrator alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Frontend uses action_required=false as the actionability decision without message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification. Rebased onto current epic-OOMPAH-740 (includes OOMPAH-735); focused alert/health/state-API/WebSocket suites pass (301 tests + 6 new contract tests).
 ---
 <!-- COMMENTS:END -->
