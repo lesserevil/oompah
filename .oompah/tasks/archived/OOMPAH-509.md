@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:10.253754Z'
-updated_at: '2026-08-04T21:36:41.308053Z'
+updated_at: '2026-08-04T21:36:48.819196Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -43,8 +43,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-83c5b2c0ec81
-    applied: false
+    applied: true
     created_at: '2026-08-04T21:36:37.983908+00:00'
+    applied_at: '2026-08-04T21:36:47.601925+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -158,5 +159,21 @@ author: oompah
 created: 2026-08-04 21:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 21:36
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 0237f7730 Merge pull request #564 from lesserevil/epic-OOMPAH-502
+- task_commits_on_main: b740e9a29, eedb618e0, be4d15fe8, 91e3c99f7
+- pytest_xdist_dep: pyproject.toml lines 91 and 122 declare pytest-xdist>=3.8
+- env_default: .env.example line 85: OOMPAH_PYTEST_WORKERS=4
+- makefile_targets: Makefile: test (parallel via PYTEST_WORKERS) and test-serial:405
+- contract_tests: tests/test_pytest_parallel.py verifies default 4, bounded 1..16, and worker env plumbing
+- docs: docs/testing.md documents OOMPAH_PYTEST_WORKERS and serial fallback
 ---
 <!-- COMMENTS:END -->
