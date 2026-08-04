@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:13:06.220562Z'
-updated_at: '2026-08-04T12:14:49.904564Z'
+updated_at: '2026-08-04T12:33:52.751362Z'
 work_branch: OOMPAH-758
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/709
@@ -89,6 +89,31 @@ oompah.work_branch: OOMPAH-758
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8ae9b9f500a2: '2026-08-04T12:33:43.956813+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    target_state: Done
+    evidence_fingerprint: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    audit_ids:
+    - audit-7f4ebb3f9e27
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T12:33:43.956825+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-758
+    audit_id: audit-7f4ebb3f9e27
+    attempt_id: attempt-8ae9b9f500a2
+    target_state: Done
+    evidence_fingerprint: 8c54bb95021ec54c4a6a8d78e2d9f70ff0c69c7b0ce1466011185c8b3b9a4033
+    status: In Validation
+    audit_ids:
+    - audit-7f4ebb3f9e27
+    applied: true
+    created_at: '2026-08-04T12:33:43.956843+00:00'
+    applied_at: '2026-08-04T12:33:50.498189+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -96,7 +121,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-758
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,7 +130,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8ae9b9f500a2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -115,13 +140,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T12:13:59.497912+00:00'
       branch_key: OOMPAH-758
+      verdict: pass
+      completed_at: '2026-08-04T12:33:43.956639+00:00'
+      ended_at: '2026-08-04T12:33:43.956639+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-04T12:13:11.213280+00:00'
-    updated_at: '2026-08-04T12:13:59.497912+00:00'
+    updated_at: '2026-08-04T12:33:43.956639+00:00'
   - version: 1
     audit_id: audit-ea12b4d7896e
     project_id: proj-14849f1b
@@ -338,5 +366,22 @@ author: oompah
 created: 2026-08-04 12:14
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 12:33
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 940b471c0b7fcec020b7b1f126e498903f4328af
+- merge_commit: 645392b02
+- sync_guard_line: oompah/orchestrator.py:7102
+- cancel_call_line: oompah/orchestrator.py:32957
+- cancel_impl_line: oompah/integration_queue.py:436
+- regression_test: tests/test_worker_submission.py::test_direct_epic_submission_avoids_ordinary_queue_enqueue
+- focused_test_results: test_worker_submission=14, test_integration_queue=20, test_epic_strategy=234, test_integration_record+test_submit_queue_concurrency=72, all passed
+- branch_gate: make test 449.1s passed for 940b471c0
 ---
 <!-- COMMENTS:END -->
