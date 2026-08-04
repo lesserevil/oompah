@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:08.204164Z'
-updated_at: '2026-08-04T21:48:07.208300Z'
+updated_at: '2026-08-04T23:38:30.947910Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -54,7 +54,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-466
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -75,13 +75,27 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-457
       ended_at: '2026-08-04T21:48:05.906767+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-dd75f3a260a4
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5035c7261246e8fe6d45dbd09ced47dc347d1fd9b27581db5c669e79f47aaac5
+      created_at: '2026-08-04T23:38:22.483199+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T23:38:22.483199+00:00'
+      branch_key: epic-OOMPAH-457
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:33:59.671378+00:00'
-    updated_at: '2026-08-04T21:40:54.112068+00:00'
+    updated_at: '2026-08-04T23:38:22.483199+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1f2d12258dd1
@@ -98,6 +112,20 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-457
     ended_at: '2026-08-04T21:48:05.906767+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-dd75f3a260a4
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5035c7261246e8fe6d45dbd09ced47dc347d1fd9b27581db5c669e79f47aaac5
+    created_at: '2026-08-04T23:38:22.483199+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T23:38:22.483199+00:00'
+    branch_key: epic-OOMPAH-457
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -200,5 +228,15 @@ author: oompah
 created: 2026-08-04 21:34
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-04 23:38
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-04 23:38
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
