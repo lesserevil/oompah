@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-07-28T21:31:10.578312Z'
+updated_at: '2026-08-04T21:34:40.567125Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -52,6 +52,28 @@ oompah.task_costs:
     output_tokens: 2919
     cost_usd: 0.0
     recorded_at: '2026-07-28T18:58:54.855865+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-53c9ad335674
+    project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 87e56ea92a364b1de79af2653432c0731d6aa0b76be6ace53a46eddc7dbaacc8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T21:34:35.336793+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -373,5 +395,10 @@ author: oompah
 created: 2026-07-28 19:08
 ---
 Implemented and pushed Basic authentication enforcement across HTTP and WebSocket surfaces with exact exemptions, healthz, strict parsing, redaction, uvicorn wiring, and focused regression coverage.
+---
+author: oompah
+created: 2026-08-04 21:34
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
