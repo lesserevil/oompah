@@ -7,17 +7,19 @@ title: Complete shadow/enforce rollout, upgrade compatibility, and operator docu
 parent: OOMPAH-771
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-798
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:09.296051Z'
-updated_at: '2026-08-04T13:59:09.296051Z'
+updated_at: '2026-08-04T14:07:42.606506Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

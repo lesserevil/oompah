@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:03:02.741347Z'
+updated_at: '2026-08-04T14:07:23.767856Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-04 14:03
 ---
 Implementation: Reconciled the alert sanitizer with OOMPAH-741's dashboard fact contract instead of replacing its actionability fields. Added bounded/redacted payload projection, one-line compact aliases, separately bounded diagnostics, structured integration failure fields, producer/snapshot/API defense in depth, renderer-side Unicode/control normalization and limits, no-wrap agent-bar styling, escaped native details rendering with explanation/remediation first, and a reusable EXOCOMP-147 rebase transcript fixture.
+---
+author: oompah
+created: 2026-08-04 14:07
+---
+Verification: Post-rebase focused suites pass: 432 alert-contract, transcript security/redaction, health, integration retry/executor, webhook, and dashboard tests; 149 state snapshot, IPC, WebSocket, and API responsiveness tests; make check-secrets passes. make test-setup itself is unavailable in this managed worker because the configured Snap uv launcher fails to create a transient DBus scope, so the configured orchestrator full branch gate will run on the exact submitted head.
 ---
 <!-- COMMENTS:END -->
