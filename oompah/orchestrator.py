@@ -21593,6 +21593,63 @@ class Orchestrator:
                         )
                     continue
 
+                # Nested epic target-relative reconciliation: check if this epic
+                # has already merged to its immediate parent epic branch.
+                # This handles the case where a nested epic's PR merged to the parent
+                # branch before the stale-review reconciliation runs (e.g., restart
+                # scenario where the PR merged but the epic still shows IN_REVIEW).
+                is_epic = (
+                    (issue.issue_type or "").strip().lower() == "epic"
+                )
+                if is_epic and provider and slug:
+                    parent_id = (issue.parent_id or "").strip()
+                    if parent_id:
+                        try:
+                            parent_epic = self._resolve_parent_epic(issue)
+                            if parent_epic is not None:
+                                target_branch = self._epic_branch_for_issue(parent_epic)
+                                if self._epic_branch_landed_on_target(
+                                    provider,
+                                    slug,
+                                    branch,
+                                    target_branch,
+                                ):
+                                    logger.info(
+                                        "Nested epic %s already landed on parent branch %s; "
+                                        "marking Merged via coordinator",
+                                        issue.identifier,
+                                        target_branch,
+                                    )
+                                    result = self._request_merged_via_coordinator(
+                                        issue,
+                                        project_id,
+                                        trigger_identity="stale-in-review-nested-reconciliation",
+                                        trigger_source="oompah",
+                                    )
+                                    if result is not None and result.success:
+                                        logger.info(
+                                            "Staged %s as Merged via coordinator: "
+                                            "nested epic branch merged to parent",
+                                            issue.identifier,
+                                        )
+                                    else:
+                                        logger.debug(
+                                            "Failed to stage nested epic %s as Merged: %s",
+                                            issue.identifier,
+                                            result.reason if result else "coordinator error",
+                                        )
+                                    continue
+                        except EpicTargetResolutionError:
+                            # Parent not resolvable; continue with normal flow
+                            pass
+                        except Exception as exc:  # noqa: BLE001 - best effort
+                            logger.debug(
+                                "Failed nested epic target check for %s during stale "
+                                "In Review reconciliation: %s",
+                                issue.identifier,
+                                exc,
+                            )
+
                 if branch in merged_branches and self._merged_branch_tip_landed(
                     project,
                     issue,
