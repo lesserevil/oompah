@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-506
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Run safe stale-cache and worktree cleanup daily and under storage pressure
 parent: OOMPAH-502
@@ -10,13 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-07-28T17:59:01.286574Z'
+updated_at: '2026-08-04T18:28:31.426011Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fda7781897f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-506
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ab408ac20761abdff7c66d6a90e71dea80c8c9b4b9dd992ad8585d627e166c5f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:28:25.976550+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -55,5 +77,10 @@ author: oompah
 created: 2026-07-28 16:18
 ---
 Live pressure follow-up: Oompah correctly exported its private TMPDIR/TMP/TEMP, but a Claude agent hard-coded /tmp for sort scratch files and hit the shared quota. Added a managed AGENTS/bootstrap rule requiring  or mktemp and forbidding hard-coded /tmp. This affects existing Oompah AGENTS.md and newly/refreshed managed projects. 40 agent-instruction, bootstrap, and temp-root tests pass; pushed on epic-OOMPAH-502.
+---
+author: oompah
+created: 2026-08-04 18:28
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
