@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-741
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Classify dashboard facts by current operator actionability
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:20:28.748231Z'
+updated_at: '2026-08-04T13:21:04.496803Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 23af49eb-ddef-4572-8912-c896053edb76
+oompah.agent_run_id: 826537be-5433-476d-a897-74bcc075f8a1
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
 oompah.integration:
   version: 2
@@ -444,5 +444,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-04 13:21
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
