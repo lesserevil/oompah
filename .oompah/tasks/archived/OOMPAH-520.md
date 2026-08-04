@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:49:18.823929Z'
-updated_at: '2026-08-04T21:27:42.135501Z'
+updated_at: '2026-08-04T21:27:52.164385Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -41,8 +41,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-ee3efb94ff66
-    applied: false
+    applied: true
     created_at: '2026-08-04T21:27:36.876713+00:00'
+    applied_at: '2026-08-04T21:27:49.808109+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -140,5 +141,26 @@ author: oompah
 created: 2026-08-04 21:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 21:27
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: 3a34d9a3f49df65d66bc6503d8bd3c5442132ac9
+- commit_title: OOMPAH-520: gate changed open review heads
+- commit_on_main: true
+- commit_on_origin_main: true
+- orchestrator_gate_line: oompah/orchestrator.py:8669
+- orchestrator_gate_signature: self._review_quality_gate_passes(project, issue, epic_branch, target_branch)
+- new_test: tests/test_epic_strategy.py::TestOpenEpicMainPrs::test_existing_pr_waits_for_changed_head_quality_gate
+- quality_gate_tests_present: tests/test_quality_gate.py exercises _review_quality_gate_passes at lines 1514,1547,1582,1699,1746
+- merged_pr: #564
+- task_previous_state: Merged
+- requested_target: Archived
+- aging_policy: Aged Merged auto-archive (closed 7 days ago)
 ---
 <!-- COMMENTS:END -->
