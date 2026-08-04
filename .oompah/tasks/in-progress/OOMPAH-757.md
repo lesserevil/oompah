@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:43:00.011954Z'
+updated_at: '2026-08-04T12:43:04.899413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c2412a90-44d2-4ec9-a2e4-2237655e2206
+oompah.agent_run_id: 2bde1058-827e-416f-abe3-81c9ef4efd64
 oompah.task_costs:
   total_input_tokens: 48714
   total_output_tokens: 2281
