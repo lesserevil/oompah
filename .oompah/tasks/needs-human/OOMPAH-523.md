@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:50:33.083057Z'
+updated_at: '2026-08-04T23:52:09.380663Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -747,5 +747,10 @@ author: oompah
 created: 2026-08-04 23:50
 ---
 Understanding: enforce the OOMPAH-522 Basic-auth verifier at the ASGI boundary so all HTTP/mounted/WebSocket surfaces are protected when enabled, with only exact healthz and forge webhook POST exemptions. Preserve disabled behavior and forge validation, redact credentials, add focused integration tests, then verify and submit.
+---
+author: oompah
+created: 2026-08-04 23:52
+---
+The parent epic OOMPAH-521 merged from epic-OOMPAH-521, but this task was In Progress with work branch epic-OOMPAH-521--task-OOMPAH-523. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
