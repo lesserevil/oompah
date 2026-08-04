@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-774
 type: task
-status: Open
+status: Done
 priority: 1
 title: Build replayable fixtures for historical stuck-task incidents
 parent: OOMPAH-764
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:46.269128Z'
-updated_at: '2026-08-04T14:38:45.096961Z'
+updated_at: '2026-08-04T14:40:41.314422Z'
 work_branch: epic-OOMPAH-764--task-OOMPAH-774
 target_branch: epic-OOMPAH-764
 review_url: null
@@ -33,6 +33,30 @@ oompah.integration:
   last_error: task worktree head e34e3c58b8f99cda238df44d1e59d816303d3112 differs
     from the published task head 73f5aeb26fc91f62a0bd9ac5ba544582b761f811; refusing
     to reset a preserved recovery snapshot
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7cdeadbf1a77
+    project_id: proj-14849f1b
+    task_id: OOMPAH-774
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0fc6c9ca3ac40030a937b55d8ef98422a002773abb3e727c17419f034b247214
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Project-owner recovery for a stale integration worktree. Published head
+      73f5aeb26fc91f62a0bd9ac5ba544582b761f811 was proven to descend from parent e34e3c58b8f99cda238df44d1e59d816303d3112
+      and fast-forwarded exactly to epic-OOMPAH-764. Evidence: 482 tests passed; Ruff
+      and diff checks clean.'
+    created_at: '2026-08-04T14:40:37.752003+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
