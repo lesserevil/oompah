@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T01:46:13.265163Z'
-updated_at: '2026-08-04T02:00:55.940632Z'
+updated_at: '2026-08-04T02:01:07.905091Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +195,10 @@ author: oompah
 created: 2026-08-04 02:00
 ---
 Discovery:  re-derives suggested peers before  and raises  when the recipient is absent.  currently lets that reach its generic exception handler, which records an actionable handoff failure and returns HTTP 500. Peer derivation excludes only terminal states;  and  remain eligible when the graph/path relationship still authorizes them, and a non-running authorized recipient should use durable fallback.
+---
+author: oompah
+created: 2026-08-04 02:01
+---
+Discovery correction: Orchestrator.coordination_send re-derives suggested peers before CoordinationStore.append and raises PermissionError when the recipient is absent. api_task_handoff currently lets that reach its generic exception handler, which records an actionable handoff failure and returns HTTP 500. Peer derivation excludes only terminal states; Ready to Integrate and In Review remain eligible when the graph/path relationship still authorizes them, and a non-running authorized recipient should use durable fallback.
 ---
 <!-- COMMENTS:END -->
