@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-04T13:30:28.125779Z'
+updated_at: '2026-08-04T13:30:47.675091Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -470,5 +470,10 @@ author: oompah
 created: 2026-08-04 13:30
 ---
 Verification: On exact head d3cc87e7f, focused alert/health/state-API/WebSocket/integration-recovery/long-tick suites pass: 344 passed, 1 xfailed. Full configured gate 'make test' passes: terminal mutation scan 8/8 allowlisted; 15,381 passed, 7 skipped, 1 xfailed in 422.26s. The formerly flaky test_long_tick_regression suite passed within both runs.
+---
+author: oompah
+created: 2026-08-04 13:30
+---
+Completion: Delivered the structured, redacted dashboard fact contract across generic orchestrator alerts, terminal-audit health, branch quality gates, auth health, repository hygiene, snapshot REST/WebSocket enrichment, and dashboard actionability filtering. Stable-identity deduplication prefers the highest severity; recovery downgrades actionability while retaining diagnostics; OOMPAH-735 remains the integration retry classifier. Exact head d3cc87e7f is based on current epic 32d881aa2, fully tested, pushed, clean, and up to date.
 ---
 <!-- COMMENTS:END -->
