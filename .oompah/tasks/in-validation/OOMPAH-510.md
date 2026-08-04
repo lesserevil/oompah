@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-510
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Measure throughput improvements and validate the clean epic branch
 parent: OOMPAH-502
@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-07-28T18:00:06.106725Z'
+updated_at: '2026-08-04T18:29:07.605607Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -26,6 +26,28 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 275e3fd3-0a4c-42e6-aaf0-d396468b9491
 oompah.work_branch: epic-OOMPAH-502
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-74bd8d1d34c3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-510
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9eb31e3e9c4c81c46b81e601bb31a8296e3d8ac9dc55e07ee85fd6adc7d7b125
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T18:29:01.065359+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -99,5 +121,10 @@ author: oompah
 created: 2026-07-28 17:40
 ---
 Validated the clean exact epic head, measured a stable 3.9x test-suite speedup with identical outcomes, verified prompt/duplicate/model/cleanup/restart behavior live, and armed the one-per-branch exact-head quality gate.
+---
+author: oompah
+created: 2026-08-04 18:29
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
