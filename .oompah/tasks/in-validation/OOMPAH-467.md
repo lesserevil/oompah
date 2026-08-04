@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-08-04T23:46:02.245181Z'
+updated_at: '2026-08-04T23:46:11.248397Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -583,5 +583,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 4s
 - Log: OOMPAH-467__20260804T222715Z.jsonl
+---
+author: oompah
+created: 2026-08-04 23:46
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
 ---
 <!-- COMMENTS:END -->
