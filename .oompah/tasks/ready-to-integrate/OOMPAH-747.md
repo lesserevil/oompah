@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-747
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reuse trusted patch-equivalence evidence during epic auto-close
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:57:18.774684Z'
+updated_at: '2026-08-04T00:57:35.446784Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1f99ffc0-e875-4236-ad06-ac2e884b0352
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46741
   total_output_tokens: 179
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-747
     source_sha: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
     completed_at: '2026-08-04T00:42:11.720378+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-747
+  head_sha: a8a9e2b2f51a581f9066736a9408f21adacffed5
+  submitted_at: '2026-08-04T00:57:27.794052+00:00'
+  updated_at: '2026-08-04T00:57:27.794052+00:00'
 ---
 ## Summary
 
@@ -133,5 +141,10 @@ author: oompah
 created: 2026-08-04 00:57
 ---
 Completion: shipped commit a8a9e2b2f and pushed branch OOMPAH-747. Epic auto-close and shared rollup landing now reuse trusted, range-complete patch-equivalence evidence; rebased multi-commit work unblocks only when all patches are proven, while missing/untrusted evidence remains blocked with precise diagnostics. Focused verification is green.
+---
+author: oompah
+created: 2026-08-04 00:57
+---
+Reuse canonical trusted range-aware patch-equivalence evidence for shared epic landing and epic auto-close; add rebased multi-commit and missing-patch regressions.
 ---
 <!-- COMMENTS:END -->
