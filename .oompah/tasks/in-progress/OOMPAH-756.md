@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:07:47.294756Z'
-updated_at: '2026-08-04T11:26:26.261348Z'
+updated_at: '2026-08-04T11:31:44.597155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,29 @@ SOLUTION: Make _reconcile_stale_in_review_tasks target-relative for nested epics
 - Check if the epic's branch merged to that target using _epic_branch_landed_on_target
 - If yes, route through coordinator to mark it MERGED
 - This complements _label_merged_epics and handles restart/cache race scenarios
+---
+author: oompah
+created: 2026-08-04 11:31
+---
+IMPLEMENTATION: Added target-relative reconciliation for nested epics in stale In Review state.
+
+CHANGES:
+1. Modified _reconcile_stale_in_review_tasks in orchestrator.py to add nested epic target-relative check
+2. When processing IN_REVIEW issues that are epics with parents:
+   - Resolves the target branch (immediate parent's branch)
+   - Checks if the epic's branch merged to that target using _epic_branch_landed_on_target
+   - Routes through coordinator to mark as MERGED if landed
+3. Preserves all protections: wrong-target, missing-merge, unresolvable parent exceptions
+4. Created comprehensive test suite test_nested_epic_stale_in_review.py with 8 tests covering:
+   - Exact restart scenario (In Review, merged PR to parent, reachable merge)
+   - Source branch deleted (merge evidence sufficient)
+   - Wrong target rejection
+   - Merge not reachable
+   - Unresolvable parent deferral
+   - Non-epic non-affection
+   - Idempotent retries
+   - Root epics unaffected
+
+All existing tests pass (167 in merged/nested suite). Tests ready for focused review.
 ---
 <!-- COMMENTS:END -->
