@@ -535,6 +535,13 @@ class WorkflowJobStore:
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.execute("PRAGMA busy_timeout=10000")
             self._conn.execute("PRAGMA journal_mode=WAL")
+            # WAL mode provides crash safety without requiring a full fsync on
+            # every commit.  NORMAL is the SQLite-recommended setting for WAL
+            # and allows 400-task reconcile batches to complete within the
+            # per-test timeout while still protecting committed data against
+            # application crashes (the only risk is power loss losing the last
+            # unflushed checkpoint, which the WAL recovery mechanism handles).
+            self._conn.execute("PRAGMA synchronous=NORMAL")
             self._initialize()
 
     def _initialize(self) -> None:
