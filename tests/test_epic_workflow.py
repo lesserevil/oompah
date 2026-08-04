@@ -5,14 +5,24 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
 
 from oompah.epic_workflow import EpicAction, EpicFactCollector, EpicWorkflowController
 from oompah.models import Issue
+from oompah.orchestrator import Orchestrator
 from oompah.statuses import DONE, IN_PROGRESS, OPEN
 from oompah.workflow_contract import TaskDisposition
 from oompah.work_decision import evaluate_task
-from oompah.workflow_facts import GitLandingCollector, LandingRequest, LandingState
-from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
+from oompah.workflow_facts import (
+    GitLandingCollector,
+    LandingFact,
+    LandingRequest,
+    LandingState,
+)
+from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
 
 
 class Tracker:
@@ -105,7 +115,11 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
 
     decisions = {item.task.identifier: item.decision for item in batch.tasks}
     assert decisions["MID"].disposition is TaskDisposition.RUNNABLE
-    assert decisions["MID"].reason_code == "rollup.children_complete"
+    assert (
+        decisions["MID"].reason_code
+        == "terminal.immediate_target_landing_proven"
+    )
+    assert decisions["MID"].durable_jobs == ("epic_auto_close",)
     # MID is intentionally still Open. TOP is eligible from MID's landing on
     # epic-TOP, not from a status that TOP would have derived from MID.
     assert decisions["TOP"].disposition is TaskDisposition.RUNNABLE
@@ -115,6 +129,119 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
         job.state is WorkflowJobState.QUEUED for job in store.list_jobs(limit=10)
     )
     store.close()
+
+
+def test_each_epic_decision_contains_only_its_direct_children(tmp_path):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    mid = issue("MID", state=IN_PROGRESS, issue_type="epic", parent_id="TOP")
+    leaf = issue("LEAF", state=OPEN, parent_id="MID", work_branch="leaf")
+    tracker = Tracker([top, mid, leaf])
+    collector = EpicFactCollector(project_id="project-1", tracker=tracker)
+
+    top_facts = collector.collect("TOP")
+    mid_facts = collector.collect("MID")
+
+    top_children = top_facts.fact("containment").value["children"]
+    mid_children = mid_facts.fact("containment").value["children"]
+    assert [item["identifier"] for item in top_children] == ["MID"]
+    assert [item["identifier"] for item in mid_children] == ["LEAF"]
+
+
+def test_archived_direct_child_has_no_invented_landing_obligation(tmp_path):
+    make_git_fixture(tmp_path)
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    retired = issue("OLD", state="Archived", parent_id="TOP")
+    tracker = Tracker([top, retired])
+    facts = EpicFactCollector(
+        project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+    ).collect("TOP")
+
+    decision = evaluate_task(top, facts)
+
+    assert decision.disposition is TaskDisposition.RUNNABLE
+    assert decision.reason_code == "rollup.children_complete"
+
+
+def test_orchestrator_consumes_the_same_epic_snapshot_that_it_schedules(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    (repo / "base.txt").write_text("base\n")
+    git(repo, "add", "base.txt")
+    git(repo, "commit", "-m", "base")
+    git(repo, "checkout", "-b", "child")
+    (repo / "child.txt").write_text("child\n")
+    git(repo, "add", "child.txt")
+    git(repo, "commit", "-m", "child")
+    git(repo, "checkout", "main")
+    git(repo, "checkout", "-b", "epic-TOP")
+    git(repo, "cherry-pick", "child")
+
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    ready = issue("READY", state=DONE, parent_id="TOP", work_branch="child")
+    reopened = issue("REOPENED", state=OPEN, parent_id="TOP", work_branch="new")
+
+    class FlappingTracker(Tracker):
+        def __init__(self):
+            super().__init__([top, ready, reopened])
+            self.root_reads = 0
+
+        def fetch_children(self, identifier: str):
+            if identifier == "TOP":
+                self.root_reads += 1
+                return [ready] if self.root_reads == 1 else [ready, reopened]
+            return super().fetch_children(identifier)
+
+    tracker = FlappingTracker()
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    project = SimpleNamespace(
+        id="project-1", repo_path=str(repo), default_branch="main", branch="main"
+    )
+    fake_orchestrator = SimpleNamespace(
+        project_store=SimpleNamespace(get=lambda _project_id: project),
+        workflow_job_store=store,
+        _tracker_for_issue=lambda _issue: tracker,
+    )
+
+    decision, _facts = Orchestrator._shared_epic_workflow_decision(
+        fake_orchestrator, top
+    )
+    cursor = store.schedule_cursor(project_id="project-1", task_id="TOP")
+
+    assert tracker.root_reads == 1
+    assert decision.disposition is TaskDisposition.RUNNABLE
+    assert cursor is not None
+    assert cursor.decision_revision == decision.decision_revision
+    store.close()
+
+
+def test_enforce_auto_close_waits_for_the_durable_revalidated_job(tmp_path):
+    make_git_fixture(tmp_path)
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    mid = issue("MID", state=OPEN, issue_type="epic", parent_id="TOP")
+    leaf = issue("LEAF", state=DONE, parent_id="MID", work_branch="leaf")
+    tracker = Tracker([top, mid, leaf])
+    facts = EpicFactCollector(
+        project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+    ).collect("MID")
+    decision = evaluate_task(mid, facts)
+    request_terminal = MagicMock()
+    fake_orchestrator = SimpleNamespace(
+        config=SimpleNamespace(
+            workflow_engine_mode="enforce",
+            tracker_terminal_states=("Merged", "Archived"),
+        ),
+        _shared_epic_workflow_decision=lambda _epic: (decision, facts),
+        _shared_epic_landing_proven=Orchestrator._shared_epic_landing_proven,
+        _request_epic_terminal_rollup=request_terminal,
+        _clear_stuck_epic_alert=MagicMock(),
+    )
+
+    closed = Orchestrator._epic_auto_close_check(fake_orchestrator, mid)
+
+    assert decision.durable_jobs == ("epic_auto_close",)
+    assert closed is False
+    request_terminal.assert_not_called()
 
 
 def test_deleted_source_ref_preserves_durable_landing_fact(tmp_path):
@@ -149,6 +276,86 @@ def test_deleted_source_ref_preserves_durable_landing_fact(tmp_path):
     assert preserved.state is LandingState.LANDED
     assert preserved.durable
     assert preserved.evidence_revision == durable.evidence_revision
+
+
+def test_advanced_source_ref_invalidates_older_durable_landing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    (repo / "base.txt").write_text("base\n")
+    git(repo, "add", "base.txt")
+    git(repo, "commit", "-m", "base")
+    git(repo, "checkout", "-b", "source")
+    (repo / "first.txt").write_text("first\n")
+    git(repo, "add", "first.txt")
+    git(repo, "commit", "-m", "first")
+    git(repo, "checkout", "main")
+    git(repo, "checkout", "-b", "target")
+    git(repo, "cherry-pick", "source")
+    collector = GitLandingCollector(repo, project_id="project-1")
+    prior = collector.collect(LandingRequest("source", "target"))
+    assert prior.state is LandingState.LANDED
+
+    git(repo, "checkout", "source")
+    (repo / "second.txt").write_text("second\n")
+    git(repo, "add", "second.txt")
+    git(repo, "commit", "-m", "second")
+    refreshed = collector.collect(LandingRequest("source", "target", prior=prior))
+    exact_previous = collector.collect(
+        LandingRequest("source", "target", prior.revision, prior=prior)
+    )
+
+    assert refreshed.state is LandingState.NOT_LANDED
+    assert refreshed.revision != prior.revision
+    # An explicit revision is immutable evidence. A later branch tip must not
+    # invalidate proof for the exact revision that the task submitted.
+    assert exact_previous.state is LandingState.LANDED
+    assert exact_previous.revision == prior.revision
+
+
+def test_shared_container_ref_can_advance_past_exact_child_revision(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    (repo / "first.txt").write_text("first\n")
+    git(repo, "add", "first.txt")
+    git(repo, "commit", "-m", "first")
+    first = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-b", "epic-TOP")
+    (repo / "second.txt").write_text("second\n")
+    git(repo, "add", "second.txt")
+    git(repo, "commit", "-m", "second")
+
+    fact = GitLandingCollector(repo, project_id="project-1").collect(
+        LandingRequest("epic-TOP", "epic-TOP", first)
+    )
+
+    assert fact.state is LandingState.LANDED
+    assert fact.revision == first
+
+
+def test_rewritten_target_invalidates_older_durable_landing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    (repo / "base.txt").write_text("base\n")
+    git(repo, "add", "base.txt")
+    git(repo, "commit", "-m", "base")
+    base = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-b", "source")
+    (repo / "change.txt").write_text("land me\n")
+    git(repo, "add", "change.txt")
+    git(repo, "commit", "-m", "source")
+    git(repo, "checkout", "-b", "target")
+    collector = GitLandingCollector(repo, project_id="project-1")
+    prior = collector.collect(LandingRequest("source", "target"))
+    assert prior.state is LandingState.LANDED
+
+    git(repo, "checkout", "target")
+    git(repo, "reset", "--hard", base)
+    refreshed = collector.collect(LandingRequest("source", "target", prior=prior))
+
+    assert refreshed.state is LandingState.NOT_LANDED
 
 
 def test_landing_fact_ledger_survives_controller_restart_and_ref_pruning(tmp_path):
@@ -262,4 +469,109 @@ def test_maintenance_actions_are_idempotent_and_restart_safe(tmp_path):
         EpicAction.REBASE_REPAIR.value,
         EpicAction.CLEANUP.value,
     }
+    store.close()
+
+
+def test_restart_recovery_requires_and_scopes_the_dead_lease_owner(tmp_path):
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    other = issue("OTHER", state=IN_PROGRESS, issue_type="epic")
+    tracker = Tracker([top, other])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(project_id="project-1", tracker=tracker),
+        store=store,
+    )
+    epic_job = controller.schedule_action(
+        task_id="TOP", action=EpicAction.REBASE_REPAIR, generation="epic-g1"
+    )
+    other_job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="OTHER",
+            generation="review-g1",
+            action="review_monitor",
+            idempotency_key="review:OTHER:g1",
+        )
+    )
+    other_project_job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-2",
+            task_id="FOREIGN",
+            generation="epic-g1",
+            action=EpicAction.CLEANUP.value,
+            idempotency_key="epic:FOREIGN:g1",
+        )
+    )
+    claimed_epic = store.claim_next(
+        lease_owner="dead-epic-worker",
+        lease_seconds=60,
+        task_id="TOP",
+    )
+    claimed_other = store.claim_next(
+        lease_owner="dead-epic-worker",
+        lease_seconds=60,
+        task_id="OTHER",
+    )
+    claimed_foreign = store.claim_next(
+        lease_owner="dead-epic-worker",
+        lease_seconds=60,
+        task_id="FOREIGN",
+    )
+    assert claimed_epic is not None and claimed_epic.job_id == epic_job.job_id
+    assert claimed_other is not None and claimed_other.job_id == other_job.job_id
+    assert (
+        claimed_foreign is not None
+        and claimed_foreign.job_id == other_project_job.job_id
+    )
+
+    with pytest.raises(TypeError):
+        controller.reconcile_after_restart([top])  # type: ignore[call-arg]
+
+    recovered, _batch, _scheduled = controller.reconcile_after_restart(
+        [top], lease_owner="dead-epic-worker"
+    )
+
+    assert recovered == 1
+    # The fresh reconcile may immediately supersede the recovered maintenance
+    # action, but it must no longer retain the dead lease.
+    assert store.get(epic_job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(other_job.job_id).state is WorkflowJobState.RUNNING
+    assert store.get(other_project_job.job_id).state is WorkflowJobState.RUNNING
+    store.close()
+
+
+def test_landing_history_limit_keeps_the_newest_evidence_window(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    facts = []
+    for index in range(3):
+        fact = LandingFact(
+            "source",
+            "target",
+            f"{index + 1:040x}",
+            {
+                "kind": "git_ancestry",
+                "source_sha": f"{index + 1:040x}",
+                "target_sha": f"{index + 10:040x}",
+            },
+            f"2026-08-04T00:00:0{index}+00:00",
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        )
+        store.record_landing_facts(
+            project_id="project-1",
+            task_id="TOP",
+            facts=[fact.to_dict()],
+            now=float(index + 1),
+        )
+        facts.append(fact)
+
+    selected = store.landing_facts(
+        project_id="project-1", task_id="TOP", limit=2
+    )
+
+    assert [item["evidence_revision"] for item in selected] == [
+        facts[1].evidence_revision,
+        facts[2].evidence_revision,
+    ]
     store.close()

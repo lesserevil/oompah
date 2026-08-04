@@ -629,6 +629,39 @@ class GitLandingCollector:
             return prior
         return None
 
+    def _prior_target_is_current(
+        self,
+        prior: LandingFact,
+        *,
+        target_revision: str | None,
+    ) -> bool:
+        """Return whether current target history still contains prior proof.
+
+        A durable fact survives source-ref pruning and normal target advances;
+        it is not permission to ignore a force-push that removed the landing.
+        If the target ref itself is gone, the immutable historical proof is
+        still the best available terminal evidence.
+        """
+
+        if target_revision is None:
+            return True
+        proven_target = str(prior.proof.get("target_sha") or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{7,64}", proven_target):
+            # External durable evidence may not expose a Git target SHA.  It
+            # remains authoritative for a pruned immutable source; arbitrary
+            # or malformed proof kinds do not receive that exception.
+            return str(prior.proof.get("kind") or "") in {
+                LandingProofKind.FORGE_MERGE.value,
+                LandingProofKind.MERGE_COMMIT.value,
+                LandingProofKind.TERMINAL_AUDIT.value,
+            }
+        if proven_target == target_revision:
+            return True
+        result = self._run(
+            "merge-base", "--is-ancestor", proven_target, target_revision
+        )
+        return result.returncode == 0
+
     def collect(self, request: LandingRequest) -> LandingFact:
         observed_at = _render_time(self._clock())
         source = _required_text(request.source, "source")
@@ -645,19 +678,27 @@ class GitLandingCollector:
         else:
             source_revision, source_error = self._resolve(source)
         target_revision, target_error = self._resolve(target)
+        # When a live source ref resolves, bind replay to its current tip.  A
+        # prior landing for the same branch name must not bless commits added
+        # after that proof was recorded.  An explicit immutable revision takes
+        # precedence, and a missing/pruned source may use historical proof.
+        effective_revision = requested_revision or source_revision
         prior = self._matching_prior(
             request.prior,
             source=source,
             target=target,
-            revision=requested_revision,
+            revision=effective_revision,
             project_id=self.project_id,
         )
 
         # A matching durable positive is historical evidence, not a cache of
-        # the current ref layout.  Preserve it even if either ref disappeared
-        # or the target was later rewritten; current containment can be a
-        # separate observation, but terminal landing must not be erased.
-        if prior is not None:
+        # the current ref layout.  Preserve it after source pruning and while
+        # the target retains the proven history.  A target rewrite that drops
+        # that history must invalidate the old proof.
+        if prior is not None and self._prior_target_is_current(
+            prior,
+            target_revision=target_revision,
+        ):
             return LandingFact(
                 source,
                 target,
