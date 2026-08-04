@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:18.391859Z'
-updated_at: '2026-08-04T01:00:38.230091Z'
+updated_at: '2026-08-04T01:01:21.784354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,19 @@ author: oompah
 created: 2026-08-04 01:00
 ---
 Implemented epic branch resolution for terminal-audit evidence fingerprinting. When work_branch is absent for epics, the system now resolves canonical branch names (origin/epic-ISSUE-ID for standalone, origin/epic-PARENT-ID for nested). All 853+ related tests pass. Enables EXOCOMP-130 scenario resolution.
+---
+author: oompah
+created: 2026-08-04 01:01
+---
+**Completion**: Task submitted for integration.
+
+Deliverables:
+- Epic branch resolution helpers in terminal_audit.py (_resolve_epic_branch_names)
+- Enhanced compute_issue_evidence_fingerprint to resolve epic branches
+- 10 new comprehensive test cases
+- All 853+ existing tests remain green
+- Branch ad5f2dff5 pushed and submitted
+
+The implementation resolves the EXOCOMP-130 issue where tasks without explicit work_branch but with canonical epic branches (origin/epic-ISSUE-ID) can now have their evidence properly resolved during terminal audits. The solution maintains backward compatibility with explicit work_branches and integration records.
 ---
 <!-- COMMENTS:END -->
