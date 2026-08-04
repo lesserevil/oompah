@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T16:44:23.886600Z'
-updated_at: '2026-08-04T20:39:56.169482Z'
+updated_at: '2026-08-04T20:40:12.116466Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T20:21:12.727934+00:00'
     branch_key: epic-OOMPAH-502
+oompah.task_costs:
+  total_input_tokens: 26
+  total_output_tokens: 4655
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 26
+      output_tokens: 4655
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 26
+    output_tokens: 4655
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T20:40:09.606584+00:00'
 ---
 ## Summary
 
@@ -153,5 +169,15 @@ Safe evidence:
 - observability_test_retained: tests/test_storage_cleanup.py:test_permission_error_is_recorded_and_does_not_escape
 - on_main: true (origin/main contains c0de9b645)
 - previous_focused_result: 10 passed in 0.83s (recorded in prior task comment)
+---
+author: oompah
+created: 2026-08-04 20:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 28, Tool calls: 20
+- Tokens: 26 in / 4.7K out [4.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 45s
+- Log: OOMPAH-517__20260804T202141Z.jsonl
 ---
 <!-- COMMENTS:END -->
