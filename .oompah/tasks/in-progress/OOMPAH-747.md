@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:44:55.294613Z'
+updated_at: '2026-08-04T00:56:45.975117Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,5 +118,15 @@ author: oompah
 created: 2026-08-04 00:44
 ---
 Understanding: reuse the existing trusted patch-equivalence proof for child landing and epic auto-close, preserve fail-closed behavior for untrusted/ambiguous/missing evidence, add regression coverage for rebases and restart/idempotence, then verify and submit.
+---
+author: oompah
+created: 2026-08-04 00:56
+---
+Implementation: consolidated ancestry/patch-equivalence proof in _reported_commit_landed_on_refs with full base_sha..head ranges; reused it for durable integration/queue evidence and Oompah-authored completion evidence; wired _child_landing_evidence_block_reason into shared rollup and epic auto-close; added precise stuck-epic evidence details and regressions for deleted refs, two rebased docs/implementation patches, and missing patches.
+---
+author: oompah
+created: 2026-08-04 00:56
+---
+Verification: 27 epic auto-close tests passed; 233 epic-strategy tests passed; merged/reconciliation/terminal-contract group passed 202 with 1 expected xfail; integration/parallel/landing group passed 57. Direct pytest needed --import-mode=importlib because the ambient environment points tests.conftest at another checkout; compileall and diff checks are clean.
 ---
 <!-- COMMENTS:END -->
