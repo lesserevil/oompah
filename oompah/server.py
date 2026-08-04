@@ -1613,6 +1613,37 @@ async def _run_task_handoff_mutation(
         return await operation()
 
 
+def _observe_task_handoff_mutation(
+    orch: Any,
+    *,
+    identifier: str,
+    action: str,
+    tracker: Any,
+    message: str | None = None,
+    label: str | None = None,
+    status: str | None = None,
+) -> bool:
+    """Publish worker handoff mutations to the live authority owner.
+
+    The callback is deliberately optional for lightweight/test orchestrator
+    doubles and older embedders.  Real orchestrators use it to fence
+    reconciliation while the worker's structured handoff is being persisted.
+    """
+    observer = getattr(orch, "_observe_task_handoff_mutation", None)
+    if not callable(observer):
+        return False
+    return bool(
+        observer(
+            identifier=identifier,
+            action=action,
+            message=message,
+            label=label,
+            status=status,
+            tracker=tracker,
+        )
+    )
+
+
 def _env_positive_int_ms(name: str, default: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
@@ -5115,11 +5146,23 @@ async def api_task_handoff(request: Request):
                     status_code=400,
                 )
             # A spawned worker cannot impersonate a human/operator author.
-            await run_mutation(
-                lambda: _run_api_io(
+            # Publish a structured handoff to the live authority owner after
+            # the comment is durable. The observer backfills the completion
+            # marker idempotently under this same scoped mutation permit.
+            async def persist_comment() -> Any:
+                result = await _run_api_io(
                     tracker.add_comment, identifier, text, author="oompah"
                 )
-            )
+                _observe_task_handoff_mutation(
+                    orch,
+                    identifier=identifier,
+                    action="comment",
+                    message=text,
+                    tracker=tracker,
+                )
+                return result
+
+            await run_mutation(persist_comment)
             return JSONResponse({"ok": True})
 
         if action == "submit":
@@ -5240,6 +5283,13 @@ async def api_task_handoff(request: Request):
                         None,
                     )
                     await _run_api_io(tracker.update_issue, identifier, status=status)
+                    _observe_task_handoff_mutation(
+                        orch,
+                        identifier=identifier,
+                        action="set-status",
+                        status=status,
+                        tracker=tracker,
+                    )
                 summary = str(body.get("summary") or "").strip()
                 if summary:
                     await _run_api_io(
@@ -5344,6 +5394,14 @@ async def api_task_handoff(request: Request):
                 await _run_api_io(tracker.add_label, identifier, label)
             else:
                 await _run_api_io(tracker.remove_label, identifier, label)
+            if action == "add-label":
+                _observe_task_handoff_mutation(
+                    orch,
+                    identifier=identifier,
+                    action=action,
+                    label=label,
+                    tracker=tracker,
+                )
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
             if terminal_payload is not None:

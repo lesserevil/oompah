@@ -672,6 +672,14 @@ def _exec_oompah_task_command(
                 args.message,
                 author="oompah" if task_identifier else args.author,
             )
+            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
+            if task_identifier and callable(observer):
+                observer(
+                    identifier=args.identifier,
+                    action="comment",
+                    message=args.message,
+                    tracker=task_tracker,
+                )
             return "Comment posted."
 
         if args.subcommand == "set-status":
@@ -707,6 +715,14 @@ def _exec_oompah_task_command(
                     "pushed git evidence is validated before completion"
                 )
             task_tracker.update_issue(args.identifier, status=args.status)
+            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
+            if task_identifier and callable(observer):
+                observer(
+                    identifier=args.identifier,
+                    action="set-status",
+                    status=args.status,
+                    tracker=task_tracker,
+                )
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
                     args.identifier,
@@ -836,6 +852,14 @@ def _exec_oompah_task_command(
             if denial is not None:
                 return denial
             task_tracker.add_label(args.identifier, args.label)
+            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
+            if task_identifier and callable(observer):
+                observer(
+                    identifier=args.identifier,
+                    action="add-label",
+                    label=args.label,
+                    tracker=task_tracker,
+                )
             return f"Label added: {args.label}"
 
         if args.subcommand == "remove-label":
