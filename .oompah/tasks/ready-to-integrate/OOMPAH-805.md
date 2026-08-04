@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:47:18.722996Z'
+updated_at: '2026-08-04T21:48:02.990731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,13 +74,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 2ae2a3ff-bb5a-4098-9e2a-40cc821fde58
 oompah.task_costs:
-  total_input_tokens: 420
-  total_output_tokens: 17536
+  total_input_tokens: 525
+  total_output_tokens: 49326
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 420
       output_tokens: 17536
+      cost_usd: 0.0
+    opus:
+      input_tokens: 105
+      output_tokens: 31790
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +99,12 @@ oompah.task_costs:
     output_tokens: 15229
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:50:36.842317+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 105
+    output_tokens: 31790
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T21:47:52.646880+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-805__20260804T202731Z
@@ -105,14 +115,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-805
     source_sha: a681ec2fc005f339063b3b8e2a139b8ae0b3c379
     completed_at: '2026-08-04T20:29:29.223195+00:00'
+  - run_id: OOMPAH-805__20260804T211311Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-805
+    source_sha: 376e9a011a6ba90ed4160a9c2754844c2d37d809
+    completed_at: '2026-08-04T21:47:52.712059+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-805
+  base_branch: main
+  base_sha: a681ec2fc005f339063b3b8e2a139b8ae0b3c379
   head_sha: 376e9a011a6ba90ed4160a9c2754844c2d37d809
   submitted_at: '2026-08-04T21:47:11.570079+00:00'
-  updated_at: '2026-08-04T21:47:11.570079+00:00'
+  updated_at: '2026-08-04T21:48:01.261959+00:00'
 ---
 ## Summary
 
@@ -405,5 +425,20 @@ author: oompah
 created: 2026-08-04 21:47
 ---
 Serialize CheckpointQueue.flush(): closes an in-flight race where a concurrent flush() caller returned before the timer thread's git commit landed, causing tests/test_state_branch_e2e.py::TestCommitHistoryRegression::test_state_branch_gets_new_commits_after_cutover to flake under full-gate load. Added regression test that fails without the fix. Head 376e9a011.
+---
+author: oompah
+created: 2026-08-04 21:47
+---
+Agent completed successfully in 2094s (31895 tokens)
+---
+author: oompah
+created: 2026-08-04 21:47
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 127, Tool calls: 99
+- Tokens: 105 in / 31.8K out [31.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34m 54s
+- Log: OOMPAH-805__20260804T211311Z.jsonl
 ---
 <!-- COMMENTS:END -->
