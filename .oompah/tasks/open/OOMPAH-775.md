@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-775
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Route API and auxiliary status writes through TaskTransitionService and enforce
   the boundary
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T21:31:34.885340Z'
+updated_at: '2026-08-04T21:32:15.204502Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -203,5 +203,10 @@ author: oompah
 created: 2026-08-04 21:31
 ---
 Understanding: I will inventory all production tracker status writes after the existing transition-service work, route API/CLI handoffs and auxiliary/intake/maintenance paths through TaskTransitionService while preserving auth/owner behavior, and add focused regression plus AST/terminal-audit boundary tests. I will verify with focused suites and the Makefile architectural scan before committing and submitting.
+---
+author: oompah
+created: 2026-08-04 21:32
+---
+Dispatch raced the newly added hard-start OOMPAH-806 edge. The managed worktree is still clean at base 6561d52e5 with no task commit or local edits. Returning to Open revokes the empty run; the hard-start dependency must keep this overlapping writer migration undispatched until OOMPAH-806 is terminal.
 ---
 <!-- COMMENTS:END -->
