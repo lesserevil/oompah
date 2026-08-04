@@ -29015,27 +29015,39 @@ class Orchestrator:
     ) -> tuple[str, str | None] | None:
         """Parse one trusted structured focus handoff comment.
 
-        Tracker adapters normally return an explicit ``author`` field.  A
-        missing field is accepted only for legacy in-memory snapshots created
-        before comment authorship was exposed; an explicit non-Oompah author
-        always fails closed.  The optional second result is the exact
+        The parser is deliberately fail-closed: a comment must present an
+        explicit identity field (``author`` and/or ``user``) that matches the
+        Oompah bot login. A record that lacks both fields — or that presents
+        a non-matching identity in either — is rejected. This is what stops a
+        human-authored HANDOFF comment from backfilling a focus-complete
+        marker. The optional second result is the exact
         ``Recommended next focus`` line when present.
         """
         if not isinstance(comment, dict):
             return None
-        if "user" in comment:
+        from oompah.label_auth import get_bot_login
+
+        bot_login = get_bot_login().strip().casefold() or "oompah"
+        author_field_present = "author" in comment
+        user_field_present = "user" in comment
+        # A record with neither identity field is untrusted input (e.g. a
+        # scraped tracker snapshot or an operator-written test fixture that
+        # forgot to attribute the author). Requiring at least one identity
+        # field prevents that path from being used to forge a handoff.
+        if not (author_field_present or user_field_present):
+            return None
+        if author_field_present:
+            author = str(comment.get("author") or "").strip().casefold()
+            if author != "oompah" and author != bot_login:
+                return None
+        if user_field_present:
             raw_user = comment.get("user")
             if isinstance(raw_user, dict):
                 raw_author = raw_user.get("login") or raw_user.get("username")
             else:
                 raw_author = raw_user
-            from oompah.label_auth import get_bot_login
-
-            if str(raw_author or "").strip().casefold() != get_bot_login().strip().casefold():
-                return None
-        if "author" in comment:
-            author = str(comment.get("author") or "").strip().casefold()
-            if author != "oompah":
+            user_login = str(raw_author or "").strip().casefold()
+            if user_login != bot_login and user_login != "oompah":
                 return None
         text = str(comment.get("text") or "").replace("\r\n", "\n").replace("\r", "\n")
         lines = text.splitlines()
