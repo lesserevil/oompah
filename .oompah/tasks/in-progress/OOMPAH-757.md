@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T11:19:42.094560Z'
+updated_at: '2026-08-04T11:20:07.531095Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 47d169b3-8aed-4bad-a8a8-f389706a30a1
+oompah.agent_run_id: b7a35f60-ec7d-4ad3-a326-40dea263354b
 oompah.task_costs:
   total_input_tokens: 47331
   total_output_tokens: 265
