@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-760
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Persist completed focus before a task handoff reopens work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:25:45.766223Z'
+updated_at: '2026-08-04T11:25:53.585736Z'
 work_branch: null
 target_branch: null
 review_url: null
