@@ -13,7 +13,7 @@ labels:
 - 'focus-complete:'
 assignee: null
 created_at: '2026-07-28T21:18:51.634942Z'
-updated_at: '2026-08-04T23:30:54.823482Z'
+updated_at: '2026-08-04T23:31:02.783371Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -61,8 +61,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-18e889d97887
-    applied: false
+    applied: true
     created_at: '2026-08-04T23:30:51.128514+00:00'
+    applied_at: '2026-08-04T23:31:00.393789+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -432,5 +433,25 @@ author: oompah
 created: 2026-08-04 23:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 23:30
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 70771b4e9
+- merged_pr: #568
+- epic_branch: epic-OOMPAH-528
+- verified_head: c4c7f5dfa
+- claim_record_module: oompah/duplicate_screening.py
+- claim_record_fields: claim_id, claim_owner, claimed_at, claim_expires_at, task_fingerprint, detector_version, retry_count, retry_after, verdict, checked_at
+- orchestrator_methods: _claim_duplicate_preflight, _clear_duplicate_preflight_claim, _renew_duplicate_preflight_claims, _select_duplicate_preflight_candidates, _duplicate_preflight_claim_is_current, _requires_duplicate_preflight
+- running_entry_fields: duplicate_preflight, duplicate_preflight_claim_id, duplicate_preflight_fingerprint (oompah/models.py:1461-1463)
+- focused_tests_file: tests/test_duplicate_preflight.py
+- required_tests_present: test_concurrent_claim_attempts_have_exactly_one_winner, test_wrong_claim_cannot_clear_or_complete_replacement_claim, test_expired_claim_is_recovered_and_reclaimed_after_restart, test_task_edit_during_run_cannot_record_current_pass, test_no_duplicate_completion_keeps_open_and_unlocks_implementation, test_normal_implementation_gate_requires_current_model_pass
+- prior_unlanded_alert: documented as false positive; commit 92aa5e5c2 was intentionally rejected
 ---
 <!-- COMMENTS:END -->
