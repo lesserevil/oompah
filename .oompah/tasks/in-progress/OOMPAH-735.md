@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-04T03:01:10.763645Z'
+updated_at: '2026-08-04T03:01:56.410807Z'
 work_branch: OOMPAH-735
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/702
@@ -65,7 +65,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e8819ade-af2c-4ae3-b21c-74afd250da81
+oompah.agent_run_id: 15ed8f6b-02f1-4aea-a53f-c3c3abba0268
 oompah.task_costs:
   total_input_tokens: 163
   total_output_tokens: 45542
@@ -309,5 +309,10 @@ author: oompah
 created: 2026-08-04 03:01
 ---
 YOLO: Merge conflict detected on MR #702. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-08-04 03:01
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
