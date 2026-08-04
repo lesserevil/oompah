@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-783
 type: feature
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Implement the durable workflow worker and resumable external-effect saga
 parent: OOMPAH-766
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:02.492322Z'
-updated_at: '2026-08-04T15:50:39.703189Z'
+updated_at: '2026-08-04T15:51:02.330288Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,6 +28,30 @@ oompah.integration:
   head_sha: a55846f783f215ce2383ab4d67699031ddc8a71b
   submitted_at: '2026-08-04T15:50:27.189523+00:00'
   updated_at: '2026-08-04T15:50:27.189523+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a97cb3deb035
+    project_id: proj-14849f1b
+    task_id: OOMPAH-783
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 840d4cadc71e391f55ebaeeb58d05edf821cf6c738ec2ac4494d190663ed0deb
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct-owner exact-head integration: commit a55846f783f215ce2383ab4d67699031ddc8a71b
+      was proven a descendant and fast-forwarded to epic-OOMPAH-766. Verification:
+      206 workflow worker/job/decision/transition tests, ruff check/format, terminal
+      mutation scan, secret scan, and diff check passed.'
+    created_at: '2026-08-04T15:50:56.972798+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
