@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-764
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Define the authoritative workflow contract and liveness invariants
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:43:07.760792Z'
+updated_at: '2026-08-04T14:43:59.115582Z'
 work_branch: epic-OOMPAH-764
 target_branch: epic-OOMPAH-763
 review_url: null
@@ -32,7 +32,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -76,6 +76,23 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-08-04T14:41:10.958074+00:00'
     updated_at: '2026-08-04T14:42:47.116394+00:00'
+  - version: 1
+    audit_id: audit-017862c7aec9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-764
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c048d70c3966e70e9a1d4a96a2a9740b821ab38d23f760587ec42d5eedcbd950
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-04T14:43:55.858596+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
