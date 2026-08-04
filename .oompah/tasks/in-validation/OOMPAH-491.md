@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:26.578514Z'
-updated_at: '2026-08-04T18:19:01.810602Z'
+updated_at: '2026-08-04T20:21:43.868219Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-491
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -90,7 +90,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b5699e8ec5bf
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -101,6 +101,8 @@ oompah.terminal_audit:
       started_at: '2026-08-04T18:17:06.136464+00:00'
       branch_key: epic-OOMPAH-490
       candidate_rotation_count: 1
+      ended_at: '2026-08-04T20:21:42.470724+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: oompah
@@ -131,7 +133,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-b5699e8ec5bf
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -142,6 +144,8 @@ oompah.terminal_audit:
     started_at: '2026-08-04T18:17:06.136464+00:00'
     branch_key: epic-OOMPAH-490
     candidate_rotation_count: 1
+    ended_at: '2026-08-04T20:21:42.470724+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
