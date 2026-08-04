@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:38:57.305741Z'
+updated_at: '2026-08-04T13:54:38.360502Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -137,12 +137,16 @@ oompah.agent_run_id: 6107abe9-9a31-45d4-8323-44673d52a6d0
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-742
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-742
-  head_sha: b9030acc427d356f4544f1b8f205b4eaa221e939
+  base_branch: epic-OOMPAH-740
+  base_sha: d3cc87e7f273decdf492d48dfaba027cc815ef5a
+  head_sha: 901d9d0097f366f97c4fd6f024c49b9fdf2498b9
   submitted_at: '2026-08-03T23:36:24.810711+00:00'
-  updated_at: '2026-08-03T23:36:24.810711+00:00'
+  updated_at: '2026-08-04T13:54:32.236607+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.task_costs:
   total_input_tokens: 1316
   total_output_tokens: 2063
@@ -429,5 +433,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 29m 12s
 - Log: OOMPAH-742__20260803T231002Z.jsonl
+---
+author: oompah
+created: 2026-08-04 13:54
+---
+The combined-tree quality gate failed on `epic-OOMPAH-740--task-OOMPAH-742`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
