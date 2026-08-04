@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:26:53.705625Z'
+updated_at: '2026-08-04T20:27:13.671839Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 38036b85-8475-4ec1-91fb-8a60d61a73fb
 ---
 ## Summary
 
@@ -47,3 +48,16 @@ The parallel home-backed make test gate intermittently fails tests/test_event_dr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 20:27
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 20:27
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
