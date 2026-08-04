@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-452
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Recover the GitLab Issues tracker implementation onto main
 parent: OOMPAH-451
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T12:34:50.818103Z'
-updated_at: '2026-08-04T15:26:23.648194Z'
+updated_at: '2026-08-04T15:29:44.372872Z'
 work_branch: epic-OOMPAH-451
 target_branch: null
 review_url: null
@@ -43,6 +43,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T13:04:29.597135+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fe8503e298ae: '2026-08-04T15:29:41.122416+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-452
+    target_state: Archived
+    evidence_fingerprint: 0fc11ce66f62ced8b1175f04f2e801d82623fd28d1a035aed06c50e32e2dcb3a
+    audit_ids:
+    - audit-db40c5a65f21
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T15:29:41.122426+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-452
+    audit_id: audit-db40c5a65f21
+    attempt_id: attempt-fe8503e298ae
+    target_state: Archived
+    evidence_fingerprint: 0fc11ce66f62ced8b1175f04f2e801d82623fd28d1a035aed06c50e32e2dcb3a
+    status: Archived
+    audit_ids:
+    - audit-db40c5a65f21
+    applied: false
+    created_at: '2026-08-04T15:29:41.122665+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -50,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-452
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -59,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fe8503e298ae
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -69,13 +93,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T15:26:13.428862+00:00'
       branch_key: epic-OOMPAH-451
+      verdict: pass
+      completed_at: '2026-08-04T15:29:41.122269+00:00'
+      ended_at: '2026-08-04T15:29:41.122269+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T15:19:13.102597+00:00'
-    updated_at: '2026-08-04T15:26:13.428862+00:00'
+    updated_at: '2026-08-04T15:29:41.122269+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fe8503e298ae
