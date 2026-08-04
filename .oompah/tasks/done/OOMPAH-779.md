@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:55.460558Z'
-updated_at: '2026-08-04T16:10:21.131302Z'
+updated_at: '2026-08-04T16:10:33.927093Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,17 @@ oompah.terminal_audit:
       terminal mutation scan, secret scan, and exact git ancestry passed; the exact
       head is now the tip of epic-OOMPAH-765.'
     created_at: '2026-08-04T16:10:15.923579+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-779
+    target_state: Done
+    evidence_fingerprint: 4083f79d9641a27e75062d175962b284ef7958a9d825dc92b26a2a3d81e3f9bd
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T16:10:30.590956+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -73,5 +83,12 @@ author: oompah
 created: 2026-08-04 16:09
 ---
 Implemented no-mutation workflow decision shadow mode with actionable redacted diagnostics and production-soak visibility; 362 relevant tests pass.
+---
+author: oompah
+created: 2026-08-04 16:10
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Project owner directly verified commit 40e46bf8e: 362 relevant tests, terminal mutation scan, secret scan, and exact git ancestry passed; the exact head is now the tip of epic-OOMPAH-765.
 ---
 <!-- COMMENTS:END -->
