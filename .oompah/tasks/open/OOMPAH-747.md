@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:40:39.779884Z'
-updated_at: '2026-08-04T00:41:20.924739Z'
+updated_at: '2026-08-04T00:41:35.820571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 7225c9a5-2a3b-4e7b-9bf4-8df915eec53c
 ---
 ## Summary
 
@@ -48,3 +49,16 @@ Live reproduction: EXOCOMP-130 cannot auto-close because child EXOCOMP-148 recor
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 00:41
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 00:41
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
