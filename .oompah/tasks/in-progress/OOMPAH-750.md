@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:46:06.960272Z'
-updated_at: '2026-08-04T01:05:58.619501Z'
+updated_at: '2026-08-04T01:06:26.567992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-08-04 01:05
 ---
 Verification update: Final focused run passes (90 tests), and the adjacent SCM/orchestrator/terminal-audit run passes (346 tests). Both were rerun after the final precedence and audit-envelope fixes.
+---
+author: oompah
+created: 2026-08-04 01:06
+---
+Completion: Delivered and pushed commit 92bf56563. The watchdog now prioritizes current review/audit/branch/CI/provider evidence, distinguishes technical ambiguity from human decisions, honors newest comment timestamps, and remains idempotent across restarts. Focused and adjacent verification is green (90 + 346 tests); branch is clean and tracks origin/OOMPAH-750.
 ---
 <!-- COMMENTS:END -->
