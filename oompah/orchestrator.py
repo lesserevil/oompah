@@ -7460,7 +7460,10 @@ class Orchestrator:
         scan_source = f"integration_delivery_scan:{project_id}"
         blocked = [
             item
-            for item in self.integration_queue.items(project_id=project_id)
+            for item in self.integration_queue.items(
+                project_id=project_id,
+                states=("blocked",),
+            )
             if item.state == "blocked"
         ]
         blocked_sources = {
@@ -10584,6 +10587,154 @@ class Orchestrator:
             )
             return False
 
+    async def _replay_integrated_audit_batch(
+        self,
+        *,
+        skip: set[tuple[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        """Replay a bounded, durable slice of integrated terminal audits.
+
+        Integrated queue rows are historical recovery work. Keep their cursor
+        separate from the live Ready lane so a growing ledger cannot delay
+        lease claims, and persist the cursor after each idempotent audit
+        staging attempt so a restart resumes near the last completed row.
+        """
+
+        cursor_name = "integration_audit"
+        cursor = getattr(self, "_maintenance_cursors", {}).get(cursor_name)
+        batch_size = max(
+            int(getattr(self.config, "integration_audit_batch_size", 32)),
+            1,
+        )
+        integrated = self.integration_queue.items(
+            states=("integrated",),
+            limit=batch_size,
+            after=cursor,
+        )
+        if not integrated:
+            if cursor is not None:
+                self._set_maintenance_cursor(cursor_name, None)
+            return {
+                "batch_size": batch_size,
+                "replayed": 0,
+                "deferred": False,
+                "cursor": None,
+                "error": None,
+            }
+
+        replayed = 0
+        error: str | None = None
+        for item in integrated:
+            if skip is None or (item.project_id, item.task_id) not in skip:
+                try:
+                    await self._stage_integrated_task_audit(item)
+                except Exception as exc:  # noqa: BLE001 - retry the failed row
+                    error = f"{type(exc).__name__}: {exc}"
+                    logger.warning(
+                        "Integrated terminal-audit replay deferred for %s: %s",
+                        item.task_id,
+                        error,
+                    )
+                    break
+            replayed += 1
+            cursor = self.integration_queue.cursor_for(item)
+            self._set_maintenance_cursor(cursor_name, cursor)
+
+        deferred = bool(error) or len(integrated) >= batch_size
+        if not error and len(integrated) < batch_size:
+            self._set_maintenance_cursor(cursor_name, None)
+            cursor = None
+        return {
+            "batch_size": batch_size,
+            "replayed": replayed,
+            "deferred": deferred,
+            "cursor": cursor,
+            "error": error,
+        }
+
+    def _record_integration_queue_progress(
+        self,
+        *,
+        queue_items: list[IntegrationQueueItem],
+        eligible_ready_count: int,
+        oldest_eligible_submitted_at: str | None,
+        claimed_count: int,
+        audit_progress: Mapping[str, Any],
+    ) -> None:
+        """Publish live queue progress and a bounded-claim stall signal."""
+
+        ready_count = sum(item.state == "ready" for item in queue_items)
+        oldest_age_seconds: float | None = None
+        if oldest_eligible_submitted_at:
+            try:
+                submitted_at = datetime.fromisoformat(
+                    oldest_eligible_submitted_at.replace("Z", "+00:00")
+                )
+                if submitted_at.tzinfo is None:
+                    submitted_at = submitted_at.replace(tzinfo=timezone.utc)
+                oldest_age_seconds = max(
+                    0.0,
+                    (datetime.now(timezone.utc) - submitted_at).total_seconds(),
+                )
+            except (TypeError, ValueError, OverflowError):
+                oldest_age_seconds = None
+        claim_timeout = max(
+            int(
+                getattr(
+                    self.config,
+                    "integration_ready_claim_timeout_seconds",
+                    300,
+                )
+            ),
+            1,
+        )
+        degraded = bool(
+            ready_count
+            and eligible_ready_count
+            and claimed_count == 0
+            and oldest_age_seconds is not None
+            and oldest_age_seconds >= claim_timeout
+        )
+        progress = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "status": "degraded" if degraded else "healthy",
+            "ready_count": ready_count,
+            "eligible_ready_count": eligible_ready_count,
+            "claimed_count": claimed_count,
+            "oldest_eligible_submitted_at": oldest_eligible_submitted_at,
+            "oldest_eligible_age_seconds": (
+                round(oldest_age_seconds, 1)
+                if oldest_age_seconds is not None
+                else None
+            ),
+            "claim_timeout_seconds": claim_timeout,
+            "audit_batch_size": audit_progress.get("batch_size"),
+            "audit_replayed": audit_progress.get("replayed", 0),
+            "audit_deferred": bool(audit_progress.get("deferred")),
+            "audit_cursor": audit_progress.get("cursor"),
+            "audit_error": audit_progress.get("error"),
+        }
+        self._maintenance_status["integration_queue"] = progress
+        source = "integration_queue_progress"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        if degraded:
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": source,
+                    "message": (
+                        f"Integration queue has {ready_count} Ready row(s), "
+                        f"including an eligible row waiting {oldest_age_seconds:.0f}s "
+                        f"without a claim (timeout {claim_timeout}s)."
+                    ),
+                    "ready_count": str(ready_count),
+                    "eligible_ready_count": str(eligible_ready_count),
+                    "oldest_age_seconds": str(round(oldest_age_seconds, 1)),
+                }
+            )
+
     async def _process_integration_queues(self) -> None:
         """Recover, claim, integrate, and audit private epic child heads."""
 
@@ -10616,7 +10767,10 @@ class Orchestrator:
             self._retire_inactive_integration_rows(
                 project.id,
                 project_issues,
-                self.integration_queue.items(project_id=project.id),
+                self.integration_queue.items(
+                    project_id=project.id,
+                    states=("ready", "integrating", "blocked"),
+                ),
             )
 
         # A task-level DAG can still contain an impossible delivery order
@@ -10630,7 +10784,10 @@ class Orchestrator:
                 str(project.id),
                 self._tracker_for_project(project.id),
                 issues,
-                self.integration_queue.items(project_id=project.id),
+                self.integration_queue.items(
+                    project_id=project.id,
+                    states=("ready", "integrating", "cancelled"),
+                ),
             )
 
         # A direct rebase can publish and persist its Ready record immediately
@@ -10662,14 +10819,16 @@ class Orchestrator:
                         completion[1],
                     )
 
-        all_items = self.integration_queue.items()
-
-        # Crash recovery: a git integration can finish just before audit
-        # staging. Re-stage every durable integrated row idempotently.
-        for integrated in (
-            item for item in all_items if item.state == "integrated"
-        ):
-            await self._stage_integrated_task_audit(integrated)
+        # Keep historical integrated rows out of the live grouping query. They
+        # are replayed in a bounded cursor-based lane after Ready work gets a
+        # chance to acquire leases below.
+        all_items = self.integration_queue.items(
+            states=("ready", "integrating")
+        )
+        eligible_ready_count = 0
+        oldest_eligible_submitted_at: str | None = None
+        claimed_count = 0
+        staged_integrated_keys: set[tuple[str, str]] = set()
 
         groups = sorted(
             {
@@ -10694,6 +10853,7 @@ class Orchestrator:
             queue_items = self.integration_queue.items(
                 project_id=project_id,
                 epic_id=epic_id,
+                states=("ready", "integrating"),
             )
             dependency_map = self._integration_dependency_map(
                 issues,
@@ -10705,6 +10865,34 @@ class Orchestrator:
                 project_id=project_id,
                 epic_id=epic_id,
             )
+            max_attempts = max(
+                int(
+                    getattr(
+                        self.config,
+                        "integration_retry_max_attempts",
+                        5,
+                    )
+                ),
+                1,
+            )
+            eligible_rows = [
+                candidate
+                for candidate in queue_items
+                if candidate.state == "ready"
+                and candidate.attempts < max_attempts
+                and (
+                    candidate.next_retry_at is None
+                    or candidate.next_retry_at <= time.time()
+                )
+                and set(dependency_map.get(candidate.task_id, ())) <= satisfied
+            ]
+            eligible_ready_count += len(eligible_rows)
+            for candidate in eligible_rows:
+                if (
+                    oldest_eligible_submitted_at is None
+                    or candidate.submitted_at < oldest_eligible_submitted_at
+                ):
+                    oldest_eligible_submitted_at = candidate.submitted_at
             lease_owner = f"{self._service_instance_id}:{uuid.uuid4().hex}"
             item = self.integration_queue.claim_next(
                 project_id=project_id,
@@ -10733,6 +10921,8 @@ class Orchestrator:
                     ),
                 )
                 continue
+
+            claimed_count += 1
             
             # Check if this item is in a conflict repair backoff period
             # (recoverable infrastructure failure). If so, release the lease
@@ -10808,11 +10998,11 @@ class Orchestrator:
                 dependency_map.get(item.task_id, ())
             )
             dependency_heads: dict[str, str] = {}
-            for dependency in queue_items:
-                dependency_issue = issue_aliases.get(dependency.task_id)
-                aliases = {dependency.task_id}
+            dependency_task_ids = set(dependency_aliases)
+            for dependency_alias in dependency_aliases:
+                dependency_issue = issue_aliases.get(dependency_alias)
                 if dependency_issue is not None:
-                    aliases.update(
+                    dependency_task_ids.update(
                         str(value).strip()
                         for value in (
                             dependency_issue.id,
@@ -10820,10 +11010,12 @@ class Orchestrator:
                         )
                         if str(value or "").strip()
                     )
-                if (
-                    dependency.state == "integrated"
-                    and aliases & dependency_aliases
-                ):
+            for dependency_task_id in dependency_task_ids:
+                dependency = self.integration_queue.get(
+                    project_id,
+                    dependency_task_id,
+                )
+                if dependency is not None and dependency.state == "integrated":
                     dependency_heads[dependency.task_id] = str(
                         dependency.head_sha
                     )
@@ -10877,15 +11069,29 @@ class Orchestrator:
             integrated_item = next(
                 (
                     current
-                    for current in self.integration_queue.items(
-                        project_id=project_id,
-                        epic_id=epic_id,
+                    for current in (
+                        self.integration_queue.get(project_id, item.task_id),
                     )
-                    if current.task_id == item.task_id
+                    if current is not None
                 ),
                 item,
             )
             await self._stage_integrated_task_audit(integrated_item)
+            staged_integrated_keys.add(
+                (integrated_item.project_id, integrated_item.task_id)
+            )
+        audit_progress = await self._replay_integrated_audit_batch(
+            skip=staged_integrated_keys
+        )
+        self._record_integration_queue_progress(
+            queue_items=self.integration_queue.items(
+                states=("ready", "integrating")
+            ),
+            eligible_ready_count=eligible_ready_count,
+            oldest_eligible_submitted_at=oldest_eligible_submitted_at,
+            claimed_count=claimed_count,
+            audit_progress=audit_progress,
+        )
         self.request_refresh()
 
     def _run_step5c_epic_maintenance(self) -> None:
@@ -36640,6 +36846,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 ),
                 "integration_retry_backoff_seconds": getattr(
                     self.config, "integration_retry_backoff_seconds", 5
+                ),
+                "integration_audit_batch_size": getattr(
+                    self.config, "integration_audit_batch_size", 32
+                ),
+                "integration_ready_claim_timeout_seconds": getattr(
+                    self.config,
+                    "integration_ready_claim_timeout_seconds",
+                    300,
                 ),
             },
             "integration_queue": [

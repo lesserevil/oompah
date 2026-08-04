@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 import math
 import os
 import sqlite3
@@ -621,12 +622,40 @@ class IntegrationQueueStore:
             and deadline > observed_at
         )
 
+    def get(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> IntegrationQueueItem | None:
+        """Return one queue row without scanning historical siblings."""
+
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM integration_queue
+                WHERE project_id = ? AND task_id = ?
+                """,
+                (str(project_id), str(task_id)),
+            ).fetchone()
+        return self._from_row(row) if row is not None else None
+
     def items(
         self,
         *,
         project_id: str | None = None,
         epic_id: str | None = None,
+        states: Sequence[str] | None = None,
+        limit: int | None = None,
+        after: str | None = None,
     ) -> list[IntegrationQueueItem]:
+        """Return queue rows in stable order, optionally using a keyset cursor.
+
+        The cursor is deliberately based on the full ordering key rather than
+        ``updated_at``.  Queue rows can be refreshed or retried while a scan
+        is in progress, but a durable cursor must still advance through the
+        historical integrated rows without offset pagination skipping rows.
+        """
+
         clauses: list[str] = []
         params: list[object] = []
         if project_id is not None:
@@ -635,14 +664,73 @@ class IntegrationQueueStore:
         if epic_id is not None:
             clauses.append("epic_id = ?")
             params.append(epic_id)
+        if states is not None:
+            state_values = (
+                (states,) if isinstance(states, str) else tuple(states)
+            )
+            if not state_values:
+                return []
+            placeholders = ", ".join("?" for _ in state_values)
+            clauses.append(f"state IN ({placeholders})")
+            params.extend(str(value) for value in state_values)
+        if after is not None:
+            cursor = self._decode_cursor(after)
+            if cursor is not None:
+                clauses.append(
+                    "(project_id, epic_id, priority, submitted_at, task_id) "
+                    "> (?, ?, ?, ?, ?)"
+                )
+                params.extend(cursor)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        limit_clause = ""
+        if limit is not None:
+            limit_clause = " LIMIT ?"
+            params.append(max(int(limit), 0))
         with self._lock:
             rows = self._conn.execute(
                 f"""
                 SELECT * FROM integration_queue
                 {where}
                 ORDER BY project_id, epic_id, priority, submitted_at, task_id
+                {limit_clause}
                 """,
                 params,
             ).fetchall()
         return [self._from_row(row) for row in rows]
+
+    @staticmethod
+    def cursor_for(item: IntegrationQueueItem) -> str:
+        """Return an opaque durable cursor positioned after *item*."""
+
+        return json.dumps(
+            [
+                str(item.project_id),
+                str(item.epic_id),
+                int(item.priority),
+                str(item.submitted_at),
+                str(item.task_id),
+            ],
+            separators=(",", ":"),
+        )
+
+    @staticmethod
+    def _decode_cursor(cursor: str) -> tuple[str, str, int, str, str] | None:
+        try:
+            values = json.loads(cursor)
+            if not isinstance(values, list) or len(values) != 5:
+                return None
+            project_id, epic_id, priority, submitted_at, task_id = values
+            if not all(
+                isinstance(value, str)
+                for value in (project_id, epic_id, submitted_at, task_id)
+            ):
+                return None
+            return (
+                project_id,
+                epic_id,
+                int(priority),
+                submitted_at,
+                task_id,
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None

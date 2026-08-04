@@ -617,6 +617,12 @@ class ServiceConfig:
     # downgraded to informational activity; if the window expires without
     # progress the actionable warning is restored.  See OOMPAH-735.
     integration_recovery_freshness_seconds: int = 300
+    # Maximum integrated rows replayed for terminal-audit recovery per driver
+    # interval.  Ready delivery is scheduled before this bounded history lane.
+    integration_audit_batch_size: int = 32
+    # Age after which an eligible Ready-to-Integrate row without a lease is
+    # surfaced as degraded queue progress.
+    integration_ready_claim_timeout_seconds: int = 300
     # Policy-authorized, fail-closed execution of exact container-cycle
     # repairs. Operators can disable the policy without changing workflow
     # structure while retaining diagnosis and fencing.
@@ -830,6 +836,12 @@ class ServiceConfig:
         self.integration_retry_max_backoff_seconds = max(
             int(self.integration_retry_max_backoff_seconds),
             self.integration_retry_backoff_seconds,
+        )
+        self.integration_audit_batch_size = max(
+            int(self.integration_audit_batch_size), 1
+        )
+        self.integration_ready_claim_timeout_seconds = max(
+            int(self.integration_ready_claim_timeout_seconds), 1
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
@@ -1217,6 +1229,12 @@ class ServiceConfig:
             ),
             integration_recovery_freshness_seconds=_env_int(
                 "OOMPAH_INTEGRATION_RECOVERY_FRESHNESS_SECONDS", None, 300
+            ),
+            integration_audit_batch_size=_env_int(
+                "OOMPAH_INTEGRATION_AUDIT_BATCH_SIZE", None, 32
+            ),
+            integration_ready_claim_timeout_seconds=_env_int(
+                "OOMPAH_INTEGRATION_READY_CLAIM_TIMEOUT_SECONDS", None, 300
             ),
             container_cycle_repair_enabled=_env_bool(
                 "OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED", None, True

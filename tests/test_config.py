@@ -104,6 +104,8 @@ class TestServiceConfig:
         assert cfg.quality_gate_timeout_seconds == 3600
         assert cfg.parallel_epic_children_enabled is False
         assert cfg.terminal_lifecycle_reconciliation_batch_size == 4
+        assert cfg.integration_audit_batch_size == 32
+        assert cfg.integration_ready_claim_timeout_seconds == 300
         assert cfg.prompt_max_comments == 20
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
@@ -377,6 +379,8 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
         monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
         monkeypatch.setenv("OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE", "8")
+        monkeypatch.setenv("OOMPAH_INTEGRATION_AUDIT_BATCH_SIZE", "6")
+        monkeypatch.setenv("OOMPAH_INTEGRATION_READY_CLAIM_TIMEOUT_SECONDS", "42")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
         monkeypatch.setenv("OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", "6")
         wf = WorkflowDefinition(config={}, prompt_template="test")
@@ -393,6 +397,8 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.worktree_cleanup_batch_size == 5
         assert cfg.maintenance_startup_delay_seconds == 9
         assert cfg.terminal_lifecycle_reconciliation_batch_size == 8
+        assert cfg.integration_audit_batch_size == 6
+        assert cfg.integration_ready_claim_timeout_seconds == 42
         assert cfg.release_pick_max_runtime_seconds == 4
         assert cfg.merged_labels_max_runtime_seconds == 6
 
