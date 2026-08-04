@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T17:08:52.271205Z'
+updated_at: '2026-08-04T17:09:00.146982Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -115,8 +115,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-17b3b9d996a9
-    applied: false
+    applied: true
     created_at: '2026-08-04T17:08:47.135199+00:00'
+    applied_at: '2026-08-04T17:08:58.237373+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -516,5 +517,28 @@ author: oompah
 created: 2026-08-04 17:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-04 17:08
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: c7bfbcc3b638b3ea28d241852af6345164ba86f6
+- merge_commit: f1e7925b7263f980517f943291102c8c83335ed2
+- pr_number: 714
+- target_branch: epic-OOMPAH-763
+- head_contained_in_target: true
+- quality_gate_command: make test
+- quality_gate_duration_s: 428.7
+- workflow_facts_path: oompah/workflow_facts.py
+- work_decision_path: oompah/work_decision.py
+- workflow_shadow_path: oompah/workflow_shadow.py
+- test_files: tests/test_workflow_facts.py, tests/test_work_decision.py, tests/test_workflow_shadow.py, tests/test_workflow_shadow_integration.py
+- design_docs: plans/workflow-facts.md, plans/work-decision-evaluator.md, plans/workflow-shadow-evaluation.md
+- epic_commit_chain: cc490d183, e34e3c58b, 73f5aeb26, b0ec9eb4e, 96b878f74, 40e46bf8e, c7bfbcc3b
+- merge_pr_title: OOMPAH-765: Build unified versioned facts and a pure WorkDecision evaluator
 ---
 <!-- COMMENTS:END -->
