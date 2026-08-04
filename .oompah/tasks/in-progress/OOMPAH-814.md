@@ -1,0 +1,31 @@
+---
+id: OOMPAH-814
+type: task
+status: In Progress
+priority: null
+title: Make submit-queue dispatch fixtures deterministic under full-gate load
+parent: OOMPAH-763
+children: []
+blocked_by: []
+start_blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-08-04T23:55:41.082395Z'
+updated_at: '2026-08-04T23:55:55.851697Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+---
+## Summary
+
+Exact full-gate reproduction on OOMPAH-807 at 069633eeb: 15,709 tests passed, but tests/test_submit_queue_concurrency.py::TestShouldDispatchOpenReviewGate::test_cap3_two_open_dispatches exceeded the global five-second timeout while unittest.mock dynamically created an unset Project.default_branch child inside Orchestrator._new_tracker_for_project. Isolated exact test, full module serial/xdist, and 40 concurrent process repetitions pass, proving a load-sensitive incomplete fixture rather than the asserted review-cap behavior. Implementation scope: make the test project/tracker fixture concrete and complete for every attribute the dispatch path reads, avoid dynamic MagicMock child creation and accidental real tracker construction, and close any orchestrator-owned resources. Audit neighboring submit-queue fixtures for the same incomplete project double without weakening dispatch assertions or increasing the global timeout. Required tests: exact test repeated under parallel load, complete test_submit_queue_concurrency serial and xdist, relevant dispatch/tracker factory tests, terminal mutation scan, and exact server full gate. Acceptance: review-cap assertions exercise only dispatch policy, never instantiate a real tracker or synthesize mock attributes, and stay below the lifecycle timeout under full-suite load.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
