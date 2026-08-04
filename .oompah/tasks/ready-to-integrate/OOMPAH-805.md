@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-805
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make residual event-loop and tick-metrics tests deterministic under full-gate
   load
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T21:46:40.102017Z'
+updated_at: '2026-08-04T21:47:15.337879Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,9 +110,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-805
-  head_sha: bab1341540127019bd1eb572f7eae0454dbc1f08
-  submitted_at: '2026-08-04T21:02:38.808986+00:00'
-  updated_at: '2026-08-04T21:02:38.808986+00:00'
+  head_sha: 376e9a011a6ba90ed4160a9c2754844c2d37d809
+  submitted_at: '2026-08-04T21:47:11.570079+00:00'
+  updated_at: '2026-08-04T21:47:11.570079+00:00'
 ---
 ## Summary
 
