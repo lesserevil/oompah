@@ -1399,12 +1399,18 @@ class TestWorkspaceAllocation:
             "proj-1", "epic-1"
         )
         orch.project_store.create_worktree.assert_not_called()
+        # _prepare_epic_rebase_helper_target records the resolved target first
         assert tracker.set_metadata_field.call_args_list[0].args == (
+            "TASK-REBASE",
+            "oompah.target_branch",
+            "main",
+        )
+        assert tracker.set_metadata_field.call_args_list[1].args == (
             "TASK-REBASE",
             "oompah.work_branch",
             "epic-epic-1",
         )
-        integration = tracker.set_metadata_field.call_args_list[1].args[2]
+        integration = tracker.set_metadata_field.call_args_list[2].args[2]
         assert integration["task_branch"] == "epic-epic-1"
         assert integration["base_branch"] == "epic-epic-1"
 
