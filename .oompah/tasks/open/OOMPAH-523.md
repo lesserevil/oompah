@@ -8,18 +8,17 @@ parent: OOMPAH-521
 children: []
 blocked_by:
 - OOMPAH-522
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-04T23:40:31.069614Z'
-work_branch: epic-OOMPAH-521
+updated_at: '2026-08-04T23:47:24.470528Z'
+work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 74318ec5-6615-4c1a-b8f5-5fad40df2cc1
-oompah.work_branch: epic-OOMPAH-521
+oompah.agent_run_id: 8d5fad9b-3946-4f2a-982a-67a88681bd50
+oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 490
   total_output_tokens: 43410
@@ -216,6 +215,31 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-04T22:57:03.854527+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 99a8dad5f6b4614d1ceb98dd44f6fee48b52633ff66fa3c706d9917c8f50ecc5
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 48d71507-161c-4f51-886f-3d58295e29a8
+  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
+  claimed_at: '2026-08-04T23:47:00.856691+00:00'
+  claim_expires_at: '2026-08-05T00:17:00.856691+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-521--task-OOMPAH-523
+  base_branch: epic-OOMPAH-521
+  base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  updated_at: '2026-08-04T23:47:19.224138+00:00'
 ---
 ## Summary
 
@@ -637,5 +661,15 @@ created: 2026-08-04 23:40
 **Evidence:** current review 567 is merged
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-04 23:47
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-04 23:47
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
