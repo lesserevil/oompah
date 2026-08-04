@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:25:45.766223Z'
-updated_at: '2026-08-04T11:33:07.509707Z'
+updated_at: '2026-08-04T11:43:41.108860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-08-04 11:33
 ---
 Discovery: the race is in _reconcile (oompah/orchestrator.py): it treats any Open snapshot as a state revert and terminates the live worker before _on_worker_exit can run _handoff_completed_focus. The current handoff protocol also reads any matching comment text without author verification, and each comment/label/status CLI call is independently authorized. I’m going to add a task-scoped handoff authority marker on accepted structured worker handoff mutations, make reconciliation/exit honor it, and make durable focus evidence trust only Oompah-authored structured comments with idempotent completion handling.
+---
+author: oompah
+created: 2026-08-04 11:43
+---
+Implementation: added RunningEntry handoff generation/pending/finalized state; unified scoped HTTP and ACP task mutations through _observe_task_handoff_mutation; trusted structured Oompah comments now backfill focus-complete and recommended successor labels idempotently. Reconciliation handles Open-before-worker-exit by finalizing the handoff, cancelling retry authority, retiring the old worker, and waking dispatch; forced retirement retries finalization. Dispatch selection backfills bounded trusted pre-marker comments after restart, while human-authored matching text is rejected. Added focused coverage for forged comments, duplicate mutation, successor routing, and reconcile ordering.
 ---
 <!-- COMMENTS:END -->
