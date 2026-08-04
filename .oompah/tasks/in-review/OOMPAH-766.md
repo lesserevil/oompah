@@ -16,14 +16,18 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:56.148047Z'
-updated_at: '2026-08-04T16:47:59.275724Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-08-04T16:48:06.670083Z'
+work_branch: epic-OOMPAH-766
+target_branch: epic-OOMPAH-763
+review_url: https://github.com/lesserevil/oompah/pull/713
+review_number: '713'
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.review_url: https://github.com/lesserevil/oompah/pull/713
+oompah.review_number: '713'
+oompah.work_branch: epic-OOMPAH-766
+oompah.target_branch: epic-OOMPAH-763
 ---
 ## Summary
 
