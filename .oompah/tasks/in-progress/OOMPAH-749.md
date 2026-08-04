@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:30.892995Z'
-updated_at: '2026-08-04T00:46:52.123856Z'
+updated_at: '2026-08-04T00:52:06.829572Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-08-04 00:46
 ---
 Discovery: _process_integration_queues materializes every queue row, then awaits _stage_integrated_task_audit for every integrated row before grouping/claiming Ready work. IntegrationQueue.items has no bounded/cursor scan, so replay is unbounded and repeats after restart. I am checking config and maintenance-status conventions for a durable cursor plus observable incomplete/stalled progress.
+---
+author: oompah
+created: 2026-08-04 00:52
+---
+Implementation: added state-filtered/keyset queue scans with opaque cursors; added configurable integration audit batch and Ready-claim timeout; moved integrated audit replay after live Ready/integrating groups; persisted cursor after each audit staging; added integration queue progress metrics and an idempotent degraded alert for overdue eligible Ready rows. Next I am adding regression coverage for restart/cursor bounds, live claim precedence, and dependency-blocked rows.
 ---
 <!-- COMMENTS:END -->
