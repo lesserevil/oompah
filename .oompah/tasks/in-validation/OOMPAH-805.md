@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T22:14:33.335093Z'
+updated_at: '2026-08-04T22:16:47.883926Z'
 work_branch: OOMPAH-805
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/715
@@ -146,18 +146,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-805
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-33b447f9422a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+      created_at: '2026-08-04T22:16:46.515202+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-04T22:16:46.515202+00:00'
+      branch_key: OOMPAH-805
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T22:12:26.519849+00:00'
+    updated_at: '2026-08-04T22:16:46.515202+00:00'
   - version: 1
     audit_id: audit-498d220ab608
     project_id: proj-14849f1b
@@ -175,7 +189,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T22:12:26.519849+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-33b447f9422a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5b96469224daa9d6e5b9b0f58dfe216043c89ea6224da73a47f4366a17e975be
+    created_at: '2026-08-04T22:16:46.515202+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-04T22:16:46.515202+00:00'
+    branch_key: OOMPAH-805
 ---
 ## Summary
 
