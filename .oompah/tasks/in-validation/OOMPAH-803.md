@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:51:10.280783Z'
+updated_at: '2026-08-04T21:51:24.477687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -363,5 +363,15 @@ author: oompah
 created: 2026-08-04 21:37
 ---
 The first Archived audit generation exhausted all three candidates before the temporary read-only branch existed. Resetting that exhausted generation only, then requesting Archived again so the new source-linked evidence can be audited. This does not reopen implementation; OOMPAH-775 remains the canonical task.
+---
+author: oompah
+created: 2026-08-04 21:51
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-04 21:51
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
