@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-753
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep denied non-mutating validator requests recoverable for terminal auditors
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T02:03:10.235988Z'
-updated_at: '2026-08-04T02:44:42.152820Z'
+updated_at: '2026-08-04T02:45:24.369372Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,6 +85,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-753
     source_sha: 18e18a6b63b2f9a522b17c0132dac0f5a0d9e487
     completed_at: '2026-08-04T02:08:16.632776+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-753
+  head_sha: 7b4245335e4ba4ff9e63e2d23fa3add7592bb180
+  submitted_at: '2026-08-04T02:45:19.056943+00:00'
+  updated_at: '2026-08-04T02:45:19.056943+00:00'
 ---
 ## Summary
 
@@ -169,5 +177,10 @@ author: oompah
 created: 2026-08-04 02:44
 ---
 VERIFICATION: All auditor tests passing (66 tests). Changes implemented and committed. Fixed mutation detection for system() calls and getline operations. Refined contract mismatch logic: make targets outside contract now return recoverable denials, while other unknown commands remain fatal for safety.
+---
+author: oompah
+created: 2026-08-04 02:45
+---
+Implemented recoverable non-mutating validator requests for terminal auditors. Auditor command validation now classifies policy contract mismatches as recoverable (not consuming fatal budget), allowing auditors to continue after requesting commands outside the validation contract. Fixes OOMPAH-731 regression. All 66 auditor/contract tests passing.
 ---
 <!-- COMMENTS:END -->
