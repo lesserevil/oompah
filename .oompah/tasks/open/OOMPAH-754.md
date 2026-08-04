@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-754
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Inspect every integration head when repairing stale epic ancestry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:03:18.208726Z'
-updated_at: '2026-08-04T11:03:18.208726Z'
+updated_at: '2026-08-04T11:03:34.892069Z'
 work_branch: null
 target_branch: null
 review_url: null
