@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-529
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Persist revision-aware duplicate-screening evidence
 parent: OOMPAH-528
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T21:18:31.077035Z'
-updated_at: '2026-07-28T22:14:43.484045Z'
+updated_at: '2026-08-04T22:36:27.651474Z'
 work_branch: epic-OOMPAH-528
 target_branch: null
 review_url: null
@@ -41,6 +41,28 @@ oompah.task_costs:
     output_tokens: 62
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:27:05.257409+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8e2ed2ecb98f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-529
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5beedfad6608e3b6febbb00b1a2ebcee9ecc13a6f5f1e3a8cc46241301b36fe5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:36:22.144955+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -223,5 +245,10 @@ author: oompah
 created: 2026-07-28 22:13
 ---
 Verified the completed revision-aware screening implementation landed in PR #568; removed stale divergent worktree evidence.
+---
+author: oompah
+created: 2026-08-04 22:36
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
