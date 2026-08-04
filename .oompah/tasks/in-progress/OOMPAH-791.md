@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T23:29:15.599860Z'
+updated_at: '2026-08-04T23:42:17.542457Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -269,5 +269,10 @@ author: oompah
 created: 2026-08-04 23:29
 ---
 Independent read-only qualification confirms OOMPAH-791 is complete as the domain adapter, with OOMPAH-804 as its declared hard runtime/enforce-mode composition dependency. Historical OOMPAH-731/739/748 incident corpus and targeted LandingFact/direct-maintenance/nested-stale/current adapter tests passed 43/43; the broader 14-module compatibility slice passed 753/753. OOMPAH-804 must bind all EPIC_ACTION handlers, revalidate cursor/generation/evidence/head/scope/lease before effects, supersede child-change races, and disable legacy writers only after each handler is live.
+---
+author: oompah
+created: 2026-08-04 23:42
+---
+Prepared the reviewed serial composition while the global gate is occupied: rebased the six-commit OOMPAH-791 stack onto exact OOMPAH-782 head a3948097f, producing clean pushed head 82f0ffd70e153351135700a215e50a9b06fb678f. Range-diff preserves all six patches; the only contextual adjustment is the expected shared work_decision.py neighborhood. Post-rebase smoke: 15 epic-workflow + 53 workflow-facts/integration-workflow tests passed; diff check clean. Hold submission until OOMPAH-782 lands to the parent.
 ---
 <!-- COMMENTS:END -->
