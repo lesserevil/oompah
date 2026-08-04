@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-528
 type: epic
-status: Merged
+status: In Validation
 priority: 2
 title: Pre-dispatch duplicate screening for Open tasks
 parent: null
@@ -18,7 +18,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-28T21:18:12.111324Z'
-updated_at: '2026-07-28T22:17:24.092786Z'
+updated_at: '2026-08-04T22:36:19.976651Z'
 work_branch: epic-OOMPAH-528
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/568
@@ -28,6 +28,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/568
 oompah.review_number: '568'
 oompah.work_branch: epic-OOMPAH-528
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-43da28b812da
+    project_id: proj-14849f1b
+    task_id: OOMPAH-528
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 76133fc83b06b40ae63cc8cc81948a6b5e3c3df59f90b3383af8ccd8ed516c55
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T22:36:13.665152+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -88,5 +110,10 @@ author: oompah
 created: 2026-07-28 21:56
 ---
 Branch quality gate passed for `92aa5e5c2410a0d69ec0e48c8ebfeef97f9516a2` using `make test` in 73.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-04 22:36
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
