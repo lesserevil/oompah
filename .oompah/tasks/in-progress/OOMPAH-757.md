@@ -10,11 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:docs
-- needs:feature
 - ci-fix
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:22:52.499953Z'
+updated_at: '2026-08-04T12:23:04.089487Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -511,5 +510,10 @@ author: oompah
 created: 2026-08-04 12:22
 ---
 Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-04 12:23
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
