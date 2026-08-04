@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-759
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Preserve focus-handoff authority across Open-to-In-Progress retry dispatch
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T11:23:16.197569Z'
-updated_at: '2026-08-04T12:29:11.627336Z'
+updated_at: '2026-08-04T12:29:26.282399Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/710
 review_number: null
 review_head: null
 merged_at: null
@@ -78,6 +78,7 @@ oompah.integration:
   head_sha: 1c5572c87ba76dd501dbe3911838fd9ec40a83a8
   submitted_at: '2026-08-04T12:18:18.497844+00:00'
   updated_at: '2026-08-04T12:18:18.497844+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/710
 ---
 ## Summary
 
