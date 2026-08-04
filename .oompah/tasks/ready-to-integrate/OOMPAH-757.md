@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-757
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Persist canonical child landing evidence through conflict-resolved epic rebases
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-04T11:11:32.097478Z'
-updated_at: '2026-08-04T12:03:26.838190Z'
+updated_at: '2026-08-04T12:04:05.621964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,6 +77,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-757
     source_sha: 5368e23617a98569caf7370b0f2eb63d41c8ba6b
     completed_at: '2026-08-04T11:13:08.554499+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-757
+  head_sha: a4945efdb056563f620c297e143fd2040a50dbe0
+  submitted_at: '2026-08-04T12:04:00.904660+00:00'
+  updated_at: '2026-08-04T12:04:00.904660+00:00'
 ---
 ## Summary
 
@@ -421,5 +429,10 @@ Ready for Integration:
 - All tests passing
 - Code review prepared
 - Security audit complete
+---
+author: oompah
+created: 2026-08-04 12:04
+---
+Security-hardened canonical landing evidence for conflict-resolved epic rebases. Implements fail-closed validation with SHA256 fingerprinting, epic branch checks, freshness validation, and bounded historical repair. 47 security tests, full test suite passing (15336 tests).
 ---
 <!-- COMMENTS:END -->
