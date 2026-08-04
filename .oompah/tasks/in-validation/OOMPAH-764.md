@@ -16,9 +16,9 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:51.305029Z'
-updated_at: '2026-08-04T14:41:53.811187Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-04T14:42:15.836931Z'
+work_branch: epic-OOMPAH-764
+target_branch: epic-OOMPAH-763
 review_url: null
 review_number: null
 review_head: null
@@ -32,7 +32,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-764
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -41,7 +41,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cbaa8c66e9b3
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -51,17 +51,22 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T14:41:52.684347+00:00'
       branch_key: OOMPAH-764
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-04T14:42:05.339740+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-764 (tried: origin/OOMPAH-764)'
+      next_retry_at: '2026-08-04T14:42:15.339705+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-08-04T14:41:10.958074+00:00'
-    updated_at: '2026-08-04T14:41:52.684347+00:00'
+    updated_at: '2026-08-04T14:42:05.339740+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbaa8c66e9b3
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -71,6 +76,13 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T14:41:52.684347+00:00'
     branch_key: OOMPAH-764
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-04T14:42:05.339740+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-764 (tried: origin/OOMPAH-764)'
+    next_retry_at: '2026-08-04T14:42:15.339705+00:00'
+oompah.target_branch: epic-OOMPAH-763
+oompah.work_branch: epic-OOMPAH-764
 ---
 ## Summary
 
@@ -88,5 +100,24 @@ author: oompah
 created: 2026-08-04 14:41
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-04 14:42
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-04 14:42
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 3s
+---
+author: oompah
+created: 2026-08-04 14:42
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-764 (tried: origin/OOMPAH-764). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
