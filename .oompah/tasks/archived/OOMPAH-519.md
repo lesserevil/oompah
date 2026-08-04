@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-519
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Recognize rebased child commits in epic review coverage
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T17:46:48.581634Z'
-updated_at: '2026-08-04T21:03:44.641709Z'
+updated_at: '2026-08-04T21:18:43.445068Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ merged_at: null
 oompah.work_branch: epic-OOMPAH-502
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-21562b45ef77: '2026-08-04T21:18:40.102214+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-519
+    target_state: Archived
+    evidence_fingerprint: 4f97b1e80afe23eb3b2bc6eae0f230068723c24a0790fc94a157daf0db07965c
+    audit_ids:
+    - audit-5c4756acf882
+    kind: result
+    applied: true
+    retired_at: '2026-08-04T21:18:40.102226+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-519
+    audit_id: audit-5c4756acf882
+    attempt_id: attempt-21562b45ef77
+    target_state: Archived
+    evidence_fingerprint: 4f97b1e80afe23eb3b2bc6eae0f230068723c24a0790fc94a157daf0db07965c
+    status: Archived
+    audit_ids:
+    - audit-5c4756acf882
+    applied: false
+    created_at: '2026-08-04T21:18:40.102255+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-519
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +59,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-21562b45ef77
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,13 +69,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:03:31.044179+00:00'
       branch_key: epic-OOMPAH-502
+      verdict: pass
+      completed_at: '2026-08-04T21:18:40.102058+00:00'
+      ended_at: '2026-08-04T21:18:40.102058+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:29:27.983166+00:00'
-    updated_at: '2026-08-04T21:03:31.044179+00:00'
+    updated_at: '2026-08-04T21:18:40.102058+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-21562b45ef77
