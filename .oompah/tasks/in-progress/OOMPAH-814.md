@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-04T23:55:55.851697Z'
+updated_at: '2026-08-04T23:56:49.525083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Exact full-gate reproduction on OOMPAH-807 at 069633eeb: 15,709 tests passed, bu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 23:56
+---
+Claimed implementation in /home/shedwards/.oompah/worktrees/oompah/OOMPAH-814 on epic-OOMPAH-763--task-OOMPAH-814 at exact parent 30dc2b2075a48c6c542da55a46ad0285f492d527. Reproducing the submit-queue fixture path and auditing neighboring project/tracker doubles before a tests-only patch; submission and owner-claim release remain with the landing coordinator.
+---
+<!-- COMMENTS:END -->
