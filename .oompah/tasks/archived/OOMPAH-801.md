@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:00:53.127556Z'
-updated_at: '2026-08-04T14:02:38.357063Z'
+updated_at: '2026-08-04T14:02:49.240481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,17 @@ oompah.terminal_audit:
     reason: Accidental duplicate created while verifying concurrently submitted task-creation
       requests; canonical task is OOMPAH-776.
     created_at: '2026-08-04T14:02:33.986411+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-801
+    target_state: Archived
+    evidence_fingerprint: a290ea9eb5f0db2c4717a9538c995039326e68ea5fc96e247fc26ca662bee4ce
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-04T14:02:43.185034+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
@@ -51,3 +61,18 @@ Create project-scoped TransitionIntent/Outcome, append-only journal, compare-and
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 14:02
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Accidental duplicate created while verifying concurrently submitted task-creation requests; canonical task is OOMPAH-776.
+---
+author: oompah
+created: 2026-08-04 14:02
+---
+Archived accidental duplicate; use OOMPAH-776.
+---
+<!-- COMMENTS:END -->
