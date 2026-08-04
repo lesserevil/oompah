@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-493
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Remove real retry sleeps from GitHub tracker error tests
 parent: OOMPAH-490
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:53:28.451050Z'
-updated_at: '2026-07-28T17:07:03.821276Z'
+updated_at: '2026-08-04T17:26:11.105639Z'
 work_branch: epic-OOMPAH-490
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 1834
     cost_usd: 0.0
     recorded_at: '2026-07-28T15:29:39.940089+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a5f61ba90a42
+    project_id: proj-14849f1b
+    task_id: OOMPAH-493
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 51b206b136a05b8614cb2afee3eb2942b331aebef3195d9af63e010253f2f1e9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-04T17:26:04.993556+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -164,5 +186,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 9s
 - Log: OOMPAH-493__20260728T152132Z.jsonl
+---
+author: oompah
+created: 2026-08-04 17:26
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
