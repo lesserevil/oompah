@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-782
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Cut review and CI reconciliation over to durable decisions and jobs
 parent: OOMPAH-768
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-04T22:53:06.432660Z'
+updated_at: '2026-08-04T22:59:05.414930Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
