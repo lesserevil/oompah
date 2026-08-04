@@ -14225,12 +14225,14 @@ class Orchestrator:
         if not repo_path or not container_branches:
             return False
 
-        candidate_shas: list[str] = []
+        candidate_evidence: list[tuple[str, str | None]] = []
         if record is not None and record.state == "integrated":
             for value in (record.integrated_sha, record.head_sha):
                 sha = str(value or "").strip()
                 if sha:
-                    candidate_shas.append(sha)
+                    candidate_evidence.append(
+                        (sha, str(record.base_sha or "").strip() or None)
+                    )
 
         effective_project_id = str(
             project_id or getattr(child, "project_id", None) or ""
@@ -14257,10 +14259,12 @@ class Orchestrator:
                     continue
                 sha = str(item.head_sha or "").strip()
                 if sha:
-                    candidate_shas.append(sha)
+                    candidate_evidence.append(
+                        (sha, str(item.base_sha or "").strip() or None)
+                    )
 
-        candidate_shas = list(dict.fromkeys(candidate_shas))
-        if not candidate_shas:
+        candidate_evidence = list(dict.fromkeys(candidate_evidence))
+        if not candidate_evidence:
             return False
 
         for container_branch in container_branches:
@@ -14268,45 +14272,61 @@ class Orchestrator:
             if not container_refs:
                 continue
             for container_ref in container_refs:
-                for candidate_sha in candidate_shas:
-                    try:
-                        result = subprocess.run(
-                            [
-                                "git",
-                                "merge-base",
-                                "--is-ancestor",
-                                candidate_sha,
-                                container_ref,
-                            ],
-                            cwd=repo_path,
-                            check=False,
-                            capture_output=True,
-                            text=True,
-                            timeout=10,
-                        )
-                        if result.returncode == 0:
-                            return True
-
-                        cherry = subprocess.run(
-                            ["git", "cherry", container_ref, candidate_sha],
-                            cwd=repo_path,
-                            check=False,
-                            capture_output=True,
-                            text=True,
-                            timeout=10,
-                        )
-                        if (
-                            cherry.returncode == 0
-                            and not any(
-                                line.startswith("+ ")
-                                for line in cherry.stdout.splitlines()
-                            )
-                        ):
-                            return True
-                    except (OSError, subprocess.TimeoutExpired):
-                        continue
+                for candidate_sha, base_sha in candidate_evidence:
+                    if self._reported_commit_landed_on_refs(
+                        repo_path,
+                        candidate_sha,
+                        (container_ref,),
+                        base_sha=base_sha,
+                    ):
+                        return True
 
         return False
+
+    def _trusted_completion_evidence_landed(
+        self,
+        child: Issue,
+        *,
+        repo_path: str,
+        branch_refs: tuple[str, ...],
+        tracker: TrackerProtocol | None = None,
+    ) -> bool:
+        """Prove Oompah-authored completion evidence landed on ``branch_refs``.
+
+        Completion comments are deliberately restricted to the service author;
+        human comments can describe a desired or suspected landing but cannot
+        authorize an automatic state transition.  The Git proof itself is
+        shared with durable integration metadata so ancestry and rebased patch
+        equivalence have exactly the same fail-closed semantics everywhere.
+        """
+        if not repo_path or not branch_refs:
+            return False
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_issue(child)
+            except Exception:  # noqa: BLE001 - optional historical evidence
+                try:
+                    tracker = self._tracker_for_project(child.project_id)
+                except Exception:  # noqa: BLE001 - fail closed below
+                    tracker = None
+        fetch_comments = getattr(tracker, "fetch_comments", None)
+        if not callable(fetch_comments):
+            return False
+        try:
+            comments = fetch_comments(child.identifier)
+        except Exception:  # noqa: BLE001 - fail closed on tracker evidence errors
+            return False
+        integration = getattr(child, "integration", None)
+        base_sha = str(getattr(integration, "base_sha", "") or "").strip() or None
+        return any(
+            self._reported_commit_landed_on_refs(
+                repo_path,
+                commit_sha,
+                branch_refs,
+                base_sha=base_sha,
+            )
+            for commit_sha in self._trusted_completion_commit_shas(comments)
+        )
 
     def _child_landing_evidence_block_reason(
         self,
@@ -14361,6 +14381,41 @@ class Orchestrator:
             for branch in dict.fromkeys(container_branches)
             for ref in self._resolve_git_branch_refs(repo_path, branch)
         ]
+
+        # Consume the same trusted completion proof used while an epic review
+        # is open.  This is important after a direct epic rebase: the original
+        # child branch or integrated tip may no longer be an ancestor, while
+        # the Oompah-authored completion SHA is patch-equivalent on the current
+        # rollup branch.
+        trusted_evidence = getattr(
+            self,
+            "_trusted_completion_evidence_landed",
+            None,
+        )
+        if callable(trusted_evidence) and trusted_evidence(
+            child,
+            repo_path=repo_path,
+            branch_refs=tuple(container_refs),
+        ):
+            return None
+
+        # Durable integration metadata is also allowed to survive source
+        # branch pruning.  The helper uses the same range-aware Git proof as
+        # the trusted completion path, including all commits after base_sha.
+        durable_evidence = getattr(
+            self,
+            "_child_has_durable_landing_evidence",
+            None,
+        )
+        if callable(durable_evidence) and durable_evidence(
+            child,
+            container_branches=container_branches,
+            repo_path=repo_path,
+            project_id=getattr(child, "project_id", None)
+            or getattr(epic, "project_id", None),
+        ):
+            return None
+
         candidate_branches = list(
             dict.fromkeys(
                 branch
@@ -15317,7 +15372,9 @@ class Orchestrator:
 
         # Conditions 2 + 3: per-child branch-merge check.
         merged_summaries: list[str] = []
-        unmerged_children: list[tuple[Issue, ReviewRequest | None]] = []
+        unmerged_children: list[
+            tuple[Issue, ReviewRequest | None, str | None]
+        ] = []
         project = self.project_store.get(epic.project_id) if epic.project_id else None
         target_branch = (project.default_branch or "main") if project else "main"
 
@@ -15371,6 +15428,15 @@ class Orchestrator:
                 # Verify the merge landed on the expected target.
                 merged_target = (review.target_branch or "").strip()
                 if not merged_target or merged_target == expected_child_target:
+                    landing_reason = self._child_landing_evidence_block_reason(
+                        epic,
+                        child,
+                        expected_work_branch=expected_child_target,
+                        container_branches=(expected_child_target,),
+                    )
+                    if landing_reason:
+                        unmerged_children.append((child, review, landing_reason))
+                        continue
                     merged_summaries.append(
                         f"{child.identifier} (merged via PR #{review.id})"
                     )
@@ -15385,11 +15451,11 @@ class Orchestrator:
                     )
                 else:
                     # Merged but to an unexpected branch.
-                    unmerged_children.append((child, review))
+                    unmerged_children.append((child, review, None))
                 continue
 
             # PR exists but is open or closed-without-merge — stuck.
-            unmerged_children.append((child, review))
+            unmerged_children.append((child, review, None))
 
         if unmerged_children:
             self._arm_stuck_epic_alert(
@@ -15480,7 +15546,7 @@ class Orchestrator:
     def _arm_stuck_epic_alert(
         self,
         epic: Issue,
-        unmerged: list[tuple[Issue, "ReviewRequest | None"]],
+        unmerged: list[tuple[Issue, "ReviewRequest | None", str | None]],
         target_branch: str,
     ) -> None:
         """Add (or replace) a ``stuck_epic`` alert for one epic.
@@ -15492,7 +15558,10 @@ class Orchestrator:
         """
         source = f"stuck_epic:{epic.identifier}"
         details: list[str] = []
-        for child, review in unmerged:
+        for child, review, evidence_reason in unmerged:
+            if evidence_reason:
+                details.append(f"{child.identifier} ({evidence_reason})")
+                continue
             if review is None:
                 details.append(
                     f"{child.identifier} (branch {child.branch_name or '?'})"
@@ -16478,30 +16547,15 @@ class Orchestrator:
                 if needle in line.lower():
                     return True
 
-        if tracker is None:
-            try:
-                tracker = self._tracker_for_project(project.id)
-            except Exception:  # noqa: BLE001 - optional historical evidence
-                tracker = None
-        fetch_comments = getattr(tracker, "fetch_comments", None)
-        if not callable(fetch_comments):
-            return False
-        try:
-            comments = fetch_comments(child.identifier)
-        except Exception:  # noqa: BLE001 - fail closed on tracker evidence errors
-            return False
-
         branch_refs = self._resolve_git_branch_refs(repo_path, epic_branch)
         if not branch_refs:
             return False
-        for commit_sha in self._trusted_completion_commit_shas(comments):
-            if self._reported_commit_landed_on_refs(
-                repo_path,
-                commit_sha,
-                branch_refs,
-            ):
-                return True
-        return False
+        return self._trusted_completion_evidence_landed(
+            child,
+            repo_path=repo_path,
+            branch_refs=branch_refs,
+            tracker=tracker,
+        )
 
     @staticmethod
     def _trusted_completion_commit_shas(comments: Any) -> tuple[str, ...]:
@@ -16531,8 +16585,16 @@ class Orchestrator:
         repo_path: str,
         commit_sha: str,
         branch_refs: tuple[str, ...],
+        *,
+        base_sha: str | None = None,
     ) -> bool:
-        """Prove that a reported commit or a patch-equivalent rebase landed."""
+        """Prove that a commit or complete rebased patch range landed.
+
+        With ``base_sha`` this compares every commit in ``base_sha..commit``;
+        without it the single reported commit is compared.  Requiring every
+        patch to be equivalent prevents a tip-only match from hiding missing
+        documentation or implementation commits.
+        """
         try:
             exists = subprocess.run(
                 [
@@ -16553,6 +16615,42 @@ class Orchestrator:
         if exists.returncode != 0:
             return False
 
+        limit_sha = str(base_sha or "").strip()
+        if limit_sha:
+            try:
+                base_exists = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        "--quiet",
+                        f"{limit_sha}^{{commit}}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+                base_ancestor = subprocess.run(
+                    [
+                        "git",
+                        "merge-base",
+                        "--is-ancestor",
+                        limit_sha,
+                        commit_sha,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            if base_exists.returncode != 0 or base_ancestor.returncode != 0:
+                return False
+
         for branch_ref in branch_refs:
             try:
                 ancestor = subprocess.run(
@@ -16569,14 +16667,13 @@ class Orchestrator:
                 return True
 
             try:
+                cherry_args = ["git", "cherry", branch_ref, commit_sha]
+                if limit_sha:
+                    cherry_args.append(limit_sha)
+                else:
+                    cherry_args.append(f"{commit_sha}^")
                 equivalent = subprocess.run(
-                    [
-                        "git",
-                        "cherry",
-                        branch_ref,
-                        commit_sha,
-                        f"{commit_sha}^",
-                    ],
+                    cherry_args,
                     cwd=repo_path,
                     capture_output=True,
                     text=True,
@@ -16590,10 +16687,8 @@ class Orchestrator:
                 for line in equivalent.stdout.splitlines()
                 if line.strip()
             ]
-            if (
-                equivalent.returncode == 0
-                and len(lines) == 1
-                and lines[0].startswith("- ")
+            if equivalent.returncode == 0 and lines and all(
+                line.startswith("- ") for line in lines
             ):
                 return True
         return False

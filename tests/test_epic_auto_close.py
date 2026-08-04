@@ -15,6 +15,7 @@ reactive ``_maybe_auto_close_parent_epic`` worker-exit hook.
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 import fnmatch
 
@@ -23,6 +24,7 @@ from oompah.terminal_audit import TargetState
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
@@ -365,6 +367,176 @@ class TestMergeCheck:
         reason = tracker.append_comment.call_args.args[1]
         # Children merged to the epic branch; the auto-close message names that.
         assert "merged to epic-epic-5" in reason
+
+    def test_rebased_multi_commit_integration_evidence_unblocks_auto_close(
+        self, tmp_path
+    ):
+        """A deleted child ref is covered when every integrated patch rebases."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return result.stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.name", "Auto Close Test")
+        git("config", "user.email", "test@example.invalid")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-q", "-m", "base")
+        base_sha = git("rev-parse", "HEAD")
+
+        git("checkout", "-q", "-b", "child-1")
+        (repo / "docs.md").write_text("documented\n", encoding="utf-8")
+        git("add", "docs.md")
+        git("commit", "-q", "-m", "child docs")
+        docs_sha = git("rev-parse", "HEAD")
+        (repo / "implementation.py").write_text("VALUE = 1\n", encoding="utf-8")
+        git("add", "implementation.py")
+        git("commit", "-q", "-m", "child implementation")
+        child_sha = git("rev-parse", "HEAD")
+
+        git("checkout", "-q", "main")
+        git("checkout", "-q", "-b", "epic-epic-1")
+        for source_sha, message in (
+            (docs_sha, "rebased docs"),
+            (child_sha, "rebased implementation"),
+        ):
+            git("cherry-pick", "--no-commit", source_sha)
+            git("commit", "-q", "-m", message)
+        git("branch", "-D", "child-1")
+
+        project = _make_project()
+        project.repo_path = str(repo)
+        epic = _make_issue(
+            "epic-1",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
+        )
+        child = _make_issue("child-1", state="closed", branch_name="child-1")
+        child.work_branch = "child-1"
+        child.integration = IntegrationRecord(
+            state="integrated",
+            task_branch="child-1",
+            base_branch="epic-epic-1",
+            base_sha=base_sha,
+            head_sha=child_sha,
+            integrated_sha=child_sha,
+        )
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = [child]
+        provider = MagicMock()
+        provider.find_pr_for_branch.side_effect = lambda _repo, branch: {
+            "child-1": _make_review(
+                number=11,
+                state="merged",
+                source_branch="child-1",
+                target_branch="epic-epic-1",
+            ),
+            "epic-epic-1": _make_review(
+                number=12,
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+            ),
+        }.get(branch)
+
+        orch = _make_orch(tmp_path, project=project, tracker=tracker)
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            assert orch._epic_auto_close_check(epic) is True
+
+        assert "child-1 (merged via PR #11)" in (
+            tracker.append_comment.call_args.args[1]
+        )
+
+    def test_rebased_multi_commit_missing_patch_blocks_auto_close(self, tmp_path):
+        """Patch equivalence must not hide a missing implementation commit."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return result.stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.name", "Auto Close Test")
+        git("config", "user.email", "test@example.invalid")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-q", "-m", "base")
+        base_sha = git("rev-parse", "HEAD")
+        git("checkout", "-q", "-b", "child-1")
+        (repo / "docs.md").write_text("documented\n", encoding="utf-8")
+        git("add", "docs.md")
+        git("commit", "-q", "-m", "child docs")
+        docs_sha = git("rev-parse", "HEAD")
+        (repo / "implementation.py").write_text("VALUE = 1\n", encoding="utf-8")
+        git("add", "implementation.py")
+        git("commit", "-q", "-m", "child implementation")
+        child_sha = git("rev-parse", "HEAD")
+        git("checkout", "-q", "main")
+        git("checkout", "-q", "-b", "epic-epic-1")
+        git("cherry-pick", "--no-commit", docs_sha)
+        git("commit", "-q", "-m", "rebased docs")
+        git("branch", "-D", "child-1")
+
+        project = _make_project()
+        project.repo_path = str(repo)
+        epic = _make_issue("epic-1", state="open", issue_type="epic", branch_name=None)
+        child = _make_issue("child-1", state="closed", branch_name="child-1")
+        child.work_branch = "child-1"
+        child.integration = IntegrationRecord(
+            state="integrated",
+            task_branch="child-1",
+            base_branch="epic-epic-1",
+            base_sha=base_sha,
+            head_sha=child_sha,
+            integrated_sha=child_sha,
+        )
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = [child]
+        provider = MagicMock()
+        provider.find_pr_for_branch.side_effect = lambda _repo, branch: {
+            "child-1": _make_review(
+                number=21,
+                state="merged",
+                source_branch="child-1",
+                target_branch="epic-epic-1",
+            ),
+            "epic-epic-1": _make_review(
+                number=22,
+                state="merged",
+                source_branch="epic-epic-1",
+                target_branch="main",
+            ),
+        }.get(branch)
+
+        orch = _make_orch(tmp_path, project=project, tracker=tracker)
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            assert orch._epic_auto_close_check(epic) is False
+
+        alert = next(
+            alert
+            for alert in orch._alerts
+            if alert.get("source") == "stuck_epic:epic-1"
+        )
+        assert "child-1" in alert["message"]
+        assert "integrated" not in alert["message"]
+        assert "branch cannot be verified" in alert["message"]
 
 
 # -------------------------------------------------- Condition 3: no-branch children
