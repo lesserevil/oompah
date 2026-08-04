@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T22:45:55.473839Z'
+updated_at: '2026-08-04T22:49:27.707056Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
