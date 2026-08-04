@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:18:59.284253Z'
-updated_at: '2026-08-04T20:33:36.044668Z'
+updated_at: '2026-08-04T20:35:33.164774Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-08-04 20:33
 ---
 **UNDERSTANDING**: Investigating intermittent test failures under parallel load. Issue: two tests fail under full-gate but pass in focused runs. Problem 1 - burst test uses fixed sleeps instead of event synchronization (may stop before burst processing under xdist load). Problem 2 - tick-metrics test launches real background work and can leak archived-audit state. Solution: replace sleeps with asyncio event/phase sync, stub/drain background threads/futures, assert no side effects after test completion. Will examine both test files, identify synchronization points, and implement deterministic fixes.
+---
+author: oompah
+created: 2026-08-04 20:35
+---
+**DISCOVERY**: Found the two failing tests. Burst test (test_event_driven_loop.py::test_run_coalesces_burst_events_into_fewer_ticks) uses fixed sleep (0.08s) to wait for event processing instead of synchronizing on actual tick completion event. Tick-metrics test (test_long_tick_regression.py::test_snapshot_tick_metrics_include_dispatch_timing) appears to launch background work without proper cleanup. Both are vulnerable to race conditions under xdist parallel load. Solution: (1) Replace burst test sleeps with event-based synchronization of _tick() invocations, (2) Audit tick-metrics test for undraincd background futures/threads and add cleanup assertions.
 ---
 <!-- COMMENTS:END -->
