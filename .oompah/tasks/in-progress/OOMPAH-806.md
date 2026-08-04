@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-806
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fence stalled-task recovery behind internal gate authority
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T20:44:00.064452Z'
-updated_at: '2026-08-04T20:47:20.540756Z'
+updated_at: '2026-08-04T20:47:40.382422Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-806
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c06e16d0-6d62-4572-861d-aff8474a00b0
+oompah.agent_run_id: aa5fe509-6fa9-4c00-be8b-9657114f2280
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-806
 oompah.integration:
   version: 2
@@ -116,5 +116,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 19s
 - Log: OOMPAH-806__20260804T204517Z.jsonl
+---
+author: oompah
+created: 2026-08-04 20:47
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
