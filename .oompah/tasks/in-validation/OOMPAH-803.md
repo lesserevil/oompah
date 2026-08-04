@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T14:01:03.399587Z'
-updated_at: '2026-08-04T21:42:27.185297Z'
+updated_at: '2026-08-04T21:50:58.799153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-803
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -147,7 +147,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1e4106a86d01
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -157,6 +157,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-04T21:42:25.794331+00:00'
       branch_key: OOMPAH-803
+      ended_at: '2026-08-04T21:50:57.464910+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah-cli
@@ -224,7 +226,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-1e4106a86d01
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -234,6 +236,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-04T21:42:25.794331+00:00'
     branch_key: OOMPAH-803
+    ended_at: '2026-08-04T21:50:57.464910+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
