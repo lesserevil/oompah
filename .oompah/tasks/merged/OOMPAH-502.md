@@ -22,7 +22,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:03:45.331314Z'
-updated_at: '2026-08-04T23:33:44.566120Z'
+updated_at: '2026-08-04T23:34:44.955716Z'
 work_branch: epic-OOMPAH-502
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/564
@@ -375,13 +375,13 @@ oompah.terminal_audit:
     started_at: '2026-08-04T23:24:10.470037+00:00'
     branch_key: epic-OOMPAH-502
 oompah.task_costs:
-  total_input_tokens: 13
-  total_output_tokens: 7374
+  total_input_tokens: 39
+  total_output_tokens: 12415
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 13
-      output_tokens: 7374
+      input_tokens: 39
+      output_tokens: 12415
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -390,6 +390,12 @@ oompah.task_costs:
     output_tokens: 7374
     cost_usd: 0.0
     recorded_at: '2026-08-04T22:09:42.990132+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 26
+    output_tokens: 5041
+    cost_usd: 0.0
+    recorded_at: '2026-08-04T23:34:42.404583+00:00'
 ---
 ## Summary
 
@@ -569,5 +575,15 @@ Safe evidence:
 - post_merge_source_branch_pruned: true
 - audit_target: Merged
 - task_id: OOMPAH-502
+---
+author: oompah
+created: 2026-08-04 23:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 30, Tool calls: 20
+- Tokens: 26 in / 5.0K out [5.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 21s
+- Log: OOMPAH-502__20260804T232441Z.jsonl
 ---
 <!-- COMMENTS:END -->
