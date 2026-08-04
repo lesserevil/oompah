@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-04T14:07:23.767856Z'
+updated_at: '2026-08-04T14:08:09.216422Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-04 14:07
 ---
 Verification: Post-rebase focused suites pass: 432 alert-contract, transcript security/redaction, health, integration retry/executor, webhook, and dashboard tests; 149 state snapshot, IPC, WebSocket, and API responsiveness tests; make check-secrets passes. make test-setup itself is unavailable in this managed worker because the configured Snap uv launcher fails to create a transient DBus scope, so the configured orchestrator full branch gate will run on the exact submitted head.
+---
+author: oompah
+created: 2026-08-04 14:08
+---
+Completion: Rebased and reconciled OOMPAH-743 onto OOMPAH-741 at exact pushed head f745082a0. Delivered canonical bounded/redacted alert facts without losing actionability, structured integration failures, sanitized expandable diagnostics, defensive renderer limits/escaping/no-wrap presentation, and the EXOCOMP-147 fixture. Post-rebase evidence: 432 focused alert/security/health/integration tests and 149 snapshot/WebSocket/API tests pass; check-secrets and diff checks pass.
 ---
 <!-- COMMENTS:END -->

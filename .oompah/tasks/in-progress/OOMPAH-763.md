@@ -21,7 +21,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-04T14:05:51.957714Z'
+updated_at: '2026-08-04T14:07:59.846056Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,3 +39,11 @@ Problem: Oompah task progression is currently implemented by multiple local reco
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 14:07
+---
+Implementation ownership: this entire hierarchy is reserved for direct project-owner execution, not Oompah agent dispatch. Child tasks remain Backlog until their hard-start dependencies are complete; the active leaf will be owner-claimed in sequence so board state stays truthful. Foundation begins with OOMPAH-772. Accidental duplicate creations OOMPAH-799 through OOMPAH-802 were owner-archived; canonical children are OOMPAH-773, OOMPAH-774, OOMPAH-776, and OOMPAH-778.
+---
+<!-- COMMENTS:END -->

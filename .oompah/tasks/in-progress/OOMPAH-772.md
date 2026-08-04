@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-772
 type: feature
-status: Backlog
+status: In Progress
 priority: 1
 title: Encode the canonical task lifecycle and invariants
 parent: OOMPAH-764
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:41.045890Z'
-updated_at: '2026-08-04T13:58:41.045890Z'
+updated_at: '2026-08-04T14:08:11.054471Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Implement a machine-readable main task lifecycle contract, analogous to release_
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-04 14:08
+---
+Direct-owner implementation started. Scope: encode the canonical task lifecycle, execution phases, total dispositions, transition table, and machine-checkable safety/liveness invariants with focused regression tests and documentation. This is the foundation dependency for the transition service, WorkDecision, durable jobs, verification harness, and all domain cutovers.
+---
+<!-- COMMENTS:END -->
