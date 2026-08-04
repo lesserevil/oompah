@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T00:41:04.498057Z'
-updated_at: '2026-08-04T00:51:47.400007Z'
+updated_at: '2026-08-04T01:08:19.223752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,19 @@ author: oompah
 created: 2026-08-04 00:51
 ---
 **Discovery:** Found the relevant code sections. The _label_merged_epics function in orchestrator.py (line ~21896) checks if epic branches are landed on their target branch before marking them Merged. For nested epics, the target is correctly resolved to the parent's branch (line ~702914). However, the _epic_auto_close_check function has a gate requiring the epic's own branch to be merged to project.default_branch before auto-close. This creates a cycle for nested epics: child can't be marked Merged until parent auto-closes, but parent can't auto-close until merged to main. Need to find and modify the lifecycle validation logic that enforces nested child Merged state depends on parent landing on main.
+---
+author: oompah
+created: 2026-08-04 01:08
+---
+**Implementation:** Fixed the nested epic rollup cycle by modifying _epic_auto_close_check to use target-relative validation. Key changes:
+
+1. Modified _epic_auto_close_check in orchestrator.py (~line 15398) to resolve the immediate target for each epic using _resolve_epic_target_branch
+2. For nested epics: now checks if branch is merged to parent's branch (not main)
+3. For root epics: still requires merge to main
+4. Added comprehensive tests in test_nested_epic_cycle_fix.py covering:
+   - Nested epic auto-close when landed on parent branch (before parent→main)
+   - Root epic still requires main merge (original behavior preserved)
+
+This breaks the cycle where child couldn't be Merged until parent auto-closes, but parent couldn't auto-close until merged to main. Now nested children can auto-close immediately upon landing on parent branch, unblocking parent progress.
 ---
 <!-- COMMENTS:END -->
