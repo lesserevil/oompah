@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:12:47.833233Z'
+updated_at: '2026-08-05T06:13:08.562782Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1070,5 +1070,10 @@ author: oompah
 created: 2026-08-05 06:12
 ---
 Implementation: no additional source edits were needed because the recovered implementation is already integrated at HEAD 9ea2b5523. It includes outermost ASGI Basic enforcement, exact literal exemptions for GET /healthz and the two webhook POSTs, pre-accept WebSocket validation, downstream Authorization redaction, minimal health output, and uvicorn/lifespan startup wiring.
+---
+author: oompah
+created: 2026-08-05 06:13
+---
+Completion: OOMPAH-523 is verified at clean pushed head 9ea2b5523. Basic auth covers all interactive HTTP/mounted and WebSocket surfaces, preserves exact forge webhook and health exemptions, keeps forge validation intact, rejects bypass variants, redacts credentials, and preserves disabled behavior. Focused verification and secret scan passed.
 ---
 <!-- COMMENTS:END -->
