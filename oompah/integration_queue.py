@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -36,11 +36,15 @@ class IntegrationQueueItem:
     last_error: str | None = None
     retry_forced: bool = False
     next_retry_at: float | None = None
+    # Ephemeral one-shot authority returned only by ``claim_next``.  It is
+    # deliberately excluded from durable snapshots and authority generations.
+    claimed_retry_forced: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
             key: getattr(self, key)
             for key in self.__dataclass_fields__
+            if key != "claimed_retry_forced"
         }
 
     def authority_generation(self) -> str:
@@ -397,7 +401,6 @@ class IntegrationQueueStore:
                 if result.rowcount != 1:
                     self._conn.rollback()
                     return None
-                self._conn.commit()
                 row = self._conn.execute(
                     """
                     SELECT * FROM integration_queue
@@ -405,10 +408,20 @@ class IntegrationQueueStore:
                     """,
                     (project_id, selected["task_id"]),
                 ).fetchone()
+                self._conn.commit()
             except Exception:
                 self._conn.rollback()
                 raise
-        return self._from_row(row) if row is not None else None
+        if row is None:
+            return None
+        claimed = self._from_row(row)
+        # ``retry_forced`` is one-shot authority consumed atomically with the
+        # claim.  Preserve its pre-claim value only on the item handed to this
+        # executor; the durable row remains clear so lease recovery cannot
+        # loop forced quality-gate executions after a crash.
+        if bool(selected["retry_forced"]):
+            claimed = replace(claimed, claimed_retry_forced=True)
+        return claimed
 
     def complete(
         self,
