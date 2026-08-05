@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:22:05.857431Z'
+updated_at: '2026-08-05T20:29:08.388622Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,5 +65,10 @@ author: oompah
 created: 2026-08-05 20:22
 ---
 Clean final focused rerun after the durable-owner retirement and live-session PID fences: make test-setup + terminal-audit-scan passed, then 251/251 targeted tests passed in 27.59s across native guard, validation-resource leasing, Codex backend, authenticated owner-claim recovery, and aggregate health. Static compile/diff checks remain clean. Fresh independent review is in progress; branch remains uncommitted/unpushed.
+---
+author: oompah
+created: 2026-08-05 20:29
+---
+Final consolidated focused gate is clean after all review-driven changes: terminal mutation scan passed and 252/252 targeted tests passed in 27.88s. This includes API-level same-generation ABA replacement, descendant-held durable-owner retirement, live-session provider PID, operator-path/inode/parent identity, and task-writable temp/workspace rejection. Static compile/diff checks remain clean; independent final review remains the only pre-commit step.
 ---
 <!-- COMMENTS:END -->
