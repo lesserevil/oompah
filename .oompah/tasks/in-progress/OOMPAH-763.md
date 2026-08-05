@@ -32,7 +32,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-05T14:48:09.764866Z'
+updated_at: '2026-08-05T14:53:19.066145Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,5 +71,10 @@ author: oompah
 created: 2026-08-05 14:48
 ---
 Operator checkpoint boundary (2026-08-05): finish only the already-active OOMPAH-815 CI repair and the bounded in-flight batch OOMPAH-505/OOMPAH-523/OOMPAH-807/OOMPAH-821. Keep project dispatch paused; do not start the next systemic-program stage (including OOMPAH-781/OOMPAH-791/OOMPAH-804) in this work session. Once the active batch reaches safe terminal or clearly handed-off states, publish a concise clean-state handoff covering exact heads, tracker states, validation/alert health, remaining dependency order, and cleanup status, then stop.
+---
+author: oompah
+created: 2026-08-05 14:53
+---
+Operator direction supersedes the prior checkpoint-only boundary: continue the systemic workflow program through completion, using child agents for safe independent work and allowing the Oompah server to implement dispatchable tasks where current capabilities permit. The project remains paused only while the bounded OOMPAH-505/523/807/821 validation batch and OOMPAH-815 repair drain; resume staged dispatch after that safe boundary.
 ---
 <!-- COMMENTS:END -->
