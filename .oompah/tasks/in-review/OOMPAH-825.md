@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:56:23.504700Z'
+updated_at: '2026-08-05T13:13:31.163643Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -105,5 +105,10 @@ author: oompah
 created: 2026-08-05 12:56
 ---
 Independent incremental review PASS at exact pushed head 11c75e6c1b86f16837c13efb32938f814f362b79. Reviewer verified the one-commit delta changes only tests/test_close_gate.py, fixture scope is limited to TestCheckCloseGate, deterministic test token cannot mask authentication fallback because the open-PR regression asserts subprocess.run is never called, lower-level auth/query tests remain unaffected, and branch/upstream/trailer/diff are exact and clean.
+---
+author: oompah
+created: 2026-08-05 13:13
+---
+OOMPAH-826 containment/workaround complete for the current review generation: exact repaired head 11c75e6c1b86f16837c13efb32938f814f362b79 passed the complete Makefile gate (15,657 passed, 7 skipped, 1 expected xfail; 0 failures; 621.26s). GitHub CI on the same exact head is also green across Python 3.11/3.12/3.13. PR #721 was temporarily draft-held only to prevent merge before this missing exact-head local evidence existed; restoring it to ready now.
 ---
 <!-- COMMENTS:END -->
