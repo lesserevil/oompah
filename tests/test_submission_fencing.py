@@ -429,6 +429,72 @@ async def test_revoked_submission_rejects_cross_project_tracker_record(tmp_path)
 
 
 @pytest.mark.asyncio
+async def test_revoked_submission_preserves_replacement_installed_during_recovery(
+    tmp_path,
+):
+    orch = _orchestrator(tmp_path)
+    issue = _issue(project_id="project-a")
+    replacement_issue = _issue(project_id="project-a", state=OPEN)
+    record = IntegrationRecord(state="ready", head_sha="a" * 40)
+    entry = RunningEntry(
+        worker_task=asyncio.create_task(asyncio.sleep(0)),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=str(tmp_path),
+        authority_revoked=True,
+        accepted_submission_record=record,
+    )
+    replacement = RunningEntry(
+        worker_task=asyncio.create_task(asyncio.sleep(0)),
+        identifier=replacement_issue.identifier,
+        issue=replacement_issue,
+        session=None,
+        retry_attempt=1,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-2",
+    )
+    assert replacement.run_id != entry.run_id
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.claimed_issues[issue.id] = issue
+
+    project_store = MagicMock()
+
+    def install_replacement(*_args):
+        orch._register_running_entry(issue.id, replacement)
+        orch.state.claimed.add(issue.id)
+        orch.state.claimed_issues[issue.id] = replacement_issue
+        return None
+
+    project_store.preserve_worktree_changes.side_effect = install_replacement
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+
+    with (
+        patch.object(orch, "project_store", project_store),
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+    await entry.worker_task
+    await replacement.worker_task
+
+    assert orch.state.running[issue.id] is replacement
+    assert issue.id in orch.state.claimed
+    assert orch.state.claimed_issues[issue.id] is replacement_issue
+    tracker.fetch_issue_detail.assert_not_called()
+    tracker.update_issue.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_non_revoked_submission_exit_keeps_ordinary_retry_path(tmp_path):
     orch = _orchestrator(tmp_path)
     issue = _issue(project_id="project-a")
