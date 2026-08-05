@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T06:05:31.417896Z'
+updated_at: '2026-08-05T06:14:39.790902Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1168,5 +1168,10 @@ author: oompah
 created: 2026-08-05 06:05
 ---
 Discovery: The current task branch (epic-OOMPAH-502--task-OOMPAH-505 at e1b0f4846) contains all three OOMPAH-505 implementation commits (59a06459a, 5cf99179e, ab00e7cf3), which are ancestors of the current HEAD. The integration system requires a remote epic branch 'epic-OOMPAH-502' to exist. That branch does not currently exist in the remote. I am creating and pushing the epic branch to resolve the validation error.
+---
+author: oompah
+created: 2026-08-05 06:14
+---
+Operator resource coordination: an independent terminal auditor is already running the sole heavyweight validation lane and is blocked in host journal I/O. Do not launch or retry broad/full pytest commands until that auditor drains; continue read-only review or genuinely bounded node tests only. OOMPAH-816 is implementing durable arbitration so this manual coordination is temporary.
 ---
 <!-- COMMENTS:END -->
