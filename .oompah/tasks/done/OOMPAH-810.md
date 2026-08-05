@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T19:46:05.499278Z'
+updated_at: '2026-08-05T19:46:14.524245Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -116,8 +116,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-af70e1b81ff1
-    applied: false
+    applied: true
     created_at: '2026-08-05T19:45:59.415071+00:00'
+    applied_at: '2026-08-05T19:46:12.101038+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -332,5 +333,18 @@ author: oompah
 created: 2026-08-05 19:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:46
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
+- new_tests_pass: 34 (27 test_tool_liveness + 7 test_acp_tool_output_bounds)
+- broader_suite_pass: 1764 tests, 4 pre-existing warnings
+- key_files: oompah/tool_liveness.py, oompah/api_agent.py, oompah/acp_agent.py, oompah/acp_tools.py, oompah/orchestrator.py
 ---
 <!-- COMMENTS:END -->
