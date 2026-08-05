@@ -705,3 +705,121 @@ async def test_submission_acceptance_revokes_worker_authority(tmp_path):
                         # Verify the submission record was set on the entry
                         assert entry.accepted_submission_record is not None
                         assert entry.accepted_submission_record.state == "ready"
+
+
+@pytest.mark.asyncio
+async def test_worker_exit_routes_revoked_submission_to_exact_project(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue(project_id="project-a")
+    record = IntegrationRecord(state="ready", head_sha="a" * 40)
+    entry = RunningEntry(
+        worker_task=asyncio.create_task(asyncio.sleep(0)),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        authority_generation="generation-1",
+        authority_revoked=True,
+        accepted_submission_record=record,
+    )
+    orch.state.running[issue.id] = entry
+
+    with patch.object(
+        orch, "_handle_revoked_submission_exit", new_callable=AsyncMock
+    ) as handler:
+        await orch._on_worker_exit(
+            issue.id,
+            "normal",
+            None,
+            run_id=entry.run_id,
+        )
+    await entry.worker_task
+
+    handler.assert_awaited_once_with(
+        entry,
+        issue.id,
+        "project-a",
+        record,
+    )
+
+
+@pytest.mark.asyncio
+async def test_revoked_submission_rejects_cross_project_tracker_record(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue(project_id="project-a")
+    foreign = _issue(project_id="project-b")
+    record = IntegrationRecord(state="ready", head_sha="a" * 40)
+    entry = RunningEntry(
+        worker_task=asyncio.create_task(asyncio.sleep(0)),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        authority_revoked=True,
+        accepted_submission_record=record,
+    )
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.completed.add(issue.id)
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = foreign
+
+    with patch.object(
+        orch, "_tracker_for_project", return_value=tracker
+    ) as tracker_for_project:
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            "project-a",
+            record,
+        )
+    await entry.worker_task
+
+    tracker_for_project.assert_called_once_with("project-a")
+    tracker.update_issue.assert_not_called()
+    assert issue.id not in orch.state.running
+    assert issue.id not in orch.state.completed
+
+
+@pytest.mark.asyncio
+async def test_non_revoked_submission_exit_keeps_ordinary_retry_path(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue(project_id="project-a")
+    record = IntegrationRecord(state="ready", head_sha="a" * 40)
+    entry = RunningEntry(
+        worker_task=asyncio.create_task(asyncio.sleep(0)),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        authority_generation="generation-1",
+        accepted_submission_record=record,
+    )
+    orch.state.running[issue.id] = entry
+
+    with (
+        patch.object(
+            orch, "_handle_revoked_submission_exit", new_callable=AsyncMock
+        ) as handler,
+        patch.object(orch, "_post_comment"),
+        patch.object(orch, "_schedule_retry") as schedule_retry,
+        patch.object(orch, "_fire_task_cost_record"),
+        patch.object(orch, "_fire_telemetry_comment"),
+    ):
+        await orch._on_worker_exit(
+            issue.id,
+            "abnormal",
+            "provider failed",
+            run_id=entry.run_id,
+        )
+    await entry.worker_task
+
+    handler.assert_not_awaited()
+    assert schedule_retry.call_args.kwargs["project_id"] == "project-a"
+    assert issue.id not in orch.state.running
