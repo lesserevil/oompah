@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T14:46:29.504512Z'
+updated_at: '2026-08-05T15:00:47.660932Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -319,5 +319,10 @@ author: oompah
 created: 2026-08-05 14:46
 ---
 Implementation: Replaced the split retry checks with canonical audit_recovery_mode(), made retry_failed_audit authoritative to the newest matching record so newer PASS outcomes fence older failures, and required/refreshed the current evidence fingerprint for both infrastructure and evidence recovery. Fixed the sweep to read durable metadata correctly, pass the current fingerprint, suppress stale alerts, and advertise explicit audit_retry infrastructure guidance. Added mixed-history, successful-finality, fingerprint-fence, API forwarding, and live alert-mode tests.
+---
+author: oompah
+created: 2026-08-05 15:00
+---
+Verification: full make test passed at the current worktree (15,685 passed, 7 skipped, 1 xfailed, 57 warnings in 605.35s). Focused recovery/coordinator/server suites and adjacent terminal-audit suites also pass.
 ---
 <!-- COMMENTS:END -->
