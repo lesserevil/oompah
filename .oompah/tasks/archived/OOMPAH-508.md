@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-508
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Run focused checks at handoff and one full quality gate per ready branch
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:08.389229Z'
-updated_at: '2026-08-05T00:21:19.932645Z'
+updated_at: '2026-08-05T00:52:30.012064Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -36,6 +36,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T15:49:12.360160+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f4551bd2ba77: '2026-08-05T00:52:26.583577+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-508
+    target_state: Archived
+    evidence_fingerprint: a999058c901f8de3c4b34c4b91426bb8593fd78fe0ca8d90a3f2bcf37cde75f1
+    audit_ids:
+    - audit-922ddb8e6bc3
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:52:26.583590+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-508
+    audit_id: audit-922ddb8e6bc3
+    attempt_id: attempt-f4551bd2ba77
+    target_state: Archived
+    evidence_fingerprint: a999058c901f8de3c4b34c4b91426bb8593fd78fe0ca8d90a3f2bcf37cde75f1
+    status: Archived
+    audit_ids:
+    - audit-922ddb8e6bc3
+    applied: false
+    created_at: '2026-08-05T00:52:26.583605+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +67,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-508
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +107,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f4551bd2ba77
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -94,13 +118,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T00:20:53.029391+00:00'
       branch_key: epic-OOMPAH-502
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-05T00:52:26.583424+00:00'
+      ended_at: '2026-08-05T00:52:26.583424+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:28:42.830532+00:00'
-    updated_at: '2026-08-05T00:20:53.029391+00:00'
+    updated_at: '2026-08-05T00:52:26.583424+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8d0aa00c32ca
