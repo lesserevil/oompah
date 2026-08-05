@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-08-05T01:04:38.240879Z'
+updated_at: '2026-08-05T01:05:10.370537Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -167,6 +167,22 @@ oompah.terminal_audit:
     started_at: '2026-08-05T00:53:39.734356+00:00'
     branch_key: epic-OOMPAH-502
     candidate_rotation_count: 2
+oompah.task_costs:
+  total_input_tokens: 438
+  total_output_tokens: 120
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 438
+      output_tokens: 120
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 438
+    output_tokens: 120
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:05:06.435248+00:00'
 ---
 ## Summary
 
@@ -274,5 +290,15 @@ Safe evidence:
 - worktrees_cleaned: 25
 - storage_entries_inspected: 988
 - quality_gates_passed: make check-secrets, git diff --check
+---
+author: oompah
+created: 2026-08-05 01:05
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 25
+- Tokens: 438 in / 120 out [558 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 15s
+- Log: OOMPAH-510__20260805T005412Z.jsonl
 ---
 <!-- COMMENTS:END -->
