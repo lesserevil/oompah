@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:47:02.955752Z'
+updated_at: '2026-08-05T05:47:58.675310Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -950,5 +950,20 @@ Discovery: ASGI Basic-auth middleware (_BasicAuthMiddleware) is implemented in o
 - Startup wiring via _service_lifespan and set_http_credentials()
 - GitHub/GitLab webhook signature/token validation preserved
 - When auth is disabled, all current behavior is preserved exactly
+---
+author: oompah
+created: 2026-08-05 05:47
+---
+Verification: Focused auth test suite passed: 178 tests in test_http_auth.py, test_server_auth.py, test_auth_health.py, test_websocket_authenticated_bootstrap.py, test_docs_authentication_contract.py. All acceptance criteria verified:
+✓ Enabled auth protects all HTTP/mounted routes except exact exemptions
+✓ Invalid protected HTTP requests receive 401 with WWW-Authenticate challenge
+✓ WebSocket auth checked before accept(); unauthenticated rejected with code 1008
+✓ GET /healthz unauthenticated with minimal health + instance identity only
+✓ POST /api/v1/webhooks/github and /gitlab bypass auth, preserve signature/token validation
+✓ GET /api/v1/webhooks/gitlab/status remains protected
+✓ No method, trailing-slash, encoding tricks bypass auth
+✓ Authorization header redacted throughout
+✓ Disabled deployments preserve current behavior exactly
+✓ Startup wiring of credentials working correctly
 ---
 <!-- COMMENTS:END -->
