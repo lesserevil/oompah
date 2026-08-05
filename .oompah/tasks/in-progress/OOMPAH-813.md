@@ -6,12 +6,13 @@ priority: null
 title: Fence revoked accepted-submission worker exits with the resolved project
 parent: OOMPAH-768
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-782
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:03:10.372835Z'
+updated_at: '2026-08-05T00:03:45.261870Z'
 work_branch: null
 target_branch: null
 review_url: null
