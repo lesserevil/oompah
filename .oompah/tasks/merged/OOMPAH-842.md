@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-842
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Bootstrap native validation guard provider fix onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:23:59.756406Z'
+updated_at: '2026-08-05T22:25:55.771388Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -37,6 +37,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-7e11ef429641: '2026-08-05T22:23:10.359201+00:00'
+    attempt-850509a27367: '2026-08-05T22:25:52.383653+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-842
@@ -47,6 +48,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-05T22:23:10.359210+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    target_state: Merged
+    evidence_fingerprint: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    audit_ids:
+    - audit-2fb4256b75cb
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T22:25:52.383676+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-842
@@ -60,6 +70,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T22:23:10.359221+00:00'
     applied_at: '2026-08-05T22:23:16.457318+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    audit_id: audit-2fb4256b75cb
+    attempt_id: attempt-850509a27367
+    target_state: Merged
+    evidence_fingerprint: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    status: Merged
+    audit_ids:
+    - audit-2fb4256b75cb
+    applied: false
+    created_at: '2026-08-05T22:25:52.383699+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +122,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-842
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,7 +131,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-850509a27367
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -120,13 +141,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T22:23:50.226548+00:00'
       branch_key: OOMPAH-842
+      verdict: pass
+      completed_at: '2026-08-05T22:25:52.383426+00:00'
+      ended_at: '2026-08-05T22:25:52.383426+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T22:17:23.501614+00:00'
-    updated_at: '2026-08-05T22:23:50.226548+00:00'
+    updated_at: '2026-08-05T22:25:52.383426+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7e11ef429641
