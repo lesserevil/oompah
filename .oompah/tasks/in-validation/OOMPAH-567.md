@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-567
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Install complete test dependencies in fresh Makefile worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T23:07:00.045502Z'
+updated_at: '2026-08-05T23:21:41.635749Z'
 work_branch: OOMPAH-567
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/584
@@ -87,6 +87,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/584
 oompah.review_number: '584'
 oompah.work_branch: OOMPAH-567
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e19146ff10c8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-567
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c75beae79487946d7e08ba63c0c7d8dd562fcf1e4d1e7e74dd7c0a3c61566873
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T23:21:34.882840+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -169,5 +191,10 @@ author: oompah
 created: 2026-07-29 23:07
 ---
 YOLO: merged PR #584.
+---
+author: oompah
+created: 2026-08-05 23:21
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
