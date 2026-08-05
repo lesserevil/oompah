@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:06.576042Z'
-updated_at: '2026-08-04T23:59:44.746298Z'
+updated_at: '2026-08-05T00:00:10.911494Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -158,6 +158,22 @@ oompah.terminal_audit:
     started_at: '2026-08-04T23:34:49.211290+00:00'
     branch_key: epic-OOMPAH-502
     candidate_rotation_count: 2
+oompah.task_costs:
+  total_input_tokens: 218
+  total_output_tokens: 5423
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 218
+      output_tokens: 5423
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 218
+    output_tokens: 5423
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T00:00:05.858879+00:00'
 ---
 ## Summary
 
@@ -218,5 +234,15 @@ created: 2026-08-04 23:59
 Audit PASS — Archived
 
 OOMPAH-506 storage cleanup implementation is complete and verified: daily throttled scan with pressure-triggered acceleration, bounded batch deletion of aged stale entries, preservation of active/unknown/Done/Conflict paths and symlinks/VM images, comprehensive test coverage (11 storage_cleanup tests pass), environment tunables in .env.example, operator recovery docs in docs/operator-runbook.md, integrated into orchestrator.py, merged to main branch.
+---
+author: oompah
+created: 2026-08-05 00:00
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 56, Tool calls: 26
+- Tokens: 218 in / 5.4K out [5.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 10s
+- Log: OOMPAH-506__20260804T233514Z.jsonl
 ---
 <!-- COMMENTS:END -->
