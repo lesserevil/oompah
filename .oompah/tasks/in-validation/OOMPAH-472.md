@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-08-05T19:33:22.277039Z'
+updated_at: '2026-08-05T19:33:36.325009Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1374,5 +1374,10 @@ author: oompah
 created: 2026-08-05 19:32
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-05 19:33
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
