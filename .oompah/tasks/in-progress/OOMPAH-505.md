@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:54:38.756952Z'
+updated_at: '2026-08-05T01:57:59.439220Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -834,5 +834,10 @@ author: oompah
 created: 2026-08-05 01:54
 ---
 Discovery: The landed contracts are present in oompah/acp_backends/{base,claude,codex}.py, server.py, providers.html, and the role/dispatch tests. Claude and Codex advertise manual selection independently of empty catalogs; the branch also contains the live-tier correction to Claude haiku/sonnet/opus and Codex gpt-5.6-luna/terra/sol. No provider IDs or credentials are embedded in production defaults, and no code gap is evident.
+---
+author: oompah
+created: 2026-08-05 01:57
+---
+Implementation: No patch was needed in this recovery pass. The existing implementation already separates catalog discovery from manual ACP model selection, validates and persists explicit role candidates with empty-model SDK fallback, propagates selected Claude/Codex models through dispatch and telemetry, and preserves provider health, credentials, and whitelist behavior.
 ---
 <!-- COMMENTS:END -->
