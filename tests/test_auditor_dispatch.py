@@ -7,14 +7,18 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 from types import SimpleNamespace
 
+import pytest
+
 from oompah.auditor_dispatch import AuditorDispatchLane, audit_branch_key
 from oompah.auditor_candidate_selector import NoCandidateReason
 from oompah.roles import Candidate
 from oompah.terminal_audit import (
+    AuditAttempt,
     EvidenceFingerprint,
     RequestState,
     TargetState,
     TerminalAuditRecord,
+    Verdict,
 )
 from oompah.orchestrator import auditor_turn_budget
 
@@ -22,6 +26,170 @@ from oompah.orchestrator import auditor_turn_budget
 def test_auditor_budget_reserves_one_non_starvable_finalization_turn() -> None:
     assert auditor_turn_budget(100, auditor=True) == 101
     assert auditor_turn_budget(100, auditor=False) == 100
+
+
+def test_pending_record_prefers_active_attempt_over_ownerless_state() -> None:
+    fingerprint = EvidenceFingerprint(hashlib.sha256(b"same").hexdigest())
+    pending = TerminalAuditRecord(
+        audit_id="audit-pending",
+        project_id="project-1",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        created_at="2026-08-05T12:00:00+00:00",
+        source_generation=2,
+    )
+    running_attempt = AuditAttempt(
+        attempt_id="attempt-running",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        created_at="2026-08-05T12:01:00+00:00",
+        started_at="2026-08-05T12:01:00+00:00",
+    )
+    running = replace(
+        pending,
+        audit_id="audit-running",
+        request_state=RequestState.PENDING,
+        attempts=[running_attempt],
+        updated_at="2026-08-05T12:01:00+00:00",
+        source_generation=1,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [pending, running], project_id="project-1", task_id="TASK-1"
+    ) == running
+
+
+def test_pending_record_new_evidence_supersedes_old_running_semantics() -> None:
+    old = _record(request_state=RequestState.IN_PROGRESS)
+    old_attempt = AuditAttempt(
+        attempt_id="attempt-old",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=old.evidence_fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+    )
+    old = replace(old, attempts=[old_attempt], source_generation=1)
+    fresh = replace(
+        _record(fingerprint="evidence-2"),
+        audit_id="audit-fresh",
+        source_generation=2,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [old, fresh], project_id="project-1", task_id="TASK-1"
+    ) == fresh
+
+
+def test_pending_record_preserves_done_before_newer_merged_lane() -> None:
+    done = replace(_record(), source_generation=1)
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+        source_generation=2,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [done, merged], project_id="project-1", task_id="TASK-1"
+    ) == done
+
+
+def test_rearmed_done_appended_after_merged_still_owns_chain_order() -> None:
+    original_done = _record()
+    failed_done = replace(
+        original_done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-failed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=original_done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.FAIL,
+            )
+        ],
+        source_generation=1,
+    )
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+        source_generation=1,
+    )
+    rearmed_done = replace(
+        _record(),
+        audit_id="audit-rearmed-done",
+        source_generation=2,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [failed_done, merged], project_id="project-1", task_id="TASK-1"
+    ) is None
+    assert (
+        AuditorDispatchLane.pending_record(
+            [failed_done, merged, rearmed_done],
+            project_id="project-1",
+            task_id="TASK-1",
+        )
+        == rearmed_done
+    )
+
+
+def test_merged_dispatch_requires_exact_completed_done_pass() -> None:
+    done = _record()
+    passed_done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-passed-done",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    merged = replace(
+        _record(),
+        audit_id="audit-merged",
+        target_state=TargetState.MERGED,
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [passed_done, merged], project_id="project-1", task_id="TASK-1"
+    ) == merged
+
+
+def test_merged_dispatch_ignores_same_identifier_prerequisite_from_other_project() -> None:
+    local_merged = replace(
+        _record(),
+        audit_id="audit-shared",
+        target_state=TargetState.MERGED,
+    )
+    foreign_done = replace(
+        _record(),
+        audit_id="audit-shared",
+        project_id="project-foreign",
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-shared",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=local_merged.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+
+    assert AuditorDispatchLane.pending_record(
+        [foreign_done, local_merged],
+        project_id="project-1",
+        task_id="TASK-1",
+    ) is None
 
 
 class _Selector:
@@ -57,6 +225,17 @@ def _record(
         evidence_fingerprint=EvidenceFingerprint(digest),
         request_state=request_state,
         attempts=list(attempts or []),
+    )
+
+
+def _active_identity(
+    current: TerminalAuditRecord, attempt_id: str
+) -> tuple[str, str, str, str]:
+    return (
+        current.project_id,
+        current.task_id,
+        current.audit_id,
+        attempt_id,
     )
 
 
@@ -103,6 +282,17 @@ def test_plan_persist_and_finish_preserves_launch_identity():
     assert ended.attempts[0].failure_reason == "rate limit"
 
 
+def test_dispatch_plan_is_fenced_to_project_and_task() -> None:
+    now = datetime(2026, 7, 29, tzinfo=timezone.utc)
+    lane = _lane([Candidate("provider-a", "model-a")], now=now)
+    original = _record()
+    plan, _ = lane.plan(original, [], branch_key="branch-1")
+    assert plan is not None
+
+    with pytest.raises(ValueError, match="different audit"):
+        lane.persist_plan(replace(original, project_id="project-foreign"), plan)
+
+
 def test_rotation_excludes_rate_limited_candidate_and_selects_next():
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
     candidates = [Candidate("provider-a", "model-a"), Candidate("provider-b", "model-b")]
@@ -132,11 +322,35 @@ def test_restart_with_no_live_worker_reclaims_in_progress_attempt():
     assert plan is not None
     persisted = lane.persist_plan(_record(), plan)
 
-    recovery = lane.recover(persisted, active_attempt_ids=set(), now=now)
+    recovery = lane.recover(persisted, active_attempt_identities=set(), now=now)
     assert recovery.ready
     assert "no live worker" in (recovery.reason or "")
     assert recovery.record.request_state == RequestState.PENDING
     assert recovery.record.attempts[0].request_state == RequestState.PENDING
+
+
+def test_same_attempt_id_in_other_project_does_not_preserve_dispatch_owner():
+    now = datetime(2026, 7, 29, tzinfo=timezone.utc)
+    lane = _lane([Candidate("provider-a", "model-a")], now=now)
+    plan, _ = lane.plan(_record(), [], branch_key="branch-1", now=now)
+    assert plan is not None
+    persisted = lane.persist_plan(_record(), plan)
+
+    recovery = lane.recover(
+        persisted,
+        active_attempt_identities={
+            (
+                "project-foreign",
+                persisted.task_id,
+                persisted.audit_id,
+                plan.attempt_id,
+            )
+        },
+        now=now,
+    )
+
+    assert recovery.ready
+    assert "no live worker" in (recovery.reason or "")
 
 
 def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
@@ -146,7 +360,11 @@ def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
     assert plan is not None
     persisted = lane.persist_plan(_record(), plan)
 
-    live = lane.recover(persisted, active_attempt_ids={plan.attempt_id}, now=now)
+    live = lane.recover(
+        persisted,
+        active_attempt_identities={_active_identity(persisted, plan.attempt_id)},
+        now=now,
+    )
     assert not live.ready
     assert live.reason == "auditor already running"
 
@@ -161,7 +379,9 @@ def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
         ],
     )
     active_expired = lane.recover(
-        active_old, active_attempt_ids={plan.attempt_id}, now=now
+        active_old,
+        active_attempt_identities={_active_identity(active_old, plan.attempt_id)},
+        now=now,
     )
     assert not active_expired.ready
     assert "termination required" in (active_expired.reason or "")
@@ -176,7 +396,7 @@ def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
             )
         ],
     )
-    expired = lane.recover(old, active_attempt_ids=set(), now=now)
+    expired = lane.recover(old, active_attempt_identities=set(), now=now)
     assert expired.ready
     assert "TTL" in (expired.reason or "")
 
@@ -187,12 +407,16 @@ def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
         ended_at=now.isoformat(),
         retry_after=(now + timedelta(seconds=10)).isoformat(),
     )
-    cooling = lane.recover(backoff_record, active_attempt_ids=set(), now=now)
+    cooling = lane.recover(
+        backoff_record,
+        active_attempt_identities=set(),
+        now=now,
+    )
     assert not cooling.ready
     assert "backoff" in (cooling.reason or "")
     ready = lane.recover(
         backoff_record,
-        active_attempt_ids=set(),
+        active_attempt_identities=set(),
         now=now + timedelta(seconds=10),
     )
     assert ready.ready
@@ -211,11 +435,15 @@ def test_changed_fingerprint_invalidates_stale_running_attempt():
         ),
     )
 
-    live = lane.recover(changed, active_attempt_ids={plan.attempt_id}, now=now)
+    live = lane.recover(
+        changed,
+        active_attempt_identities={_active_identity(changed, plan.attempt_id)},
+        now=now,
+    )
     assert not live.ready
     assert "while auditor is running" in (live.reason or "")
 
-    abandoned = lane.recover(changed, active_attempt_ids=set(), now=now)
+    abandoned = lane.recover(changed, active_attempt_identities=set(), now=now)
     assert abandoned.ready
     assert "fingerprint changed" in (abandoned.reason or "")
 
@@ -315,13 +543,19 @@ def test_transient_failure_with_backoff_enables_later_retry():
     )
 
     # Before backoff period: not ready
-    recovery_cooling = lane.recover(failed, active_attempt_ids=set(), now=later)
+    recovery_cooling = lane.recover(
+        failed, active_attempt_identities=set(), now=later
+    )
     assert not recovery_cooling.ready
     assert "backoff" in (recovery_cooling.reason or "")
 
     # After backoff period: ready to retry
     later_after_backoff = later + timedelta(seconds=31)
-    recovery_ready = lane.recover(failed, active_attempt_ids=set(), now=later_after_backoff)
+    recovery_ready = lane.recover(
+        failed,
+        active_attempt_identities=set(),
+        now=later_after_backoff,
+    )
     assert recovery_ready.ready
     assert recovery_ready.reason is None
 
@@ -486,7 +720,11 @@ def test_duplicate_tick_coalescing_prevents_duplicate_dispatch():
     persisted1 = lane1.persist_plan(record, plan1)
 
     # Second concurrent tick sees the in-progress attempt
-    recovery = lane2.recover(persisted1, active_attempt_ids={"attempt-1"}, now=now)
+    recovery = lane2.recover(
+        persisted1,
+        active_attempt_identities={_active_identity(persisted1, "attempt-1")},
+        now=now,
+    )
     assert not recovery.ready
     assert "already running" in (recovery.reason or "")
 
@@ -524,7 +762,7 @@ def test_crash_recovery_marks_attempt_abandoned():
     )
     
     # Recovery detects abandoned attempt
-    recovery = lane.recover(old, active_attempt_ids=set(), now=now)
+    recovery = lane.recover(old, active_attempt_identities=set(), now=now)
     assert recovery.ready
     assert "abandoned" in (recovery.reason or "").lower() or "TTL" in (recovery.reason or "")
     

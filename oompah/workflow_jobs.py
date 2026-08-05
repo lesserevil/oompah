@@ -1159,6 +1159,313 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
+    def enqueue_replacing_lane(
+        self,
+        spec: WorkflowJobSpec,
+        *,
+        source_generation: int,
+        require_source_advance: bool = False,
+        reason: str = "superseded by a newer workflow generation",
+        now: float | None = None,
+    ) -> WorkflowEventWrite:
+        """Enqueue one event-lane job and supersede only that lane's old work.
+
+        Imperative workflow owners often have several independent lanes for
+        one task.  Terminal auditing, for example, may legitimately own a
+        ``Done`` job and a ``Merged`` job at the same time.  The broader task
+        generation helpers intentionally reconcile the generic decision lane;
+        this narrower transaction gives those imperative owners an atomic
+        compare/enqueue/supersede boundary without disturbing sibling lanes.
+
+        Replaying a generation which was already terminal or superseded never
+        revives it and never displaces the currently active generation.  Only
+        the first observation of a genuinely new immutable spec can replace
+        active work in the same scheduling lane.
+        """
+
+        if not isinstance(spec, WorkflowJobSpec):
+            raise TypeError("spec must be a WorkflowJobSpec")
+        if isinstance(source_generation, bool) or int(source_generation) < 1:
+            raise ValueError("source_generation must be a positive integer")
+        if not isinstance(require_source_advance, bool):
+            raise TypeError("require_source_advance must be a boolean")
+        incoming_generation = int(source_generation)
+        message = _required_text(reason, "reason")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                ordered = self._conn.execute(
+                    """
+                    SELECT * FROM workflow_event_ordering
+                     WHERE project_id = ? AND task_id = ?
+                       AND ordering_namespace = ?
+                    """,
+                    (spec.project_id, spec.task_id, spec.scheduling_lane),
+                ).fetchone()
+                if ordered is not None:
+                    observed_generation = int(ordered["source_generation"])
+                    observed_revision = str(ordered["decision_revision"])
+                    if (
+                        require_source_advance
+                        and incoming_generation <= observed_generation
+                    ):
+                        existing_activation = self._conn.execute(
+                            """
+                            SELECT * FROM workflow_jobs
+                             WHERE project_id = ? AND idempotency_key = ?
+                            """,
+                            (spec.project_id, spec.idempotency_key),
+                        ).fetchone()
+                        if (
+                            incoming_generation == observed_generation
+                            and existing_activation is not None
+                            and str(existing_activation["spec_revision"])
+                            == spec.revision
+                        ):
+                            replay = self._from_row(existing_activation)
+                            self._conn.commit()
+                            return WorkflowEventWrite(
+                                replay,
+                                accepted=True,
+                                created=False,
+                                superseded=0,
+                            )
+                        self._conn.commit()
+                        return WorkflowEventWrite(
+                            None,
+                            accepted=False,
+                            created=False,
+                            superseded=0,
+                        )
+                    if incoming_generation < observed_generation:
+                        stale_job, created = self._enqueue_locked(
+                            spec,
+                            now=timestamp,
+                        )
+                        if stale_job.state in ACTIVE_JOB_STATES and (
+                            stale_job.generation != observed_revision
+                        ):
+                            self._conn.execute(
+                                """
+                                UPDATE workflow_jobs
+                                   SET state = ?, lease_owner = NULL,
+                                       lease_token = NULL,
+                                       lease_expires_at = NULL, retry_at = NULL,
+                                       superseded_by_generation = ?,
+                                       last_error = ?, updated_at = ?,
+                                       completed_at = ?
+                                 WHERE job_id = ?
+                                """,
+                                (
+                                    WorkflowJobState.SUPERSEDED.value,
+                                    observed_revision,
+                                    "stale terminal-audit source generation",
+                                    timestamp,
+                                    timestamp,
+                                    stale_job.job_id,
+                                ),
+                            )
+                            row = self._row_locked(stale_job.job_id)
+                            self._append_event_locked(
+                                row,
+                                "superseded",
+                                payload={
+                                    "replacement_generation": observed_revision,
+                                    "reason": (
+                                        "stale terminal-audit source generation"
+                                    ),
+                                },
+                                now=timestamp,
+                            )
+                            stale_job = self._from_row(row)
+                        self._conn.commit()
+                        return WorkflowEventWrite(
+                            stale_job,
+                            accepted=False,
+                            created=created,
+                            superseded=int(
+                                stale_job.state is WorkflowJobState.SUPERSEDED
+                            ),
+                        )
+                    if (
+                        incoming_generation == observed_generation
+                        and observed_revision != spec.generation
+                    ):
+                        raise WorkflowJobStoreError(
+                            "one terminal-audit source generation produced "
+                            "conflicting evidence"
+                        )
+                elif require_source_advance and incoming_generation <= 1:
+                    # A terminal tombstone without an ordering row can only
+                    # be a pre-ordering generation.  Require proof that the
+                    # metadata source has advanced before creating a fresh
+                    # activation identity for it.
+                    self._conn.commit()
+                    return WorkflowEventWrite(
+                        None,
+                        accepted=False,
+                        created=False,
+                        superseded=0,
+                    )
+
+                self._conn.execute(
+                    """
+                    INSERT INTO workflow_event_ordering(
+                        project_id, task_id, ordering_namespace,
+                        source_generation, decision_revision, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(
+                        project_id, task_id, ordering_namespace
+                    ) DO UPDATE SET
+                        source_generation = excluded.source_generation,
+                        decision_revision = excluded.decision_revision,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        spec.project_id,
+                        spec.task_id,
+                        spec.scheduling_lane,
+                        incoming_generation,
+                        spec.generation,
+                        timestamp,
+                    ),
+                )
+                job, created = self._enqueue_locked(spec, now=timestamp)
+                active_rows = self._conn.execute(
+                    f"""
+                    SELECT * FROM workflow_jobs
+                     WHERE project_id = ? AND task_id = ?
+                       AND scheduling_lane = ?
+                       AND state IN ({','.join('?' for _ in ACTIVE_JOB_STATES)})
+                     ORDER BY enqueue_sequence
+                    """,
+                    (
+                        spec.project_id,
+                        spec.task_id,
+                        spec.scheduling_lane,
+                        *(state.value for state in ACTIVE_JOB_STATES),
+                    ),
+                ).fetchall()
+                superseded = 0
+                for selected in active_rows:
+                    if str(selected["job_id"]) == job.job_id:
+                        continue
+                    self._conn.execute(
+                        """
+                        UPDATE workflow_jobs
+                           SET state = ?, lease_owner = NULL, lease_token = NULL,
+                               lease_expires_at = NULL, retry_at = NULL,
+                               superseded_by_generation = ?, last_error = ?,
+                               updated_at = ?, completed_at = ?
+                         WHERE job_id = ?
+                        """,
+                        (
+                            WorkflowJobState.SUPERSEDED.value,
+                            spec.generation,
+                            message,
+                            timestamp,
+                            timestamp,
+                            selected["job_id"],
+                        ),
+                    )
+                    updated = self._row_locked(str(selected["job_id"]))
+                    self._append_event_locked(
+                        updated,
+                        "superseded",
+                        payload={
+                            "replacement_generation": spec.generation,
+                            "reason": message,
+                        },
+                        now=timestamp,
+                    )
+                    superseded += 1
+                result = self._from_row(self._row_locked(job.job_id))
+                self._conn.commit()
+                return WorkflowEventWrite(
+                    result,
+                    accepted=True,
+                    created=created,
+                    superseded=superseded,
+                )
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def rearm_terminal_job(
+        self,
+        job_id: str,
+        *,
+        generation: str,
+        phase: str,
+        reason: str,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Reset one completed/exhausted generation for an authorized rearm.
+
+        The caller must prove the tracker created a fresh audit identity for
+        the same semantic target/evidence generation.  Superseded and
+        cancelled jobs are deliberately not rearmable: those states represent
+        replacement or revocation, not an exhausted provider decision.
+        """
+
+        identifier = _required_text(job_id, "job_id")
+        expected = _required_text(generation, "generation")
+        queued_phase = _required_text(phase, "phase")
+        message = _required_text(reason, "reason")
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._row_locked(identifier)
+                if str(existing["generation"]) != expected:
+                    raise WorkflowJobStoreError(
+                        "workflow job generation does not match"
+                    )
+                state = WorkflowJobState(str(existing["state"]))
+                if state in ACTIVE_JOB_STATES:
+                    self._conn.commit()
+                    return self._from_row(existing)
+                if state not in {
+                    WorkflowJobState.COMPLETED,
+                    WorkflowJobState.EXHAUSTED,
+                }:
+                    raise WorkflowJobStoreError(
+                        f"workflow job is not rearmable from {state.value}"
+                    )
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET state = ?, phase = ?, attempts = 0,
+                           lease_owner = NULL, lease_token = NULL,
+                           lease_expires_at = NULL, retry_at = NULL,
+                           failure_category = NULL, last_error = NULL,
+                           checkpoint_json = NULL, result_transition_json = NULL,
+                           superseded_by_generation = NULL, updated_at = ?,
+                           completed_at = NULL
+                     WHERE job_id = ? AND generation = ?
+                    """,
+                    (
+                        WorkflowJobState.QUEUED.value,
+                        queued_phase,
+                        timestamp,
+                        identifier,
+                        expected,
+                    ),
+                )
+                row = self._row_locked(identifier)
+                self._append_event_locked(
+                    row,
+                    "rearmed",
+                    payload={"reason": message},
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def materialize_event(
         self,
         *,
@@ -1795,6 +2102,10 @@ class WorkflowJobStore:
         task_id: str | None = None,
         generation: str | None = None,
         states: Sequence[WorkflowJobState | str] | None = None,
+        actions: Sequence[str] | None = None,
+        phases: Sequence[str] | None = None,
+        scheduling_lanes: Sequence[str] | None = None,
+        expected_evidence_revisions: Sequence[str] | None = None,
         limit: int = DEFAULT_SCAN_LIMIT,
         newest_first: bool = False,
     ) -> tuple[WorkflowJob, ...]:
@@ -1813,6 +2124,25 @@ class WorkflowJobStore:
             normalized = tuple(WorkflowJobState(state).value for state in states)
             clauses.append(f"state IN ({','.join('?' for _ in normalized)})")
             values.extend(normalized)
+        for column, candidates in (
+            ("action", actions),
+            ("phase", phases),
+            ("scheduling_lane", scheduling_lanes),
+            ("expected_evidence_revision", expected_evidence_revisions),
+        ):
+            if isinstance(candidates, (str, bytes)):
+                raise TypeError(f"{column}s must be a sequence of names")
+            if candidates is None:
+                continue
+            normalized_names = tuple(
+                sorted({_required_text(value, column) for value in candidates})
+            )
+            if not normalized_names:
+                raise ValueError(f"{column}s cannot be empty")
+            clauses.append(
+                f"{column} IN ({','.join('?' for _ in normalized_names)})"
+            )
+            values.extend(normalized_names)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         order = "DESC" if newest_first else "ASC"
         with self._lock:
@@ -1874,6 +2204,16 @@ class WorkflowJobStore:
     ) -> int:
         recovered = 0
         for selected in rows:
+            # A terminal-audit FINALIZING lease owns a complete typed result.
+            # Generic lease recovery must not turn that result back into
+            # provider work (or into retry exhaustion).  The terminal-audit
+            # replay lane proves the exact job/token/attempt identity and
+            # rotates this lease with ``reclaim_abandoned`` instead.
+            if (
+                str(selected["action"]) == "terminal_audit"
+                and str(selected["phase"]) == "finalizing"
+            ):
+                continue
             exhausted = int(selected["attempts"]) >= int(selected["max_attempts"])
             state = WorkflowJobState.EXHAUSTED if exhausted else WorkflowJobState.QUEUED
             cursor = self._conn.execute(
@@ -1916,6 +2256,7 @@ class WorkflowJobStore:
             SELECT * FROM workflow_jobs
              WHERE state = ? AND lease_expires_at IS NOT NULL
                AND lease_expires_at <= ?
+               AND NOT (action = 'terminal_audit' AND phase = 'finalizing')
              ORDER BY lease_expires_at, enqueue_sequence LIMIT ?
             """,
             (WorkflowJobState.RUNNING.value, now, limit),
@@ -1986,6 +2327,9 @@ class WorkflowJobStore:
                     f"""
                     SELECT * FROM workflow_jobs
                      WHERE state = ? {owner_clause} {project_clause} {action_clause}
+                       AND NOT (
+                           action = 'terminal_audit' AND phase = 'finalizing'
+                       )
                      ORDER BY enqueue_sequence LIMIT ?
                     """,
                     values,

@@ -20,13 +20,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.auditor_dispatch import AuditorDispatchLane
 from oompah.models import Issue
 from oompah.terminal_audit import (
+    AuditAttempt,
     ContributorIdentity,
     EvidenceFingerprint,
     RequestState,
     TargetState,
     TerminalAuditRecord,
+    Verdict,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -131,6 +135,27 @@ class _FailingUpdateTracker(_MemoryTracker):
         if self.fail_update:
             raise RuntimeError("Tracker write failed")
         super().update_issue(identifier, **kwargs)
+
+
+class _RefreshingTracker(_MemoryTracker):
+    """Production-shaped tracker whose detail read can advance independently."""
+
+    def __init__(self, issue: Issue) -> None:
+        super().__init__()
+        self.issue = copy.deepcopy(issue)
+        self.invalidations = 0
+
+    def invalidate_read_cache(self) -> None:
+        self.invalidations += 1
+
+    def fetch_issue_detail(self, identifier: str) -> Issue:
+        assert identifier == self.issue.identifier
+        return copy.deepcopy(self.issue)
+
+    def update_issue(self, identifier: str, **kwargs: Any) -> None:
+        super().update_issue(identifier, **kwargs)
+        if "status" in kwargs:
+            self.issue.state = kwargs["status"]
 
 
 class _BlockingMetadataTracker(_MemoryTracker):
@@ -496,7 +521,7 @@ class TestMergedChain:
             task_id=TASK_ID,
             target_state=TargetState.MERGED,
             evidence_fingerprint=_fingerprint("b"),
-            request_state=RequestState.PENDING,
+            request_state=RequestState.IN_PROGRESS,
         )
         _seed_metadata(tracker, [old_done, queued_merged])
         coord = _coordinator(tracker, post_comments=False)
@@ -554,7 +579,7 @@ class TestMergedChain:
             task_id=TASK_ID,
             target_state=TargetState.DONE,
             evidence_fingerprint=_fingerprint("b"),
-            request_state=RequestState.IN_PROGRESS,
+            request_state=RequestState.PENDING,
         )
         old_merged = TerminalAuditRecord(
             audit_id="audit-merged-b",
@@ -594,6 +619,79 @@ class TestMergedChain:
             (PROJECT_ID, TASK_ID, old_done.audit_id),
             (PROJECT_ID, TASK_ID, old_merged.audit_id),
         ]
+
+    def test_repaired_done_retires_stale_merged_successor(self) -> None:
+        """A failed direct-Merged chain cannot hide repaired Done evidence."""
+
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        initial = _run(
+            coord.request_transition(
+                _issue(),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("a"),
+            )
+        )
+        initial_done_id, initial_merged_id = initial.audit_ids
+
+        def _fail_initial_done(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+            return replace(
+                doc,
+                pending_chain=[
+                    replace(
+                        record,
+                        request_state=RequestState.COMPLETED,
+                        attempts=[
+                            AuditAttempt(
+                                attempt_id="attempt-failed-initial-done",
+                                target_state=TargetState.DONE,
+                                evidence_fingerprint=record.evidence_fingerprint,
+                                request_state=RequestState.COMPLETED,
+                                verdict=Verdict.FAIL,
+                            )
+                        ],
+                    )
+                    if record.audit_id == initial_done_id
+                    else record
+                    for record in doc.pending_chain
+                ],
+            )
+
+        store.update(TASK_ID, _fail_initial_done)
+
+        repaired = _run(
+            coord.request_transition(
+                _issue(state="Open"),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("b"),
+            )
+        )
+
+        assert repaired.success
+        assert initial_merged_id in repaired.superseded_audit_ids
+        chain = store.read(TASK_ID).pending_chain
+        stale_merged = next(
+            record for record in chain if record.audit_id == initial_merged_id
+        )
+        assert stale_merged.request_state is RequestState.SUPERSEDED
+        active = [
+            record
+            for record in chain
+            if record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ]
+        assert len(active) == 1
+        assert active[0].audit_id == repaired.audit_id
+        assert active[0].target_state is TargetState.DONE
+        assert AuditorDispatchLane.pending_record(
+            chain,
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+        ) == active[0]
 
 
 class TestSharedEpicMergedCompatibility:
@@ -856,6 +954,65 @@ class TestCoalescing:
         assert tracker.current_status(TASK_ID) == DONE
         assert len(tracker.update_calls) == initial_update_count
 
+    def test_active_attempt_outranks_ownerless_in_progress_sibling(self) -> None:
+        """OOMPAH-824: coalescing preserves the PASS-producing authority."""
+
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        pending = TerminalAuditRecord(
+            audit_id="audit-6b3fa26bb2f6",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.IN_PROGRESS,
+            created_at="2026-08-05T12:00:00+00:00",
+        )
+        running = TerminalAuditRecord(
+            audit_id="audit-11ec4964b81b",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-pass-producing",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=fingerprint,
+                    request_state=RequestState.IN_PROGRESS,
+                    provider_id="provider-a",
+                    model="model-a",
+                    created_at="2026-08-05T12:04:00+00:00",
+                    started_at="2026-08-05T12:04:00+00:00",
+                )
+            ],
+            created_at="2026-08-05T12:01:00+00:00",
+            updated_at="2026-08-05T12:04:00+00:00",
+        )
+        _seed_metadata(tracker, [pending, running])
+        coord = _coordinator(tracker, post_comments=False)
+
+        result = _run(
+            coord.request_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                ContributorIdentity("review-reconcile", "oompah"),
+                PROJECT_ID,
+                fingerprint,
+            )
+        )
+
+        assert result.success and result.coalesced
+        assert result.audit_id == running.audit_id
+        assert result.cancelled_audit_ids == [pending.audit_id]
+        records = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain
+        by_id = {record.audit_id: record for record in records}
+        assert by_id[running.audit_id].request_state is RequestState.PENDING
+        assert by_id[pending.audit_id].request_state is RequestState.SUPERSEDED
+
 
 # ---------------------------------------------------------------------------
 # TestSuperseding
@@ -863,6 +1020,39 @@ class TestCoalescing:
 
 
 class TestSuperseding:
+    def test_changed_fingerprint_does_not_supersede_foreign_project_record(
+        self,
+    ) -> None:
+        tracker = _MemoryTracker()
+        local = _pending_record(
+            audit_id="audit-local",
+            fingerprint=_fingerprint("a"),
+        )
+        foreign = _pending_record(
+            audit_id="audit-foreign",
+            fingerprint=_fingerprint("a"),
+            project_id="project-foreign",
+        )
+        _seed_metadata(tracker, [foreign, local])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).request_transition(
+                _issue(state=IN_VALIDATION),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("b"),
+            )
+        )
+
+        assert result.success is True
+        records = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain
+        by_id = {record.audit_id: record for record in records}
+        assert by_id["audit-local"].request_state is RequestState.SUPERSEDED
+        assert by_id["audit-foreign"].request_state is RequestState.PENDING
+
     def test_changed_fingerprint_supersedes_pending(self) -> None:
         """A request with a changed fingerprint marks the old record SUPERSEDED."""
         tracker = _MemoryTracker()
@@ -1782,6 +1972,7 @@ class TestTransitionResultShape:
 
 from oompah.terminal_audit import (  # noqa: E402
     AuditAttempt,
+    AuditAttemptOrigin,
     FailureClassification,
     Verdict,
 )
@@ -1934,6 +2125,106 @@ class TestRetryFailedAudit:
             (PROJECT_ID, TASK_ID, exhausted.audit_id),
         ) in metrics.calls
 
+    @pytest.mark.parametrize(
+        ("verdict", "classification", "origin"),
+        [
+            (Verdict.FAIL, FailureClassification.NO_AUDITOR, None),
+            (Verdict.FAIL, FailureClassification.MALFORMED_RESULT, None),
+            (None, FailureClassification.INFRASTRUCTURE_ERROR, None),
+            (Verdict.ERROR, FailureClassification.POLICY_INCOMPATIBILITY, None),
+            (None, FailureClassification.FINALIZATION_FAILURE, None),
+            (Verdict.ERROR, None, None),
+            # Exhaustion routing records a synthetic NEEDS_HUMAN outcome with
+            # trusted coordinator provenance after the bounded retries end.
+            (
+                Verdict.NEEDS_HUMAN,
+                FailureClassification.INFRASTRUCTURE_ERROR,
+                AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION,
+            ),
+        ],
+    )
+    def test_owner_rearms_every_non_substantive_exhaustion_attempt(
+        self,
+        verdict: Verdict | None,
+        classification: FailureClassification | None,
+        origin: AuditAttemptOrigin | None,
+    ) -> None:
+        exhausted = _exhausted_no_auditor_record()
+        exhausted = replace(
+            exhausted,
+            attempts=[
+                replace(
+                    exhausted.attempts[0],
+                    verdict=verdict,
+                    failure_classification=classification,
+                    origin=origin,
+                )
+            ],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [exhausted])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "The audit execution path is healthy again.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert result.superseded_audit_id == exhausted.audit_id
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+
+    @pytest.mark.parametrize(
+        ("verdict", "classification"),
+        [
+            (Verdict.PASS, None),
+            (Verdict.PASS, FailureClassification.INFRASTRUCTURE_ERROR),
+            (Verdict.FAIL, FailureClassification.INCOMPLETE),
+            (Verdict.NEEDS_HUMAN, None),
+            (Verdict.NEEDS_HUMAN, FailureClassification.INFRASTRUCTURE_ERROR),
+            (Verdict.ERROR, FailureClassification.MISSING_TESTS),
+            (Verdict.FAIL, None),
+        ],
+    )
+    def test_owner_cannot_rearm_substantive_or_unclassified_failures(
+        self,
+        verdict: Verdict | None,
+        classification: FailureClassification | None,
+    ) -> None:
+        exhausted = _exhausted_no_auditor_record()
+        exhausted = replace(
+            exhausted,
+            attempts=[
+                replace(
+                    exhausted.attempts[0],
+                    verdict=verdict,
+                    failure_classification=classification,
+                )
+            ],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [exhausted])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry this audit.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert tracker.current_status(TASK_ID) is None
+
     def test_retry_is_idempotent_after_fresh_record_is_pending(self) -> None:
         tracker = _MemoryTracker()
         _seed_metadata(tracker, [_exhausted_no_auditor_record()])
@@ -2020,9 +2311,13 @@ class TestRetryFailedAudit:
         assert old.request_state == RequestState.SUPERSEDED
         assert fresh.request_state == RequestState.PENDING
         assert fresh.evidence_fingerprint == failed.evidence_fingerprint
+        assert fresh.source_generation == old.source_generation + 1
         history = stored.unknown_fields["oompah.terminal_audit_rearm_history"]
         assert history[0]["actor"]["identity"] == "project-owner"
         assert history[0]["reason"] == "Pinned gate tails supplied for the integrated head"
+        assert history[0]["source_generation"] == fresh.source_generation
+        assert history[0]["evidence_fingerprint"] == fresh.evidence_fingerprint.digest
+        assert history[0]["authorized_at"]
         assert history[0]["evidence_addendum"]["checks"][0]["name"] == "make test"
 
         outcome = _run(
@@ -2141,6 +2436,37 @@ class TestRetryFailedAudit:
                 },
             )
         )
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+
+    def test_missing_evidence_rearm_rejects_pass_with_retry_classification(
+        self,
+    ) -> None:
+        failed = _exhausted_missing_evidence_record()
+        passed = replace(
+            failed,
+            audit_id="audit-passed-with-missing-evidence",
+            attempts=[replace(failed.attempts[0], verdict=Verdict.PASS)],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [passed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Evidence supplied.",
+                self._owner_project(),
+                evidence_fingerprint=passed.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": passed.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+
         assert result.success is False
         assert result.reason == "audit_not_retryable"
 
@@ -2315,7 +2641,24 @@ class TestApplyPassSingleTarget:
     def test_pass_posts_result_comment_referencing_target(self) -> None:
         tracker = _MemoryTracker()
         record = _pending_record(target=TargetState.MERGED)
-        issue = _seed_and_validation(tracker, [record])
+        done = replace(
+            _pending_record(
+                audit_id="audit-done-prerequisite",
+                target=TargetState.DONE,
+                fingerprint=record.evidence_fingerprint,
+            ),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-done-prerequisite",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=record.evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
+        issue = _seed_and_validation(tracker, [done, record])
         coord = _coordinator(tracker)
 
         outcome = _apply(coord, issue, _pass_result(record))
@@ -2324,6 +2667,150 @@ class TestApplyPassSingleTarget:
         posted = tracker.comment_calls[-1][1]
         assert "PASS" in posted
         assert TargetState.MERGED.value in posted
+
+    def test_merged_result_is_rejected_until_exact_done_prerequisite_passes(
+        self,
+    ) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.MERGED)
+        failed_done = replace(
+            _pending_record(
+                audit_id="audit-failed-done",
+                target=TargetState.DONE,
+                fingerprint=record.evidence_fingerprint,
+            ),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-failed-done",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=record.evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.MISSING_EVIDENCE,
+                )
+            ],
+        )
+        issue = _seed_and_validation(tracker, [failed_done, record])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.PREREQUISITE_NOT_COMPLETED
+
+    def test_merged_result_ignores_foreign_same_identifier_prerequisite(self) -> None:
+        tracker = _MemoryTracker()
+        merged = _pending_record(
+            audit_id="audit-shared",
+            target=TargetState.MERGED,
+        )
+        foreign_done = replace(
+            _pending_record(
+                audit_id="audit-shared",
+                target=TargetState.DONE,
+                fingerprint=merged.evidence_fingerprint,
+                project_id="project-foreign",
+            ),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-shared",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=merged.evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
+        issue = _seed_and_validation(tracker, [foreign_done, merged])
+
+        outcome = _apply(_coordinator(tracker), issue, _pass_result(merged))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.PREREQUISITE_NOT_COMPLETED
+
+    def test_passed_done_ignores_foreign_merged_successor(self) -> None:
+        tracker = _MemoryTracker()
+        done = _pending_record(target=TargetState.DONE)
+        foreign_merged = _pending_record(
+            audit_id="audit-foreign-merged",
+            target=TargetState.MERGED,
+            fingerprint=done.evidence_fingerprint,
+            project_id="project-foreign",
+        )
+        issue = _seed_and_validation(tracker, [done, foreign_merged])
+
+        outcome = _apply(_coordinator(tracker), issue, _pass_result(done))
+
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+        assert outcome.advanced_target is None
+
+    def test_result_selects_exact_project_task_despite_foreign_audit_id_collision(
+        self,
+    ) -> None:
+        tracker = _MemoryTracker()
+        local = _pending_record(audit_id="audit-shared")
+        foreign = replace(local, project_id="project-foreign")
+        issue = _seed_and_validation(tracker, [foreign, local])
+
+        outcome = _apply(_coordinator(tracker), issue, _pass_result(local))
+
+        assert outcome.success is True
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        by_project = {record.project_id: record for record in stored.pending_chain}
+        assert by_project[PROJECT_ID].request_state is RequestState.COMPLETED
+        assert by_project["project-foreign"].request_state is RequestState.PENDING
+        assert tracker.current_status(TASK_ID) == DONE
+
+    def test_legacy_attempt_log_collision_cannot_impersonate_local_result(self) -> None:
+        tracker = _MemoryTracker()
+        attempt = AuditAttempt(
+            attempt_id="attempt-shared",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.IN_PROGRESS,
+        )
+        local = replace(
+            _pending_record(audit_id="audit-shared"),
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[attempt],
+        )
+        foreign = replace(local, project_id="project-foreign")
+        document = TerminalAuditMetadata(
+            pending_chain=[foreign, local],
+            unknown_fields={
+                "applied_result_attempts": {
+                    "attempt-shared": "audit-shared",
+                }
+            },
+        )
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, document.to_dict())
+        issue = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Test task",
+            state=IN_VALIDATION,
+        )
+
+        outcome = _apply(
+            _coordinator(tracker),
+            issue,
+            _pass_result(local, attempt_id="attempt-shared"),
+        )
+
+        assert outcome.success is True
+        assert outcome.idempotent is False
+        assert tracker.current_status(TASK_ID) == DONE
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        by_project = {record.project_id: record for record in stored.pending_chain}
+        assert by_project[PROJECT_ID].request_state is RequestState.COMPLETED
+        assert by_project["project-foreign"].request_state is RequestState.IN_PROGRESS
 
     def test_pass_records_safe_evidence_in_comment(self) -> None:
         tracker = _MemoryTracker()
@@ -2386,7 +2873,19 @@ class TestApplyPassChainedTargets:
         tracker = _MemoryTracker()
         chain = self._done_merged_chain()
         # Mark Done already completed
-        chain[0] = replace(chain[0], request_state=RequestState.COMPLETED)
+        chain[0] = replace(
+            chain[0],
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-done",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=chain[0].evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
         issue = _seed_and_validation(tracker, chain)
         coord = _coordinator(tracker)
 
@@ -2757,6 +3256,54 @@ class TestApplyError:
 
 
 class TestApplyStaleRejection:
+    def test_live_head_change_rejects_dispatch_snapshot_result(self) -> None:
+        initial = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Exact-head task",
+            description="requirements",
+            state=IN_VALIDATION,
+            work_branch="task/TASK-1",
+            project_id=PROJECT_ID,
+        )
+        initial.source_sha = "a" * 40
+        tracker = _RefreshingTracker(initial)
+        fingerprint = compute_issue_evidence_fingerprint(initial, PROJECT_ID)
+        record = _pending_record(fingerprint=fingerprint)
+        _seed_metadata(tracker, [record])
+        callback_snapshot = tracker.fetch_issue_detail(TASK_ID)
+        tracker.issue.source_sha = "b" * 40
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, callback_snapshot, _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.FINGERPRINT_MISMATCH
+        assert tracker.update_calls == []
+        assert tracker.invalidations == 1
+
+    def test_live_status_change_rejects_dispatch_snapshot_result(self) -> None:
+        initial = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Fresh-status task",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = _RefreshingTracker(initial)
+        fingerprint = compute_issue_evidence_fingerprint(initial, PROJECT_ID)
+        record = _pending_record(fingerprint=fingerprint)
+        _seed_metadata(tracker, [record])
+        callback_snapshot = tracker.fetch_issue_detail(TASK_ID)
+        tracker.issue.state = OPEN
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, callback_snapshot, _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.ISSUE_NOT_IN_VALIDATION
+        assert tracker.update_calls == []
+
     def test_wrong_audit_id_is_rejected(self) -> None:
         tracker = _MemoryTracker()
         record = _pending_record(target=TargetState.DONE)
@@ -3262,7 +3809,11 @@ class TestApplyBarriersAgainstSecondaryLanes:
         }
 
         # Nothing remains for the dispatch lane to launch.
-        assert AuditorDispatchLane.pending_record(doc.pending_chain) is None
+        assert AuditorDispatchLane.pending_record(
+            doc.pending_chain,
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+        ) is None
 
         # The durable retirement row lists every equivalent identity so that
         # a restart-time reconciliation can rebuild alert state exactly.

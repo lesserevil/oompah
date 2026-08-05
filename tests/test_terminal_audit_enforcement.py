@@ -47,6 +47,52 @@ from oompah.terminal_audit_metadata import (
 )
 
 
+def test_duplicate_recovery_projection_prefers_active_attempt_identity() -> None:
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text="same generation",
+        project_id="project-a",
+        task_id="TASK-1",
+    )
+    pending = TerminalAuditRecord(
+        audit_id="audit-pending",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.IN_PROGRESS,
+        created_at="2026-08-05T12:00:00+00:00",
+    )
+    running = TerminalAuditRecord(
+        audit_id="audit-running",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-running",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.IN_PROGRESS,
+                created_at="2026-08-05T12:04:00+00:00",
+                started_at="2026-08-05T12:04:00+00:00",
+            )
+        ],
+        created_at="2026-08-05T12:01:00+00:00",
+        updated_at="2026-08-05T12:04:00+00:00",
+    )
+
+    recovered = TerminalAuditEnforcement._dedupe_pending(
+        [PendingAudit.from_record(pending), PendingAudit.from_record(running)]
+    )
+
+    assert len(recovered) == 1
+    assert recovered[0].audit_id == running.audit_id
+    assert recovered[0].record == running
+    assert recovered[0].attempt_ids == ["attempt-running"]
+
+
 class _LockStore:
     class _Lock:
         def __enter__(self):
@@ -195,6 +241,22 @@ def _pending_record(
         evidence_fingerprint=fingerprint,
         request_state=request_state,
     )
+
+
+def test_pending_dedupe_scopes_same_audit_id_to_project_and_task() -> None:
+    first = PendingAudit.from_record(
+        _pending_record("project-a", "TASK-1", "audit-shared")
+    )
+    second = PendingAudit.from_record(
+        _pending_record("project-b", "TASK-1", "audit-shared")
+    )
+
+    recovered = TerminalAuditEnforcement._dedupe_pending([first, second])
+
+    assert [(item.project_id, item.task_id, item.audit_id) for item in recovered] == [
+        ("project-a", "TASK-1", "audit-shared"),
+        ("project-b", "TASK-1", "audit-shared"),
+    ]
 
 
 def test_first_startup_snapshots_existing_terminal_tasks_and_second_reuses_it(tmp_path):
@@ -1991,6 +2053,41 @@ def test_dispatch_cas_does_not_resurrect_completed_audit(tmp_path):
         assert orchestrator._audit_update_record(store, tracker.issues[0], stale) is False
         stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
         assert stored.pending_chain[0].request_state == RequestState.COMPLETED
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_dispatch_cas_updates_only_exact_project_task_audit_identity(tmp_path):
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
+    local = _pending_record("project-a", "TASK-1", "audit-shared")
+    foreign = _pending_record("project-b", "TASK-1", "audit-shared")
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[foreign, local]
+        ).to_dict()
+    }
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        store = TerminalAuditMetadataStore(
+            tracker, orchestrator.project_store, "project-a"
+        )
+        updated = replace(local, request_state=RequestState.IN_PROGRESS)
+
+        assert orchestrator._audit_update_record(
+            store, tracker.issues[0], updated
+        ) is True
+
+        stored = TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        )
+        by_project = {record.project_id: record for record in stored.pending_chain}
+        assert by_project["project-a"].request_state is RequestState.IN_PROGRESS
+        assert by_project["project-b"].request_state is RequestState.PENDING
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)

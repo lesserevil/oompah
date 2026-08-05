@@ -180,6 +180,7 @@ from oompah.repo_hygiene import (
 )
 from oompah.terminal_audit import (
     AuditAttempt,
+    AuditAttemptOrigin,
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
@@ -193,7 +194,9 @@ from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_workflow import (
     AuditWorkflowIdentityError,
     AuditWorkflowPhase,
+    TERMINAL_AUDIT_JOB_ACTION,
     TerminalAuditWorkflow,
+    audit_attempt_identity,
 )
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
@@ -225,6 +228,7 @@ from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
 from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
 from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
     WorkflowJobLeaseLost,
     WorkflowJobState,
@@ -2412,7 +2416,13 @@ class Orchestrator:
                 continue
 
             record = next(
-                (item for item in document.pending_chain if item.audit_id == audit_id),
+                (
+                    item
+                    for item in document.pending_chain
+                    if item.audit_id == audit_id
+                    and item.project_id == project_id
+                    and item.task_id == task_id
+                ),
                 None,
             )
             if record is None:
@@ -6742,7 +6752,11 @@ class Orchestrator:
             # recovery consumers.
             try:
                 document = self._audit_store(current).read(current.identifier)
-                record = AuditorDispatchLane.pending_record(document.pending_chain)
+                record = AuditorDispatchLane.pending_record(
+                    document.pending_chain,
+                    project_id=str(current.project_id or "legacy"),
+                    task_id=current.identifier,
+                )
                 if record is not None:
                     disposition = self.terminal_audit_workflow.decision(record)
                     if disposition.phase is AuditWorkflowPhase.ACTION_REQUIRED:
@@ -7590,6 +7604,11 @@ class Orchestrator:
         has already been completed, superseded, cancelled, or retired.
         """
 
+        if (
+            record.project_id != str(issue.project_id or "legacy")
+            or record.task_id != issue.identifier
+        ):
+            return False
         updated = False
 
         def _updater(document):
@@ -7599,6 +7618,8 @@ class Orchestrator:
                     candidate
                     for candidate in document.pending_chain
                     if candidate.audit_id == record.audit_id
+                    and candidate.project_id == record.project_id
+                    and candidate.task_id == record.task_id
                 ),
                 None,
             )
@@ -7617,8 +7638,12 @@ class Orchestrator:
             ):
                 return document
             chain = [
-                record if existing.audit_id == record.audit_id else existing
-                for existing in document.pending_chain
+                record
+                if candidate.audit_id == record.audit_id
+                and candidate.project_id == record.project_id
+                and candidate.task_id == record.task_id
+                else candidate
+                for candidate in document.pending_chain
             ]
             history = list(document.attempt_history)
             if append_attempt is not None:
@@ -7634,6 +7659,56 @@ class Orchestrator:
         store.update(issue.identifier, _updater)
         return updated
 
+    async def _claim_terminal_audit_attempt(
+        self,
+        store: TerminalAuditMetadataStore,
+        issue: Issue,
+        record: Any,
+        attempt: AuditAttempt,
+        plan: Any,
+    ) -> Any | None:
+        """Acquire durable workflow ownership before publishing an attempt.
+
+        A terminal, exhausted, cooling-down, or concurrently claimed workflow
+        job returns no lease.  In that case metadata must remain unchanged;
+        persisting ``IN_PROGRESS`` first creates an attempt no worker can ever
+        own.  If the tracker CAS loses after the workflow claim, release that
+        exact lease as retryable so an authoritative duplicate can inherit the
+        semantic job; resolved metadata will retire it during reconciliation.
+        """
+
+        workflow_job = self.terminal_audit_workflow.start(
+            record,
+            attempt_id=plan.attempt_id,
+            candidate=plan.candidate,
+        )
+        if workflow_job is None:
+            return None
+        persisted = await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool,
+            lambda: self._audit_update_record(
+                store,
+                issue,
+                record,
+                append_attempt=attempt,
+            ),
+        )
+        if persisted:
+            return workflow_job
+        try:
+            self.terminal_audit_workflow.retry(
+                workflow_job,
+                category=WorkflowFailureCategory.ABANDONED,
+                reason="tracker audit identity changed before launch",
+            )
+        except Exception as exc:  # noqa: BLE001 - recovery still owns the lease
+            logger.warning(
+                "Could not release revoked terminal-audit launch for %s: %s",
+                issue.identifier,
+                type(exc).__name__,
+            )
+        return None
+
     def _sync_terminal_audit_workflow_jobs(self) -> None:
         """Materialize and recover the durable audit disposition projection.
 
@@ -7645,12 +7720,48 @@ class Orchestrator:
         """
 
         active_attempts = {
-            entry.audit_attempt_id
+            audit_attempt_identity(
+                str(entry.issue.project_id or "legacy"),
+                entry.identifier,
+                entry.audit_id,
+                entry.audit_attempt_id,
+            )
             for entry in self._running_values_snapshot()
-            if entry.is_auditor and entry.audit_attempt_id
+            if entry.is_auditor
+            and entry.issue is not None
+            and entry.audit_id
+            and entry.audit_attempt_id
         }
         materialized = 0
         recovered = 0
+        retired_resolved = 0
+        active_task_keys = {
+            (job.project_id, job.task_id)
+            for job in self.workflow_job_store.list_jobs(
+                states=tuple(ACTIVE_JOB_STATES),
+                actions=(TERMINAL_AUDIT_JOB_ACTION,),
+                limit=1000,
+            )
+        }
+        for project_id, task_id in active_task_keys:
+            try:
+                tracker = self._tracker_for_project(project_id)
+                document = TerminalAuditMetadataStore(
+                    tracker,
+                    self.project_store,
+                    project_id,
+                ).read(task_id)
+                retired_resolved += self.terminal_audit_workflow.retire_resolved(
+                    project_id=project_id,
+                    task_id=task_id,
+                    records=document.pending_chain,
+                )
+            except Exception as exc:  # noqa: BLE001 - isolate durable task rows
+                logger.warning(
+                    "Could not reconcile resolved terminal-audit job for %s: %s",
+                    task_id,
+                    type(exc).__name__,
+                )
         for pending in self._terminal_audit_enforcement.pending_audits:
             record = pending.record
             if record is None:
@@ -7659,7 +7770,7 @@ class Orchestrator:
                 before = self.terminal_audit_workflow.decision(record)
                 after = self.terminal_audit_workflow.recover(
                     record,
-                    active_attempt_ids=active_attempts,
+                    active_attempt_identities=active_attempts,
                 )
                 materialized += 1
                 recovered += int(
@@ -7675,7 +7786,94 @@ class Orchestrator:
         self._maintenance_status["terminal_audit_workflow"] = {
             "materialized": materialized,
             "recovered": recovered,
+            "retired_resolved": retired_resolved,
         }
+
+    @staticmethod
+    def _terminal_audit_rearm_authorization(document: Any, record: Any) -> Any:
+        """Return only the coordinator proof for this exact fresh identity."""
+
+        history = document.unknown_fields.get(
+            "oompah.terminal_audit_rearm_history",
+            [],
+        )
+        for raw in reversed(history if isinstance(history, list) else []):
+            if not isinstance(raw, Mapping):
+                continue
+            if (
+                not raw.get("consumed_at")
+                and not raw.get("consumed_workflow_job_id")
+                and raw.get("audit_id") == record.audit_id
+                and raw.get("project_id") == record.project_id
+                and raw.get("task_id") == record.task_id
+                and raw.get("target_state") == record.target_state.value
+                and raw.get("evidence_fingerprint")
+                == record.evidence_fingerprint.digest
+                and raw.get("source_generation") == record.source_generation
+            ):
+                return raw
+        return None
+
+    @staticmethod
+    def _consume_terminal_audit_rearm_authorization(
+        store: TerminalAuditMetadataStore,
+        issue: Issue,
+        record: Any,
+        authorization: Mapping[str, Any],
+        workflow_job: Any,
+    ) -> bool:
+        """Durably spend one owner authorization after workflow activation."""
+
+        project_id = str(issue.project_id or "legacy")
+        if (
+            record.project_id != project_id
+            or record.task_id != issue.identifier
+            or workflow_job.project_id != project_id
+            or workflow_job.task_id != issue.identifier
+        ):
+            return False
+        consumed = False
+        history_key = "oompah.terminal_audit_rearm_history"
+
+        def _updater(document: Any) -> Any:
+            nonlocal consumed
+            raw_history = document.unknown_fields.get(history_key, [])
+            if not isinstance(raw_history, list):
+                return document
+            history: list[Any] = []
+            for raw in raw_history:
+                if not isinstance(raw, Mapping):
+                    history.append(raw)
+                    continue
+                matches = all(
+                    raw.get(key) == authorization.get(key)
+                    for key in (
+                        "audit_id",
+                        "superseded_audit_id",
+                        "project_id",
+                        "task_id",
+                        "target_state",
+                        "evidence_fingerprint",
+                        "source_generation",
+                        "authorized_at",
+                    )
+                )
+                if matches and not raw.get("consumed_at"):
+                    updated = dict(raw)
+                    updated["consumed_at"] = datetime.now(timezone.utc).isoformat()
+                    updated["consumed_workflow_job_id"] = workflow_job.job_id
+                    history.append(updated)
+                    consumed = True
+                else:
+                    history.append(raw)
+            if not consumed:
+                return document
+            unknown = dict(document.unknown_fields)
+            unknown[history_key] = history
+            return replace(document, unknown_fields=unknown)
+
+        store.update(issue.identifier, _updater)
+        return consumed
 
     @staticmethod
     def _audit_record_for_result(issue: Issue, result: Any) -> Any:
@@ -7699,6 +7897,10 @@ class Orchestrator:
         if (
             entry is None
             or not entry.is_auditor
+            or entry.issue is None
+            or str(entry.issue.project_id or "legacy")
+            != str(issue.project_id or "legacy")
+            or entry.identifier != issue.identifier
             or not entry.audit_workflow_job_id
             or not entry.audit_workflow_lease_token
             or entry.audit_id != str(getattr(result, "audit_id", "") or "")
@@ -7781,12 +7983,30 @@ class Orchestrator:
                     finalizing_job,
                     reason="audit result authority was revoked or replaced",
                 )
-            else:
+            elif getattr(outcome, "reason", None) in {
+                ResultRejection.NEEDS_HUMAN_NOT_ACTIONABLE,
+                ResultRejection.MISSING_CLASSIFICATION,
+                ResultRejection.MALFORMED_RESULT,
+                ResultRejection.UNPARSEABLE_VERDICT,
+            }:
+                # The provider returned an invalid structured disposition.
+                # Close this exact attempt as retryable so another independent
+                # auditor can produce a usable result.
                 self.terminal_audit_workflow.retry(
                     finalizing_job,
                     category=WorkflowFailureCategory.TRANSIENT,
-                    reason="coordinator rejected the audit result",
+                    reason="coordinator rejected a malformed audit result",
                 )
+            else:
+                # The typed result is valid and already durable, but its
+                # coordinator dependency is temporarily unavailable (for
+                # example a tracker refresh, metadata quarantine, prerequisite,
+                # or shared-lifecycle gate).  Preserve and replay this exact
+                # result instead of discarding it and launching another
+                # provider.  Bounded finalization deferral eventually projects
+                # an actionable infrastructure exhaustion if the dependency
+                # never recovers.
+                self.terminal_audit_workflow.defer_finalizing(finalizing_job)
             return True
         except Exception as exc:  # noqa: BLE001 - result intent remains coordinator-owned
             logger.warning(
@@ -7864,9 +8084,17 @@ class Orchestrator:
         """Apply abandoned typed results before launching any more auditors."""
 
         active_attempts = {
-            entry.audit_attempt_id
+            audit_attempt_identity(
+                str(entry.issue.project_id or "legacy"),
+                entry.identifier,
+                entry.audit_id,
+                entry.audit_attempt_id,
+            )
             for entry in self._running_values_snapshot()
-            if entry.is_auditor and entry.audit_attempt_id
+            if entry.is_auditor
+            and entry.issue is not None
+            and entry.audit_id
+            and entry.audit_attempt_id
         }
         replayed = 0
         for stale_job in self.terminal_audit_workflow.finalizing_jobs():
@@ -7876,7 +8104,7 @@ class Orchestrator:
                     recovered = (
                         self.terminal_audit_workflow.requeue_unreplayable_finalizing(
                             stale_job,
-                            active_attempt_ids=active_attempts,
+                            active_attempt_identities=active_attempts,
                         )
                     )
                     replayed += int(recovered is not None)
@@ -7885,7 +8113,7 @@ class Orchestrator:
                 job = self.terminal_audit_workflow.reclaim_finalizing(
                     stale_job,
                     record,
-                    active_attempt_ids=active_attempts,
+                    active_attempt_identities=active_attempts,
                 )
                 if job is None:
                     continue
@@ -7893,6 +8121,17 @@ class Orchestrator:
                 issue = await asyncio.to_thread(
                     tracker.fetch_issue_detail, job.task_id
                 )
+                if (
+                    not isinstance(issue, Issue)
+                    or issue.identifier != job.task_id
+                    or (
+                        issue.project_id is not None
+                        and str(issue.project_id) != job.project_id
+                    )
+                ):
+                    raise AuditWorkflowIdentityError(
+                        "finalizing task identity could not be refreshed"
+                    )
                 issue.project_id = job.project_id
                 result = self._audit_result_from_finalizing_job(job)
                 outcome = await self.terminal_transition_coordinator.apply_audit_result(
@@ -7909,6 +8148,26 @@ class Orchestrator:
                     )
                 self._record_audit_outcome_ownership(issue.id, outcome)
                 replayed += 1
+            except (AuditWorkflowIdentityError, TypeError, ValueError) as exc:
+                try:
+                    self.terminal_audit_workflow.quarantine_finalizing(
+                        job or stale_job,
+                        active_attempt_identities=active_attempts,
+                        reason=(
+                            "terminal-audit finalization checkpoint is corrupt: "
+                            f"{type(exc).__name__}"
+                        ),
+                    )
+                except Exception:  # noqa: BLE001 - retain original diagnostic
+                    logger.warning(
+                        "Could not quarantine terminal-audit finalization job %s",
+                        stale_job.job_id,
+                    )
+                logger.warning(
+                    "Quarantined invalid terminal-audit finalization job %s: %s",
+                    stale_job.job_id,
+                    type(exc).__name__,
+                )
             except Exception as exc:  # noqa: BLE001 - one result cannot starve others
                 if job is not None:
                     try:
@@ -8014,17 +8273,39 @@ class Orchestrator:
         issue: Issue,
         record,
         reason: str,
+        *,
+        action_job: Any | None = None,
     ) -> None:
         """Route exhausted or unconfigured audits to actionable Needs Human."""
 
         from oompah.terminal_transition_coordinator import AuditResult
 
-        infrastructure_exhausted = bool(record.attempts) and all(
-            attempt.failure_classification
-            == FailureClassification.INFRASTRUCTURE_ERROR
-            for attempt in record.attempts
+        action_checkpoint = (
+            dict(action_job.checkpoint or {}) if action_job is not None else {}
         )
-        if infrastructure_exhausted:
+        action_code = str(action_checkpoint.get("action_code") or "").strip()
+        finalization_exhausted = action_code in {
+            "finalization_transport_exhausted",
+            "corrupt_finalization_checkpoint",
+        }
+        infrastructure_exhausted = finalization_exhausted or (
+            bool(record.attempts) and all(
+                attempt.failure_classification
+                == FailureClassification.INFRASTRUCTURE_ERROR
+                for attempt in record.attempts
+            )
+        )
+        if finalization_exhausted:
+            message = (
+                "The independent auditor produced a result, but durable result "
+                "finalization could not be completed safely. Restore the tracker "
+                "or finalization transport, then have a project owner rearm this "
+                "terminal audit; do not reopen implementation work."
+            )
+            verdict = Verdict.NEEDS_HUMAN
+            classification = FailureClassification.INFRASTRUCTURE_ERROR
+            attempt_prefix = "finalization-exhausted"
+        elif infrastructure_exhausted:
             message = (
                 "Independent auditor launches exhausted their retry budget because "
                 "the audit workspace or transport failed before review began. "
@@ -8044,14 +8325,45 @@ class Orchestrator:
             verdict = Verdict.FAIL
             classification = FailureClassification.NO_AUDITOR
             attempt_prefix = "no-auditor"
+        checkpoint_attempt_id = str(
+            action_checkpoint.get("attempt_id") or ""
+        ).strip()
+        known_attempt_ids = {
+            attempt.attempt_id for attempt in record.attempts
+        }
+        # Only an exhausted finalization owns an unfinished exact attempt.
+        # Ordinary structured retry outcomes have already been applied under
+        # their attempt IDs; reusing one here would make coordinator
+        # idempotency swallow the Needs Human projection.  Give ordinary
+        # retry exhaustion a fresh synthetic attempt and retain the complete
+        # non-substantive history used by owner-rearm authorization.
+        exact_attempt_id = (
+            checkpoint_attempt_id
+            if finalization_exhausted
+            and checkpoint_attempt_id in known_attempt_ids
+            else ""
+        )
+        if finalization_exhausted and not exact_attempt_id:
+            unfinished = [
+                attempt.attempt_id
+                for attempt in record.attempts
+                if attempt.request_state is RequestState.IN_PROGRESS
+                and not attempt.ended_at
+            ]
+            if len(unfinished) == 1:
+                exact_attempt_id = unfinished[0]
         result = AuditResult(
             audit_id=record.audit_id,
             target_state=record.target_state,
             evidence_fingerprint=record.evidence_fingerprint,
             verdict=verdict,
             failure_classification=classification,
+            attempt_origin=AuditAttemptOrigin.COORDINATOR_RETRY_EXHAUSTION,
             message=message,
-            attempt_id=f"{attempt_prefix}-{record.audit_id}-{len(record.attempts)}",
+            attempt_id=(
+                exact_attempt_id
+                or f"{attempt_prefix}-{record.audit_id}-{len(record.attempts)}"
+            ),
         )
         outcome = await self.terminal_transition_coordinator.apply_audit_result(
             issue, result, str(issue.project_id or "legacy")
@@ -8115,7 +8427,11 @@ class Orchestrator:
                 document = await asyncio.get_running_loop().run_in_executor(
                     self._tick_pool, store.read, issue.identifier
                 )
-                record = AuditorDispatchLane.pending_record(document.pending_chain)
+                record = AuditorDispatchLane.pending_record(
+                    document.pending_chain,
+                    project_id=str(issue.project_id or "legacy"),
+                    task_id=issue.identifier,
+                )
                 finalization_failure_count = (
                     self._uncommitted_terminal_result_intents(
                         document,
@@ -8139,6 +8455,40 @@ class Orchestrator:
                 )
                 if record is None:
                     continue
+                rearm_authorization = self._terminal_audit_rearm_authorization(
+                    document,
+                    record,
+                )
+                if rearm_authorization is not None:
+                    try:
+                        rearmed_job = self.terminal_audit_workflow.rearm(
+                            record,
+                            authorization=rearm_authorization,
+                        )
+                        consumed = await asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda: self._consume_terminal_audit_rearm_authorization(
+                                store,
+                                issue,
+                                record,
+                                rearm_authorization,
+                                rearmed_job,
+                            ),
+                        )
+                        if not consumed:
+                            logger.warning(
+                                "Terminal-audit owner rearm proof could not be "
+                                "consumed for %s",
+                                issue.identifier,
+                            )
+                            continue
+                    except AuditWorkflowIdentityError as exc:
+                        logger.warning(
+                            "Terminal-audit owner rearm proof was rejected for %s: %s",
+                            issue.identifier,
+                            type(exc).__name__,
+                        )
+                        continue
                 selector = self._audit_selector(issue)
                 lane = AuditorDispatchLane(
                     selector,
@@ -8147,11 +8497,22 @@ class Orchestrator:
                 )
                 branch_key = audit_branch_key(issue)
                 active = {
-                    entry.audit_attempt_id
+                    audit_attempt_identity(
+                        str(entry.issue.project_id or "legacy"),
+                        entry.identifier,
+                        entry.audit_id,
+                        entry.audit_attempt_id,
+                    )
                     for entry in self._running_values_snapshot()
-                    if entry.is_auditor and entry.audit_attempt_id
+                    if entry.is_auditor
+                    and entry.issue is not None
+                    and entry.audit_id
+                    and entry.audit_attempt_id
                 }
-                recovery = lane.recover(record, active_attempt_ids=active)
+                recovery = lane.recover(
+                    record,
+                    active_attempt_identities=active,
+                )
                 if (
                     not recovery.ready
                     and recovery.reason
@@ -8164,9 +8525,18 @@ class Orchestrator:
                             branch_key,
                             running.audit_attempt_id,
                         )
-                        active.discard(running.audit_attempt_id)
+                        if running.audit_id and running.audit_attempt_id:
+                            active.discard(
+                                audit_attempt_identity(
+                                    str(running.issue.project_id or "legacy"),
+                                    running.identifier,
+                                    running.audit_id,
+                                    running.audit_attempt_id,
+                                )
+                            )
                         recovery = lane.recover(
-                            record, active_attempt_ids=active
+                            record,
+                            active_attempt_identities=active,
                         )
                 if recovery.record != record:
                     recovered_attempt = (
@@ -8189,10 +8559,11 @@ class Orchestrator:
                 # Reconcile the execution ledger independently of tracker
                 # metadata.  A running metadata attempt without a live
                 # worker becomes queued durable work after restart.
+                workflow_decision = None
                 try:
-                    self.terminal_audit_workflow.recover(
+                    workflow_decision = self.terminal_audit_workflow.recover(
                         record,
-                        active_attempt_ids=active,
+                        active_attempt_identities=active,
                     )
                 except Exception as exc:  # noqa: BLE001 - preserve legacy lane safety
                     logger.warning(
@@ -8200,6 +8571,84 @@ class Orchestrator:
                         issue.identifier,
                         type(exc).__name__,
                     )
+                if (
+                    workflow_decision is not None
+                    and workflow_decision.phase is AuditWorkflowPhase.COMPLETED
+                ):
+                    completed_job = self.terminal_audit_workflow.ensure(record)
+                    completed_result = dict(completed_job.result_transition or {})
+                    completed_audit_id = str(
+                        completed_result.get("audit_id") or ""
+                    ).strip()
+                    completed_attempt_id = str(
+                        (completed_job.checkpoint or {}).get("attempt_id") or ""
+                    ).strip()
+                    if (
+                        completed_result.get("accepted") is True
+                        and completed_audit_id
+                        and str(
+                            completed_result.get("applied_status") or ""
+                        ).strip()
+                    ):
+                        recurrence = await asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda: (
+                                self.terminal_transition_coordinator
+                                .reconcile_completed_recurrence_sync(
+                                    issue,
+                                    record,
+                                    str(issue.project_id or "legacy"),
+                                    applied_status=str(
+                                        completed_result["applied_status"]
+                                    ),
+                                    completed_audit_id=completed_audit_id,
+                                    completed_attempt_id=(
+                                        completed_attempt_id or None
+                                    ),
+                                )
+                            ),
+                        )
+                        if not recurrence.success:
+                            logger.warning(
+                                "Could not reconcile completed terminal-audit "
+                                "recurrence for %s: %s",
+                                issue.identifier,
+                                recurrence.reason,
+                            )
+                        else:
+                            self._record_audit_outcome_ownership(
+                                issue.id,
+                                recurrence,
+                            )
+                    # Completed/cancelled semantic work is never implicitly
+                    # rearmed.  The coordinator either consumed an exact prior
+                    # PASS above or leaves the metadata visible for explicit
+                    # owner recovery.
+                    continue
+                if (
+                    workflow_decision is not None
+                    and workflow_decision.phase
+                    is AuditWorkflowPhase.ACTION_REQUIRED
+                ):
+                    # ACTION_REQUIRED is a durable saga checkpoint, not the
+                    # final tracker mutation.  A crash can occur after the
+                    # workflow exhausts but before the coordinator records the
+                    # actionable result.  Replay that exact result on every
+                    # scan until metadata/status acknowledges it; only the
+                    # owner-authenticated path above may subsequently rearm the
+                    # exhausted semantic job.
+                    action_job = self.terminal_audit_workflow.ensure(record)
+                    await self._route_no_auditor(
+                        issue,
+                        record,
+                        str(
+                            action_job.last_error
+                            or workflow_decision.action_code
+                            or "terminal-audit retry budget exhausted"
+                        ),
+                        action_job=action_job,
+                    )
+                    continue
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
                         metrics["in_progress_count"] += 1
@@ -8251,32 +8700,26 @@ class Orchestrator:
                         issue,
                         record,
                         no_candidate.detail if no_candidate else "no candidate",
+                        action_job=action_job,
                     )
                     continue
 
                 persisted = lane.persist_plan(record, plan)
                 attempt = persisted.attempts[-1]
-                # This write is deliberately awaited before _dispatch can
-                # create a worker. It is the crash/restart idempotency fence.
-                plan_persisted = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda r=persisted, a=attempt: self._audit_update_record(
-                        store, issue, r, append_attempt=a
-                    ),
-                )
-                if not plan_persisted:
-                    # PASS/override may have retired this identity between
-                    # the candidate read and the launch fence.
-                    continue
-                workflow_job = self.terminal_audit_workflow.start(
+                # Claim the generic workflow lease before publishing
+                # ``IN_PROGRESS``.  A terminal or cooling-down semantic job
+                # cannot otherwise own the metadata attempt.
+                workflow_job = await self._claim_terminal_audit_attempt(
+                    store,
+                    issue,
                     persisted,
-                    attempt_id=plan.attempt_id,
-                    candidate=plan.candidate,
+                    attempt,
+                    plan,
                 )
                 if workflow_job is None:
-                    # Another durable owner won the launch race.  The
-                    # metadata attempt remains fenced and will be recovered
-                    # by that owner or by the next bounded scan.
+                    # Another durable owner won, the retry is not due, or the
+                    # semantic job is terminal.  No ownerless attempt was
+                    # published to tracker metadata.
                     continue
                 plan = replace(
                     plan,
@@ -18944,7 +19387,20 @@ class Orchestrator:
             str(issue.project_id or "legacy"),
         )
         self._record_audit_outcome_ownership(issue.id, outcome)
-        if not outcome.success:
+        if outcome.success:
+            # Workflow materialization precedes this preflight so restart
+            # cannot lose a queued archive.  Once the synchronous evidence
+            # check authoritatively rejects that archive, retire its exact
+            # target/evidence generation as part of the accepted outcome;
+            # otherwise the generic durable worker can later claim a queued
+            # provider job for an audit the coordinator already resolved.
+            workflow = getattr(self, "terminal_audit_workflow", None)
+            if workflow is not None:
+                workflow.retire(
+                    record,
+                    reason="metadata-only archive preflight resolved without provider launch",
+                )
+        else:
             self._audit_metrics["last_error"] = outcome.reason
             logger.warning(
                 "Unable to route unsafe metadata archive %s: %s",
@@ -38112,6 +38568,9 @@ class Orchestrator:
                 checkpoint = candidate_job.checkpoint or {}
                 if (
                     candidate_job.state is WorkflowJobState.RUNNING
+                    and candidate_job.project_id
+                    == str(entry.issue.project_id or "legacy")
+                    and candidate_job.task_id == entry.identifier
                     and candidate_job.lease_token
                     == entry.audit_workflow_lease_token
                     and checkpoint.get("workflow_job_id")
@@ -38126,6 +38585,9 @@ class Orchestrator:
                     record
                     for record in document.pending_chain
                     if record.audit_id == entry.audit_id
+                    and record.project_id
+                    == str(entry.issue.project_id or "legacy")
+                    and record.task_id == entry.identifier
                 ),
                 None,
             )
@@ -38150,28 +38612,34 @@ class Orchestrator:
                     reason="audit target or evidence was replaced before worker exit",
                 )
                 return False
+            if (
+                workflow_job is not None
+                and workflow_job.phase == AuditWorkflowPhase.FINALIZING.value
+            ):
+                # The complete typed result and exact applied disposition are
+                # already checkpointed.  Worker exit must never replace that
+                # payload with a weaker acknowledgement: the replay lane will
+                # merge an idempotent coordinator outcome and close the lease.
+                return False
             if target.request_state not in (
                 RequestState.PENDING,
                 RequestState.IN_PROGRESS,
             ):
                 # The result coordinator already completed (or superseded)
-                # this target.  Acknowledge the exact workflow lease now;
-                # ordinary shutdown must not leave it for a later broad scan.
+                # this target.  Only a typed FINALIZING checkpoint may become
+                # completed semantic work; the early return above preserves it
+                # for exact replay.
                 if workflow_job is not None:
-                    if target.request_state is RequestState.COMPLETED:
-                        self.terminal_audit_workflow.complete(
-                            workflow_job,
-                            result={
-                                "accepted": True,
-                                "audit_id": target.audit_id,
-                                "worker_exit_acknowledged": True,
-                            },
-                        )
-                    else:
-                        self.terminal_audit_workflow.cancel(
-                            workflow_job,
-                            reason="audit authority was revoked before worker exit",
-                        )
+                    # A non-finalizing workflow has no durable typed result to
+                    # merge.  Cancel it instead of manufacturing a completed
+                    # semantic tombstone without ``applied_status``.
+                    self.terminal_audit_workflow.cancel(
+                        workflow_job,
+                        reason=(
+                            "tracker metadata resolved before durable audit "
+                            "finalization"
+                        ),
+                    )
                 return False
             submitted_attempt = next(
                 (
@@ -38181,16 +38649,6 @@ class Orchestrator:
                 ),
                 None,
             )
-            if (
-                workflow_job is not None
-                and workflow_job.phase == AuditWorkflowPhase.FINALIZING.value
-                and (submitted_attempt is None or submitted_attempt.verdict is None)
-            ):
-                # The typed result is already durable but the coordinator has
-                # not committed it yet. Preserve FINALIZING for exact replay;
-                # converting it to a provider retry here would lose a valid
-                # verdict during normal pause/restart termination.
-                return False
             if submitted_attempt is not None and submitted_attempt.verdict is not None:
                 # Nonterminal ERROR/infrastructure results are still
                 # structured coordinator submissions. Their persisted

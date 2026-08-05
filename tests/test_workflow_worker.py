@@ -414,10 +414,35 @@ async def test_stale_transition_race_supersedes_for_automatic_reassessment(store
 
 
 @pytest.mark.asyncio
-async def test_missing_handler_is_action_required_not_a_lost_job(store):
+async def test_default_worker_does_not_claim_unregistered_action(store):
     queued = store.enqueue(job_spec(action="unregistered"))
 
     result = await worker(store, ScriptedHandler()).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.IDLE
+    assert store.get(queued.job_id).state is WorkflowJobState.QUEUED
+
+
+@pytest.mark.asyncio
+async def test_default_worker_reserves_terminal_audit_for_its_owner(store):
+    terminal = store.enqueue(job_spec(action="terminal_audit"))
+    ordinary = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+
+    result = await worker(store, handler).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(ordinary.job_id).state is WorkflowJobState.COMPLETED
+    assert store.get(terminal.job_id).state is WorkflowJobState.QUEUED
+
+
+@pytest.mark.asyncio
+async def test_explicit_unregistered_claim_remains_fail_closed(store):
+    queued = store.enqueue(job_spec(action="unregistered"))
+
+    result = await worker(store, ScriptedHandler()).run_once(
+        actions=("unregistered",)
+    )
 
     assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
     assert store.get(queued.job_id).state is WorkflowJobState.EXHAUSTED

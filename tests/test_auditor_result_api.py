@@ -676,6 +676,18 @@ class TestStatusInjection:
         assert result is None
         assert "invalid auditor result fields" in (err or "")
 
+    def test_model_cannot_supply_coordinator_attempt_origin(self):
+        args = _valid_args(
+            verdict="needs_human",
+            failure_classification="infrastructure_error",
+            message="Restore the audit transport and retry.",
+        )
+        args["attempt_origin"] = "coordinator_retry_exhaustion"
+        result, err = _parse(args)
+        assert result is None
+        assert "invalid auditor result fields" in (err or "")
+        assert "attempt_origin" in (err or "")
+
     def test_extra_arbitrary_fields_are_rejected(self):
         for extra_key in ("approve", "transition", "override", "merge", "close"):
             args = _valid_args()
