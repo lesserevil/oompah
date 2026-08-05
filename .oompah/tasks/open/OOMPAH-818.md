@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:23:30.171988Z'
+updated_at: '2026-08-05T01:23:44.649319Z'
 work_branch: null
 target_branch: null
 review_url: null
