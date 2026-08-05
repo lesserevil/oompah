@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-05T00:07:08.473941Z'
+updated_at: '2026-08-05T00:07:13.273021Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-04 23:37
 ---
 Completed durable review and CI reconciliation at exact head a3948097f27f4e84ac0f2375408ac05f4e419d2c. Combined pre-rebase verification: 751 passed, 2 skipped; post-rebase: 386 passed; terminal mutation scan 8/8. Ready for exact full gate and terminal audit.
+---
+author: oompah
+created: 2026-08-05 00:07
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
