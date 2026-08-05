@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-08-05T23:28:29.745699Z'
+updated_at: '2026-08-05T23:28:37.906618Z'
 work_branch: OOMPAH-563
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/583
@@ -122,8 +122,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-79e52794cc1e
-    applied: false
+    applied: true
     created_at: '2026-08-05T23:28:26.358733+00:00'
+    applied_at: '2026-08-05T23:28:35.307712+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -313,5 +314,26 @@ author: oompah
 created: 2026-08-05 23:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 23:28
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- branch_name: OOMPAH-563
+- fix_commit: f47d09a7bc7812f5c881a0a1356d559202276c85
+- merge_commit: 6123060896a04cdad2995039f951f3f18121bbaa
+- merge_ancestry: f47d09a7b is ancestor of origin/main
+- impl_lock_line: oompah/orchestrator.py:794 self._state_io_lock = threading.RLock()
+- impl_atomic_write_lines: oompah/orchestrator.py:1908 os.fsync; 1909 os.replace
+- impl_fail_closed_line: oompah/orchestrator.py:1889 refuses write when _state_load_failed
+- regression_tests_pause_file: tests/test_orchestrator_pause.py adds 15 tests including concurrent/corrupt/serialization/restart cases
+- regression_tests_audit_file: tests/test_terminal_audit_enforcement.py adds terminal-audit merge and recovery tests
+- prior_full_gate: 13,581 passed, 7 skipped (recorded 2026-07-29)
+- prior_live_recovery: baseline_initialized=true; quarantined=false; alert cleared after make graceful
+- aged_merge_days: 7
 ---
 <!-- COMMENTS:END -->
