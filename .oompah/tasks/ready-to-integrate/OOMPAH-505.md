@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:41:37.826265Z'
+updated_at: '2026-08-05T05:41:48.622256Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1065,5 +1065,10 @@ author: oompah
 created: 2026-08-05 05:41
 ---
 Explicit Claude and Codex model tiers implementation complete and verified. All 15,387 tests passing including 1,458 OOMPAH-505-specific tests. Backend descriptors expose supports_manual_model_selection() independent of catalog discovery. UI supports manual model entry for catalog-less backends with SDK default fallback and async rerender on descriptor load. Role store validates and persists explicit role candidates with priority/round-robin strategies. API endpoints fully tested with multi-candidate configurations and backward compatibility. Dispatch tests confirm explicit models propagate through all tiers. Ready for deployment to configure live role candidates: fast=Claude/fable+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol with preserved round-robin, credentials, provider health, and project whitelist behavior.
+---
+author: oompah
+created: 2026-08-05 05:41
+---
+Completion: Task submitted for integration successfully. The explicit Claude and Codex model tiers feature implementation is comprehensive, thoroughly tested, and ready for production deployment. All acceptance criteria met: UI truthfully supports manual model selection, each tier resolves to distinct models, role infrastructure supports explicit mappings, existing default behavior remains backward compatible. Backend ready for operator configuration of the six explicit model candidates across fast/standard/deep tiers.
 ---
 <!-- COMMENTS:END -->
