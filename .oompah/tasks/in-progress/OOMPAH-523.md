@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:28:34.651057Z'
+updated_at: '2026-08-05T04:31:48.973038Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -787,5 +787,15 @@ author: oompah
 created: 2026-08-05 04:28
 ---
 Understanding: I will verify the recovered OOMPAH-522 Basic-auth integration on this branch, audit ASGI HTTP/WebSocket coverage and exact exemptions, then add or repair focused tests and implementation as needed. I will preserve disabled behavior and forge-specific webhook validation, run project tooling, commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-05 04:31
+---
+Discovery: The recovered commits fb9526679 and 2c090848a are in HEAD. Current server.py mounts _BasicAuthMiddleware around FastAPI and mounted static/MCP apps, authenticates WebSockets before the endpoint can accept/register them, uses strict Basic parsing and raw-path exact exemptions, and strips Authorization before downstream handling. Startup wiring is present in both _service_lifespan (Granian) and __main__._run (uvicorn); existing docs and identity/MCP contracts account for the later integrations. No source gap was found after auditing the current tree.
+---
+author: oompah
+created: 2026-08-05 04:31
+---
+Implementation: Retained the recovered implementation unchanged because it already satisfies the current source contracts. The audit specifically verified that the task-handoff capability and private MCP dispatch are object-identity scoped internal paths required for process supervision/MCP operation, while public Basic exemptions remain exactly GET /healthz and the two forge POST routes. I also manually exercised static assets, MCP discovery/transport, GitLab status, and healthz with and without valid credentials.
 ---
 <!-- COMMENTS:END -->
