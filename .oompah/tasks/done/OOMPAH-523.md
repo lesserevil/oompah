@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T19:25:41.149651Z'
+updated_at: '2026-08-05T20:01:08.349540Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -96,6 +96,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-53c9ad335674-3: '2026-08-04T22:57:12.166343+00:00'
+    attempt-cc64fbe0497e: '2026-08-05T20:01:02.649531+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-523
@@ -106,6 +107,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T22:57:12.166362+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    target_state: Done
+    evidence_fingerprint: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+    audit_ids:
+    - audit-2cd8b8c9af4f
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T20:01:02.649548+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-523
@@ -119,6 +129,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T22:57:12.166386+00:00'
     applied_at: '2026-08-04T22:57:19.740971+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    audit_id: audit-2cd8b8c9af4f
+    attempt_id: attempt-cc64fbe0497e
+    target_state: Done
+    evidence_fingerprint: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+    status: Done
+    audit_ids:
+    - audit-2cd8b8c9af4f
+    applied: false
+    created_at: '2026-08-05T20:01:02.649566+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -203,7 +224,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-523
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -227,7 +248,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cc64fbe0497e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -238,13 +259,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T19:25:26.027568+00:00'
       branch_key: epic-OOMPAH-521--task-OOMPAH-523
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-05T20:01:02.649338+00:00'
+      ended_at: '2026-08-05T20:01:02.649338+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Open
     created_at: '2026-08-05T18:22:16.796576+00:00'
-    updated_at: '2026-08-05T19:25:26.027568+00:00'
+    updated_at: '2026-08-05T20:01:02.649338+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
