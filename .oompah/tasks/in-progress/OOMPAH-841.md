@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T18:46:25.571221Z'
+updated_at: '2026-08-05T18:53:19.753066Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live reproduction on 2026-08-05: OOMPAH-829 acquired the sole validation slot at
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:53
+---
+Implementation in progress on the OOMPAH-763 root: native guard config now records an exact operator-installed Codex entrypoint plus service parent PID/start-ticks and inode/device. Only that direct node <entrypoint> exec bootstrap bypasses leasing, while the guarded PATH/SHELL remain active for real provider commands; lookalike paths and the same entrypoint from a task-controlled parent still queue normally. Added native process and backend-wiring regressions. Static compile and diff checks pass; focused tests are intentionally waiting for the currently occupied shared validation lane.
+---
+<!-- COMMENTS:END -->
