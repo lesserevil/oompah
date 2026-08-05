@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:32:23.155374Z'
+updated_at: '2026-08-05T19:34:48.030713Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -92,18 +92,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-829
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-d4736e35fc68
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+      created_at: '2026-08-05T19:34:46.396368+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T19:34:46.396368+00:00'
+      branch_key: OOMPAH-829
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T19:32:10.611419+00:00'
+    updated_at: '2026-08-05T19:34:46.396368+00:00'
   - version: 1
     audit_id: audit-fbd06944968b
     project_id: proj-14849f1b
@@ -121,7 +135,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T19:32:10.611419+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-d4736e35fc68
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+    created_at: '2026-08-05T19:34:46.396368+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T19:34:46.396368+00:00'
+    branch_key: OOMPAH-829
 ---
 ## Summary
 
