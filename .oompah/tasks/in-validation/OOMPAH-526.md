@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:02:07.784826Z'
+updated_at: '2026-08-05T00:02:29.420678Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -57,6 +57,30 @@ oompah.task_costs:
     recorded_at: '2026-08-05T00:02:05.250081+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-d04490732e74-3: '2026-08-05T00:02:28.136636+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    target_state: Archived
+    evidence_fingerprint: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+    audit_ids:
+    - audit-d04490732e74
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:02:28.136645+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    audit_id: audit-d04490732e74
+    attempt_id: no-auditor-audit-d04490732e74-3
+    target_state: Archived
+    evidence_fingerprint: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+    status: Needs Human
+    audit_ids:
+    - audit-d04490732e74
+    applied: false
+    created_at: '2026-08-05T00:02:28.136655+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -64,7 +88,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-526
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -104,7 +128,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cc0dc685ef9e
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -115,13 +139,27 @@ oompah.terminal_audit:
       started_at: '2026-08-04T23:49:15.419800+00:00'
       branch_key: epic-OOMPAH-521
       candidate_rotation_count: 2
+      ended_at: '2026-08-05T00:02:21.683687+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-d04490732e74-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9129fd635b7e3ae8c80b2be3cfb23958f3056e1f00d488b2c8d836215f517425
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-05T00:02:28.136542+00:00'
+      completed_at: '2026-08-05T00:02:28.136542+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:57.078497+00:00'
-    updated_at: '2026-08-04T23:49:15.419800+00:00'
+    updated_at: '2026-08-05T00:02:28.136542+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc08a582ec99
@@ -157,7 +195,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-cc0dc685ef9e
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,6 +206,8 @@ oompah.terminal_audit:
     started_at: '2026-08-04T23:49:15.419800+00:00'
     branch_key: epic-OOMPAH-521
     candidate_rotation_count: 2
+    ended_at: '2026-08-05T00:02:21.683687+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
