@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-828
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Treat applied Archived audit results as final lifecycle no-ops
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:49:57.069585Z'
+updated_at: '2026-08-05T20:58:52.000522Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
@@ -134,6 +134,45 @@ oompah.review_number: '724'
 oompah.work_branch: OOMPAH-828
 oompah.target_branch: main
 oompah.review_head: a5545b61a8db17a99655f81dfdafa7f5741c243c
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cfb22fb374ab
+    project_id: proj-14849f1b
+    task_id: OOMPAH-828
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T20:58:39.378513+00:00'
+  - version: 1
+    audit_id: audit-e2b51629d2e5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-828
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T20:58:39.378513+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -326,5 +365,15 @@ author: oompah
 created: 2026-08-05 20:49
 ---
 Branch quality gate passed for `a5545b61a8db17a99655f81dfdafa7f5741c243c` using `make test` in 632.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 20:58
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 20:58
+---
+YOLO: merged PR #724.
 ---
 <!-- COMMENTS:END -->
