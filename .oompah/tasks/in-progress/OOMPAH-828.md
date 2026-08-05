@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T18:31:28.503416Z'
+updated_at: '2026-08-05T18:37:52.868408Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,29 @@ created: 2026-08-05 18:31
 - terminal metadata/result-intent schemas
 
 **Verification:** Rows OOMPAH-452/453/455/456 should converge to completed/not_needed with zero status writes
+---
+author: oompah
+created: 2026-08-05 18:37
+---
+## Discovery
+
+**Root cause confirmed in terminal_audit_enforcement.py:_lifecycle_terminal_authorities**
+
+The function rejects Archived records because:
+1. Line 1965: current_fingerprint = compute_issue_evidence_fingerprint(issue, project_id)
+2. Line 1975-1978: Filters records where evidence_fingerprint == current_fingerprint
+3. But Archived audits use compute_evidence_fingerprint(requirements_text=reason) from archived_audit_requests.py
+
+These fingerprints can never match for disposition-based Archived audits.
+
+**Current logic flow:**
+- Line 1711-1714: Lifecycle reconciliation calls _lifecycle_terminal_authorities for Archived rows
+- Line 1712-1713: If current_state==ARCHIVED and (passed or overrides), outcome='not_needed'
+- Otherwise line 1729: error='lifecycle_metadata_not_finalized'
+
+**Fix location:** Modify _lifecycle_terminal_authorities to add Archived-specific authority check:
+- When target_state==ARCHIVED, also check for applied result intents
+- Match on audit_id, attempt_id, and joined record
+- Accept PASS Archived when result is applied and tracker already Archived
 ---
 <!-- COMMENTS:END -->
