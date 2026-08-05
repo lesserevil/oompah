@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:39:09.773782Z'
+updated_at: '2026-08-05T05:39:49.437977Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 40f676d9-beae-4353-a531-5d64006e55bd
+oompah.agent_run_id: b06321d7-2501-4d86-bd80-ccc6baf2e6ad
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
@@ -51,7 +51,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T05:38:25.047125+00:00'
+  updated_at: '2026-08-05T05:39:46.973498+00:00'
 oompah.task_costs:
   total_input_tokens: 46470
   total_output_tokens: 272
@@ -110,5 +110,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 42s
 - Log: OOMPAH-821__20260805T053846Z.jsonl
+---
+author: oompah
+created: 2026-08-05 05:39
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
