@@ -429,6 +429,11 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
         return True
     if not all("::" in item or item.endswith(".py") for item in positionals):
         return True
+    if any(any(marker in item for marker in "*?[]{}") for item in positionals):
+        # Classification happens before the shell expands selectors.  A
+        # syntactically single ``tests/test_*.py`` token can therefore become
+        # the complete test tree at execution time and must fail closed.
+        return True
     # A handful of broad subsystem files caused the production collision that
     # introduced this lane.  Syntax alone cannot prove file size, so bypass is
     # deliberately narrow: one explicit file or node.  Multiple files are a
@@ -436,11 +441,49 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
     return len(positionals) > 1
 
 
-def _npm_segment_is_heavy(tokens: list[str]) -> bool:
-    """Return whether one segment invokes an npm test script."""
+def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
+    """Return whether one segment invokes an unbounded unittest run."""
 
     command_tokens = _command_tokens(tokens)
-    if not command_tokens or os.path.basename(command_tokens[0]) != "npm":
+    if not command_tokens:
+        return False
+    python_executable = os.path.basename(command_tokens[0])
+    if not (
+        python_executable == "python"
+        or (
+            python_executable.startswith("python")
+            and python_executable[6:].replace(".", "").isdigit()
+        )
+    ):
+        return False
+    try:
+        module_index = command_tokens.index("-m", 1)
+    except ValueError:
+        return False
+    if (
+        module_index + 1 >= len(command_tokens)
+        or command_tokens[module_index + 1] != "unittest"
+    ):
+        return False
+    arguments = command_tokens[module_index + 2 :]
+    if any(argument in {"--help", "-h", "--version"} for argument in arguments):
+        return False
+    positionals = [argument for argument in arguments if not argument.startswith("-")]
+    if not positionals or positionals[0] == "discover":
+        return True
+    if any(any(marker in item for marker in "*?[]{}") for item in positionals):
+        return True
+    return len(positionals) > 1
+
+
+def _npm_segment_is_heavy(tokens: list[str]) -> bool:
+    """Return whether one segment invokes an npm/pnpm/yarn test script."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens:
+        return False
+    package_manager = os.path.basename(command_tokens[0])
+    if package_manager not in {"npm", "pnpm", "yarn"}:
         return False
     index = 1
     value_options = {
@@ -450,6 +493,7 @@ def _npm_segment_is_heavy(tokens: list[str]) -> bool:
         "--registry",
         "--userconfig",
         "--workspace",
+        "--filter",
         "-C",
         "-w",
     }
@@ -461,7 +505,7 @@ def _npm_segment_is_heavy(tokens: list[str]) -> bool:
     if index >= len(command_tokens):
         return False
     subcommand = command_tokens[index]
-    if subcommand in {"t", "test", "tst"}:
+    if subcommand in {"t", "test", "tst"} or subcommand.startswith("test:"):
         return True
     return (
         subcommand in {"run", "run-script"}
@@ -562,6 +606,7 @@ def is_heavyweight_validation_command(command: str) -> bool:
         if (
             _make_segment_is_heavy(tokens)
             or _pytest_segment_is_heavy(tokens)
+            or _unittest_segment_is_heavy(tokens)
             or _npm_segment_is_heavy(tokens)
             or _cargo_segment_is_heavy(tokens)
         ):

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from oompah.api_agent import _exec_run_command
+from oompah.auditor import check_auditor_command
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import (
     AUDITOR_PRIORITY,
@@ -100,6 +101,9 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ),
         ("tox -q", True),
         ("pytest tests/test_one.py", False),
+        ("pytest tests/test_*.py", True),
+        ("pytest 'tests/test_{one,two}.py'", True),
+        ("pytest 'tests/test_[ab].py'", True),
         ("pytest tests/test_one.py tests/test_two.py", True),
         ("pytest tests/test_one.py::test_case", False),
         ("pytest -k exact_case", True),
@@ -115,6 +119,14 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("npm --workspace web t", True),
         ("npm run test:unit", True),
         ("npm run build", False),
+        ("pnpm test", True),
+        ("pnpm --filter web test", True),
+        ("pnpm run test:unit", True),
+        ("yarn test", True),
+        ("yarn run test", True),
+        ("python -m unittest discover", True),
+        ("python -I -m unittest discover -s tests", True),
+        ("python -m unittest tests.test_one.TestCase.test_case", False),
         ("cargo test", True),
         ("cargo +nightly --color always test --workspace", True),
         ("cargo --config net.retry=2 test", True),
@@ -130,6 +142,68 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
 )
 def test_classifier_is_heavy_first_and_focused_checks_bypass(command, expected):
     assert is_heavyweight_validation_command(command) is expected
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "make test",
+        "make test-serial",
+        "pytest",
+        "py.test tests/test_*.py",
+        "python -m pytest",
+        "python -m unittest discover",
+        "npm test",
+        "pnpm test",
+        "yarn test",
+    ],
+)
+def test_heavy_auditor_contract_commands_acquire_before_popen(
+    tmp_path,
+    monkeypatch,
+    command,
+):
+    events: list[str] = []
+
+    class FakeHandle:
+        pass_fds: tuple[int, ...] = ()
+
+        def attach_process(self, process, *, timeout_seconds):
+            events.append("attach")
+
+        def release(self):
+            events.append("release")
+
+    class FakeLease:
+        def acquire(self, owner, *, is_cancelled=None):
+            events.append("acquire")
+            return FakeHandle()
+
+    class FakeProcess:
+        pid = os.getpid()
+        returncode = 0
+
+        def __init__(self, *_args, **_kwargs):
+            events.append("popen")
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", FakeProcess)
+
+    assert check_auditor_command(command) is None
+    assert is_heavyweight_validation_command(command) is True
+    result = _exec_run_command(
+        tmp_path,
+        {"command": command},
+        timeout=2,
+        validation_lease=FakeLease(),
+        validation_owner=_audit_owner("project", "audit"),
+        require_validation_lease=True,
+    )
+
+    assert result == "exit_code: 0"
+    assert events == ["acquire", "popen", "attach", "release"]
 
 
 def test_managed_owner_uses_audit_attempt_before_worker_scope():

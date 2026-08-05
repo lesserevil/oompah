@@ -41,11 +41,13 @@ _WRAPPED_COMMANDS = frozenset(
         "make",
         "nox",
         "npm",
+        "pnpm",
         "py.test",
         "pytest",
         "sh",
         "tox",
         "uv",
+        "yarn",
         "zsh",
     }
 )

@@ -8,6 +8,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from oompah.native_validation_guard import install_native_validation_guard
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
@@ -52,6 +54,54 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
 
     assert completed.returncode == 0
     assert lease.status().owner_count == 0
+
+
+@pytest.mark.parametrize("command", ["pnpm", "yarn"])
+def test_native_node_test_runner_waits_for_validation_capacity(
+    tmp_path: Path,
+    command: str,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "started"
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_executable = real_bin / command
+    real_executable.write_text(
+        "#!/bin/sh\n: > \"$OOMPAH_TEST_NATIVE_MARKER\"\n",
+        encoding="utf-8",
+    )
+    real_executable.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id="AUDIT-1",
+            authority_generation="audit-generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    process = subprocess.Popen(
+        [command, "test"],
+        env={**os.environ, **guarded},
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
 
 
 def test_native_heavy_child_retains_lane_after_launcher_crash(tmp_path: Path) -> None:
