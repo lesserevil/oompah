@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:47:11.046023Z'
+updated_at: '2026-08-05T00:47:28.040422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,15 @@ author: oompah
 created: 2026-08-05 00:46
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 00:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 00:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
