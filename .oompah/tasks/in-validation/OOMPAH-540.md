@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-08-05T01:43:07.862503Z'
+updated_at: '2026-08-05T01:43:22.478645Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
@@ -225,5 +225,10 @@ author: oompah
 created: 2026-08-05 01:42
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-05 01:43
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
