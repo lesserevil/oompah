@@ -364,6 +364,35 @@ class TestTaskScopeDirectPath:
         assert tracker.add_comment.call_count == 1
         tracker.update_issue.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "oompah task set-status TASK-1 'ready-to-integrate'",
+            "oompah task add-label TASK-1 oompah:status:ready-to-integrate",
+            "oompah task remove-label TASK-1 oompah:status:ready-to-integrate",
+        ],
+    )
+    def test_direct_acp_ready_mutations_require_authoritative_submit(
+        self,
+        command,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            command,
+            tracker,
+            "proj-a",
+            task_identifier="TASK-1",
+        )
+
+        assert result.startswith("Error: spawned workers must use")
+        assert "oompah task submit TASK-1" in result
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+
     def test_direct_acp_submit_requires_and_persists_pushed_git_evidence(
         self,
         tmp_path,
@@ -992,6 +1021,38 @@ class TestTaskScopeDirectPath:
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "oompah task set-status TASK-1 'Ready to Integrate'",
+            "oompah task add-label TASK-1 oompah:status:ready-to-integrate",
+            "oompah task remove-label TASK-1 oompah:status:ready-to-integrate",
+        ],
+    )
+    def test_api_agent_ready_mutations_require_authoritative_submit(
+        self,
+        tmp_path,
+        command,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": command},
+            task_tracker=tracker,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+        )
+
+        assert result.startswith("Error: spawned workers must use")
+        assert "oompah task submit TASK-1" in result
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+
 
 class TestTaskHandoffEndpoint:
     def test_api_submission_marks_queue_enqueue_as_explicit_retry(self):
@@ -1125,6 +1186,88 @@ class TestTaskHandoffEndpoint:
         orch._cancel_retry_for_issue.assert_not_called()
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
+
+    def test_scoped_ready_status_and_labels_require_authoritative_submit(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-ready-bypass",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"set-status", "add-label", "remove-label"},
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                headers = {TASK_HANDOFF_HEADER: token}
+                responses = [
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "set-status",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "status": "ready-to-integrate",
+                        },
+                    ),
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "add-label",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "label": "oompah:status:ready-to-integrate",
+                        },
+                    ),
+                    client.post(
+                        "/api/v1/task-handoff",
+                        headers=headers,
+                        json={
+                            "action": "remove-label",
+                            "project_id": "proj-a",
+                            "identifier": "TASK-1",
+                            "label": "oompah:status:ready-to-integrate",
+                        },
+                    ),
+                ]
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert [response.status_code for response in responses] == [400, 400, 400]
+        for response in responses:
+            assert response.json()["error"]["code"] == "validation"
+            assert "oompah task submit TASK-1" in response.json()["error"]["message"]
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        tracker.remove_label.assert_not_called()
+        orch._cancel_retry_for_issue.assert_not_called()
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
         from fastapi.testclient import TestClient
