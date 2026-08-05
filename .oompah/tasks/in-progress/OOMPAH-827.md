@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T19:26:28.286266Z'
+updated_at: '2026-08-05T19:42:31.025196Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,20 @@ author: oompah
 created: 2026-08-05 19:26
 ---
 **Implementation:** Added RunningEntry.classify_work_kind() method that returns authoritative work_kind with precedence: audit > duplicate_screening > implementation. Updated 3 locations to use it: (1) orchestrator.py get_snapshot uses method, (2) orchestrator.py AGENT_DISPATCHED event uses precedence logic, (3) server.py api_agent_activity uses method. Also added safe audit identity fields (is_auditor, audit_id, audit_attempt_id, retiring) to activity response. Created comprehensive test suite (19 tests) covering: direct classifier tests, state snapshot consistency, activity endpoint, precedence rules, and cross-surface consistency. All tests passing.
+---
+author: oompah
+created: 2026-08-05 19:42
+---
+Agent stalled 1 time(s) (4305s (1382 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-05 19:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 135, Tool calls: 67
+- Tokens: 1.1K in / 296 out [1.4K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 11m 45s
+- Log: OOMPAH-827__20260805T183057Z.jsonl
 ---
 <!-- COMMENTS:END -->

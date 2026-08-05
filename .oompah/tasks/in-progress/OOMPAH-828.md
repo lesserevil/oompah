@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T18:37:52.868408Z'
+updated_at: '2026-08-05T19:42:23.662662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,13 +70,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: fc4ba568-649e-416d-89ec-5af3967a1b63
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2369
+  total_input_tokens: 936
+  total_output_tokens: 2594
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2369
+      input_tokens: 936
+      output_tokens: 2594
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 2369
     cost_usd: 0.0
     recorded_at: '2026-08-05T18:20:05.407374+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 926
+    output_tokens: 225
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:42:16.553408+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-828__20260805T181810Z
@@ -187,5 +193,20 @@ These fingerprints can never match for disposition-based Archived audits.
 - When target_state==ARCHIVED, also check for applied result intents
 - Match on audit_id, attempt_id, and joined record
 - Accept PASS Archived when result is applied and tracker already Archived
+---
+author: oompah
+created: 2026-08-05 19:42
+---
+Agent stalled 1 time(s) (4390s (1151 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-05 19:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 115, Tool calls: 54
+- Tokens: 926 in / 225 out [1.2K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 13m 10s
+- Log: OOMPAH-828__20260805T182921Z.jsonl
 ---
 <!-- COMMENTS:END -->
