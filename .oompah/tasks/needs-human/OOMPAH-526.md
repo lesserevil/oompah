@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Open
+status: Needs Human
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:21:11.921308Z'
+updated_at: '2026-08-05T00:23:20.154663Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -530,5 +530,10 @@ created: 2026-08-05 00:21
 **Evidence:** current review 567 is merged
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 00:23
+---
+The parent epic OOMPAH-521 merged from epic-OOMPAH-521, but this task was Open with work branch epic-OOMPAH-521. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
