@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:03:47.182029Z'
+updated_at: '2026-08-05T06:04:19.271413Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -42,18 +42,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b06321d7-2501-4d86-bd80-ccc6baf2e6ad
+oompah.agent_run_id: bffee147-af98-4524-bc20-3c2a67aceb8b
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  head_sha: bdbe4ba222ba6aa110caa731d247f7a72c62e798
-  submitted_at: '2026-08-05T05:58:49.648883+00:00'
-  updated_at: '2026-08-05T05:58:49.648883+00:00'
+  updated_at: '2026-08-05T06:04:17.932388+00:00'
 oompah.task_costs:
   total_input_tokens: 47118
   total_output_tokens: 19991
@@ -207,5 +205,10 @@ author: oompah
 created: 2026-08-05 06:03
 ---
 Independent exact-head review found an acceptance-critical gap at bdbe4ba2: retry_failed_audit now accepts terminal retryability for mixed attempt histories, but the integrated-audit recovery alert producer is unchanged and still advertises audit_retry_evidence_addendum for every transition failure. _arm_integrated_audit_recovery_alert and _stage_integrated_task_audit do not consume the new canonical eligibility/recovery mode, and the new alert-clearing assertion covers coordinator observability rather than the live terminal_audit_recovery dashboard alert. Withdrawing this head from delivery until alert/action parity, truthful recovery mode, and live alert lifecycle tests are implemented.
+---
+author: oompah
+created: 2026-08-05 06:04
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
