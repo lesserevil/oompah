@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:39:53.055552Z'
+updated_at: '2026-08-05T05:40:41.390445Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -120,5 +120,19 @@ author: oompah
 created: 2026-08-05 05:39
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 05:40
+---
+Understanding: This issue addresses a regression where terminal-audit recovery alerts emit retry guidance that is then rejected with HTTP 409. The root cause: the sweep/recovery classifier and TerminalTransitionCoordinator.retry_failed_audit have different retry-eligibility logic. When a task has mixed-attempt history (abandoned + finalization_failure + terminal no_auditor), infrastructure rearm incorrectly requires ALL historical attempts to be retryable classifications, while the alert was emitted based on the terminal state alone. 
+
+Planned approach: 
+1. Identify the divergence between sweep recovery classifier and retry_failed_audit logic
+2. Create canonical retry-eligibility decision based on terminal exhaustion outcome
+3. Align alert emission with actual supported retry actions
+4. Add comprehensive tests for mixed-attempt scenarios
+5. Ensure alert/action parity for all terminal failure classifications
+
+Relevant files: terminal_transition_coordinator.py, orchestrator.py, server.py
 ---
 <!-- COMMENTS:END -->
