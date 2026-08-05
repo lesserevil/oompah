@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T15:52:06.697914Z'
+updated_at: '2026-08-05T15:52:33.443313Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -120,7 +120,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-815
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -145,13 +145,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-05T15:52:06.908770+00:00'
+    - version: 1
+      attempt_id: attempt-afeb2ebe6a4b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a26816809a2ddf483c46696bb3cb32e37f1ccc0374a87dd6f015032624afc144
+      created_at: '2026-08-05T15:52:25.425222+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T15:52:25.425222+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-815
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T15:46:48.635769+00:00'
-    updated_at: '2026-08-05T15:51:56.908796+00:00'
+    updated_at: '2026-08-05T15:52:25.425222+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6259cc99f102
@@ -172,6 +186,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-05T15:52:06.908770+00:00'
+  - version: 1
+    attempt_id: attempt-afeb2ebe6a4b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a26816809a2ddf483c46696bb3cb32e37f1ccc0374a87dd6f015032624afc144
+    created_at: '2026-08-05T15:52:25.425222+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T15:52:25.425222+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-815
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -358,5 +386,15 @@ author: oompah
 created: 2026-08-05 15:52
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-05 15:52
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-05 15:52
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
