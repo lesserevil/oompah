@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T01:26:49.178328Z'
+updated_at: '2026-08-05T01:28:51.713627Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -455,5 +455,17 @@ FAILED tests/test_release_delivery_refresh.py::TestTrickleScaleBacklogRegression
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-05 01:28
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #23)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing; safe to reopen the stalled task.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
