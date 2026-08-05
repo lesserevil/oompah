@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -997,6 +997,7 @@ class TestTaskScopeDirectPath:
             title="Task",
             state="In Progress",
             project_id="proj-a",
+            parent_id="EPIC-1",
             work_branch="TASK-1",
         )
         tracker = MagicMock()
@@ -1005,21 +1006,30 @@ class TestTaskScopeDirectPath:
             "oompah.agent_run_id": "live-run"
         }
         events: list[str] = []
-        tracker.set_metadata_field.side_effect = (
-            lambda _identifier, field, _value: events.append(field)
-        )
+
+        def set_metadata(_identifier, field, _value):
+            events.append(field)
+            if field == "oompah.agent_run_id":
+                raise RuntimeError("assignment projection unavailable")
+
+        tracker.set_metadata_field.side_effect = set_metadata
         orch = Orchestrator(
             config=ServiceConfig(),
             workflow_path="WORKFLOW.md",
             state_path=str(tmp_path / "service-state.json"),
         )
+        preservation_calls: list[tuple[object, ...]] = []
 
         class LegacyProjectStore:
             def list_all(self):
                 return []
 
+            def preserve_worktree_changes(self, *args):
+                preservation_calls.append(args)
+                return None
+
         orch.project_store = LegacyProjectStore()
-        orch.config.parallel_epic_children_enabled = False
+        orch.config.parallel_epic_children_enabled = True
         orch._project_trackers[issue.project_id] = tracker
         start = asyncio.Event()
 
@@ -1050,8 +1060,11 @@ class TestTaskScopeDirectPath:
         )
         orch._register_running_entry(issue.id, entry)
         orch.state.claimed.add(issue.id)
+        acp_session = SimpleNamespace(terminate=AsyncMock())
+        orch._acp_agent_sessions[issue.id] = acp_session
         assert entry.accepted_submission_record is None
         real_cancel = orch._cancel_retry_for_issue
+        real_accepted_fence = orch._handle_revoked_submission_exit
 
         def checked_cancel(**kwargs):
             events.append("cancel-retry")
@@ -1074,10 +1087,21 @@ class TestTaskScopeDirectPath:
                 "_cancel_retry_for_issue",
                 side_effect=checked_cancel,
             ),
-            patch.object(orch, "_schedule_running_termination") as schedule,
+            patch.object(
+                orch,
+                "_handle_revoked_submission_exit",
+                wraps=real_accepted_fence,
+            ) as accepted_fence,
         ):
             start.set()
             result = await worker_task
+            for _ in range(100):
+                if (
+                    orch._current_running_entry(issue.id) is None
+                    and issue.id not in orch._scheduled_termination_ids
+                ):
+                    break
+                await asyncio.sleep(0.01)
 
         assert result == "Submitted for integration: TASK-1"
         assert entry.authority_revoked is True
@@ -1085,34 +1109,40 @@ class TestTaskScopeDirectPath:
         assert record is not None
         assert record.task_branch == "TASK-1"
         assert record.head_sha == "a" * 40
-        assert events.index("oompah.integration") < events.index("cancel-retry")
-        schedule.assert_called_once_with(
-            issue.id,
-            cleanup_workspace=False,
-            task_name_prefix="quarantine-worker",
+        assert events.index("oompah.integration") < events.index(
+            "oompah.agent_run_id"
         )
-
-        with patch.object(
-            orch,
-            "_handle_revoked_submission_exit",
-            new_callable=AsyncMock,
-        ) as accepted_fence:
-            await orch._on_worker_exit(
-                issue.id,
-                "normal",
-                None,
-                run_id=entry.run_id,
-            )
-            await orch._terminate_running(issue.id, cleanup_workspace=False)
-
-        assert accepted_fence.await_count == 2
-        for call in accepted_fence.await_args_list:
-            assert call.args == (
-                entry,
-                issue.id,
+        assert events.index("oompah.agent_run_id") < events.index("cancel-retry")
+        accepted_fence.assert_awaited_once_with(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+        acp_session.terminate.assert_awaited_once_with()
+        assert preservation_calls == [
+            (
                 issue.project_id,
-                record,
+                issue.identifier,
+                str(tmp_path),
+                "TASK-1",
             )
+        ]
+        assert orch._current_running_entry(issue.id) is None
+        assert issue.id not in orch.state.claimed
+        assert issue.id not in orch._scheduled_termination_ids
+        assert tracker.update_issue.call_args_list == [
+            call(issue.identifier, status="Ready to Integrate"),
+            call(issue.identifier, status="Ready to Integrate"),
+        ]
+        queued = orch.integration_queue.items(
+            project_id=issue.project_id,
+            epic_id=issue.parent_id,
+        )
+        assert len(queued) == 1
+        assert queued[0].task_id == issue.identifier
+        assert queued[0].task_branch == record.task_branch
+        assert queued[0].head_sha == record.head_sha
 
     def test_api_agent_submit_forwards_store_and_authoritative_handler(
         self,

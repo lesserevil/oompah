@@ -4413,12 +4413,23 @@ async def _clear_submission_assignment(tracker, issue) -> None:
     )
     if not assignment:
         return
-    await _run_api_io(
-        set_metadata,
-        issue.identifier,
-        "oompah.agent_run_id",
-        None,
-    )
+    try:
+        await _run_api_io(
+            set_metadata,
+            issue.identifier,
+            "oompah.agent_run_id",
+            None,
+        )
+    except Exception as exc:  # noqa: BLE001 - durable acceptance must finish
+        # The integration record and canonical Ready lifecycle already own
+        # this generation.  A stale assignment projection is repairable; it
+        # must not prevent the bound live run from being revoked or the exact
+        # accepted head from entering the durable integration queue.
+        logger.warning(
+            "Accepted submission could not clear stale assignment for %s: %s",
+            issue.identifier,
+            exc,
+        )
 
 
 def _enqueue_worker_submission(
