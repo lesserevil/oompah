@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Needs CI Fix
+status: Ready to Integrate
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T10:35:50.699879Z'
+updated_at: '2026-08-05T10:47:37.793346Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -49,49 +49,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-816
   base_branch: epic-OOMPAH-763
   base_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
-  head_sha: efd65b2fd3f665381465de78f2c4b5c7ce6f0d0b
-  submitted_at: '2026-08-05T10:18:25.184390+00:00'
-  updated_at: '2026-08-05T10:35:43.953597+00:00'
-  last_error: "Combined-tree quality gate failed: gs for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-s_hctdfe/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\ntests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration\n\
-    tests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88:\
-    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._context.run(self._callback,\
-    \ *self._args)\n  Enable tracemalloc to get traceback where the object was allocated.\n\
-    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_task_cost_telemetry.py::TestWriteTaskCostRecord::test_zero_tokens_skips_write\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-s_hctdfe/workspace/oompah/terminal_audit_observability.py:185:\
-    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    name: set()\n  Enable\
-    \ tracemalloc to get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_check_and_restart_noops_when_no_process\n\
-    tests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_http_auth_has_reload_status\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-s_hctdfe/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x70c4278839c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_aborts_after_config_validation_failure\n\
-    FAILED tests/test_orchestrator_handlers.py::TestResolveDispatchTargets::test_single_candidate_role_returns_one_target\n\
-    FAILED tests/test_orchestrator_handlers.py::TestRunApiWorkerWithTarget::test_provider_startup_error_when_model_not_in_provider_models\n\
-    = 3 failed, 15939 passed, 8 skipped, 1 xfailed, 47 warnings in 983.69s (0:16:23)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 510d518c17a6a5974ef174b54a3fc15ffca1b96b
+  submitted_at: '2026-08-05T10:47:30.755142+00:00'
+  updated_at: '2026-08-05T10:47:30.755142+00:00'
 oompah.task_costs:
   total_input_tokens: 47030
   total_output_tokens: 474
@@ -583,5 +548,15 @@ FAILED tests/test_orchestrator_handlers.py::TestRunApiWorkerWithTarget::test_pro
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-05 10:47
+---
+The fifth gate passed 15,939 tests and exposed three different five-second timeouts in one handler module. Root cause was proven with a bounded reproduction: two refresh-timeout tests reported passed but pytest could not exit within 15s because their real 60s executor sleeps and 231 helper-created orchestrators crossed test boundaries. Pushed systemic test-harness repair at 510d518c1: cooperative entered/pending timeout blockers released in finally; autouse teardown drains both executors and closes all five owned stores; unexpected background failures are accumulated, fully cleaned, then fail teardown; the tick-order test stubs unrelated pre-validation recovery I/O. Historical sequence now exits 5/5 in 1.58s; complete handler file 279/279; expanded seven-file leakage matrix 457/457; required scans and independent review PASS. The global five-second timeout and all production safety semantics remain unchanged.
+---
+author: oompah
+created: 2026-08-05 10:47
+---
+Serialized heavyweight validation and removed the root handler-fixture executor/store leak behind late full-gate flakes; 279 handler tests and 457 expanded leakage tests pass at 510d518c1.
 ---
 <!-- COMMENTS:END -->
