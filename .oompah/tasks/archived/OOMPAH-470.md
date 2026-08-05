@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-08-05T18:38:19.584430Z'
+updated_at: '2026-08-05T18:38:27.968710Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -468,8 +468,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-d40b8c2b7c8e
-    applied: false
+    applied: true
     created_at: '2026-08-05T18:38:15.888738+00:00'
+    applied_at: '2026-08-05T18:38:25.434097+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -4142,5 +4143,26 @@ author: oompah
 created: 2026-08-05 18:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 18:38
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- main_head: b53bdbc77c7a50d332a97096ebc85d7923280854
+- epic_merge_commit: f05f550672dd3118372507df0d2d47c342011003
+- epic_pull_request: 578
+- epic_merge_date: 2026-07-29T12:51:35-05:00
+- oompah_470_commits_on_main: 280d9b0d4, dd7dd6995, 6544c2ab3, ca0a1b3dd, 1d3c443f8, 0a4ee3bdd, 3907a9d06
+- auditor_selector_size_chars: 32325
+- auditor_role_name_constant: AUDITOR_ROLE_NAME = "auditor" in oompah/auditor_candidate_selector.py
+- bootstrap_seed_line: oompah/bootstrap.py:337 seed_auditor_role_from_config(...)
+- no_candidate_reason_codes: empty_role, no_providers, no_whitelisted_providers, all_require_missing_credentials, all_unhealthy, all_over_budget, all_are_contributors, all_attempted, missing_audit_capability, unknown_acp_models_only, invalid_model, invalid_base_url, unknown_error
+- test_files_on_main: tests/test_auditor_candidate_selector.py, tests/test_auditor_contract.py, tests/test_auditor_focus.py, tests/test_auditor_result_api.py
+- worktree_status: clean, detached HEAD at main tip
+- aged_archive_gap_days: 7
 ---
 <!-- COMMENTS:END -->
