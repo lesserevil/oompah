@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:14:06.071276Z'
+updated_at: '2026-08-05T01:16:16.620169Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ But if the worktree has its own object database (separate from project.repo_path
 **Root Cause:** No object-transfer step between snapshot creation and ref publication. The code assumes all worktrees share the same object database.
 
 **Impact:** Leaves task in In Progress state with no owner/worker/retry path, requiring manual operator reconciliation.
+---
+author: oompah
+created: 2026-08-05 01:16
+---
+Current draft review blocker: a projects.py helper alone is not sufficient. The live incident was stranded because preserve_worktree_changes raised after creating the checkpoint, owner-claim takeover returned 409, and no retry/runtime/owner remained. Add the orchestrator/server recovery contract that converts object-transfer/ref-publication failure into a durable retryable recovery owner (or atomically completes the takeover on retry) so the task cannot remain ownerless In Progress. Strengthen proof to require snapshot_head^{commit} resolves and equals the exact SHA in the authoritative repo before update-ref; prove standalone clone transfer with an integration test. Do not submit until typed lifecycle recovery, restart/idempotence, and no-checkout-mutation failure tests exist.
 ---
 <!-- COMMENTS:END -->
