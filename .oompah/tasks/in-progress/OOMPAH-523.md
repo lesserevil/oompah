@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T17:01:38.753704Z'
+updated_at: '2026-08-05T17:14:53.091061Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1359,5 +1359,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 51s
 - Log: OOMPAH-523__20260805T165958Z.jsonl
+---
+author: oompah
+created: 2026-08-05 17:14
+---
+Direct-owner recovery fence is active on the unchanged clean head 9ea2b5523. The scheduler's premature redispatch and queued duplicate validation were retired before execution. OOMPAH-838 is now in its exact full gate; after that fix is deployed, this same head will be resubmitted once to bypass the stale cached gate result.
 ---
 <!-- COMMENTS:END -->
