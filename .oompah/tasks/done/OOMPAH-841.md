@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T21:40:53.397981Z'
+updated_at: '2026-08-05T21:41:02.019225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,8 +53,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-57b9189aa8e6
-    applied: false
+    applied: true
     created_at: '2026-08-05T21:40:49.646338+00:00'
+    applied_at: '2026-08-05T21:40:59.264763+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -194,5 +195,23 @@ author: oompah
 created: 2026-08-05 21:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 21:40
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 58ffd477b19f370c7ed53a191e1a05580b016c85
+- remote_head: 58ffd477b19f370c7ed53a191e1a05580b016c85
+- working_tree: clean
+- [REDACTED-credential-key]: passed
+- commit_stat: 10 files changed, 2048 insertions(+), 36 deletions(-)
+- files_touched: oompah/acp_backends/codex.py, oompah/native_validation_guard.py, oompah/orchestrator.py, oompah/server.py, oompah/validation_resource_lease.py, tests/test_acp_codex_backend.py, tests/test_native_validation_guard.py, tests/test_owner_claim.py, tests/test_terminal_audit_health_api.py, tests/test_validation_resource_lease.py
+- guard_bootstrap_tests: trusted_provider_node_bootstrap, retains_guard_for_heavy_descendant, ignores_task_path_node_lookalike, executables_cannot_be_task_writable, install_rejects_entrypoint_inode_replacement, task_controlled_shape_cannot_bypass (4-way)
+- codex_backend_tests: managed_native_cli_fences_exact_provider_bootstrap, reads_only_prefix_of_large_direct_binary, rejects_task_writable_direct_codex
+- lease_recovery_tests: owner_claim_retires_exact_advertised_legacy_provider_only, stale_validation_generation_cannot_cancel_current_runtime, same_generation_aba_replacement_fails_closed, exact_owner_cancellation_rejects_same_generation_aba_replacement, legacy_provider_root_detection_is_specific (5-way), legacy_provider_root_validation_owner_degrades_aggregate_health
 ---
 <!-- COMMENTS:END -->
