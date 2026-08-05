@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T08:07:37.469689Z'
+updated_at: '2026-08-05T08:08:18.175117Z'
 work_branch: OOMPAH-823
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/719
@@ -125,6 +125,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T08:02:55.112876+00:00'
     branch_key: OOMPAH-823
+oompah.task_costs:
+  total_input_tokens: 35
+  total_output_tokens: 8717
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 35
+      output_tokens: 8717
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 35
+    output_tokens: 8717
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T08:08:13.856271+00:00'
 ---
 ## Summary
 
@@ -193,5 +209,15 @@ Safe evidence:
 - diff_stat_files: 7 files changed, 1242 insertions(+), 105 deletions(-)
 - focused_tests: 200 passed (test_terminal_audit_enforcement.py + test_state_api_responsiveness.py + test_config.py)
 - lifecycle_tests_matched: 16 lifecycle tests passed: batches durable+restart-safe, defer, isolates+retries tracker failures, finishes after metadata failure, progress read unblocked, hot rows exhaust once, pending not starved by four failed, retry due survives restart+transient, transient outage does not consume retry, absence reopen, operator-change reopen, one-checkpoint-per-batch, external-effect intent required, scheduler floor+coalesce, discovery replay, configured retry policy
+---
+author: oompah
+created: 2026-08-05 08:08
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 41, Tool calls: 29
+- Tokens: 35 in / 8.7K out [8.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 17s
+- Log: OOMPAH-823__20260805T080306Z.jsonl
 ---
 <!-- COMMENTS:END -->
