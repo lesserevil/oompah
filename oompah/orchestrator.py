@@ -6790,6 +6790,7 @@ class Orchestrator:
             project_id=project_id,
             tracker=tracker,
             sources=self._workflow_shadow_sources(task),
+            integration_queue=self.integration_queue,
         )
         return collector.collect(task.identifier)
 
@@ -7001,6 +7002,7 @@ class Orchestrator:
                     project_id=project_id,
                     tracker=tracker,
                     sources=self._workflow_shadow_sources(issue),
+                    integration_queue=self.integration_queue,
                 )
                 facts = collector.collect(issue.identifier)
                 result = self.workflow_shadow.evaluate(

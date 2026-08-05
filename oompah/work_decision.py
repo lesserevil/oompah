@@ -750,6 +750,20 @@ def _integration_decision(
             prerequisites=finish + hard_start,
             actions=(PermittedAction.WAIT_DEPENDENCY,),
         )
+    # An active exact live claim (durable queue lease with matching head)
+    # takes precedence over a historical action_required entry on the
+    # tracker.  Historical replay and operator escalation may still be
+    # queued, but the current owner keeps possession.
+    if bool(value.get("live_claim_precedes_history")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.OWNED,
+            reason_code="integration.live_claim_precedes_history",
+            owner=WorkflowOwner.INTEGRATOR,
+            actions=(PermittedAction.CLAIM_INTEGRATION,),
+            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
+        )
     if bool(value.get("action_required")):
         return _decision(
             task,
@@ -765,16 +779,6 @@ def _integration_decision(
             ),
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
-        )
-    if bool(value.get("live_claim_precedes_history")):
-        return _decision(
-            task,
-            facts,
-            disposition=TaskDisposition.OWNED,
-            reason_code="integration.live_claim_precedes_history",
-            owner=WorkflowOwner.INTEGRATOR,
-            actions=(PermittedAction.CLAIM_INTEGRATION,),
-            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
         )
     if value.get("mode") == "standalone" and value.get("state") == "ready":
         return _decision(
@@ -810,7 +814,13 @@ def _integration_decision(
     # No automatic integration_attempt may be scheduled until the operator
     # provides explicit same-generation retry, a newer head, or repair
     # evidence.  Escalate immediately so the stall is visible.
-    if value.get("state") == "blocked":
+    #
+    # ``retry_forced`` is the explicit same-generation retry authority
+    # (OOMPAH-838).  When present the controller must NOT escalate: the
+    # operator/repair path already authorised the next attempt.  Fall
+    # through to the standard retry_scheduled path so integration_attempt
+    # is enqueued exactly once.
+    if value.get("state") == "blocked" and not bool(value.get("retry_forced")):
         return _decision(
             task,
             facts,

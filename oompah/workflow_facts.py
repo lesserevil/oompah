@@ -928,7 +928,7 @@ class WorkflowFactCollector:
     def _overlay_integration_queue(
         self,
         tracker_value: dict[str, Any] | None,
-        task_id: str,
+        issue: Issue,
         now_iso: str,
     ) -> dict[str, Any] | None:
         """Overlay durable IntegrationQueueStore state onto tracker integration.
@@ -936,40 +936,115 @@ class WorkflowFactCollector:
         The tracker's integration record can lag the queue when a worker has
         claimed the item (state=integrating) or the gate returned a definitive
         block (state=blocked) but the tracker has not yet been updated.  The
-        overlay makes the controller see the authoritative durable state so
-        it does not schedule a duplicate integration_attempt while one is
-        already active, and does not retry a definitively blocked head.
+        overlay makes the controller see the authoritative durable state so it
+        does not schedule a duplicate integration_attempt while one is already
+        active, and does not retry a definitively blocked head.
+
+        The overlay is fenced to the exact tracker head.  A queue row that was
+        recorded against an older head (H1) MUST NOT block or suppress the
+        integration attempt required for a newer head (H2): only rows whose
+        ``head_sha`` matches the current tracker head are treated as authoritative
+        for the current generation.  This preserves same-generation retry and
+        newer-head semantics required by OOMPAH-838 and the pre-landing audit.
+
+        When the queue row is fenced to the current head and carries a
+        ``retry_forced`` marker, the flag is propagated into the integration
+        fact so ``_integration_decision`` can permit the intended
+        same-generation retry through an otherwise blocked gate.
+
+        When the queue holds a valid ``integrating`` lease but the tracker
+        still shows ``ready``/``queued``, the overlay emits the
+        ``live_claim_precedes_history`` flag so live work outranks historical
+        audit replay in the decision evaluator.
         """
         if self.integration_queue is None:
             return tracker_value
         try:
-            queue_row = self.integration_queue.get(self.project_id, task_id)
+            queue_row = self.integration_queue.get(self.project_id, issue.identifier)
         except Exception:  # noqa: BLE001 - queue evidence boundary
             # A read error must not suppress valid tracker evidence.
             return tracker_value
         if queue_row is None:
             return tracker_value
+
+        # Exact-head fence.  The current tracker head is the authority.  Any
+        # queue row that predates this head is stale and must not overlay.
+        # ``tracker_head`` may be None when the tracker integration record has
+        # no head recorded yet; in that case we still allow the overlay so the
+        # first live claim can be represented, but only when the queue row
+        # matches the issue's own head (or the issue also has no head).
+        tracker_head = None
+        if isinstance(tracker_value, dict):
+            tracker_head = tracker_value.get("head_sha")
+        issue_head = getattr(issue, "head_sha", None)
+        queue_head = getattr(queue_row, "head_sha", None)
+        authoritative_head = tracker_head or issue_head
+        if authoritative_head and queue_head and str(queue_head) != str(authoritative_head):
+            # Stale queue row for an older head.  Ignore.
+            return tracker_value
+        if authoritative_head and not queue_head:
+            # Ambiguous queue row without a head recorded; treat as stale
+            # rather than let it suppress the current head's work.
+            return tracker_value
+
         # Merge queue durable state into the tracker value.  Start from the
         # tracker dict and overlay only the fields that the queue uniquely owns.
         base: dict[str, Any] = dict(tracker_value) if tracker_value is not None else {}
         queue_state = str(getattr(queue_row, "state", None) or "").strip()
+        retry_forced = bool(getattr(queue_row, "retry_forced", False))
+        prior_tracker_state = None
+        if isinstance(tracker_value, dict):
+            prior = tracker_value.get("state")
+            prior_tracker_state = str(prior).strip() if prior else None
+
+        lease_expires_at_raw = getattr(queue_row, "lease_expires_at", None)
+        lease_owner_raw = getattr(queue_row, "lease_owner", None)
+        lease_expires_dt: datetime | None = None
+        if lease_expires_at_raw is not None:
+            try:
+                lease_expires_dt = datetime.fromtimestamp(
+                    float(lease_expires_at_raw), tz=timezone.utc
+                )
+            except (TypeError, ValueError, OSError, OverflowError):
+                lease_expires_dt = None
+
         if queue_state in ("integrating", "blocked"):
             base["state"] = queue_state
         if queue_state == "integrating":
-            lease_expires_at = getattr(queue_row, "lease_expires_at", None)
-            if lease_expires_at is not None:
-                try:
-                    expires_dt = datetime.fromtimestamp(float(lease_expires_at), tz=timezone.utc)
-                    base["lease_expires_at"] = _render_time(expires_dt)
-                except (TypeError, ValueError, OSError, OverflowError):
-                    pass
-            lease_owner = getattr(queue_row, "lease_owner", None)
-            if lease_owner:
-                base["lease_owner"] = str(lease_owner)
+            if lease_expires_dt is not None:
+                base["lease_expires_at"] = _render_time(lease_expires_dt)
+            if lease_owner_raw:
+                base["lease_owner"] = str(lease_owner_raw)
+            # Emit live_claim_precedes_history when the durable queue shows a
+            # valid live lease but the tracker still holds a historical
+            # ``ready``/``queued`` view.  The decision evaluator uses this
+            # flag to keep the live claim ahead of unbounded historical
+            # audit replay.
+            live_lease_valid = (
+                lease_expires_dt is not None
+                and lease_expires_dt > self._clock()
+                and bool(lease_owner_raw)
+            )
+            if live_lease_valid and prior_tracker_state in {
+                "ready",
+                "queued",
+                None,
+                "",
+            }:
+                base["live_claim_precedes_history"] = True
         if queue_state == "blocked":
             last_error = getattr(queue_row, "last_error", None)
             if last_error:
                 base["last_error"] = str(last_error)
+            if retry_forced:
+                # Explicit same-generation retry authority.  Preserve the
+                # blocked state (so audit trails match) but signal that the
+                # controller may still enqueue an integration attempt.
+                base["retry_forced"] = True
+        # Propagate retry_forced regardless of state so downstream can see
+        # explicit repair authority carried into the fact.
+        if retry_forced and "retry_forced" not in base:
+            base["retry_forced"] = True
         return base
 
     def collect(
@@ -1059,7 +1134,7 @@ class WorkflowFactCollector:
             )
         integration = _integration_value(issue)
         integration = self._overlay_integration_queue(
-            integration, task_id, now_iso
+            integration, issue, now_iso
         )
         observations[FactDomain.INTEGRATION] = (
             FactObservation.known(

@@ -630,3 +630,255 @@ def test_historical_deleted_and_nested_landing_incidents_replay_as_positive(
     assert fact.state is LandingState.LANDED
     assert fact.durable is True
     assert fact.target == target_ref
+
+
+# ---------------------------------------------------------------------------
+# Integration queue overlay regressions (OOMPAH-796)
+# ---------------------------------------------------------------------------
+
+
+class _FakeQueueRow:
+    def __init__(
+        self,
+        *,
+        state: str,
+        head_sha: str | None = None,
+        lease_owner: str | None = None,
+        lease_expires_at: float | None = None,
+        last_error: str | None = None,
+        retry_forced: bool = False,
+    ) -> None:
+        self.state = state
+        self.head_sha = head_sha
+        self.lease_owner = lease_owner
+        self.lease_expires_at = lease_expires_at
+        self.last_error = last_error
+        self.retry_forced = retry_forced
+
+
+class _FakeQueue:
+    def __init__(self, row=None, error: Exception | None = None) -> None:
+        self.row = row
+        self.error = error
+        self.calls: list[tuple[str, str]] = []
+
+    def get(self, project_id: str, task_id: str):
+        self.calls.append((project_id, task_id))
+        if self.error is not None:
+            raise self.error
+        return self.row
+
+
+def _issue_with_integration(head_sha: str, tracker_state: str = "ready"):
+    from oompah.integration import IntegrationRecord
+
+    return _issue(
+        head_sha=head_sha,
+        integration=IntegrationRecord(
+            state=tracker_state,
+            task_branch="task-1",
+            head_sha=head_sha,
+        ),
+    )
+
+
+def test_integration_queue_overlay_marks_integrating_with_live_claim_precedes_history():
+    """A valid integrating queue lease with matching head overlays and signals live claim."""
+
+    issue_head = "b" * 40
+    issue = _issue_with_integration(issue_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    lease_expiry = (NOW + timedelta(minutes=10)).timestamp()
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="integrating",
+            head_sha=issue_head,
+            lease_owner="integration-worker-1",
+            lease_expires_at=lease_expiry,
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    assert integration_value["state"] == "integrating"
+    assert integration_value["lease_owner"] == "integration-worker-1"
+    assert "lease_expires_at" in integration_value
+    assert integration_value.get("live_claim_precedes_history") is True
+
+
+def test_integration_queue_overlay_marks_blocked_when_head_matches():
+    """A blocked queue row for the current head overlays state and last_error."""
+
+    issue_head = "c" * 40
+    issue = _issue_with_integration(issue_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="blocked",
+            head_sha=issue_head,
+            last_error="gate: permission_denied",
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    assert integration_value["state"] == "blocked"
+    assert integration_value["last_error"] == "gate: permission_denied"
+    assert integration_value.get("retry_forced") is not True
+    # Ready-state overlays without a live lease must not emit the flag.
+    assert integration_value.get("live_claim_precedes_history") is not True
+
+
+def test_integration_queue_overlay_carries_retry_forced_authority():
+    """retry_forced=True on a blocked row propagates so gate_blocked can be bypassed."""
+
+    issue_head = "d" * 40
+    issue = _issue_with_integration(issue_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="blocked",
+            head_sha=issue_head,
+            last_error="prior gate",
+            retry_forced=True,
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    assert integration_value["state"] == "blocked"
+    assert integration_value.get("retry_forced") is True
+
+
+def test_integration_queue_overlay_ignores_stale_row_for_older_head():
+    """Stale queue row (head H1) MUST NOT overlay when tracker is on newer head (H2)."""
+
+    stale_head = "1" * 40
+    new_head = "2" * 40
+    issue = _issue_with_integration(new_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    # Queue is still holding a blocked row for the previous head.
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="blocked",
+            head_sha=stale_head,
+            last_error="stale gate",
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    # Stale row must not overlay - tracker's ready view is preserved.
+    assert integration_value["state"] == "ready"
+    assert integration_value.get("last_error") != "stale gate"
+    assert integration_value["head_sha"] == new_head
+
+
+def test_integration_queue_overlay_ignores_stale_integrating_row_for_older_head():
+    """A stale integrating row for H1 MUST NOT suppress attempt for H2."""
+
+    stale_head = "1" * 40
+    new_head = "2" * 40
+    issue = _issue_with_integration(new_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    lease_expiry = (NOW + timedelta(minutes=10)).timestamp()
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="integrating",
+            head_sha=stale_head,
+            lease_owner="old-worker",
+            lease_expires_at=lease_expiry,
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    # Stale integrating row must not overlay: the new head still needs an attempt.
+    assert integration_value["state"] == "ready"
+    assert "lease_owner" not in integration_value
+    assert integration_value.get("live_claim_precedes_history") is not True
+
+
+def test_integration_queue_overlay_read_error_does_not_suppress_tracker():
+    """A queue read failure must not corrupt or suppress tracker evidence."""
+
+    issue = _issue_with_integration("e" * 40, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    queue = _FakeQueue(error=RuntimeError("db unavailable"))
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    assert integration_value["state"] == "ready"
+    assert integration_value["head_sha"] == "e" * 40
+
+
+def test_integration_queue_overlay_expired_lease_does_not_signal_live_claim():
+    """An expired lease must not emit live_claim_precedes_history."""
+
+    issue_head = "f" * 40
+    issue = _issue_with_integration(issue_head, tracker_state="ready")
+    tracker = FakeTracker(issue)
+    expired = (NOW - timedelta(minutes=1)).timestamp()
+    queue = _FakeQueue(
+        _FakeQueueRow(
+            state="integrating",
+            head_sha=issue_head,
+            lease_owner="stalled",
+            lease_expires_at=expired,
+        )
+    )
+
+    collector = WorkflowFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        integration_queue=queue,
+        clock=lambda: NOW,
+    )
+    facts = collector.collect("TASK-1")
+    integration_value = facts.fact(FactDomain.INTEGRATION).value
+
+    # Overlay still records the durable state, but no live-claim flag.
+    assert integration_value["state"] == "integrating"
+    assert integration_value.get("live_claim_precedes_history") is not True

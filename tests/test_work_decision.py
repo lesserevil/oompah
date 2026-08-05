@@ -525,6 +525,177 @@ def test_integration_action_required_is_the_only_warning_path():
     assert decision.unmet_prerequisites[0].code == "repair_credentials"
 
 
+def test_integration_gate_blocked_escalates_without_action_required_flag():
+    """A blocked queue-gate result escalates even without action_required=True.
+
+    The audit found that the previous evaluator returned the fall-through
+    ``integration.queued`` disposition for a blocked head, silently rearming
+    the queue instead of surfacing the stall.
+    """
+
+    issue = _issue(READY_TO_INTEGRATE)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {"state": "blocked", "last_error": "gate: base_missing"},
+            )
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.reason_code == "integration.gate_blocked"
+    assert decision.alert_level is AlertSeverity.WARNING
+    assert decision.unmet_prerequisites[0].code == "integration.gate_blocked"
+
+
+def test_integration_gate_blocked_yields_to_retry_forced_authority():
+    """retry_forced=True is explicit same-generation retry authority (OOMPAH-838)."""
+
+    issue = _issue(READY_TO_INTEGRATE)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "blocked",
+                    "last_error": "prior gate",
+                    "retry_forced": True,
+                },
+            )
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    # retry_forced bypasses gate_blocked escalation and re-enters the
+    # ordinary retry-scheduled path so integration_attempt is enqueued
+    # exactly once.
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.reason_code == "integration.queued"
+    assert decision.durable_jobs == ("integration_attempt",)
+    assert decision.alert_level is AlertSeverity.NONE
+
+
+def test_integration_live_claim_precedes_history_beats_tracker_action_required():
+    """Live queue lease beats a stale tracker action_required from historical replay.
+
+    The live_claim_precedes_history flag emitted by the queue overlay must
+    be evaluated ahead of any historical ``action_required`` on the tracker;
+    otherwise historical operator escalations would evict an active owner.
+    """
+
+    issue = _issue(READY_TO_INTEGRATE)
+    facts = _facts(
+        issue,
+        overrides={
+            FactDomain.INTEGRATION: _known(
+                FactDomain.INTEGRATION,
+                {
+                    "state": "ready",
+                    "action_required": True,
+                    "action_code": "historical",
+                    "live_claim_precedes_history": True,
+                },
+            )
+        },
+    )
+
+    decision = evaluate_task(issue, facts)
+
+    assert decision.reason_code == "integration.live_claim_precedes_history"
+    assert decision.disposition is TaskDisposition.OWNED
+    assert decision.durable_jobs == (
+        "historical_audit_replay_batch",
+        "integration_attempt",
+    )
+
+
+def test_terminal_audit_unsafe_evidence_routes_to_action_required():
+    """Unsafe/quarantined audit evidence must NOT trigger revision/transport retry.
+
+    The audit found that this evidence used to fall through to the ordinary
+    revisionless ``validation.queued`` retry, silently masking corrupt or
+    unsafe audit metadata.  The controller now escalates immediately.
+    """
+
+    issue = _issue(IN_VALIDATION)
+    unsafe = _facts(
+        issue,
+        overrides={
+            FactDomain.TERMINAL_AUDIT: _known(
+                FactDomain.TERMINAL_AUDIT,
+                {"phase": "queued", "unsafe": True, "action_code": "unsafe_archive"},
+            )
+        },
+    )
+    quarantined = _facts(
+        issue,
+        overrides={
+            FactDomain.TERMINAL_AUDIT: _known(
+                FactDomain.TERMINAL_AUDIT,
+                {"phase": "queued", "quarantined": True, "action_code": "quarantined"},
+            )
+        },
+    )
+
+    unsafe_decision = evaluate_task(issue, unsafe)
+    quarantined_decision = evaluate_task(issue, quarantined)
+
+    assert unsafe_decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert unsafe_decision.reason_code == "operator.action_required"
+    assert unsafe_decision.alert_level is AlertSeverity.WARNING
+    assert unsafe_decision.unmet_prerequisites[0].code == "unsafe_archive"
+
+    assert quarantined_decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert quarantined_decision.reason_code == "operator.action_required"
+    assert quarantined_decision.unmet_prerequisites[0].code == "quarantined"
+
+
+def test_terminal_audit_queued_and_running_revisionless_preserved():
+    """queued/running audits with no evidence_revision must retain their normal disposition.
+
+    Adding unsafe-evidence handling must NOT alter the disposition of a
+    plain queued or running audit that has no evidence attached yet.
+    """
+
+    issue = _issue(IN_VALIDATION)
+    queued = _facts(
+        issue,
+        overrides={
+            FactDomain.TERMINAL_AUDIT: _known(
+                FactDomain.TERMINAL_AUDIT, {"phase": "queued"}
+            )
+        },
+    )
+    active = _facts(
+        issue,
+        overrides={
+            FactDomain.TERMINAL_AUDIT: _known(
+                FactDomain.TERMINAL_AUDIT,
+                {
+                    "phase": "active",
+                    "lease_expires_at": (NOW + timedelta(minutes=1)).isoformat(),
+                },
+            )
+        },
+    )
+
+    q_decision = evaluate_task(issue, queued)
+    r_decision = evaluate_task(issue, active)
+
+    assert q_decision.reason_code == "validation.queued"
+    assert q_decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert q_decision.durable_jobs == ("terminal_audit",)
+
+    assert r_decision.reason_code == "validation.active"
+    assert r_decision.disposition is TaskDisposition.OWNED
+
+
 def test_decomposed_rollup_waits_then_becomes_runnable():
     issue = _issue(DECOMPOSED, issue_type="epic")
     waiting = _facts(
