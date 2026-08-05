@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T18:30:27.692693Z'
+updated_at: '2026-08-05T18:36:13.402743Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-08-05 18:30
 ---
 Understanding: Treating this as a CI repair on the existing OOMPAH-829 branch. I will inspect the current review head and actual failing job logs, reproduce the failure, apply the smallest covered fix, run focused project checks, then push and verify the rerun before submission.
+---
+author: oompah
+created: 2026-08-05 18:36
+---
+Discovery: No PR or Actions run exists for OOMPAH-829; the branch is a clean origin/main head, so the reported live acceptance case is the concrete failure. In terminal_audit_enforcement.py, _lifecycle_terminal_authorities requires an applied override to equal compute_issue_evidence_fingerprint(), which rejects OOMPAH-660's durable legacy digest. I inspected the read-only native task metadata and reproduced the exact pair from the same issue/integration record: canonical integrated ab40139d20357c96... versus legacy work-branch 62954f9b5fdcde92.... The two shapes differ only by the OOMPAH-729 integrated canonicalization (base/integrated SHA plus task-branch contributor versus work-branch/head SHA).
 ---
 <!-- COMMENTS:END -->

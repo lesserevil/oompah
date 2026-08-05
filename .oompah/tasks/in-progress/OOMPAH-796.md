@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:21:37.041098Z'
+updated_at: '2026-08-05T18:36:09.701973Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-08-05 18:21
 ---
 Understanding (attempt #1 continuation): Reviewing previous implementation (commit 7cdc30f36) against the pre-landing audit blockers. The three required fixes are: (1) _integration_decision must treat a blocked exact-head gate as action_required instead of scheduling integration_attempt; (2) WorkflowFactCollector/facts overlay must consult durable IntegrationQueueStore to prevent duplicate active integrations; (3) Terminal-audit facts must preserve queued/running revisionless metadata dispositions and route unsafe evidence to action_required. Now investigating current code to locate exact repair points.
+---
+author: oompah
+created: 2026-08-05 18:36
+---
+Discovery: Identified exact repair points for all three audit blockers. (1) In _integration_decision (work_decision.py:769ff), when state==blocked and no retry_forced flag, the code falls through to the final case and schedules integration_attempt—fix: add blocked-gate detection before the fallthrough that routes to ACTION_REQUIRED with reason_code integration.gate_blocked. (2) WorkflowFactCollector.collect() reads only issue.integration from tracker; no overlay from IntegrationQueueStore—fix: add optional integration_queue_store parameter and overlay queue state/lease before constructing integration FactObservation. (3) _validation_decision has no check for quarantined/unsafe audit metadata; it falls through to validation.queued RETRY_SCHEDULED—fix: add quarantined check before the phase check, routing to ACTION_REQUIRED. Generation-race test: controller reconcile is already idempotent by generation fence; need explicit concurrent-generation regression test.
 ---
 <!-- COMMENTS:END -->
