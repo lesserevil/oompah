@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:39:46.131170Z'
+updated_at: '2026-08-05T16:40:09.582719Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-08-05 16:31
 ---
 Direct-owner claim established while the project remains paused: the all-domain runtime composition is being completed in the prepared post-OOMPAH-781 worktree. Enforce mode must have authoritative project-routed handlers for every accepted action, shadow mode must perform zero durable writes/effects, and focused production-routing coverage is required before this branch is submitted. The claim prevents duplicate scheduler dispatch while that accepted work is in flight.
+---
+author: oompah
+created: 2026-08-05 16:40
+---
+Composition checkpoint 33dfe8260 is preserved in the prepared worktree with syntax/diff checks clean. It constructs all project bindings/controllers, fail-closed total coverage, exact scoped recovery, durable pre-verify effect receipts, single event-loop ownership, mutation-free shadow evaluation, typed Epic handling, and fresh review facts. Enforce deliberately still refuses startup because no production domain adapters exist. The accepted missing scope is decomposed under this task as OOMPAH-834 (implementation handlers/events), OOMPAH-835 (review/CI handlers), OOMPAH-836 (integration handlers), and OOMPAH-837 (epic handlers); OOMPAH-804 now has finish-order dependencies on all four and remains the final cross-domain composition/single-writer gate.
 ---
 <!-- COMMENTS:END -->
