@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-05T04:51:16.735637Z'
+updated_at: '2026-08-05T04:51:24.716689Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -658,5 +658,10 @@ author: oompah
 created: 2026-08-05 04:51
 ---
 Completion: Reconfirmed the already-delivered alert-density and recovery coverage at b08a12057. The branch is clean, rebased/current with its remote and epic base, focused verification passes, and the full Makefile gate is currently blocked only by the reported sandbox uv/DBus provisioning infrastructure failure. Submitting the exact verified head for orchestration.
+---
+author: oompah
+created: 2026-08-05 04:51
+---
+Verified alert coverage at b08a12057; focused suite passes
 ---
 <!-- COMMENTS:END -->
