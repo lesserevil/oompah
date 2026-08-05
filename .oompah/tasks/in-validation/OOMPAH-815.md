@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T16:39:27.616317Z'
+updated_at: '2026-08-05T16:39:56.237647Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -126,7 +126,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-815
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,13 +171,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-05T16:39:40.268802+00:00'
+    - version: 1
+      attempt_id: attempt-b6dbbb065cc8
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a26816809a2ddf483c46696bb3cb32e37f1ccc0374a87dd6f015032624afc144
+      created_at: '2026-08-05T16:39:54.584609+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-05T16:39:54.584609+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-815
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T15:46:48.635769+00:00'
-    updated_at: '2026-08-05T16:39:20.268831+00:00'
+    updated_at: '2026-08-05T16:39:54.584609+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6259cc99f102
@@ -218,6 +232,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-05T16:39:40.268802+00:00'
+  - version: 1
+    attempt_id: attempt-b6dbbb065cc8
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a26816809a2ddf483c46696bb3cb32e37f1ccc0374a87dd6f015032624afc144
+    created_at: '2026-08-05T16:39:54.584609+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-05T16:39:54.584609+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-815
+    candidate_rotation_count: 2
 ---
 ## Summary
 
