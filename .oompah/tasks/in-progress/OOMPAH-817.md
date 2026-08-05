@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:11:51.140803Z'
+updated_at: '2026-08-05T01:12:42.904273Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ created: 2026-08-05 01:11
 4. Make checkpoint+ref publication a fenced atomic transaction with rollback
 5. Add comprehensive tests for both worktree types, object transfer failures, and recovery states
 6. Verify tasks return to recoverable owner/scheduler state on persistence failures
+---
+author: oompah
+created: 2026-08-05 01:12
+---
+Acceptance constraint: do not implement "rollback" by resetting/reverting/re-writing the task checkout after checkpoint creation. On ref/object-transfer failure, the checkpoint branch/head is the recovery evidence and must remain intact. The transaction boundary is publish-after-proof: if project.repo_path already resolves snapshot_head^{commit}, publish the ref; otherwise copy/fetch the exact object graph from the registered clone into the authoritative object database using noninteractive local Git, verify cat-file/rev-parse exact SHA there, then update-ref. If transfer/publication fails, return a typed retryable recovery result so owner takeover/worker-exit reconciliation preserves an explicit recovery owner/retry instead of ownerless In Progress. Tests must assert unchanged checkpoint HEAD/worktree on failure as well as eventual idempotent retry success.
 ---
 <!-- COMMENTS:END -->
