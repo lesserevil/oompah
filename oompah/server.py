@@ -17937,24 +17937,34 @@ def _status_before_label_event(tracker, event, to_status: str) -> str | None:
     return None
 
 
-def _terminal_transition_requester(orch):
-    """Return the owned transition method only when its class implements it.
+def _implemented_orchestrator_method(orch, name: str):
+    """Return an explicitly implemented method, ignoring fabricated attributes.
 
     Loose mocks and legacy embedders can synthesize arbitrary attributes through
-    ``__getattr__``.  Treating such a fabricated attribute as an async method
-    bypasses their real ``request_terminal_transition`` implementation and makes
-    webhook staging fail before it starts.
+    ``__getattr__``.  Those values do not prove support for a new ownership API.
     """
 
     try:
-        owned = vars(orch).get("request_terminal_transition_owned")
+        implemented = vars(orch).get(name)
     except TypeError:
-        owned = None
-    if callable(owned):
+        implemented = None
+    if callable(implemented):
+        return implemented
+    implemented = getattr(type(orch), name, None)
+    if callable(implemented):
+        return implemented.__get__(orch, type(orch))
+    return None
+
+
+def _terminal_transition_requester(orch):
+    """Prefer cross-loop terminal ownership when the orchestrator supports it."""
+
+    owned = _implemented_orchestrator_method(
+        orch,
+        "request_terminal_transition_owned",
+    )
+    if owned is not None:
         return owned
-    owned = getattr(type(orch), "request_terminal_transition_owned", None)
-    if callable(owned):
-        return owned.__get__(orch, type(orch))
     return orch.request_terminal_transition
 
 
@@ -18863,6 +18873,71 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
                 project.name,
             )
             return
+        review_id = str(event.review_id or "").strip()
+        target_branch = str(event.target_branch or "").strip()
+        review_head = str(getattr(event, "review_head", "") or "").strip().lower()
+        review_url = None
+        if review_id and event.repo_slug:
+            provider_base = (
+                "https://gitlab.com"
+                if event.provider == "gitlab"
+                else "https://github.com"
+            )
+            pr_path = "merge_requests" if event.provider == "gitlab" else "pull"
+            review_url = (
+                f"{provider_base}/{event.repo_slug}/{pr_path}/{review_id}"
+            )
+
+        owned_adoption = _implemented_orchestrator_method(
+            orch,
+            "adopt_open_review_from_webhook",
+        )
+        if owned_adoption is not None:
+            provider = detect_provider(
+                project.repo_url,
+                access_token=project.access_token,
+            )
+            repo_slug = str(
+                event.repo_slug or extract_repo_slug(project.repo_url) or ""
+            )
+            if provider is None:
+                logger.warning(
+                    "webhook In Review: no supported forge provider for %s",
+                    project.name,
+                )
+                return
+            adopted, reason = owned_adoption(
+                observed_issue=issue,
+                project=project,
+                tracker=tracker,
+                provider=provider,
+                repo_slug=repo_slug,
+                review_id=review_id,
+                review_url=review_url or "",
+                source_branch=source_branch,
+                target_branch=target_branch,
+                review_head=review_head,
+            )
+            if adopted:
+                logger.info(
+                    "webhook: atomically adopted %s as In Review "
+                    "(review #%s, branch=%s, head=%s)",
+                    issue.identifier,
+                    review_id,
+                    source_branch,
+                    review_head,
+                )
+            else:
+                logger.warning(
+                    "webhook In Review: rejected stale or inexact review for %s: %s",
+                    issue.identifier,
+                    reason,
+                )
+            return
+
+        # Legacy embedders without cross-loop ownership retain the prior
+        # best-effort behavior. Production Orchestrator always takes the owned
+        # path above.
         current_status = canonicalize_status(issue.state)
         if current_status == IN_REVIEW:
             # Already In Review; still refresh metadata in case this is a
@@ -18884,25 +18959,11 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
                 source_branch,
             )
         # Write review metadata so the task record has a stable PR link
-        review_url = None
-        # GitHub PR URL can be reconstructed from repo slug + PR number
-        if event.review_id and event.repo_slug:
-            provider_base = (
-                "https://gitlab.com"
-                if event.provider == "gitlab"
-                else "https://github.com"
-            )
-            pr_path = (
-                "merge_requests" if event.provider == "gitlab" else "pull"
-            )
-            review_url = (
-                f"{provider_base}/{event.repo_slug}/{pr_path}/{event.review_id}"
-            )
         for key, value in [
             ("oompah.review_url", review_url),
-            ("oompah.review_number", event.review_id or None),
+            ("oompah.review_number", review_id or None),
             ("oompah.work_branch", source_branch),
-            ("oompah.target_branch", event.target_branch or None),
+            ("oompah.target_branch", target_branch or None),
         ]:
             if not value:
                 continue

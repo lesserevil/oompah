@@ -55,6 +55,7 @@ def _github_pr_payload(
     author: str = "octocat",
     title: str = "Add new feature",
     merged: bool = False,
+    head_sha: str = "abc123",
 ) -> dict:
     """Build a minimal GitHub pull_request webhook payload."""
     return {
@@ -64,7 +65,7 @@ def _github_pr_payload(
             "title": title,
             "merged": merged,
             "user": {"login": author},
-            "head": {"ref": source_branch},
+            "head": {"ref": source_branch, "sha": head_sha},
             "base": {"ref": target_branch},
         },
         "repository": {
@@ -82,6 +83,7 @@ def _gitlab_mr_payload(
     author: str = "tanuki",
     title: str = "Fix the thing",
     state: str = "opened",
+    head_sha: str = "abc123",
 ) -> dict:
     """Build a minimal GitLab Merge Request Hook webhook payload."""
     return {
@@ -92,6 +94,7 @@ def _gitlab_mr_payload(
             "state": state,
             "source_branch": source_branch,
             "target_branch": target_branch,
+            "last_commit": {"id": head_sha},
         },
         "user": {"username": author},
         "project": {"path_with_namespace": repo_path},
@@ -249,6 +252,7 @@ class TestParseGitHubWebhook:
         assert event.review_id == "42"
         assert event.source_branch == "feature-branch"
         assert event.target_branch == "main"
+        assert event.review_head == "abc123"
         assert event.author == "octocat"
         assert event.title == "Add new feature"
         assert event.merged is False
@@ -898,6 +902,7 @@ class TestParseGitLabWebhook:
         assert event.review_id == "7"
         assert event.source_branch == "fix-branch"
         assert event.target_branch == "main"
+        assert event.review_head == "abc123"
         assert event.author == "tanuki"
         assert event.title == "Fix the thing"
         assert event.merged is False

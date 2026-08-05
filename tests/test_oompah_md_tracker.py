@@ -139,6 +139,40 @@ class TestOompahMarkdownTrackerCreate:
 
 
 class TestOompahMarkdownTrackerMutations:
+    def test_review_head_metadata_clear_and_rewrite_updates_compat_field(
+        self, tmp_path
+    ):
+        """A new namespaced review head cannot be shadowed by stale compat data."""
+
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Review head compatibility")
+        old_head = "a" * 40
+        new_head = "b" * 40
+        tracker.update_issue(issue.identifier, review_head=old_head)
+
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.review_head",
+            "",
+        )
+        cleared = tracker.fetch_issue_detail(issue.identifier)
+        assert cleared is not None
+        assert cleared.review_head is None
+
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.review_head",
+            new_head,
+        )
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed is not None
+        assert refreshed.review_head == new_head
+        path = tmp_path / "repo" / ".oompah" / "tasks" / "backlog" / "REPO-1.md"
+        meta = _frontmatter(path)
+        assert meta["review_head"] == new_head
+        assert meta["oompah.review_head"] == new_head
+
     def test_duplicate_task_id_uses_most_recent_record_once(self, tmp_path):
         """A stale status-directory copy cannot create a second board card."""
         tracker = _tracker(tmp_path)
