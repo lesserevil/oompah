@@ -24,6 +24,89 @@ from oompah.api_agent import (
 )
 
 
+def test_session_forwards_validation_and_submission_authority_by_keyword(
+    tmp_path,
+    monkeypatch,
+):
+    """Composed authority bundles cannot shift positionally at tool dispatch."""
+
+    from oompah.api_agent import ApiAgentSession
+
+    validation_lease = object()
+    project_store = object()
+    successful_validation_handler = lambda _command, _workspace: None
+    submission_handler = lambda *_args, **_kwargs: None
+    lease_cancelled = lambda: False
+    captured: list[dict[str, object]] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "list_files",
+                                        "arguments": "{}",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            },
+            {"choices": [{"message": {"content": "done"}}]},
+        ]
+    )
+
+    async def fake_call_api(_self, _messages):
+        return next(responses)
+
+    def fake_execute_tool(workspace, name, args, **kwargs):
+        captured.append(
+            {
+                "workspace": workspace,
+                "name": name,
+                "args": args,
+                **kwargs,
+            }
+        )
+        return "[]"
+
+    monkeypatch.setattr(ApiAgentSession, "_call_api", fake_call_api)
+    monkeypatch.setattr("oompah.api_agent._execute_tool", fake_execute_tool)
+    session = ApiAgentSession(
+        base_url="http://example.invalid",
+        api_key="test",
+        model="test-model",
+        workspace_path=str(tmp_path),
+        validation_lease=validation_lease,
+        successful_validation_handler=successful_validation_handler,
+        project_store=project_store,
+        submission_handler=submission_handler,
+    )
+
+    result = asyncio.run(
+        session.run_task("inspect the workspace", is_cancelled=lease_cancelled)
+    )
+
+    assert result.status == "succeeded"
+    assert len(captured) == 1
+    forwarded = captured[0]
+    assert forwarded["validation_lease"] is validation_lease
+    assert (
+        forwarded["successful_validation_handler"]
+        is successful_validation_handler
+    )
+    assert forwarded["project_store"] is project_store
+    assert forwarded["submission_handler"] is submission_handler
+    assert forwarded["lease_cancelled"] is lease_cancelled
+
+
 def _msg(role: str, content: str = "x", **extra) -> dict:
     m = {"role": role, "content": content}
     m.update(extra)
