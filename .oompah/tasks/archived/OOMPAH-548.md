@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-08-05T19:55:27.911372Z'
+updated_at: '2026-08-05T19:55:33.658229Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,8 +43,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-20140d599cba
-    applied: false
+    applied: true
     created_at: '2026-08-05T19:55:24.439923+00:00'
+    applied_at: '2026-08-05T19:55:32.385745+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -151,5 +152,24 @@ author: oompah
 created: 2026-08-05 19:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:55
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 31f8938b8f669a316a830690aaedcc1e0d3834bf
+- merge_pr: #579 epic-OOMPAH-545
+- implementation_commit: 0786d2ba7 Add finish-order task submission foundation
+- cli_entry_point: oompah/task_cli.py:793 _cmd_submit
+- server_route: /api/v1/issues/{id}/submit
+- status_constant: oompah/statuses.py:18 READY_TO_INTEGRATE
+- coordinator_module: oompah/terminal_transition_coordinator.py (TerminalTransitionCoordinator)
+- primary_tests: tests/test_worker_submission.py (113 lines), tests/test_integration_record.py (52 lines)
+- followup_tasks_touching_submission_tests: OOMPAH-669, OOMPAH-684, OOMPAH-717, OOMPAH-731, OOMPAH-758
+- archive_trigger: Aged Merged auto-archive (closed 7 days ago 2026-07-29)
 ---
 <!-- COMMENTS:END -->
