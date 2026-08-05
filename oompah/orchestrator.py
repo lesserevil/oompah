@@ -4239,6 +4239,23 @@ class Orchestrator:
             if integration_head and integration_head != expected_head:
                 return False, "review head does not match the accepted submission"
 
+            # Gate the exact webhook-observed head before marking In Review.
+            # BranchQualityGate caches PASS by head SHA so an unchanged head
+            # reuses same-head evidence; a repaired CI-fix head runs the
+            # configured branch gate once.  Gate failure records a
+            # Needs CI Fix comment/status via _record_quality_gate_failure
+            # and preserves the open review for the next resubmission.
+            if not self._review_quality_gate_passes(
+                project,
+                current,
+                expected_source,
+                expected_target,
+            ):
+                return (
+                    False,
+                    "branch quality gate did not pass for the exact review head",
+                )
+
             integration_revision = self._standalone_integration_generation_revision(
                 current
             )
@@ -8957,6 +8974,24 @@ class Orchestrator:
                         existing_pr = None
                         review_state = ""
                 if existing_pr is not None and review_state == "open":
+                    # Gate the exact current review head before adopting the
+                    # open PR so a forge CI failure followed by a repaired
+                    # head cannot advance the task to In Review without
+                    # local exact-head evidence.  Cached same-head PASS is
+                    # single-flight; failure routes through the normal
+                    # retryable Needs CI Fix flow via
+                    # _record_quality_gate_failure and preserves the open
+                    # review.
+                    if not self._review_quality_gate_passes(
+                        project,
+                        authority.issue,
+                        task_branch,
+                        target_branch,
+                    ):
+                        # Gate handled failure or authority was revoked;
+                        # keep the review open and let the next Ready sweep
+                        # (or the CI-fix repair) resubmit the exact new head.
+                        return
                     try:
                         adopted, adopt_reason = (
                             self._adopt_standalone_open_review_owned(
@@ -21462,6 +21497,23 @@ class Orchestrator:
                         target_branch=target_branch,
                         review_id=getattr(r, "id", None),
                     )
+                # Gate the exact current head before marking In Review so a
+                # forge CI failure followed by a repaired head cannot bypass
+                # the configured branch gate.  Cached same-head PASS keeps
+                # unchanged heads single-flight; gate failure routes the
+                # task through the normal retryable Needs CI Fix flow via
+                # _record_quality_gate_failure and preserves the open review.
+                if (
+                    entry.issue is not None
+                    and not self._review_quality_gate_passes(
+                        project,
+                        entry.issue,
+                        branch,
+                        target_branch,
+                        preferred_path=entry.workspace_path,
+                    )
+                ):
+                    return True  # gate handled failure; leave review open
                 self._mark_task_in_review(entry, project_id, r)
                 return True  # review already exists
 
@@ -21559,6 +21611,23 @@ class Orchestrator:
                         target_branch=target_branch,
                         review_id=getattr(live_review, "id", None),
                     )
+                    # Gate the exact current head before marking In Review so
+                    # a forge CI failure followed by a repaired head cannot
+                    # bypass the configured branch gate.  Cached same-head
+                    # PASS keeps unchanged heads single-flight; gate failure
+                    # routes through the normal retryable Needs CI Fix flow
+                    # and preserves the open review.
+                    if (
+                        entry.issue is not None
+                        and not self._review_quality_gate_passes(
+                            project,
+                            entry.issue,
+                            branch,
+                            target_branch,
+                            preferred_path=entry.workspace_path,
+                        )
+                    ):
+                        return True
                     self._mark_task_in_review(entry, project_id, live_review)
                     return True
 

@@ -797,7 +797,7 @@ def test_missing_remote_branch_raises_actionable_alert(harness):
 
 
 def test_existing_open_review_is_reused_idempotently(harness):
-    orch, _project, tracker, provider, _detect, gate = harness
+    orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-3")
     tracker.fetch_issues_by_states.return_value = [task]
     provider.find_pr_for_branch.return_value = _review(
@@ -808,7 +808,10 @@ def test_existing_open_review_is_reused_idempotently(harness):
     orch._reconcile_standalone_ready_to_integrate_tasks()
 
     provider.create_review.assert_not_called()
-    gate.assert_not_called()
+    # OOMPAH-826: adopting an existing open review must gate the exact head
+    # before marking In Review; a repaired forge CI-fix head that advanced
+    # the branch cannot bypass the configured branch gate.
+    gate.assert_called_once_with(project, task, "TASK-3", "trunk")
     tracker.update_issue.assert_called_once_with("TASK-3", status=IN_REVIEW)
     assert [
         call.args[:3]
