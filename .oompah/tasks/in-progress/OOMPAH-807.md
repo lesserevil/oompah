@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T14:19:16.322464Z'
+updated_at: '2026-08-05T14:19:50.440168Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-08-05 14:19
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 14:19
+---
+UNDERSTANDING: Investigating revisionless audit support for metadata-only Archived dispositions. The issue is that OOMPAH-803 (Backlog duplicate with no implementation branch) fails terminal audit with 'terminal audit evidence has no safely resolvable revision'. Need to separate code-bearing completion audits (require immutable revision) from metadata-only Archived retirement (validate structured reason, replacement ref, no active work) without requiring fake branch. Will examine orchestrator._create_workspace_for_auditor, ArchivedEvidenceCollector, and terminal coordinator.
 ---
 <!-- COMMENTS:END -->
