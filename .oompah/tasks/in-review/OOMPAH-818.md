@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -12,12 +12,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:33:28.299586Z'
+updated_at: '2026-08-05T05:33:50.732943Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
 review_number: '718'
-review_head: ''
+review_head: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -188,7 +188,7 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T03:04:38.616891+00:00'
     branch_key: OOMPAH-818
-oompah.review_head: ''
+oompah.review_head: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
 ---
 ## Summary
 
