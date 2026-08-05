@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-08-05T23:29:26.181546Z'
+updated_at: '2026-08-05T23:29:56.804281Z'
 work_branch: OOMPAH-561
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/582
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 77ee1743-ccca-4780-beaf-3a43dfd2a300
 oompah.task_costs:
-  total_input_tokens: 437569
-  total_output_tokens: 3435
+  total_input_tokens: 437575
+  total_output_tokens: 3651
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 437569
       output_tokens: 3435
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 216
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 611
     cost_usd: 0.0
     recorded_at: '2026-07-29T21:21:36.386583+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 216
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T23:29:49.973854+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-561__20260729T210432Z
@@ -290,5 +300,15 @@ Safe evidence:
 - focused_tests_projects_terminal_and_stale: 6 passed
 - focused_tests_orchestrator_handlers_cleanup: 33 passed
 - prior_full_gate: 13,589 passed, 7 skipped (per merged commit comment)
+---
+author: oompah
+created: 2026-08-05 23:29
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 55, Tool calls: 43
+- Tokens: 6 in / 216 out [222 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 40s
+- Log: OOMPAH-561__20260805T232221Z.jsonl
 ---
 <!-- COMMENTS:END -->
