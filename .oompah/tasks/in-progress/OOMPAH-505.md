@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T17:00:26.672436Z'
+updated_at: '2026-08-05T17:00:42.992415Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1288,5 +1288,10 @@ author: oompah
 created: 2026-08-05 17:00
 ---
 Understanding: the implementation is expected to be present on this branch. I will verify the current exact head, remote epic/task refs, focused API/ACP/UI/role coverage, and secrets scan, then submit only after the branch is clean and synchronized.
+---
+author: oompah
+created: 2026-08-05 17:00
+---
+Discovery: the current head is e1b0f4846 and both origin/epic-OOMPAH-502 and origin/epic-OOMPAH-502--task-OOMPAH-505 are present at that head. The relevant implementation is in oompah/acp_backends/{base,claude,codex}.py, oompah/server.py, oompah/roles.py, oompah/orchestrator.py, and templates/providers.html; regression coverage is present in the ACP/provider/UI/role/orchestrator suites, with manual-selection capability separate from catalog discovery and explicit candidate models carried into ACP/telemetry paths.
 ---
 <!-- COMMENTS:END -->
