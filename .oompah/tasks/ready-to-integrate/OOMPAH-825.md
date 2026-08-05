@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: Open
+status: Ready to Integrate
 priority: 0
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:49:02.051663Z'
+updated_at: '2026-08-05T12:55:37.216356Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -25,9 +25,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-825
-  head_sha: 74c4b71cfab349bc782fff71188c97651f54f519
-  submitted_at: '2026-08-05T12:19:21.829561+00:00'
-  updated_at: '2026-08-05T12:19:21.829561+00:00'
+  base_branch: main
+  head_sha: 11c75e6c1b86f16837c13efb32938f814f362b79
+  submitted_at: '2026-08-05T12:55:30.423880+00:00'
+  updated_at: '2026-08-05T12:55:30.423880+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/721
 oompah.review_number: '721'
 oompah.work_branch: OOMPAH-825
@@ -89,5 +90,15 @@ created: 2026-08-05 12:49
 **Evidence result:** `comment_ci_passing`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 12:55
+---
+CI-fix pushed at exact head 11c75e6c1b86f16837c13efb32938f814f362b79. Root cause was test isolation: TestCheckCloseGate mocked the forge PR query but, with no GitHub token in CI, still invoked the real 'gh auth token' subprocess; its 5-second timeout raced pytest's 5-second per-test deadline. The fix supplies a deterministic test-only GH_TOKEN for this class and asserts the open-PR test never invokes subprocess.run, so it cannot conceal a real fallback. No feature/runtime code changed. Verification with both invoking tokens unset: formerly failing test 20/20; complete tests/test_close_gate.py 41/41; terminal scan 8/8; secret and diff checks pass; branch is clean and pushed. Independent incremental review is in progress.
+---
+author: oompah
+created: 2026-08-05 12:55
+---
+Fix CI-only close-gate test isolation at exact pushed head 11c75e6c1b86f16837c13efb32938f814f362b79; focused stress/tests and safety scans pass, runtime feature unchanged.
 ---
 <!-- COMMENTS:END -->
