@@ -11,11 +11,10 @@ blocked_by:
 - OOMPAH-523
 - OOMPAH-524
 - OOMPAH-525
-labels:
-- focus-complete:duplicate_detector
+labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:29:06.798986Z'
+updated_at: '2026-08-05T00:31:57.626503Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
