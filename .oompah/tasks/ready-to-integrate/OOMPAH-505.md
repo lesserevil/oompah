@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:41:48.622256Z'
+updated_at: '2026-08-05T05:42:03.106432Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 500f78d9-4d63-48b6-8222-ef62726ac3e6
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9680101
-  total_output_tokens: 39667
+  total_input_tokens: 9680891
+  total_output_tokens: 39895
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 51947
-      output_tokens: 5649
+      input_tokens: 52737
+      output_tokens: 5877
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 169
     cost_usd: 0.0
     recorded_at: '2026-08-05T05:14:42.179913+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 790
+    output_tokens: 228
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T05:42:00.761652+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -1070,5 +1076,15 @@ author: oompah
 created: 2026-08-05 05:41
 ---
 Completion: Task submitted for integration successfully. The explicit Claude and Codex model tiers feature implementation is comprehensive, thoroughly tested, and ready for production deployment. All acceptance criteria met: UI truthfully supports manual model selection, each tier resolves to distinct models, role infrastructure supports explicit mappings, existing default behavior remains backward compatible. Backend ready for operator configuration of the six explicit model candidates across fast/standard/deep tiers.
+---
+author: oompah
+created: 2026-08-05 05:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 46
+- Tokens: 790 in / 228 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 46s
+- Log: OOMPAH-505__20260805T052546Z.jsonl
 ---
 <!-- COMMENTS:END -->
