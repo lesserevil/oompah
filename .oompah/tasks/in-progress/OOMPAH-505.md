@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:11:35.544746Z'
+updated_at: '2026-08-05T01:20:33.756925Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -554,5 +554,10 @@ author: oompah
 created: 2026-08-05 01:11
 ---
 Understanding: I will inspect the current feature branch and task history for any remaining API/auth or integration-test gap, verify the relevant backend and UI behavior with focused checks, and make only evidence-based changes before submission.
+---
+author: oompah
+created: 2026-08-05 01:20
+---
+Completion: The integrated feature is verified with no additional patch required. Focused ACP/provider/UI/orchestrator suites pass (481 tests) with OOMPAH_AGENT_LOG_DIR redirected to writable task temp; role/API/model neighbor suite passes (83 tests); make check-secrets passes. The initial seven ACP failures were only the managed read-only ~/.oompah/agent-logs path and disappear with the documented writable log-dir setting. Branch is clean at e1b0f4846, which already contains the shipped OOMPAH-505 implementation; no live deployment/config mutation was attempted.
 ---
 <!-- COMMENTS:END -->
