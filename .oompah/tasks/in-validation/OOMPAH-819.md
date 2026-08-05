@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-819
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T05:54:52.659852Z'
+updated_at: '2026-08-05T05:55:02.213834Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-05 05:40
 ---
 Removing the OOMPAH-820 finish dependency after fulfillment: OOMPAH-820 is terminal Merged on main, and this submitted lineage head contains the same two reviewed logical commits. Keeping the cross-epic dependency would intentionally require main to be reachable from epic-OOMPAH-768 before the very integration that records those commits, creating an artificial containment cycle.
+---
+author: oompah
+created: 2026-08-05 05:55
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
