@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T18:17:19.307119Z'
+updated_at: '2026-08-05T18:17:32.510479Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,16 @@ Live reproduction on OOMPAH-825 PR #721 on 2026-08-05: exact head 74c4b71c passe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:17
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-08-05 18:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

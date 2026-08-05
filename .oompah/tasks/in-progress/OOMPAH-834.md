@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-05T16:39:04.228205Z'
+updated_at: '2026-08-05T18:17:44.016521Z'
 work_branch: null
 target_branch: null
 review_url: null
