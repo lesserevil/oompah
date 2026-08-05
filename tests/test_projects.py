@@ -26,6 +26,7 @@ from oompah.projects import (
     _repo_name_from_url,
     _resolve_ref_namespace_conflict,
     _sanitize_identifier,
+    _worktree_consumed_recovery_ref,
     _worktree_recovery_ref,
     github_work_branch_name,
 )
@@ -3204,6 +3205,56 @@ class TestNestedEpicTerminalCleanup:
         assert first == (True, None)
         assert second == (False, None)
         assert not os.path.exists(worktree)
+
+    def test_already_pruned_branch_still_retires_recovery_generations(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        assert store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        ) == (True, None)
+        recovery_ref = _worktree_recovery_ref("CHILD")
+        consumed_ref = _worktree_consumed_recovery_ref("CHILD", source_head)
+        for ref in (recovery_ref, consumed_ref):
+            subprocess.run(
+                ["git", "update-ref", ref, source_head],
+                cwd=project.repo_path,
+                check=True,
+            )
+
+        # The owned branch and worktree are already absent, but terminal
+        # cleanup must still retire task-scoped recovery lifecycle evidence.
+        assert store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        ) == (False, None)
+        for ref in (recovery_ref, consumed_ref):
+            assert subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", ref],
+                cwd=project.repo_path,
+                check=False,
+            ).returncode == 1
+
+        assert store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=target,
+            review_head=source_head,
+            require_target_branch=True,
+        ) == (False, None)
 
 class TestProjectStoreFindByName:
     """Tests for the secondary name-based project lookup."""

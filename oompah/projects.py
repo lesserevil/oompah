@@ -6475,7 +6475,12 @@ class ProjectStore:
                     project_id,
                     issue_identifier,
                 )
-            if branch_removed:
+            # Recovery refs are task lifecycle evidence, not branch-liveness
+            # evidence.  A previous cleanup pass or forge-side pruning may
+            # already have removed the owned branch, so retire these refs on
+            # every eligible terminal cleanup.  Ownership/protection/shared-
+            # branch skips remain fail-closed and leave the evidence intact.
+            if skip_reason is None:
                 recovery_ref = _worktree_recovery_ref(issue_identifier)
                 removed_ref = subprocess.run(
                     ["git", "update-ref", "-d", recovery_ref],
