@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-820
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Bootstrap exact-head review-generation fence on main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T04:32:51.984425Z'
+updated_at: '2026-08-05T04:33:03.199928Z'
 work_branch: null
 target_branch: null
 review_url: null
