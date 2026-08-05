@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:47:39.154434Z'
+updated_at: '2026-08-05T04:48:09.778297Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -822,5 +822,10 @@ author: oompah
 created: 2026-08-05 04:47
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 04:48
+---
+Understanding: enforce the OOMPAH-522 htpasswd verifier at the ASGI boundary for all HTTP, mounted, and WebSocket surfaces when enabled, with only exact healthz and forge webhook POST exemptions. I will audit the recovered implementation and focused tests, repair any gaps, verify disabled/enabled behavior and forge validation, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
