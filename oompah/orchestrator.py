@@ -21316,8 +21316,19 @@ class Orchestrator:
                 expected_generation=generation[len(queue_prefix) :],
                 action=_apply,
             )
-        # Historical/manual stalled states may have no integration row. They
-        # still get a fresh tracker-state compare immediately before mutation.
+        if pid:
+            # A missing generation is only compatible with historical/manual
+            # stalled work that truly has no durable queue authority.  Fence
+            # that absence through the tracker mutation so a current or
+            # replacement queue row cannot be bypassed by prose fallback.
+            return self.integration_queue.run_if_absent(
+                pid,
+                identifier,
+                action=lambda: _apply(),
+            )
+        # Unmanaged historical/manual stalled states have no integration
+        # queue. They still get a fresh tracker-state comparison immediately
+        # before mutation.
         return _apply()
 
     def _reconcile_stalled_watchdog_reopens(

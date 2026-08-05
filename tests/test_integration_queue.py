@@ -793,3 +793,30 @@ def test_run_if_generation_executes_inside_exact_row_fence(tmp_path):
     )
     assert observed == [queued.to_dict()]
     assert store.get("p1", "A") == queued
+
+
+def test_run_if_absent_rejects_existing_row_before_action(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    calls = []
+
+    assert not store.run_if_absent(
+        "p1",
+        "A",
+        action=lambda: calls.append("reopen") or True,
+    )
+    assert calls == []
+    assert store.get("p1", "A") == queued
+
+
+def test_run_if_absent_executes_inside_absence_fence(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    calls = []
+
+    assert store.run_if_absent(
+        "p1",
+        "legacy-task",
+        action=lambda: calls.append("reopen") or True,
+    )
+    assert calls == ["reopen"]
+    assert store.get("p1", "legacy-task") is None

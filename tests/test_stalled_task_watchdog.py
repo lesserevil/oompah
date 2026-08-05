@@ -1020,6 +1020,23 @@ def _blocked_gate_row(orch):
     return orch.integration_queue.get("project-1", "OOMPAH-814")
 
 
+def _oompah_814_issue(*, state=NEEDS_CI_FIX):
+    from oompah.integration import IntegrationRecord
+
+    return Issue(
+        id="OOMPAH-814",
+        identifier="OOMPAH-814",
+        title="stalled",
+        state=state,
+        work_branch="OOMPAH-814",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="OOMPAH-814",
+            head_sha=_OOMPAH_814_HEAD,
+        ),
+    )
+
+
 def _oompah_814_evidence(
     *,
     ci_status: str = "passed",
@@ -1038,6 +1055,7 @@ def _oompah_814_evidence(
             "task_branch": "OOMPAH-814",
         },
         "branch": {
+            "branch": "OOMPAH-814",
             "canonical_ref": "main",
             "head_sha": branch_head or _OOMPAH_814_HEAD,
         },
@@ -1070,6 +1088,227 @@ class TestGateFailureFencesWatchdogReopen:
         assert decision.evidence_result in {"failed", "fail", "failure"}
         assert decision.evidence_generation == "gen-authoritative-42"
         assert "dominates" in decision.evidence.lower()
+
+    @pytest.mark.parametrize(
+        ("stalled_status", "comment", "expected_result"),
+        [
+            (
+                NEEDS_CI_FIX,
+                "All checks passed on the branch.",
+                "comment_ci_passing",
+            ),
+            (
+                NEEDS_REBASE,
+                "Conflict resolved — branch is clean.",
+                "comment_rebase_resolved",
+            ),
+        ],
+    )
+    def test_comment_fallback_preserves_queue_authority(
+        self,
+        stalled_status,
+        comment,
+        expected_result,
+    ):
+        generation = "integration-queue-v1:blocked-row-generation"
+
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            stalled_status,
+            [_comment("oompah", comment)],
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=generation,
+            ),
+            run_id=23,
+        )
+
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+        assert decision.evidence_generation == generation
+        assert decision.evidence_result == expected_result
+
+    def test_blocked_row_comment_fallback_rejects_branch_rollback(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = classify_stalled_task(
+            issue.identifier,
+            issue.state,
+            [_comment("oompah", "All checks passed on the branch.")],
+            project_id="project-1",
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=(
+                    f"integration-queue-v1:{blocked.authority_generation()}"
+                ),
+            ),
+            run_id=24,
+        )
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_OOMPAH_814_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_missing_generation_cannot_bypass_current_blocked_row(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        assert _blocked_gate_row(orch) is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        stale_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="legacy comment fallback lost queue authority",
+        )
+
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            stale_decision,
+            build_watchdog_comment(stale_decision),
+        )
+
+        assert executed is False
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_missing_generation_remains_compatible_when_queue_row_is_absent(
+        self,
+        tmp_path,
+    ):
+        orch = _make_orchestrator(tmp_path)
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        legacy_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="legacy comment fallback without queue authority",
+        )
+
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            legacy_decision,
+            build_watchdog_comment(legacy_decision),
+        )
+
+        assert executed is True
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
+
+    def test_restart_keeps_missing_generation_fenced_by_blocked_row(self, tmp_path):
+        first = _make_orchestrator(tmp_path)
+        assert _blocked_gate_row(first) is not None
+        first.integration_queue.close()
+        restarted = _make_orchestrator(tmp_path)
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        stale_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="reconstructed fallback without generation",
+        )
+
+        executed = restarted._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            stale_decision,
+            build_watchdog_comment(stale_decision),
+        )
+
+        assert executed is False
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_duplicate_comment_fallback_reopens_only_once(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: issue
+
+        def update_issue(_identifier, *, status):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+        decision = classify_stalled_task(
+            issue.identifier,
+            issue.state,
+            [_comment("oompah", "All checks passed on the branch.")],
+            project_id="project-1",
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=(
+                    f"integration-queue-v1:{blocked.authority_generation()}"
+                ),
+            ),
+            run_id=25,
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            first = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+            duplicate = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert first is True
+        assert duplicate is False
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
 
     def test_durable_gate_evidence_survives_orchestrator_restart(self, tmp_path):
         from oompah.integration import IntegrationRecord

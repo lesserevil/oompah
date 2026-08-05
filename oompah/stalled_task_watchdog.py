@@ -1158,6 +1158,20 @@ def classify_stalled_task(
         project_id=project_id,
         run_id=run_id,
     )
+    fallback_signals = (
+        _evidence_signals(supplied_evidence)
+        if supplied_evidence is not None
+        else {}
+    )
+    fallback_head = str(
+        fallback_signals.get("branch_head_sha")
+        or fallback_signals.get("accepted_head_sha")
+        or fallback_signals.get("gate_head_sha")
+        or ""
+    ).strip()
+    fallback_generation = str(
+        fallback_signals.get("gate_generation") or ""
+    ).strip()
 
     # ---- Idempotency check -----------------------------------------------
     last_wc = _last_watchdog_comment(ordered)
@@ -1280,6 +1294,9 @@ def classify_stalled_task(
                         "safe to reopen for dispatch."
                     ),
                     watchdog_run_id=run_id,
+                    evidence_head=fallback_head,
+                    evidence_result="comment_ci_passing",
+                    evidence_generation=fallback_generation,
                 )
         return StalledTaskDecision(
             task_id=task_id,
@@ -1312,6 +1329,9 @@ def classify_stalled_task(
                         "safe to reopen."
                     ),
                     watchdog_run_id=run_id,
+                    evidence_head=fallback_head,
+                    evidence_result="comment_rebase_resolved",
+                    evidence_generation=fallback_generation,
                 )
         return StalledTaskDecision(
             task_id=task_id,

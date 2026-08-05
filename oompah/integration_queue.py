@@ -709,6 +709,53 @@ class IntegrationQueueStore:
                 self._conn.rollback()
                 raise
 
+    def run_if_absent(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        action: Callable[[], bool],
+    ) -> bool:
+        """Run ``action`` only while this task has no durable queue row.
+
+        Historical/manual stalled tasks may legitimately predate the
+        integration queue.  Their compatibility reopen must still fence row
+        creation, otherwise a replacement submission can become authoritative
+        between an absence check and the tracker status write.
+        """
+
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    """
+                    SELECT 1 FROM integration_queue
+                    WHERE project_id = ? AND task_id = ?
+                    """,
+                    (str(project_id), str(task_id)),
+                ).fetchone()
+                if row is not None:
+                    self._conn.rollback()
+                    return False
+                if not action():
+                    self._conn.rollback()
+                    return False
+                current = self._conn.execute(
+                    """
+                    SELECT 1 FROM integration_queue
+                    WHERE project_id = ? AND task_id = ?
+                    """,
+                    (str(project_id), str(task_id)),
+                ).fetchone()
+                if current is not None:
+                    self._conn.rollback()
+                    return False
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def items(
         self,
         *,
