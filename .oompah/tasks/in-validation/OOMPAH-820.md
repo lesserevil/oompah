@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T04:46:38.095804Z'
+updated_at: '2026-08-05T05:19:52.875440Z'
 work_branch: OOMPAH-820
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/717
@@ -32,6 +32,31 @@ oompah.work_branch: OOMPAH-820
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9523d45a243e: '2026-08-05T05:19:41.394496+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-820
+    target_state: Done
+    evidence_fingerprint: 1590905549166dea0996dc2e2167092ed63d7014a21a8416275efb1ff4e6d4da
+    audit_ids:
+    - audit-c6b562003077
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T05:19:41.394504+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-820
+    audit_id: audit-c6b562003077
+    attempt_id: attempt-9523d45a243e
+    target_state: Done
+    evidence_fingerprint: 1590905549166dea0996dc2e2167092ed63d7014a21a8416275efb1ff4e6d4da
+    status: In Validation
+    audit_ids:
+    - audit-c6b562003077
+    applied: true
+    created_at: '2026-08-05T05:19:41.394515+00:00'
+    applied_at: '2026-08-05T05:19:50.116728+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -39,7 +64,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-820
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -48,7 +73,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9523d45a243e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -58,13 +83,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T04:46:26.008377+00:00'
       branch_key: OOMPAH-820
+      verdict: pass
+      completed_at: '2026-08-05T05:19:41.394381+00:00'
+      ended_at: '2026-08-05T05:19:41.394381+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T04:42:16.948692+00:00'
-    updated_at: '2026-08-05T04:46:26.008377+00:00'
+    updated_at: '2026-08-05T05:19:41.394381+00:00'
   - version: 1
     audit_id: audit-f6f065e8d0df
     project_id: proj-14849f1b
@@ -175,5 +203,22 @@ author: oompah
 created: 2026-08-05 04:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 05:19
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- reviewed_head: f3b9f9bc5dad4cae876f081b45a6cece2eb72341
+- main_merge_commit: 8d24fb7b4
+- pr_number: 717
+- diff_stat: 10 files changed, 2753 insertions(+), 278 deletions(-)
+- test_run: 15428 passed, 7 skipped, 1 xfailed, 1 flaky failed in 522.62s
+- flaky_failure: tests/test_pr_body_and_review_metadata.py::TestBuildPrBody::test_non_github_tracker_uses_plain_link (5s pytest-timeout on sqlite3.executescript in IntegrationQueueStore.__init__; file not touched by OOMPAH-820)
+- terminal_mutation_scan: 8/8 allowlisted
+- focused_regressions_passed: test_oompah_818_old_merged_review_cannot_terminalize_new_submission, test_remote_head_must_match_accepted_submission_before_gate, test_resubmit_generation_change_after_review_lookup_fences_terminal_staging, test_two_loop_submit_wins_before_exact_review_metadata_or_audit, test_bridge_timeout_retains_task_ownership_until_inner_operation_exits, test_final_review_revalidation_rejects_state_change_before_metadata
 ---
 <!-- COMMENTS:END -->
