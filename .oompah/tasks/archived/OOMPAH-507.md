@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-507
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Drain active agents before deployment restarts
 parent: OOMPAH-502
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-08-05T00:01:24.947888Z'
+updated_at: '2026-08-05T00:19:38.948796Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -36,6 +36,30 @@ oompah.task_costs:
     recorded_at: '2026-07-28T17:48:45.090926+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-74fdbc960b9c: '2026-08-05T00:19:35.441384+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-507
+    target_state: Archived
+    evidence_fingerprint: 859963d73184aecd00c8c97de76214d2bb41d3ed640dc354a768d7229c5ed4a8
+    audit_ids:
+    - audit-f827c1e91924
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:19:35.441394+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-507
+    audit_id: audit-f827c1e91924
+    attempt_id: attempt-74fdbc960b9c
+    target_state: Archived
+    evidence_fingerprint: 859963d73184aecd00c8c97de76214d2bb41d3ed640dc354a768d7229c5ed4a8
+    status: Archived
+    audit_ids:
+    - audit-f827c1e91924
+    applied: false
+    created_at: '2026-08-05T00:19:35.441408+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +67,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-507
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +107,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-74fdbc960b9c
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -94,13 +118,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T00:01:10.394260+00:00'
       branch_key: epic-OOMPAH-502
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-05T00:19:35.441226+00:00'
+      ended_at: '2026-08-05T00:19:35.441226+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:28:34.036972+00:00'
-    updated_at: '2026-08-05T00:01:10.394260+00:00'
+    updated_at: '2026-08-05T00:19:35.441226+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c00c7d4c9d53
