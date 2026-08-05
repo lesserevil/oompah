@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-549
 type: feature
-status: Merged
+status: In Validation
 priority: 0
 title: Expose finish-order lifecycle in UI, prompts, and operator documentation
 parent: OOMPAH-545
@@ -14,12 +14,34 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-07-29T18:29:16.785798Z'
+updated_at: '2026-08-05T19:24:44.830196Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-29b01ffeb6ea
+    project_id: proj-14849f1b
+    task_id: OOMPAH-549
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2d174d37b36a1c846032b84f31ef09c7cc49582906ac48b611e22dd02deb81e2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T19:24:38.403019+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -61,5 +83,10 @@ author: oompah
 created: 2026-07-29 18:27
 ---
 Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; focused post-rebase compatibility tests passed.
+---
+author: oompah
+created: 2026-08-05 19:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
