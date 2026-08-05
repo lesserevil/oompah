@@ -83,6 +83,7 @@ import contextlib
 import logging
 import os
 import shutil
+import sqlite3
 import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, TYPE_CHECKING
@@ -101,6 +102,11 @@ from oompah.task_handoff import (
     TASK_HANDOFF_TOKEN_ENV,
 )
 from oompah.agent import AgentEvent
+from oompah.validation_resource_lease import (
+    ValidationLeaseCancelled,
+    ValidationLeaseError,
+    managed_agent_validation_owner,
+)
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -314,6 +320,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Codex extension cancels a turn via an ``asyncio.Event`` signal
         # passed in TurnOptions; close() sets it.
         self._cli_abort: Any = None
+        self._native_cli_validation_generation = os.urandom(16).hex()
         # Billing tier drives the execution path AND cost reporting:
         #   * "per_token"    -> in-process OpenAI-Agents SDK (API key)
         #   * "subscription" -> Codex CLI subprocess (OAuth via auth.json)
@@ -837,79 +844,143 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._status = "errored"
             return
 
-        yield self._emit(
-            "acp_session_start",
-            payload={
-                "model": self._options.model,
-                "max_turns": self._options.max_turns,
-                "permission_mode": self._options.permission_mode,
-                "tool_policy": "codex_cli:native_sandbox",
-                "sandbox_mode": sandbox_mode,
-                "additional_directories": additional_dirs,
-                "approval_policy": "never",
-                "network_access_enabled": not self._options.read_only,
-                "billing_model": self._billing_model,
-                "cwd": self._options.workspace_path,
-            },
-        )
-
-        self._cli_abort = asyncio.Event()
-        try:
-            streamed = await thread.run_streamed(
-                self._options.prompt,
-                TurnOptions(signal=self._cli_abort),
+        # The subscription CLI owns a native shell surface that cannot be
+        # intercepted by oompah's MCP run_command catalog.  A managed CLI
+        # session therefore holds the conservative worker/auditor lane for its
+        # entire turn.  This is intentionally broader than command-level
+        # classification: allowing an unobserved native pytest command to race
+        # an exact gate would defeat the host-capacity fence.
+        validation_handle = None
+        coordination_service = self._options.coordination_service
+        if coordination_service is not None:
+            validation_lease = getattr(
+                coordination_service,
+                "validation_resource_lease",
+                None,
             )
-        except Exception as exc:
-            self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
-            logger.warning(self._last_error)
-            yield self._emit(
-                "acp_session_error", payload={"error": self._last_error}
+            validation_owner = managed_agent_validation_owner(
+                self._options.action_policy,
+                self._options.audit_target,
+                project_id=self._options.project_id,
+                task_id=self._options.task_identifier,
+                authority_generation=self._native_cli_validation_generation,
             )
-            self._status = "errored"
-            return
-
-        deadline = time.monotonic() + self._options.turn_timeout_s
-        try:
-            async for event in streamed.events:
-                if self._stop_requested:
-                    self._status = "interrupted"
-                    return
-                if time.monotonic() > deadline:
-                    self._cli_abort.set()
-                    yield self._emit(
-                        "acp_turn_timeout",
-                        payload={"timeout_s": self._options.turn_timeout_s},
-                    )
-                    self._status = "stalled"
-                    return
-                async for be in self._translate_cli_event(event):
-                    yield be
-
-            # Stream drained without an explicit terminal event — treat
-            # as success (defensive; turn.completed normally sets this).
-            if self._status == "pending":
-                yield self._emit(
-                    "acp_result",
-                    payload={
-                        "subtype": "success",
-                        "is_error": False,
-                        "stop_reason": "end_turn",
-                        "num_turns": self._counters.turn_count,
-                        "total_cost_usd": self._final_cost_usd,
-                        "usage": self._cost_payload(),
-                        "errors": None,
-                    },
+            if validation_lease is None or validation_owner is None:
+                self._last_error = (
+                    "Codex CLI validation capacity is unavailable because "
+                    "trusted managed-agent lease configuration is incomplete"
                 )
-                self._status = "succeeded"
-        except Exception as exc:
-            self._last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Codex CLI session failed: %s", self._last_error)
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
+
+            tool_liveness = self._options.tool_liveness
+
+            def lease_cancelled() -> bool:
+                if self._stop_requested:
+                    return True
+                callback = getattr(tool_liveness, "is_cancelled", None)
+                if not callable(callback):
+                    return False
+                try:
+                    return bool(callback())
+                except Exception:
+                    return True
+
+            try:
+                validation_handle = await asyncio.to_thread(
+                    validation_lease.acquire,
+                    validation_owner,
+                    is_cancelled=lease_cancelled,
+                )
+            except ValidationLeaseCancelled as exc:
+                self._last_error = str(exc)
+                self._status = "interrupted"
+                return
+            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+                self._last_error = (
+                    f"unable to acquire Codex CLI validation capacity: {exc}"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
+
+        try:
             yield self._emit(
-                "acp_session_error", payload={"error": self._last_error}
+                "acp_session_start",
+                payload={
+                    "model": self._options.model,
+                    "max_turns": self._options.max_turns,
+                    "permission_mode": self._options.permission_mode,
+                    "tool_policy": "codex_cli:native_sandbox",
+                    "sandbox_mode": sandbox_mode,
+                    "additional_directories": additional_dirs,
+                    "approval_policy": "never",
+                    "network_access_enabled": not self._options.read_only,
+                    "billing_model": self._billing_model,
+                    "cwd": self._options.workspace_path,
+                },
             )
-            self._status = "errored"
+
+            self._cli_abort = asyncio.Event()
+            try:
+                streamed = await thread.run_streamed(
+                    self._options.prompt,
+                    TurnOptions(signal=self._cli_abort),
+                )
+            except Exception as exc:
+                self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
+                logger.warning(self._last_error)
+                yield self._emit(
+                    "acp_session_error", payload={"error": self._last_error}
+                )
+                self._status = "errored"
+                return
+
+            deadline = time.monotonic() + self._options.turn_timeout_s
+            try:
+                async for event in streamed.events:
+                    if self._stop_requested:
+                        self._status = "interrupted"
+                        return
+                    if time.monotonic() > deadline:
+                        self._cli_abort.set()
+                        yield self._emit(
+                            "acp_turn_timeout",
+                            payload={"timeout_s": self._options.turn_timeout_s},
+                        )
+                        self._status = "stalled"
+                        return
+                    async for be in self._translate_cli_event(event):
+                        yield be
+
+                # Stream drained without an explicit terminal event — treat
+                # as success (defensive; turn.completed normally sets this).
+                if self._status == "pending":
+                    yield self._emit(
+                        "acp_result",
+                        payload={
+                            "subtype": "success",
+                            "is_error": False,
+                            "stop_reason": "end_turn",
+                            "num_turns": self._counters.turn_count,
+                            "total_cost_usd": self._final_cost_usd,
+                            "usage": self._cost_payload(),
+                            "errors": None,
+                        },
+                    )
+                    self._status = "succeeded"
+            except Exception as exc:
+                self._last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning("Codex CLI session failed: %s", self._last_error)
+                yield self._emit(
+                    "acp_session_error", payload={"error": self._last_error}
+                )
+                self._status = "errored"
         finally:
             self._cli_abort = None
+            if validation_handle is not None:
+                validation_handle.release()
             # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
             self._cleanup_worker_runtime_dir()
 

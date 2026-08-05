@@ -68,6 +68,7 @@ from oompah.terminal_audit import (
     TargetState,
     compute_issue_evidence_fingerprint,
 )
+from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
 
@@ -1136,6 +1137,14 @@ def build_tool_catalog(
     workspace = Path(workspace_path)
     current_project_id = project_id
     command_output_store = CommandOutputStore() if auditor_mode else None
+    validation_lease = getattr(coordination_service, "validation_resource_lease", None)
+    validation_owner = managed_agent_validation_owner(
+        action_policy,
+        audit_target,
+        project_id=current_project_id,
+        task_id=task_identifier,
+    )
+    lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1267,6 +1276,10 @@ def build_tool_catalog(
                 timeout=run_command_timeout_s,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
+                validation_lease=validation_lease,
+                validation_owner=validation_owner,
+                lease_cancelled=lease_cancelled,
+                require_validation_lease=(validation_lease is not None or auditor_mode),
             )
         )
 
@@ -1527,6 +1540,14 @@ def build_codex_tool_catalog(
     workspace = Path(workspace_path)
     current_project_id = project_id
     command_output_store = CommandOutputStore() if auditor_mode else None
+    validation_lease = getattr(coordination_service, "validation_resource_lease", None)
+    validation_owner = managed_agent_validation_owner(
+        action_policy,
+        audit_target,
+        project_id=current_project_id,
+        task_id=task_identifier,
+    )
+    lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1635,6 +1656,10 @@ def build_codex_tool_catalog(
             timeout=run_command_timeout_s,
             tool_liveness=tool_liveness,
             output_store=command_output_store,
+            validation_lease=validation_lease,
+            validation_owner=validation_owner,
+            lease_cancelled=lease_cancelled,
+            require_validation_lease=(validation_lease is not None or auditor_mode),
         )
 
     @function_tool
@@ -1865,6 +1890,14 @@ def build_opencode_tool_catalog(
 
     workspace = Path(workspace_path)
     command_output_store = CommandOutputStore() if auditor_mode else None
+    validation_lease = getattr(coordination_service, "validation_resource_lease", None)
+    validation_owner = managed_agent_validation_owner(
+        action_policy,
+        audit_target,
+        project_id=project_id,
+        task_id=task_identifier,
+    )
+    lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1996,6 +2029,10 @@ def build_opencode_tool_catalog(
                 timeout=run_command_timeout_s,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
+                validation_lease=validation_lease,
+                validation_owner=validation_owner,
+                lease_cancelled=lease_cancelled,
+                require_validation_lease=(validation_lease is not None or auditor_mode),
             )
         )
 

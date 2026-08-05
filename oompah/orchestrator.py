@@ -290,6 +290,7 @@ from oompah.quality_gate import (
     QualityGateOwner,
     QualityGateResult,
 )
+from oompah.validation_resource_lease import ValidationResourceLease
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -1295,9 +1296,17 @@ class Orchestrator:
         self._candidate_selector = CandidateSelector(
             path=os.path.join(_state_dir, "role_usage.json")
         )
+        self.validation_resource_lease = ValidationResourceLease(
+            os.path.join(_state_dir, "validation_resources.sqlite3"),
+            capacity=getattr(config, "heavyweight_validation_capacity", 1),
+            aging_seconds=getattr(
+                config, "heavyweight_validation_aging_seconds", 30
+            ),
+        )
         self._branch_quality_gate = BranchQualityGate(
             os.path.join(_state_dir, "quality_gates.json"),
             timeout_seconds=config.quality_gate_timeout_seconds,
+            validation_lease=self.validation_resource_lease,
             **(
                 {"safety_head": config.quality_gate_safety_head}
                 if config.quality_gate_safety_head
@@ -33402,6 +33411,7 @@ class Orchestrator:
                 ),
                 tool_liveness=api_tool_liveness,
                 policy_denial_handler=api_policy_denial_handler,
+                validation_lease=self.validation_resource_lease,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -40097,6 +40107,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         totals = self.state.agent_totals
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         quality_gate_state = self._quality_gate_state_snapshot()
+        validation_resource_state = self.validation_resource_lease.status().to_dict()
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -40223,6 +40234,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
+            "validation_resources": validation_resource_state,
             "workflow_jobs": self.workflow_job_store.health_snapshot(),
             "workflow_shadow": self.workflow_shadow.summary(),
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
@@ -40230,6 +40242,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
                 "quality_gates": quality_gate_state,
+                "validation_resources": validation_resource_state,
             },
             "auth_health": auth_health_snapshot(),
             "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),

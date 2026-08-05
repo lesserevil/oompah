@@ -72,6 +72,14 @@ def test_exited_child_does_not_protect_silent_session():
     assert reason is None
 
 
+def test_session_cancellation_is_visible_to_queued_tool_work():
+    monitor = ToolLivenessMonitor()
+
+    assert monitor.is_cancelled() is False
+    monitor.request_cancel()
+    assert monitor.is_cancelled() is True
+
+
 def test_command_deadline_has_precise_diagnostic_and_never_bypasses_recovery():
     monitor = ToolLivenessMonitor()
     invocation_id = monitor.start(tool_name="run_command", timeout_s=0)

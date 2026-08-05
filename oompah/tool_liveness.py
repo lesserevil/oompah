@@ -71,6 +71,17 @@ class ToolLivenessMonitor:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._active: dict[str, _ToolExecution] = {}
+        self._cancel_requested = threading.Event()
+
+    def request_cancel(self) -> None:
+        """Withdraw authority for queued tool work without inventing a process."""
+
+        self._cancel_requested.set()
+
+    def is_cancelled(self) -> bool:
+        """Return whether the owning agent session has been terminated."""
+
+        return self._cancel_requested.is_set()
 
     def start(self, *, tool_name: str, timeout_s: float) -> str:
         """Register a tool invocation and return its opaque invocation id."""

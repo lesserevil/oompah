@@ -32,6 +32,10 @@ from oompah.quality_gate import (
     _validate_trusted_runtime_source,
 )
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
+from oompah.validation_resource_lease import (
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 
 def _safety_head(repo_path):
@@ -2423,3 +2427,43 @@ def test_branch_with_oompah652_ancestor_allows_execution(tmp_path):
 
     assert result.passed
     assert sentinel.exists(), "Command should have executed for OOMPAH-652 descendant"
+
+
+def test_exact_gate_waits_for_shared_heavyweight_validation_capacity(tmp_path):
+    repo = _git_repo(tmp_path)
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        poll_seconds=0.01,
+    )
+    auditor = lease.acquire(
+        ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id="audit",
+            authority_generation="attempt",
+        )
+    )
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        validation_lease=lease,
+    )
+    sentinel = tmp_path / "gate-started"
+    results: list[QualityGateResult] = []
+    thread = threading.Thread(
+        target=lambda: results.append(
+            _run(gate, repo, f"touch {shlex.quote(str(sentinel))}")
+        )
+    )
+    thread.start()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and lease.status().waiter_count != 1:
+        time.sleep(0.01)
+
+    assert lease.status().waiter_count == 1
+    assert not sentinel.exists()
+    auditor.release()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert results and results[0].passed
+    assert sentinel.exists()

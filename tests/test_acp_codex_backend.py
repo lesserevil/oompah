@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
+import time
 import types
 from unittest.mock import MagicMock
 
@@ -41,6 +43,11 @@ from oompah.acp_backends.codex import (
     _get_worktree_git_meta_dir,
 )
 from oompah.models import ModelProvider
+from oompah.validation_resource_lease import (
+    VALIDATION_KIND_WORKER,
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 
 # ----------------------------------------------------------------------
@@ -781,6 +788,120 @@ class TestCodexCliPath:
         assert "tool_use" in kinds
         assert "tool_result" in kinds
         assert sess.status == "succeeded"
+
+    def test_managed_native_cli_waits_behind_exact_gate(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        state_path = tmp_path / "validation.sqlite3"
+        lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+        gate = lease.acquire(
+            ValidationLeaseOwner.exact_gate(
+                project_id="gate-project",
+                task_id="GATE-1",
+                authority_generation="gate-head",
+            )
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+        result: list[tuple[CodexAcpBackendSession, list[BackendEvent]]] = []
+
+        def drive() -> None:
+            async def run():
+                options = AcpBackendOptions(
+                    workspace_path=str(tmp_path),
+                    prompt="implement the task",
+                    billing_model="subscription",
+                    coordination_service=service,
+                    project_id="worker-project",
+                    task_identifier="WORK-1",
+                )
+                session = CodexAcpBackendSession(options)
+                events = [event async for event in session.run_turn()]
+                return session, events
+
+            result.append(asyncio.run(run()))
+
+        thread = threading.Thread(target=drive)
+        thread.start()
+        deadline = time.monotonic() + 3
+        while lease.status().waiter_count != 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+        status = lease.status()
+        assert status.waiter_count == 1
+        assert status.waiters[0]["kind"] == VALIDATION_KIND_WORKER
+        assert "prompt" not in capture
+
+        gate.release()
+        thread.join(timeout=3)
+        assert thread.is_alive() is False
+        assert result[0][0].status == "succeeded"
+        assert result[0][1][0].kind == "session_start"
+        assert capture["prompt"] == "implement the task"
+        assert lease.status().owner_count == 0
+
+    def test_managed_native_cli_cancellation_removes_queued_request(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        gate = lease.acquire(
+            ValidationLeaseOwner.exact_gate(
+                project_id="gate-project",
+                task_id="GATE-1",
+                authority_generation="gate-head",
+            )
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="implement the task",
+                billing_model="subscription",
+                coordination_service=service,
+                project_id="worker-project",
+                task_identifier="WORK-1",
+            )
+        )
+
+        def drive() -> None:
+            async def run() -> None:
+                async for _event in session.run_turn():
+                    pass
+
+            asyncio.run(run())
+
+        thread = threading.Thread(target=drive)
+        thread.start()
+        deadline = time.monotonic() + 3
+        while lease.status().waiter_count != 1 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert lease.status().waiter_count == 1
+
+        asyncio.run(session.close())
+        thread.join(timeout=3)
+        assert thread.is_alive() is False
+        assert session.status == "interrupted"
+        assert lease.status().waiter_count == 0
+        assert "prompt" not in capture
+        gate.release()
 
     def test_missing_extension_returns_errored(self, monkeypatch):
         def _boom():

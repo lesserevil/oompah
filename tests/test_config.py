@@ -102,6 +102,8 @@ class TestServiceConfig:
         assert cfg.coordination_retention_seconds == 2592000
         assert cfg.restart_drain_timeout_seconds == 3600
         assert cfg.quality_gate_timeout_seconds == 3600
+        assert cfg.heavyweight_validation_capacity == 1
+        assert cfg.heavyweight_validation_aging_seconds == 30
         assert cfg.parallel_epic_children_enabled is False
         assert cfg.terminal_lifecycle_reconciliation_batch_size == 4
         assert cfg.terminal_lifecycle_reconciliation_max_attempts == 5
@@ -264,6 +266,24 @@ class TestServiceConfig:
         assert "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS=" in env_example.read_text(
             encoding="utf-8"
         )
+
+    def test_heavyweight_validation_settings_come_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_HEAVYWEIGHT_VALIDATION_CAPACITY", "2")
+        monkeypatch.setenv("OOMPAH_HEAVYWEIGHT_VALIDATION_AGING_SECONDS", "45")
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.heavyweight_validation_capacity == 2
+        assert cfg.heavyweight_validation_aging_seconds == 45
+
+    def test_heavyweight_validation_settings_are_documented(self):
+        contents = (Path(__file__).parents[1] / ".env.example").read_text(
+            encoding="utf-8"
+        )
+        assert "OOMPAH_HEAVYWEIGHT_VALIDATION_CAPACITY=" in contents
+        assert "OOMPAH_HEAVYWEIGHT_VALIDATION_AGING_SECONDS=" in contents
 
     def test_quality_gate_safety_head_comes_from_environment(self, monkeypatch):
         safety_head = "a" * 40

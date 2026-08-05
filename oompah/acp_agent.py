@@ -334,6 +334,10 @@ class AcpAgentSession:
         times. Idempotent. The backend session's ``close`` cleans up the
         subprocess; this just signals our drain loop to break."""
         self._stop_requested = True
+        if self.tool_liveness is not None:
+            request_cancel = getattr(self.tool_liveness, "request_cancel", None)
+            if callable(request_cancel):
+                request_cancel()
         backend_session = self._backend_session
         if backend_session is not None:
             try:

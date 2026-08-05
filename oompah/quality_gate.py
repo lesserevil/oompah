@@ -10,6 +10,7 @@ import os
 import shutil
 import signal
 import socket
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -21,6 +22,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import unquote, urlparse
+
+from oompah.validation_resource_lease import (
+    ValidationLeaseCancelled,
+    ValidationLeaseError,
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,12 +246,14 @@ class BranchQualityGate:
         output_tail_bytes: int = 16 * 1024,
         safety_head: str = _OOMPAH_652_SAFETY_HEAD,
         sandbox_launcher: Callable[[str, str, Path], list[str]] | None = None,
+        validation_lease: ValidationResourceLease | None = None,
     ) -> None:
         self.state_path = Path(state_path)
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self.safety_head = safety_head
         self._sandbox_launcher = sandbox_launcher or self._sandbox_command
+        self.validation_lease = validation_lease
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
 
@@ -1482,11 +1492,76 @@ class BranchQualityGate:
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
+            validation_handle = None
             run_root = self._gate_run_root()
             snapshot: Path | None = None
             monitor_stop = threading.Event()
             monitor: threading.Thread | None = None
             try:
+                if self.validation_lease is not None:
+                    validation_owner = ValidationLeaseOwner.exact_gate(
+                        project_id=(
+                            owned_owner.project_id
+                            if owned_owner is not None
+                            else repo_identity
+                        ),
+                        task_id=(
+                            owned_owner.task_id
+                            if owned_owner is not None
+                            else work_branch
+                        ),
+                        authority_generation=(
+                            owned_owner.authority_generation
+                            if owned_owner is not None
+                            else f"{head_sha}:{key}"
+                        ),
+                    )
+
+                    def _lease_wait_cancelled() -> bool:
+                        if (
+                            owned_generation is not None
+                            and self._generation_is_cancelled(
+                                owned_generation,
+                                owner_key,
+                            )
+                        ):
+                            return True
+                        if is_current is None:
+                            return False
+                        try:
+                            return not bool(is_current())
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "Quality gate lease authority check failed: %s",
+                                exc,
+                            )
+                            return True
+
+                    try:
+                        validation_handle = self.validation_lease.acquire(
+                            validation_owner,
+                            is_cancelled=_lease_wait_cancelled,
+                        )
+                    except ValidationLeaseCancelled as exc:
+                        return QualityGateResult(
+                            status="interrupted",
+                            head_sha=head_sha,
+                            command=command,
+                            duration_seconds=time.monotonic() - started,
+                            output_tail=str(exc),
+                        )
+                    except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+                        return QualityGateResult(
+                            status="infrastructure_error",
+                            head_sha=head_sha,
+                            command=command,
+                            duration_seconds=time.monotonic() - started,
+                            output_tail=(
+                                "Exact quality gate could not acquire host "
+                                f"validation capacity: {exc}"
+                            ),
+                        )
+
                 # --- Barrier 1: before snapshot creation ---
                 # Check authority before creating the immutable archive.
                 # cancel_generation() may have been called while we were
@@ -1600,7 +1675,25 @@ class BranchQualityGate:
                     stderr=subprocess.PIPE,
                     text=True,
                     start_new_session=True,
+                    pass_fds=(
+                        validation_handle.pass_fds
+                        if validation_handle is not None
+                        else ()
+                    ),
                 )
+                if validation_handle is not None:
+                    try:
+                        validation_handle.attach_process(
+                            process,
+                            timeout_seconds=self.timeout_seconds,
+                        )
+                    except ValidationLeaseError:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        process.communicate()
+                        raise
                 # Track process group for graceful shutdown cleanup.
                 # --- Barrier 3: Popen-to-registration window ---
                 # Re-check the tombstone under the lock immediately after
@@ -1739,7 +1832,7 @@ class BranchQualityGate:
                     work_branch=work_branch,
                 )
                 return result
-            except OSError as exc:
+            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
                 result = QualityGateResult(
                     status="error",
                     head_sha=head_sha,
@@ -1766,6 +1859,8 @@ class BranchQualityGate:
                         self._active_generations.pop(process.pid, None)
                         self._active_owners.pop(process.pid, None)
                         self._active_snapshots.pop(process.pid, None)
+                if validation_handle is not None:
+                    validation_handle.release()
                 # A cancelled generation remains fenced until every caller
                 # already registered for it has crossed the barrier.  This
                 # prevents one interrupted caller from clearing the tombstone
