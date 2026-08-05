@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-822
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Stop failed lifecycle reconciliation from retry-spinning and starving validation
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T06:43:24.581251Z'
+updated_at: '2026-08-05T06:44:53.914939Z'
 work_branch: null
 target_branch: null
 review_url: null
