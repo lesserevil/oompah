@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-08-05T20:20:50.683736Z'
+updated_at: '2026-08-05T20:21:12.698457Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -59,8 +59,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: a624f4ec-ee49-4099-8996-2b2e46e3ee39
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 28631500
-  total_output_tokens: 99602
+  total_input_tokens: 28631538
+  total_output_tokens: 104980
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -70,6 +70,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 142
       output_tokens: 49541
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 38
+      output_tokens: 5378
       cost_usd: 0.0
   runs:
   - profile: default
@@ -102,6 +106,12 @@ oompah.task_costs:
     output_tokens: 387
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:13:30.322098+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 38
+    output_tokens: 5378
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:21:09.220059+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -431,5 +441,15 @@ Safe evidence:
 - neighbor_tests: 325 passed (auditor_contract, acp_auditor_result_bridge, terminal_transition_coordinator, authority_boundary)
 - worktree_status: clean, no unpushed changes
 - archive_reason: aged_merged_auto_archive
+---
+author: oompah
+created: 2026-08-05 20:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 41, Tool calls: 32
+- Tokens: 38 in / 5.4K out [5.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 30s
+- Log: OOMPAH-474__20260805T201549Z.jsonl
 ---
 <!-- COMMENTS:END -->
