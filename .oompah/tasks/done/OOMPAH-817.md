@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T13:02:16.107253Z'
+updated_at: '2026-08-05T13:02:45.883718Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -84,13 +84,17 @@ oompah.integration:
   submitted_at: '2026-08-05T12:31:47.543052+00:00'
   updated_at: '2026-08-05T12:49:15.215271+00:00'
 oompah.task_costs:
-  total_input_tokens: 1016
-  total_output_tokens: 2287
+  total_input_tokens: 1105
+  total_output_tokens: 16580
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1016
       output_tokens: 2287
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 89
+      output_tokens: 14293
       cost_usd: 0.0
   runs:
   - profile: default
@@ -105,6 +109,12 @@ oompah.task_costs:
     output_tokens: 265
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:18:26.445949+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 89
+    output_tokens: 14293
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T13:02:43.400488+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-817__20260805T010831Z
@@ -383,5 +393,15 @@ Safe evidence:
 - publish_transaction: oompah/projects.py:_publish_recovery_snapshot fences transfer -> exact-SHA verify -> update-ref -> re-verify; raises RecoveryPublicationError on any failure; pending ref retained; checkout never mutated
 - consumption_fence: immutable per-generation consumed-ref tombstone published before CAS-deleting authoritative ref; source-local pending ref removed first, authority last
 - orchestrator_recovery: _route_retryable_recovery_publication reopens task to Open and indexes pending context; _reconcile_pending_recovery_publications retries idempotently on schedule/startup
+---
+author: oompah
+created: 2026-08-05 13:02
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 83
+- Tokens: 89 in / 14.3K out [14.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 55s
+- Log: OOMPAH-817__20260805T125002Z.jsonl
 ---
 <!-- COMMENTS:END -->
