@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-05T05:35:57.231497Z'
+updated_at: '2026-08-05T16:16:59.612282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ Cut over all task-progression domains to WorkflowFacts, WorkDecision, durable jo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 16:16
+---
+Direct-owner continuation: while OOMPAH-807's exact gate runs, the domain stack has been reconstructed in isolated scratch refs on candidate parent b1c089614. Duplicate patch-equivalent commits are omitted; OOMPAH-813 exact-project/replacement-run fences are composed with OOMPAH-815 accepted-branch and recovery-publication authority. A static review caught and repaired the composed project_id_val recovery-path NameError before testing. Authoritative epic-OOMPAH-768 will not be rewritten or pushed until OOMPAH-807 lands and combined tests pass.
+---
+<!-- COMMENTS:END -->
