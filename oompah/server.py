@@ -139,6 +139,7 @@ from oompah.task_handoff import (
     record_task_handoff_failure,
     validate_task_handoff_token,
 )
+from oompah.task_transition_service import issue_authority_version, issue_exact_head
 from oompah.auth_health import (
     record_operator_401,
     record_worker_401,
@@ -1618,12 +1619,33 @@ async def _run_task_handoff_mutation(
         return await operation()
 
 
+def _exact_implementation_running_entry(
+    orch: Any,
+    issue: Any,
+    project_id: str,
+) -> Any | None:
+    """Return only the runtime owned by this authenticated project/task."""
+
+    entry = getattr(orch, "_current_running_entry", lambda _id: None)(issue.id)
+    if entry is None or getattr(entry, "is_auditor", False):
+        return None
+    entry_issue = getattr(entry, "issue", None)
+    if str(getattr(entry_issue, "project_id", None) or "") != str(project_id):
+        return None
+    if str(getattr(entry_issue, "identifier", None) or "") != str(
+        issue.identifier
+    ):
+        return None
+    return entry
+
+
 def _observe_task_handoff_mutation(
     orch: Any,
     *,
     identifier: str,
     action: str,
     tracker: Any,
+    project_id: str | None = None,
     message: str | None = None,
     label: str | None = None,
     status: str | None = None,
@@ -1641,6 +1663,7 @@ def _observe_task_handoff_mutation(
         observer(
             identifier=identifier,
             action=action,
+            project_id=project_id,
             message=message,
             label=label,
             status=status,
@@ -4237,6 +4260,7 @@ async def _persist_worker_submission(
     body: dict[str, Any],
     *,
     record: IntegrationRecord | None = None,
+    persist_status: bool = True,
 ) -> IntegrationRecord:
     """Atomically reconcile lifecycle to ``Ready to Integrate`` on every accepted submit.
 
@@ -4297,7 +4321,7 @@ async def _persist_worker_submission(
         # its branch projection, no fresh summary/status/queue generation is
         # required.
         return existing
-    if canonical_status != READY_TO_INTEGRATE:
+    if persist_status and canonical_status != READY_TO_INTEGRATE:
         # Same-head recovery from In Progress / Needs Human / Needs CI Fix
         # (and any other non-ready status) reconciles the canonical lifecycle
         # atomically before the response returns 201. Doing this even when
@@ -4395,12 +4419,12 @@ async def _submission_authority_lock(orch, issue_id: str):
         yield
 
 
-async def _clear_submission_assignment(tracker, issue) -> None:
+async def _clear_submission_assignment(tracker, issue) -> bool:
     """Remove a stale shared-tracker run claim when a submit is accepted."""
     get_metadata = getattr(tracker, "get_metadata", None)
     set_metadata = getattr(tracker, "set_metadata_field", None)
     if not callable(get_metadata) or not callable(set_metadata):
-        return
+        return False
     try:
         metadata = await _run_api_io(get_metadata, issue.identifier)
     except Exception as exc:  # noqa: BLE001 - accepted submission still wins
@@ -4409,14 +4433,15 @@ async def _clear_submission_assignment(tracker, issue) -> None:
             issue.identifier,
             exc,
         )
-        return
+        return False
     if not isinstance(metadata, dict):
-        return
+        return False
     assignment = metadata.get("oompah.agent_run_id") or metadata.get(
         "agent_run_id"
     )
     if not assignment:
-        return
+        issue.assignment_id = None
+        return True
     try:
         await _run_api_io(
             set_metadata,
@@ -4424,6 +4449,8 @@ async def _clear_submission_assignment(tracker, issue) -> None:
             "oompah.agent_run_id",
             None,
         )
+        issue.assignment_id = None
+        return True
     except Exception as exc:  # noqa: BLE001 - durable acceptance must finish
         # The integration record and canonical Ready lifecycle already own
         # this generation.  A stale assignment projection is repairable; it
@@ -4434,6 +4461,7 @@ async def _clear_submission_assignment(tracker, issue) -> None:
             issue.identifier,
             exc,
         )
+        return False
 
 
 def _enqueue_worker_submission(
@@ -4566,6 +4594,12 @@ async def _accept_worker_submission(
                 f"Issue {identifier!r} disappeared during submission"
             )
         issue = fresh_issue
+        if issue.project_id and str(issue.project_id) != str(project_id):
+            raise ValueError(
+                "submission task does not belong to the authenticated project"
+            )
+        if not issue.project_id:
+            issue.project_id = project_id
         record = _submission_record(issue, body)
         record = await _verify_submission_git_authority(
             orch,
@@ -4580,7 +4614,25 @@ async def _accept_worker_submission(
             # one orchestrator operation.  Clear the shared assignment before
             # that operation schedules retirement so an in-process submitter
             # is never cancelled at this await after its evidence was accepted.
-            await _clear_submission_assignment(tracker, issue)
+            assignment_cleared = await _clear_submission_assignment(tracker, issue)
+            try:
+                authority_issue = await _run_api_io(
+                    tracker.fetch_issue_detail, issue.identifier
+                )
+            except Exception as exc:  # accepted record remains authoritative
+                logger.warning(
+                    "Could not refresh accepted submission authority for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                authority_issue = None
+            if authority_issue is not None:
+                issue = authority_issue
+                if not issue.project_id:
+                    issue.project_id = project_id
+                issue.integration = record
+            elif assignment_cleared:
+                issue.assignment_id = None
             complete = getattr(
                 orch,
                 "complete_direct_epic_maintenance_submission",
@@ -4606,12 +4658,18 @@ async def _accept_worker_submission(
             elif completed_record is not None:
                 record = completed_record
         else:
+            durable_implementation = (
+                getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
+                is True
+            )
             record = await _persist_worker_submission(
                 tracker,
                 issue,
                 body,
                 record=record,
+                persist_status=not durable_implementation,
             )
+            issue.integration = record
 
             # Persisted integration evidence must be visible both durably and
             # on the exact live generation before revocation.  Otherwise a
@@ -4630,15 +4688,54 @@ async def _accept_worker_submission(
             # Revoke last: every operation after this call is synchronous, so
             # an ACP/API tool invocation can return its accepted result before
             # the scheduled retirement task cancels the provider worker.
-            cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-            if callable(cancel_retry):
-                cancel_retry(
-                    issue_id=issue.id,
-                    identifier=issue.identifier,
-                    project_id=project_id,
-                    reason="task submitted for integration",
+            if durable_implementation:
+                from oompah.implementation_workflow import ImplementationAction
+
+                submitted_entry = _exact_implementation_running_entry(
+                    orch, issue, project_id
                 )
-            _enqueue_worker_submission(orch, project_id, issue, record)
+                scheduled = orch._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=issue.identifier,
+                    action=ImplementationAction.VALIDATION_SUBMISSION,
+                    payload={
+                        "owner_id": str(
+                            getattr(submitted_entry, "run_id", None) or ""
+                        ),
+                        "run_id": str(
+                            getattr(submitted_entry, "run_id", None) or ""
+                        ),
+                        "prior_generation": str(
+                            getattr(submitted_entry, "authority_generation", None)
+                            or ""
+                        ),
+                        "assignment_id": str(
+                            getattr(issue, "assignment_id", None) or ""
+                        ),
+                        "work_branch": record.task_branch,
+                        "head_sha": record.head_sha,
+                        "base_branch": record.base_branch,
+                        "base_sha": record.base_sha,
+                        "expected_status": issue.state,
+                    },
+                    expected_evidence_revision=issue_authority_version(issue),
+                    expected_head_sha=record.head_sha,
+                    priority=10,
+                )
+                if scheduled is None:
+                    raise RuntimeError(
+                        "durable implementation submission was not scheduled"
+                    )
+            else:
+                cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+                if callable(cancel_retry):
+                    cancel_retry(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=project_id,
+                        reason="task submitted for integration",
+                    )
+                _enqueue_worker_submission(orch, project_id, issue, record)
 
         if direct_failure_message is None:
             _publish_submission_coordination(
@@ -5395,6 +5492,7 @@ async def api_task_handoff(request: Request):
                     orch,
                     identifier=identifier,
                     action="comment",
+                    project_id=project_id,
                     message=text,
                     tracker=tracker,
                 )
@@ -5523,22 +5621,89 @@ async def api_task_handoff(request: Request):
                         None,
                     )
                 else:
-                    _cancel_retry_for_authority_change(
-                        orch,
-                        issue,
-                        identifier,
-                        project_id,
-                        status,
-                        None,
+                    durable_handoff = bool(
+                        getattr(
+                            getattr(orch, "workflow_runtime", None),
+                            "enforce",
+                            False,
+                        )
+                        is True
                     )
-                    await _run_api_io(tracker.update_issue, identifier, status=status)
-                    _observe_task_handoff_mutation(
-                        orch,
-                        identifier=identifier,
-                        action="set-status",
-                        status=status,
-                        tracker=tracker,
-                    )
+                    if not durable_handoff:
+                        _cancel_retry_for_authority_change(
+                            orch,
+                            issue,
+                            identifier,
+                            project_id,
+                            status,
+                            None,
+                        )
+                    observed = False
+                    if durable_handoff and canonicalize_status(status) == OPEN:
+                        observed = _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status,
+                            tracker=tracker,
+                        )
+                    if durable_handoff and not observed:
+                        entry = _exact_implementation_running_entry(
+                            orch, issue, project_id
+                        )
+                        head = issue_exact_head(issue)
+                        job = orch._schedule_implementation_workflow_event(
+                            project_id=project_id,
+                            identifier=identifier,
+                            action="worker_exit",
+                            payload={
+                                "owner_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "run_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "prior_generation": str(
+                                    getattr(entry, "authority_generation", None)
+                                    or ""
+                                ),
+                                "assignment_id": str(
+                                    getattr(entry, "assignment_id", None) or ""
+                                ),
+                                "focus": str(
+                                    getattr(entry, "focus_name", None)
+                                    or "implementation"
+                                ),
+                                "work_branch": str(
+                                    issue.work_branch or issue.branch_name or ""
+                                ),
+                                "head_sha": str(head or ""),
+                                "requested_status": status,
+                                "expected_status": issue.state,
+                                "reason": "accepted task-handoff status",
+                            },
+                            expected_evidence_revision=issue_authority_version(issue),
+                            expected_head_sha=head,
+                            priority=0,
+                        )
+                        if job is None:
+                            raise RuntimeError(
+                                "durable task-handoff status was not scheduled"
+                            )
+                        observed = True
+                    if not durable_handoff:
+                        await _run_api_io(
+                            tracker.update_issue, identifier, status=status
+                        )
+                        _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status,
+                            tracker=tracker,
+                        )
                 summary = str(body.get("summary") or "").strip()
                 if summary:
                     await _run_api_io(
@@ -5650,15 +5815,97 @@ async def api_task_handoff(request: Request):
                     status_from_label,
                     None,
                 )
+            elif status_from_label is not None:
+                if action == "remove-label":
+                    record_task_handoff_failure(
+                        token, "task handoff status label removal rejected"
+                    )
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": (
+                                    "Status labels cannot be removed directly; "
+                                    "set the intended destination status instead."
+                                ),
+                            }
+                        },
+                        status_code=400,
+                    )
+                durable_handoff = bool(
+                    getattr(
+                        getattr(orch, "workflow_runtime", None),
+                        "enforce",
+                        False,
+                    )
+                    is True
+                )
+                if not durable_handoff:
+                    await _run_api_io(tracker.add_label, identifier, label)
+                else:
+                    observed = False
+                    if canonicalize_status(status_from_label) == OPEN:
+                        observed = _observe_task_handoff_mutation(
+                            orch,
+                            identifier=identifier,
+                            action="set-status",
+                            project_id=project_id,
+                            status=status_from_label,
+                            tracker=tracker,
+                        )
+                    if not observed:
+                        entry = _exact_implementation_running_entry(
+                            orch, issue, project_id
+                        )
+                        head = issue_exact_head(issue)
+                        job = orch._schedule_implementation_workflow_event(
+                            project_id=project_id,
+                            identifier=identifier,
+                            action="worker_exit",
+                            payload={
+                                "owner_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "run_id": str(
+                                    getattr(entry, "run_id", None) or ""
+                                ),
+                                "prior_generation": str(
+                                    getattr(entry, "authority_generation", None)
+                                    or ""
+                                ),
+                                "assignment_id": str(
+                                    getattr(entry, "assignment_id", None) or ""
+                                ),
+                                "focus": str(
+                                    getattr(entry, "focus_name", None)
+                                    or "implementation"
+                                ),
+                                "work_branch": str(
+                                    issue.work_branch or issue.branch_name or ""
+                                ),
+                                "head_sha": str(head or ""),
+                                "requested_status": status_from_label,
+                                "expected_status": issue.state,
+                                "reason": "accepted task-handoff status label",
+                            },
+                            expected_evidence_revision=issue_authority_version(issue),
+                            expected_head_sha=head,
+                            priority=0,
+                        )
+                        if job is None:
+                            raise RuntimeError(
+                                "durable task-handoff status label was not scheduled"
+                            )
             elif action == "add-label":
                 await _run_api_io(tracker.add_label, identifier, label)
             else:
                 await _run_api_io(tracker.remove_label, identifier, label)
-            if action == "add-label":
+            if action == "add-label" and status_from_label is None:
                 _observe_task_handoff_mutation(
                     orch,
                     identifier=identifier,
                     action=action,
+                    project_id=project_id,
                     label=label,
                     tracker=tracker,
                 )
@@ -11035,6 +11282,52 @@ def _cancel_retry_for_authority_change(
     )
     if not status_changed and not branch_changed:
         return set()
+    if (
+        getattr(getattr(orch, "workflow_runtime", None), "enforce", False)
+        is True
+        and project_id
+    ):
+        issue_id = str(getattr(existing_issue, "id", None) or "")
+        entry = (
+            _exact_implementation_running_entry(
+                orch, existing_issue, project_id
+            )
+            if issue_id and existing_issue is not None
+            else None
+        )
+        head = issue_exact_head(existing_issue) if existing_issue is not None else None
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=identifier,
+            action="authority_revocation",
+            payload={
+                "owner_id": str(getattr(entry, "run_id", None) or ""),
+                "run_id": str(getattr(entry, "run_id", None) or ""),
+                "prior_run_id": str(getattr(entry, "run_id", None) or ""),
+                "prior_generation": str(
+                    getattr(entry, "authority_generation", None) or ""
+                ),
+                "authority_kind": "scheduler",
+                "expected_status": str(current_state or ""),
+                "work_branch": str(
+                    new_work_branch or current_branch or ""
+                ),
+                "head_sha": str(head or ""),
+                "reason": (
+                    "task status changed" if status_changed else "task work branch changed"
+                ),
+            },
+            # The accepted mutation itself changes status/branch evidence before
+            # this job can run. Exact live generation/run plus immutable head
+            # are the revocation fence; using the pre-mutation authority hash
+            # would supersede every legitimate event.
+            expected_evidence_revision=None,
+            expected_head_sha=head,
+            priority=0,
+        )
+        if job is None:
+            raise RuntimeError("durable implementation revocation was not scheduled")
+        return set()
     state = getattr(orch, "state", None)
     retry_attempts = getattr(state, "retry_attempts", {})
     matching_retry_ids: set[str] = set()
@@ -11506,6 +11799,37 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 status_code=400,
             )
 
+    if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
+        from oompah.implementation_workflow import ImplementationAction
+
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=issue.identifier,
+            action=ImplementationAction.DIRECT_OWNER_CLAIM,
+            payload={
+                "owner_id": owner_login,
+                "claim_id": uuid.uuid4().hex,
+                "ttl_hours": ttl_hours or orch.config.owner_claim_ttl_hours,
+                "expected_status": issue.state,
+                "work_branch": str(issue.work_branch or issue.branch_name or ""),
+                "head_sha": str(issue_exact_head(issue) or ""),
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=issue_exact_head(issue),
+            priority=0,
+        )
+        return JSONResponse(
+            {
+                "active": False,
+                "pending": True,
+                "job_id": job.job_id,
+                "generation": job.generation,
+                "owner_login": owner_login,
+                "ownership_source": "direct_owner",
+            },
+            status_code=202,
+        )
+
     # Persist a dispatch fence before retiring scheduler authority.  A stale
     # candidate may already have passed selection, so the orchestrator's final
     # dispatch boundary also checks the durable owner lease granted below.
@@ -11691,6 +12015,39 @@ async def api_release_owner_claim(project_id: str, identifier: str, request: Req
     _owner_login, error = _owner_claim_authorize(body, request, project)
     if error is not None:
         return error
+
+    if getattr(getattr(orch, "workflow_runtime", None), "enforce", False) is True:
+        from oompah.implementation_workflow import ImplementationAction
+
+        claim = orch._owner_claim_for_issue(issue.id, project_id)
+        job = orch._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=issue.identifier,
+            action=ImplementationAction.AUTHORITY_REVOCATION,
+            payload={
+                "owner_id": str(getattr(claim, "owner_login", None) or ""),
+                "requested_by": _owner_login,
+                "claim_id": str(getattr(claim, "claim_id", None) or ""),
+                "authority_kind": "direct_owner",
+                "expected_status": issue.state,
+                "reason": "direct owner released task",
+                "work_branch": str(issue.work_branch or issue.branch_name or ""),
+                "head_sha": str(issue_exact_head(issue) or ""),
+            },
+            expected_evidence_revision=issue_authority_version(issue),
+            expected_head_sha=issue_exact_head(issue),
+            priority=0,
+        )
+        await _publish_owner_claim_state(orch)
+        return JSONResponse(
+            {
+                "released": False,
+                "pending": True,
+                "job_id": job.job_id,
+                "generation": job.generation,
+            },
+            status_code=202,
+        )
 
     removed = orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
     _api_cache.invalidate("issues:all")

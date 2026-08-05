@@ -1188,6 +1188,50 @@ class TestTaskScopeDirectPath:
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
+    def test_api_agent_status_handoff_forwards_durable_coordination(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+
+        issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+        coordination._current_running_entry.return_value = SimpleNamespace(
+            issue=issue,
+            identifier=issue.identifier,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        coordination._schedule_implementation_workflow_event.return_value = (
+            SimpleNamespace(job_id="status-job")
+        )
+
+        result = _execute_tool(
+            tmp_path,
+            "run_command",
+            {"command": "oompah task set-status TASK-1 'Needs Human'"},
+            task_tracker=tracker,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            coordination_service=coordination,
+        )
+
+        assert result == "Status set to: Needs Human"
+        tracker.update_issue.assert_not_called()
+        scheduled = coordination._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+
     @pytest.mark.parametrize(
         "command",
         [
@@ -1532,6 +1576,198 @@ class TestTaskHandoffEndpoint:
         assert status.json()["audit_id"] == "audit-handoff-1"
         tracker.update_issue.assert_not_called()
 
+    @pytest.mark.parametrize("requested_status", ["Needs Answer", "Needs Human"])
+    def test_enforce_nonterminal_status_uses_durable_single_writer(
+        self, requested_status
+    ):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id=f"issue-{requested_status}",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        entry = SimpleNamespace(
+            issue=issue,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._current_running_entry.return_value = entry
+        orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+            job_id="status-job"
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"set-status"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "set-status",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "status": requested_status,
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 200, response.text
+        tracker.update_issue.assert_not_called()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == requested_status
+        assert scheduled["payload"]["prior_generation"] == "generation-1"
+        assert scheduled["payload"]["run_id"] == "run-1"
+        assert scheduled["expected_evidence_revision"]
+
+    def test_enforce_nonterminal_status_label_uses_durable_single_writer(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-status-label",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        entry = SimpleNamespace(
+            issue=issue,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._current_running_entry.return_value = entry
+        orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+            job_id="status-label-job"
+        )
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"add-label"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "add-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "oompah:status:needs-human",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 200, response.text
+        tracker.add_label.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["prior_generation"] == "generation-1"
+
+    def test_enforce_status_label_removal_requires_destination_status(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-status-label-remove",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"remove-label"},
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "remove-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "oompah:status:in-progress",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 400
+        tracker.remove_label.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
     def test_capability_header_cannot_bypass_basic_auth_on_general_api(self):
         from fastapi.testclient import TestClient
 
@@ -1825,6 +2061,177 @@ class TestFailedHandoffLifecycle:
         orch.tracker.mark_needs_human.assert_called_once()
         assert "handoff" in orch.tracker.mark_needs_human.call_args.args[1].lower()
         assert not orch.state.retry_attempts
+
+    def test_enforce_failed_handoff_schedules_needs_human_without_retry(
+        self, tmp_path
+    ):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-durable-failure",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="handoff-failure")
+        )
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-failure",
+            authority_generation="generation-failure",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "abnormal",
+                "oompah task handoff returned HTTP 401 Unauthorized",
+                run_id=entry.run_id,
+            )
+        )
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["reason"] == "task_handoff_failed"
+        assert scheduled["payload"]["prior_generation"] == "generation-failure"
+        orch._schedule_retry.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_enforce_normal_exit_uses_bounded_durable_retry(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-incomplete",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock()
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-incomplete",
+            authority_generation="generation-incomplete",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "normal",
+                None,
+                run_id=entry.run_id,
+            )
+        )
+
+        retry = orch._schedule_retry.call_args.kwargs
+        assert retry["attempt"] == 1
+        assert retry["error"] == "completed_without_handoff"
+        assert retry["context_entry"] is entry
+        orch._schedule_implementation_workflow_event.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_enforce_third_incomplete_session_routes_needs_human(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = Issue(
+            id="issue-incomplete-third",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="needs-human")
+        )
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        orch._post_comment = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=2,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-third",
+            authority_generation="generation-third",
+        )
+        orch.state.running[issue.id] = entry
+
+        asyncio.run(
+            orch._on_worker_exit(
+                issue.id,
+                "normal",
+                None,
+                run_id=entry.run_id,
+            )
+        )
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Human"
+        assert scheduled["payload"]["incomplete_sessions"] == 3
+        assert scheduled["payload"]["reason"] == "completed_without_handoff"
+        orch._schedule_retry.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     @pytest.mark.parametrize(
         "error",

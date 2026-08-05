@@ -11,8 +11,10 @@ import asyncio
 import os
 import subprocess
 import tempfile
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -23,6 +25,7 @@ from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import RecoveryPublicationError
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
+from oompah.task_transition_service import issue_authority_version
 
 
 def _issue(
@@ -297,6 +300,55 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
     
     # 3. Should remain in completed state for integration queue
     assert issue.id in orch.state.completed
+
+
+@pytest.mark.asyncio
+async def test_durable_clean_submission_leaves_status_to_transition_service(tmp_path):
+    """The validation job, not retirement cleanup, owns the Ready write."""
+
+    orch = _orchestrator(tmp_path)
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    issue = _issue(state="In Progress")
+    workspace = _create_test_worktree(tmp_path)
+    clean_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    record = IntegrationRecord(state="ready", head_sha=clean_head)
+    issue.integration = record
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=workspace,
+        accepted_submission_record=record,
+        authority_revoked=True,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    project_store = MagicMock()
+    project_store.preserve_worktree_changes.return_value = None
+    orch.state.running[issue.id] = entry
+    orch._notify_observers = MagicMock()
+
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", project_store),
+        patch.object(orch, "_schedule_implementation_workflow_event") as schedule,
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry, issue.id, issue.project_id, record
+        )
+
+    tracker.update_issue.assert_not_called()
+    schedule.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -653,6 +705,109 @@ async def test_published_commit_tree_checkpoint_with_unchanged_head_reopens(tmp_
 
     tracker.update_issue.assert_called_once_with(issue.identifier, status=OPEN)
     assert issue.id not in orch.state.completed
+
+
+@pytest.mark.asyncio
+async def test_durable_submission_fences_after_assignment_clear(tmp_path):
+    """The validation event uses post-clear authority, never the stale claim."""
+    from oompah.server import _accept_worker_submission
+
+    issue = _issue(state="In Progress")
+    issue.integration = None
+    stale_revision = issue_authority_version(issue)
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.get_metadata.return_value = {
+        "oompah.agent_run_id": "assignment-1"
+    }
+    entry = SimpleNamespace(
+        issue=issue,
+        identifier=issue.identifier,
+        run_id="run-1",
+        authority_generation="generation-1",
+    )
+    orch = MagicMock()
+    orch.project_store = None
+    orch.config.parallel_epic_children_enabled = False
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch.issue_transition_lock.return_value = asyncio.Lock()
+    orch._current_running_entry.return_value = entry
+    orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+        job_id="validation-job"
+    )
+    orch.coordination_checkpoint.return_value = {"peers": []}
+
+    accepted = await _accept_worker_submission(
+        orch,
+        tracker,
+        issue.identifier,
+        issue.project_id,
+        {
+            "summary": "Completed and tested",
+            "task_branch": issue.work_branch,
+            "head_sha": "a" * 40,
+            "remote_head_sha": "a" * 40,
+            "worktree_clean": True,
+        },
+        initial_issue=issue,
+    )
+
+    tracker.set_metadata_field.assert_any_call(
+        issue.identifier, "oompah.agent_run_id", None
+    )
+    assert accepted.issue.assignment_id is None
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["payload"]["assignment_id"] == ""
+    assert scheduled["payload"]["prior_generation"] == "generation-1"
+    assert scheduled["payload"]["run_id"] == "run-1"
+    assert scheduled["expected_evidence_revision"] == issue_authority_version(
+        accepted.issue
+    )
+    assert scheduled["expected_evidence_revision"] != stale_revision
+
+
+@pytest.mark.asyncio
+async def test_submission_rejects_tracker_row_from_another_project():
+    from oompah.server import _accept_worker_submission
+
+    issue = _issue(state="In Progress")
+    issue.project_id = "project-b"
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch.issue_transition_lock.return_value = asyncio.Lock()
+
+    with pytest.raises(ValueError, match="authenticated project"):
+        await _accept_worker_submission(
+            orch,
+            tracker,
+            issue.identifier,
+            "project-a",
+            {
+                "summary": "must not cross scope",
+                "task_branch": issue.work_branch,
+                "head_sha": "a" * 40,
+            },
+            initial_issue=issue,
+        )
+
+    tracker.set_metadata_field.assert_not_called()
+
+
+def test_submission_runtime_lookup_is_exact_project_scoped():
+    from oompah.server import _exact_implementation_running_entry
+
+    issue = _issue(state="In Progress")
+    foreign_issue = replace(issue, project_id="project-b")
+    orch = MagicMock()
+    orch._current_running_entry.return_value = SimpleNamespace(
+        issue=foreign_issue,
+        identifier=foreign_issue.identifier,
+        run_id="foreign-run",
+        authority_generation="foreign-generation",
+    )
+
+    assert _exact_implementation_running_entry(orch, issue, "project-a") is None
 
 
 @pytest.mark.asyncio

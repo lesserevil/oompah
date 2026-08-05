@@ -89,8 +89,10 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "coordination.policy_denied",
         "dispatch.dependencies_blocked",
         "dispatch.eligible",
+        "duplicate.confirmed",
         "duplicate.investigating",
         "duplicate.recovery_scheduled",
+        "duplicate.screening_disabled",
         "evidence.dependencies_malformed",
         "evidence.project_or_task_mismatch",
         "evidence.task_fact_identity_mismatch",
@@ -587,8 +589,10 @@ def _implementation_decision(
     authority_independent_actions = {
         "direct_owner_claim",
         "duplicate_screening",
+        "focus_handoff",
         "implementation_recovery",
         "implementation_start",
+        "validation_submission",
     }
     if pending_action and (
         pending_action in authority_independent_actions
@@ -1652,6 +1656,53 @@ def evaluate_task(
                 prerequisites=hard_start,
                 actions=(PermittedAction.WAIT_DEPENDENCY,),
             )
+        config = facts.fact(FactDomain.CONFIG)
+        config_value = (
+            _mapping(config.value) if config.state is FactState.KNOWN else None
+        )
+        duplicate_state = str(
+            (config_value or {}).get("duplicate_screening_state") or ""
+        ).strip().lower()
+        pending_action = str(
+            (config_value or {}).get("implementation_pending_action") or ""
+        ).strip()
+        if view.status == OPEN and duplicate_state == "running":
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.OWNED,
+                reason_code="duplicate.investigating",
+                owner=WorkflowOwner.DUPLICATE_INVESTIGATOR,
+                actions=(PermittedAction.INVESTIGATE_DUPLICATE,),
+            )
+        if view.status == OPEN and pending_action in {
+            "duplicate_screening",
+            "worker_exit",
+        }:
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code=(
+                    "duplicate.recovery_scheduled"
+                    if pending_action == "duplicate_screening"
+                    else "implementation.action_scheduled"
+                ),
+                owner=(
+                    WorkflowOwner.DUPLICATE_INVESTIGATOR
+                    if pending_action == "duplicate_screening"
+                    else WorkflowOwner.DISPATCHER
+                ),
+                actions=(
+                    (
+                        PermittedAction.INVESTIGATE_DUPLICATE
+                        if pending_action == "duplicate_screening"
+                        else PermittedAction.RECONCILE_IMPLEMENTATION
+                    ),
+                ),
+                alert=AlertSeverity.INFO,
+                durable_jobs=(pending_action,),
+            )
         return _decision(
             view,
             facts,
@@ -1700,6 +1751,56 @@ def evaluate_task(
     if view.status == DECOMPOSED:
         return _rollup_decision(view, facts)
     if view.status == DUPLICATE_CANDIDATE:
+        config = facts.fact(FactDomain.CONFIG)
+        config_value = (
+            _mapping(config.value) if config.state is FactState.KNOWN else None
+        )
+        duplicate_state = str(
+            (config_value or {}).get("duplicate_screening_state") or ""
+        ).strip().lower()
+        duplicate_verdict = str(
+            (config_value or {}).get("duplicate_screening_verdict") or ""
+        ).strip().lower()
+        pending_action = str(
+            (config_value or {}).get("implementation_pending_action") or ""
+        ).strip()
+        if pending_action == "worker_exit":
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.RETRY_SCHEDULED,
+                reason_code="implementation.action_scheduled",
+                owner=WorkflowOwner.DISPATCHER,
+                actions=(PermittedAction.RECONCILE_IMPLEMENTATION,),
+                alert=AlertSeverity.INFO,
+                durable_jobs=(pending_action,),
+            )
+        if (
+            duplicate_state == "checked"
+            and duplicate_verdict == "duplicate_candidate"
+        ):
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.ACTION_REQUIRED,
+                reason_code="duplicate.confirmed",
+                owner=WorkflowOwner.PROJECT_OWNER,
+                actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+                alert=AlertSeverity.WARNING,
+            )
+        if (
+            config_value is not None
+            and config_value.get("duplicate_screening_enabled") is False
+        ):
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.ACTION_REQUIRED,
+                reason_code="duplicate.screening_disabled",
+                owner=WorkflowOwner.OPERATOR,
+                actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+                alert=AlertSeverity.WARNING,
+            )
         authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY)
         value = (
             _mapping(authority.value) if authority.state is FactState.KNOWN else None

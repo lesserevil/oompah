@@ -208,6 +208,7 @@ class TestFocusHandoff:
 
         orch = Orchestrator.__new__(Orchestrator)
         orch.config = ServiceConfig()
+        orch.workflow_runtime = None
         orch.tracker = MagicMock()
         orch._tracker_for_issue = MagicMock(return_value=orch.tracker)
         orch.state = MagicMock()
@@ -316,6 +317,31 @@ class TestFocusHandoff:
         assert orch._handoff_completed_focus(entry, entry.issue, None)
         assert entry.handoff_finalized
         assert entry.issue.state == "Open"
+
+    def test_worker_handoff_observation_is_scoped_to_exact_project(self):
+        orch = self._make_orchestrator()
+        orch._retry_authority_lock = threading.RLock()
+        first = self._make_entry()
+        first.issue.id = "project-a:screened-task"
+        first.issue.project_id = "project-a"
+        second = self._make_entry()
+        second.issue.id = "project-b:screened-task"
+        second.issue.project_id = "project-b"
+        orch.state.running = {
+            first.issue.id: first,
+            second.issue.id: second,
+        }
+
+        assert orch._observe_task_handoff_mutation(
+            identifier="screened-task",
+            project_id="project-b",
+            action="comment",
+            message="Focus handoff: duplicate_detector\nNo duplicate found.",
+            tracker=orch.tracker,
+        )
+
+        assert first.handoff_pending is False
+        assert second.handoff_pending is True
 
     def test_reconcile_open_snapshot_finishes_handoff_before_retirement(self):
         from oompah.config import ServiceConfig

@@ -64,7 +64,12 @@ from oompah.authority_boundary import (
 from oompah.auditor import is_recoverable_auditor_command_denial
 from oompah.integration import task_submit_required_message
 from oompah.label_auth import label_name_to_status
-from oompah.statuses import READY_TO_INTEGRATE, canonicalize_status
+from oompah.statuses import (
+    CANONICAL_STATUSES,
+    OPEN,
+    READY_TO_INTEGRATE,
+    canonicalize_status,
+)
 from oompah.terminal_audit import (
     ContributorIdentity,
     TargetState,
@@ -73,6 +78,115 @@ from oompah.terminal_audit import (
 from oompah.validation_resource_lease import managed_agent_validation_owner
 
 logger = logging.getLogger(__name__)
+
+
+def _exact_implementation_running_entry(
+    coordination_service: Any,
+    issue: Any,
+    project_id: str,
+) -> Any | None:
+    """Return only the runtime owned by this managed project/task."""
+
+    entry = getattr(
+        coordination_service, "_current_running_entry", lambda _id: None
+    )(issue.id)
+    if entry is None or getattr(entry, "is_auditor", False):
+        return None
+    entry_issue = getattr(entry, "issue", None)
+    if str(getattr(entry_issue, "project_id", None) or "") != str(project_id):
+        return None
+    if str(getattr(entry_issue, "identifier", None) or "") != str(
+        issue.identifier
+    ):
+        return None
+    return entry
+
+
+def _schedule_durable_task_status(
+    coordination_service: Any,
+    task_tracker: Any,
+    *,
+    project_id: str | None,
+    identifier: str,
+    requested_status: str,
+    reason: str,
+) -> bool:
+    """Route an in-process worker status handoff through durable ownership."""
+
+    if (
+        getattr(
+            getattr(coordination_service, "workflow_runtime", None),
+            "enforce",
+            False,
+        )
+        is not True
+    ):
+        return False
+    if not project_id:
+        raise ValueError("durable task status handoff requires a managed project")
+    requested_status = canonicalize_status(requested_status)
+    if requested_status not in CANONICAL_STATUSES:
+        raise ValueError(f"unknown task status {requested_status!r}")
+    issue = task_tracker.fetch_issue_detail(identifier)
+    if issue is None:
+        raise ValueError(f"Issue {identifier!r} not found")
+    if issue.project_id and str(issue.project_id) != str(project_id):
+        raise ValueError("task status handoff crossed its managed project")
+    issue.project_id = issue.project_id or project_id
+
+    observer = getattr(
+        coordination_service, "_observe_task_handoff_mutation", None
+    )
+    if canonicalize_status(requested_status) == OPEN and callable(observer):
+        if observer(
+            identifier=identifier,
+            action="set-status",
+            project_id=project_id,
+            status=requested_status,
+            tracker=task_tracker,
+        ):
+            return True
+    if canonicalize_status(issue.state) == canonicalize_status(requested_status):
+        return True
+
+    from oompah.task_transition_service import (
+        issue_authority_version,
+        issue_exact_head,
+    )
+
+    entry = _exact_implementation_running_entry(
+        coordination_service, issue, project_id
+    )
+    head = issue_exact_head(issue)
+    job = coordination_service._schedule_implementation_workflow_event(
+        project_id=project_id,
+        identifier=identifier,
+        action="worker_exit",
+        payload={
+            "owner_id": str(getattr(entry, "run_id", None) or ""),
+            "run_id": str(getattr(entry, "run_id", None) or ""),
+            "prior_generation": str(
+                getattr(entry, "authority_generation", None) or ""
+            ),
+            "assignment_id": str(
+                getattr(entry, "assignment_id", None) or ""
+            ),
+            "focus": str(
+                getattr(entry, "focus_name", None) or "implementation"
+            ),
+            "work_branch": str(issue.work_branch or issue.branch_name or ""),
+            "head_sha": str(head or ""),
+            "requested_status": requested_status,
+            "expected_status": issue.state,
+            "reason": reason,
+        },
+        expected_evidence_revision=issue_authority_version(issue),
+        expected_head_sha=head,
+        priority=0,
+    )
+    if job is None:
+        raise RuntimeError("durable task status handoff was not scheduled")
+    return True
 
 
 def _auditor_validation_success_handler(
@@ -741,6 +855,7 @@ def _exec_oompah_task_command(
                 observer(
                     identifier=args.identifier,
                     action="comment",
+                    project_id=project_id,
                     message=args.message,
                     tracker=task_tracker,
                 )
@@ -782,15 +897,30 @@ def _exec_oompah_task_command(
                 )
             if task_identifier and target is not None:
                 return "Error: " + task_submit_required_message(args.identifier)
-            task_tracker.update_issue(args.identifier, status=args.status)
-            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
-            if task_identifier and callable(observer):
-                observer(
+            durable = bool(
+                task_identifier
+                and _schedule_durable_task_status(
+                    coordination_service,
+                    task_tracker,
+                    project_id=project_id,
                     identifier=args.identifier,
-                    action="set-status",
-                    status=args.status,
-                    tracker=task_tracker,
+                    requested_status=args.status,
+                    reason="accepted in-process task status handoff",
                 )
+            )
+            if not durable:
+                task_tracker.update_issue(args.identifier, status=args.status)
+                observer = getattr(
+                    coordination_service, "_observe_task_handoff_mutation", None
+                )
+                if task_identifier and callable(observer):
+                    observer(
+                        identifier=args.identifier,
+                        action="set-status",
+                        project_id=project_id,
+                        status=args.status,
+                        tracker=task_tracker,
+                    )
             if getattr(args, "summary", None):
                 task_tracker.add_comment(
                     args.identifier,
@@ -843,12 +973,29 @@ def _exec_oompah_task_command(
                 == READY_TO_INTEGRATE
             ):
                 return "Error: " + task_submit_required_message(args.identifier)
-            task_tracker.add_label(args.identifier, args.label)
-            observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
-            if task_identifier and callable(observer):
+            status_from_label = label_name_to_status(args.label)
+            durable = bool(
+                task_identifier
+                and status_from_label is not None
+                and _schedule_durable_task_status(
+                    coordination_service,
+                    task_tracker,
+                    project_id=project_id,
+                    identifier=args.identifier,
+                    requested_status=status_from_label,
+                    reason="accepted in-process task status label",
+                )
+            )
+            if not durable:
+                task_tracker.add_label(args.identifier, args.label)
+            observer = getattr(
+                coordination_service, "_observe_task_handoff_mutation", None
+            )
+            if task_identifier and callable(observer) and status_from_label is None:
                 observer(
                     identifier=args.identifier,
                     action="add-label",
+                    project_id=project_id,
                     label=args.label,
                     tracker=task_tracker,
                 )
@@ -868,6 +1015,20 @@ def _exec_oompah_task_command(
                 == READY_TO_INTEGRATE
             ):
                 return "Error: " + task_submit_required_message(args.identifier)
+            if (
+                task_identifier
+                and label_name_to_status(args.label) is not None
+                and getattr(
+                    getattr(coordination_service, "workflow_runtime", None),
+                    "enforce",
+                    False,
+                )
+                is True
+            ):
+                return (
+                    "Error: status labels cannot be removed directly; set the "
+                    "intended destination status instead"
+                )
             task_tracker.remove_label(args.identifier, args.label)
             return f"Label removed: {args.label}"
 

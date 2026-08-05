@@ -2850,6 +2850,45 @@ class Orchestrator:
         checked_at = time.time() if now is None else now
         return bool(claim is not None and claim.expires_at > checked_at)
 
+    def _scheduler_owns_project_issue(
+        self,
+        issue_id: str,
+        project_id: str | None,
+    ) -> bool:
+        """Return whether scheduler state owns this exact project/task.
+
+        Managed tracker ids can be unique only inside one project.  The legacy
+        runtime maps are still keyed by tracker id, so validate the project on
+        each stored owner before treating a matching key as this task.  Missing
+        project evidence remains fail-closed for legacy/unscoped entries.
+        """
+
+        expected_project = str(project_id or "").strip()
+
+        def _same_project(candidate: object | None) -> bool:
+            candidate_project = str(candidate or "").strip()
+            return bool(
+                not expected_project
+                or not candidate_project
+                or candidate_project == expected_project
+            )
+
+        running = self._current_running_entry(issue_id)
+        if running is not None and _same_project(
+            getattr(getattr(running, "issue", None), "project_id", None)
+        ):
+            return True
+        retry = self.state.retry_attempts.get(issue_id)
+        if retry is not None and _same_project(getattr(retry, "project_id", None)):
+            return True
+        if issue_id in self.state.claimed:
+            claimed_issue = getattr(self.state, "claimed_issues", {}).get(issue_id)
+            if claimed_issue is None or _same_project(
+                getattr(claimed_issue, "project_id", None)
+            ):
+                return True
+        return False
+
     def _live_owner_claim_for_issue_locked(
         self,
         issue_id: str,
@@ -2889,6 +2928,7 @@ class Orchestrator:
         project_id: str | None,
         owner_login: str,
         ttl_hours: int | None = None,
+        claim_id: str | None = None,
     ) -> OwnerClaim:
         """Create or renew a direct-owner lease under the project write lock."""
 
@@ -2898,16 +2938,12 @@ class Orchestrator:
             else contextlib.nullcontext()
         )
         with project_lock:
-            if (
-                issue_id in self.state.running
-                or issue_id in self.state.retry_attempts
-                or issue_id in self.state.claimed
-            ):
+            if self._scheduler_owns_project_issue(issue_id, project_id):
                 raise ValueError("task is currently owned by the scheduler")
             claimed_at = time.time()
             duration_hours = ttl_hours or self.config.owner_claim_ttl_hours
             claim = OwnerClaim(
-                claim_id=uuid.uuid4().hex,
+                claim_id=str(claim_id or uuid.uuid4().hex).strip(),
                 issue_id=issue_id,
                 project_id=project_id,
                 owner_login=owner_login,
@@ -2924,7 +2960,11 @@ class Orchestrator:
             return claim
 
     def release_owner_claim(
-        self, *, issue_id: str, project_id: str | None
+        self,
+        *,
+        issue_id: str,
+        project_id: str | None,
+        expected_claim_id: str | None = None,
     ) -> bool:
         """Release a direct-owner lease under the project write lock."""
 
@@ -2934,9 +2974,13 @@ class Orchestrator:
             else contextlib.nullcontext()
         )
         with project_lock, self._owner_claims_lock:
-            removed = self.state.owner_claims.pop(
-                self._owner_claim_key(project_id, issue_id), None
-            )
+            key = self._owner_claim_key(project_id, issue_id)
+            current = self.state.owner_claims.get(key)
+            if expected_claim_id is not None and str(
+                getattr(current, "claim_id", None) or ""
+            ) != str(expected_claim_id or ""):
+                return False
+            removed = self.state.owner_claims.pop(key, None)
             if removed is not None:
                 self._persist_owner_claims_locked()
             return removed is not None
@@ -5460,15 +5504,14 @@ class Orchestrator:
         if not restart_issues:
             return
 
-        # Clear the restart_issues from state immediately
-        self._save_state(restart_issues=[])
-
         logger.info("Recovering %d issue(s) from graceful restart", len(restart_issues))
+        resolved_restart_keys: set[tuple[str, str | None]] = set()
         for entry in restart_issues:
             issue_id = entry.get("issue_id")
             identifier = entry.get("identifier", issue_id)
             project_id = entry.get("project_id")
             if not issue_id:
+                resolved_restart_keys.add((str(issue_id or ""), project_id))
                 continue
             try:
                 if project_id:
@@ -5515,6 +5558,7 @@ class Orchestrator:
                         logger.info(
                             "Restart recovery found %s already Open", identifier
                         )
+                        resolved_restart_keys.add((str(issue_id), project_id))
                         continue
                     if current_status != IN_PROGRESS:
                         logger.info(
@@ -5523,19 +5567,123 @@ class Orchestrator:
                             identifier,
                             current_status,
                         )
+                        resolved_restart_keys.add((str(issue_id), project_id))
                         continue
 
-                    await asyncio.to_thread(
-                        tracker.update_issue,
-                        identifier,
-                        status=OPEN,
-                    )
-                    logger.info(
-                        "Marked %s as Open for re-dispatch after restart",
-                        identifier,
-                    )
-            except (TrackerError, ProjectError) as exc:
+                    if (
+                        self.workflow_runtime is not None
+                        and self.workflow_runtime.enforce is True
+                    ):
+                        detailed = await asyncio.to_thread(
+                            tracker.fetch_issue_detail,
+                            str(getattr(current, "identifier", None) or identifier),
+                        )
+                        if detailed is None:
+                            logger.warning(
+                                "Deferred durable restart recovery for %s: "
+                                "full authority evidence is unavailable",
+                                identifier,
+                            )
+                            continue
+                        detailed_id = str(getattr(detailed, "id", None) or "")
+                        detailed_identifier = str(
+                            getattr(detailed, "identifier", None) or ""
+                        )
+                        if (
+                            detailed_id not in lookup_ids
+                            and detailed_identifier not in lookup_ids
+                        ):
+                            logger.warning(
+                                "Deferred durable restart recovery for %s: "
+                                "full authority evidence resolved another task",
+                                identifier,
+                            )
+                            continue
+                        detailed_status = canonicalize_status(detailed.state)
+                        if detailed_status != IN_PROGRESS:
+                            logger.info(
+                                "Skipped restart recovery for %s: detailed "
+                                "tracker state %s supersedes the interrupted worker",
+                                identifier,
+                                detailed_status,
+                            )
+                            resolved_restart_keys.add((str(issue_id), project_id))
+                            continue
+                        current = detailed
+                        event_project_id = str(
+                            project_id or current.project_id or "legacy"
+                        ).strip()
+                        current.project_id = event_project_id
+                        head = issue_exact_head(current)
+                        accepted_handoff = (
+                            self._durable_accepted_implementation_handoff(current)
+                        )
+                        if accepted_handoff is not None:
+                            restart_action, restart_payload = accepted_handoff
+                        else:
+                            restart_action = "implementation_recovery"
+                            restart_payload = {
+                                "owner_id": f"restart:{current.identifier}",
+                                "work_branch": str(
+                                    current.work_branch
+                                    or current.branch_name
+                                    or ""
+                                ),
+                                "head_sha": str(head or ""),
+                                "expected_status": current.state,
+                                "reason": "graceful restart recovery",
+                            }
+                        scheduled = self._schedule_implementation_workflow_event(
+                            project_id=event_project_id,
+                            identifier=current.identifier,
+                            action=restart_action,
+                            payload=restart_payload,
+                            expected_evidence_revision=issue_authority_version(
+                                current
+                            ),
+                            expected_head_sha=(
+                                str(restart_payload.get("head_sha") or "")
+                                or head
+                            ),
+                            priority=0,
+                        )
+                        if scheduled is None:
+                            raise RuntimeError(
+                                "durable restart recovery was not scheduled"
+                            )
+                        logger.info(
+                            "Scheduled durable restart action %s for %s",
+                            restart_action,
+                            identifier,
+                        )
+                    else:
+                        await asyncio.to_thread(
+                            tracker.update_issue,
+                            identifier,
+                            status=OPEN,
+                        )
+                        logger.info(
+                            "Marked %s as Open for re-dispatch after restart",
+                            identifier,
+                        )
+                    resolved_restart_keys.add((str(issue_id), project_id))
+            except Exception as exc:  # retry marker remains durable
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
+
+        # Keep failed/unavailable records durable.  Event publication is
+        # idempotent, so a process death before this checkpoint safely replays
+        # an already-scheduled recovery instead of losing an interrupted task.
+        current_records = self._load_state().get("restart_issues", [])
+        remaining = [
+            item
+            for item in current_records
+            if (
+                str(item.get("issue_id") or ""),
+                item.get("project_id"),
+            )
+            not in resolved_restart_keys
+        ]
+        self._save_state(restart_issues=remaining)
 
     def _full_sync_due(self) -> bool:
         """Return True if a safety-net full sync is due.
@@ -6602,6 +6750,10 @@ class Orchestrator:
         await self._drain_background_work()
         if self.workflow_runtime is not None:
             self.workflow_runtime.close()
+        receipt_store = getattr(self, "_implementation_receipt_store", None)
+        if receipt_store is not None:
+            receipt_store.close()
+            self._implementation_receipt_store = None
         logger.info("Orchestrator stopped")
 
     async def _drain_background_work(self) -> None:
@@ -6854,15 +7006,205 @@ class Orchestrator:
                 "generation": retry.authority_generation,
             }
 
+        def config(current: Issue) -> dict[str, Any]:
+            value: dict[str, Any] = {
+                "coordination_policy_denied": False,
+                "workflow_engine_mode": self.config.workflow_engine_mode,
+                "duplicate_screening_enabled": (
+                    self._duplicate_preflight_limit() > 0
+                ),
+            }
+            integration = getattr(current, "integration", None)
+            integration_state = str(
+                getattr(integration, "state", "") or ""
+            ).strip().lower()
+            integration_head = str(
+                getattr(integration, "head_sha", "") or ""
+            ).strip().lower()
+            current_head = str(issue_exact_head(current) or "").strip().lower()
+            if (
+                canonicalize_status(current.state) == IN_PROGRESS
+                and integration_state in {"ready", "queued", "integrating"}
+                and integration_head
+                and (not current_head or current_head == integration_head)
+            ):
+                # Submission metadata is the accepted-generation authority.
+                # If the process dies after persisting it but before publishing
+                # the imperative validation event, fact reconciliation must
+                # finish that handoff rather than launch another implementer.
+                running = self._workflow_shadow_running_entry(
+                    current, auditor=False
+                )
+                value["implementation_pending_action"] = (
+                    "validation_submission"
+                )
+                value["implementation_pending_payload"] = {
+                    "owner_id": str(getattr(running, "run_id", None) or ""),
+                    "run_id": str(getattr(running, "run_id", None) or ""),
+                    "prior_generation": str(
+                        getattr(running, "authority_generation", None) or ""
+                    ),
+                    "assignment_id": str(
+                        getattr(current, "assignment_id", None) or ""
+                    ),
+                    "work_branch": str(
+                        getattr(integration, "task_branch", None)
+                        or current.work_branch
+                        or current.branch_name
+                        or ""
+                    ),
+                    "head_sha": integration_head,
+                    "base_branch": str(
+                        getattr(integration, "base_branch", None) or ""
+                    ),
+                    "base_sha": str(
+                        getattr(integration, "base_sha", None) or ""
+                    ),
+                    "expected_status": current.state,
+                    "reason": "recover accepted validation submission",
+                }
+            if (
+                canonicalize_status(current.state) == IN_PROGRESS
+                and "implementation_pending_action" not in value
+            ):
+                running = self._workflow_shadow_running_entry(
+                    current, auditor=False
+                )
+                # Durable handoff labels/comments outlive the outgoing run so
+                # later specialists can use them as context.  A live runtime
+                # is recoverable from that evidence only while the mutation
+                # observer still marks *that runtime* as handing off.  Once a
+                # successor is running, replaying the old comment would retire
+                # it and create an endless handoff loop.
+                live_handoff_pending = bool(
+                    running is None
+                    or getattr(running, "handoff_pending", False)
+                )
+                labels = {
+                    str(label).strip().casefold()
+                    for label in (current.labels or [])
+                }
+                completed_foci = {
+                    label[len("focus-complete:") :].strip()
+                    for label in labels
+                    if label.startswith("focus-complete:")
+                    and label[len("focus-complete:") :].strip()
+                }
+                try:
+                    tracker = self._tracker_for_issue(current)
+                    comments = tracker.fetch_comments(current.identifier)
+                except Exception:
+                    comments = ()
+                trusted_handoffs = self._trusted_focus_handoff_comments(comments)
+                for completed_focus, comment_focus in (
+                    reversed(trusted_handoffs) if live_handoff_pending else ()
+                ):
+                    if completed_focus not in completed_foci:
+                        continue
+                    requested_focus = next(
+                        (
+                            label[len("needs:") :].strip()
+                            for label in sorted(labels)
+                            if label.startswith("needs:")
+                            and label[len("needs:") :].strip()
+                        ),
+                        None,
+                    ) or comment_focus
+                    head = issue_exact_head(current)
+                    value["implementation_pending_action"] = "focus_handoff"
+                    value["implementation_pending_payload"] = {
+                        "focus": str(
+                            requested_focus
+                            or completed_focus
+                            or "implementation"
+                        ),
+                        "prior_generation": str(
+                            getattr(running, "authority_generation", None) or ""
+                        ),
+                        "prior_run_id": str(
+                            getattr(running, "run_id", None) or ""
+                        ),
+                        "expected_status": current.state,
+                        "work_branch": str(
+                            current.work_branch or current.branch_name or ""
+                        ),
+                        "head_sha": str(head or ""),
+                        "reason": "recover accepted focus handoff",
+                    }
+                    break
+            try:
+                if self._eligible_for_duplicate_investigation(
+                    current,
+                    allow_duplicate_candidate=True,
+                ):
+                    assessment = self._duplicate_screening_assessment(current)
+                    waiting = bool(
+                        assessment.record is not None
+                        and assessment.record.retry_after is not None
+                        and assessment.record.retry_after
+                        > datetime.now(timezone.utc)
+                    )
+                    if assessment.state is ScreeningState.RUNNING or waiting:
+                        value["duplicate_screening_state"] = "running"
+                    elif assessment.implementation_eligible:
+                        value["duplicate_screening_state"] = "checked"
+                    else:
+                        value["duplicate_screening_state"] = assessment.state.value
+                    if assessment.record is not None:
+                        value["duplicate_screening_verdict"] = (
+                            assessment.record.verdict.value
+                        )
+                    current_status = canonicalize_status(current.state)
+                    verdict = (
+                        assessment.record.verdict
+                        if assessment.record is not None
+                        else None
+                    )
+                    requested_status = None
+                    if (
+                        assessment.state is ScreeningState.CHECKED
+                        and current_status == OPEN
+                        and verdict is ScreeningVerdict.DUPLICATE_CANDIDATE
+                    ):
+                        requested_status = DUPLICATE_CANDIDATE
+                    elif (
+                        assessment.state is ScreeningState.CHECKED
+                        and current_status == DUPLICATE_CANDIDATE
+                        and verdict is ScreeningVerdict.NO_DUPLICATE
+                    ):
+                        requested_status = OPEN
+                    if (
+                        requested_status is not None
+                        and "implementation_pending_action" not in value
+                    ):
+                        value["implementation_pending_action"] = "worker_exit"
+                        value["implementation_pending_payload"] = {
+                            "requested_status": requested_status,
+                            "expected_status": current.state,
+                            "work_branch": str(
+                                current.work_branch or current.branch_name or ""
+                            ),
+                            "head_sha": str(issue_exact_head(current) or ""),
+                            "reason": "recover duplicate-screening transition",
+                        }
+                    elif (
+                        "implementation_pending_action" not in value
+                        and self._duplicate_preflight_limit() > 0
+                        and assessment.state is not ScreeningState.CHECKED
+                        and assessment.state is not ScreeningState.RUNNING
+                        and not waiting
+                    ):
+                        value["implementation_pending_action"] = "duplicate_screening"
+            except Exception as exc:  # evidence boundary; retry through facts
+                value["duplicate_screening_error"] = type(exc).__name__
+            return value
+
         return {
             FactDomain.TERMINAL_AUDIT: terminal_audit,
             FactDomain.REVIEW_CI: review_ci,
             FactDomain.IMPLEMENTATION_AUTHORITY: implementation_authority,
             FactDomain.RETRY_BUDGET: retry_budget,
-            FactDomain.CONFIG: lambda _current: {
-                "coordination_policy_denied": False,
-                "workflow_engine_mode": self.config.workflow_engine_mode,
-            },
+            FactDomain.CONFIG: config,
         }
 
     def _legacy_workflow_projections(
@@ -7178,7 +7520,10 @@ class Orchestrator:
         # retains audit launch/finalization ownership; the generic worker must
         # never claim those rows. All other domains run through the shared
         # runtime before we return ahead of legacy lifecycle writers.
-        if self.workflow_runtime is not None and self.workflow_runtime.enforce:
+        if (
+            self.workflow_runtime is not None
+            and self.workflow_runtime.enforce is True
+        ):
             if not self.workflow_runtime.started:
                 await self.workflow_runtime.start()
             # Review decisions must be based on a fresh provider snapshot.
@@ -14644,7 +14989,7 @@ class Orchestrator:
 
         if (
             not getattr(entry, "duplicate_preflight", False)
-            or canonicalize_status(issue.state) != OPEN
+            or canonicalize_status(issue.state) not in {OPEN, DUPLICATE_CANDIDATE}
         ):
             return False
         record = DuplicateScreeningRecord.from_raw(
@@ -14664,9 +15009,39 @@ class Orchestrator:
             and record.claim_expires_at > now
         )
 
-    def _requires_duplicate_preflight(self, issue: Issue) -> bool:
-        return self._duplicate_preflight_limit() > 0 and eligible_for_model_screening(
-            issue
+    @staticmethod
+    def _eligible_for_duplicate_investigation(
+        issue: Issue,
+        *,
+        allow_duplicate_candidate: bool = False,
+    ) -> bool:
+        """Return whether the read-only duplicate investigator may own *issue*.
+
+        Ordinary preflight qualifies fresh Open work.  A heuristic duplicate
+        candidate also needs the same reserved, read-only investigator before
+        a human is asked to resolve it, but must never enter ordinary
+        implementation dispatch.
+        """
+
+        if eligible_for_model_screening(issue):
+            return True
+        return bool(
+            allow_duplicate_candidate
+            and canonicalize_status(issue.state) == DUPLICATE_CANDIDATE
+            and (issue.issue_type or "task").strip().casefold() != "epic"
+        )
+
+    def _requires_duplicate_preflight(
+        self,
+        issue: Issue,
+        *,
+        allow_duplicate_candidate: bool = False,
+    ) -> bool:
+        return self._duplicate_preflight_limit() > 0 and (
+            self._eligible_for_duplicate_investigation(
+                issue,
+                allow_duplicate_candidate=allow_duplicate_candidate,
+            )
         )
 
     def _implementation_duplicate_screening_ready(self, issue: Issue) -> bool:
@@ -14686,6 +15061,9 @@ class Orchestrator:
     def _claim_duplicate_preflight(
         self,
         issue: Issue,
+        *,
+        allow_duplicate_candidate: bool = False,
+        claim_id: str | None = None,
     ) -> DuplicateScreeningRecord | None:
         """Atomically persist and verify a duplicate-preflight claim.
 
@@ -14695,7 +15073,10 @@ class Orchestrator:
         used for implementation agent run IDs.
         """
 
-        if not self._requires_duplicate_preflight(issue):
+        if not self._requires_duplicate_preflight(
+            issue,
+            allow_duplicate_candidate=allow_duplicate_candidate,
+        ):
             return None
         project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
         lock = self._get_project_maintenance_lock(project_key)
@@ -14709,7 +15090,7 @@ class Orchestrator:
             )
             return None
         with lock:
-            if issue.id in self.state.running or issue.id in self.state.claimed:
+            if self._scheduler_owns_project_issue(issue.id, issue.project_id):
                 return None
             try:
                 tracker.invalidate_read_cache()
@@ -14720,9 +15101,32 @@ class Orchestrator:
                 return None
             if not fresh.project_id:
                 fresh.project_id = issue.project_id
-            if not eligible_for_model_screening(fresh):
+            if not self._eligible_for_duplicate_investigation(
+                fresh,
+                allow_duplicate_candidate=allow_duplicate_candidate,
+            ):
                 return None
             assessment = self._duplicate_screening_assessment(fresh)
+            exact_claim_id = str(claim_id or "").strip()
+            if (
+                assessment.state is ScreeningState.RUNNING
+                and assessment.record is not None
+                and exact_claim_id
+                and assessment.record.claim_id == exact_claim_id
+                and assessment.record.task_fingerprint
+                == compute_task_fingerprint(fresh)
+                and assessment.record.detector_version
+                == DUPLICATE_DETECTOR_VERSION
+                and assessment.record.claim_expires_at is not None
+                and assessment.record.claim_expires_at
+                > datetime.now(timezone.utc)
+            ):
+                # A workflow worker can die after publishing the tracker claim
+                # but before launching or recording its effect receipt.  The
+                # deterministic generation claim is safe for that same job to
+                # adopt; a different generation still loses the claim race.
+                issue.duplicate_screening = assessment.record.to_dict()
+                return assessment.record
             if assessment.state in {ScreeningState.RUNNING, ScreeningState.CHECKED}:
                 return None
             exhausted_rearm = bool(
@@ -14768,6 +15172,7 @@ class Orchestrator:
             claim = new_claim_record(
                 fresh,
                 owner=str(getattr(self, "_service_instance_id", "scheduler")),
+                claim_id=exact_claim_id or None,
                 detector_version=DUPLICATE_DETECTOR_VERSION,
                 ttl_seconds=DEFAULT_CLAIM_TTL_SECONDS,
                 retry_count=previous_retries,
@@ -16539,6 +16944,237 @@ class Orchestrator:
         item = batch.tasks[0]
         return item.decision, item.facts
 
+    def _implementation_workflow_action_handlers(
+        self, binding: Any
+    ) -> Mapping[str, Any]:
+        """Build total project-routed handlers for implementation work."""
+
+        from oompah.implementation_workflow_adapter import (
+            build_implementation_workflow_handlers,
+        )
+
+        return build_implementation_workflow_handlers(self, binding)
+
+    def workflow_action_handler_factory(self, binding: Any) -> Mapping[str, Any]:
+        """Compose every production durable-domain handler for one project.
+
+        :class:`WorkflowRuntime` discovers this public factory during bootstrap.
+        Keeping the domain builders separate lets each systemic-workflow
+        cutover add its own complete action set without replacing handlers
+        already installed by another domain.
+        """
+
+        handlers: dict[str, Any] = {}
+        for factory_name in (
+            "_implementation_workflow_action_handlers",
+            "_review_workflow_action_handlers",
+            "_integration_workflow_action_handlers",
+            "_epic_workflow_action_handlers",
+        ):
+            factory = getattr(self, factory_name, None)
+            if not callable(factory):
+                continue
+            produced = factory(binding)
+            overlap = set(handlers).intersection(produced)
+            if overlap:
+                raise RuntimeError(
+                    "durable workflow handlers have duplicate owners: "
+                    + ", ".join(sorted(overlap))
+                )
+            handlers.update(produced)
+        return handlers
+
+    def _refresh_durable_implementation_authority(
+        self,
+        issue: Issue,
+        authority: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Extend only an exact durable generation while its live run exists.
+
+        The durable disposition remains the authority. A matching RunningEntry
+        is only liveness proof that keeps its bounded lease current; it cannot
+        create authority for another project, task, generation, or run.
+        """
+
+        refreshed = dict(authority)
+        if str(refreshed.get("state") or "") not in {"active", "handed_off"}:
+            return refreshed
+        entry = self._current_running_entry(issue.id)
+        if entry is None or getattr(entry, "retirement_pending", False):
+            return refreshed
+        entry_issue = getattr(entry, "issue", None)
+        if str(getattr(entry_issue, "project_id", None) or "") != str(
+            issue.project_id or ""
+        ):
+            return refreshed
+        if str(getattr(entry, "identifier", None) or "") != str(issue.identifier):
+            return refreshed
+        if str(getattr(entry, "authority_generation", None) or "") != str(
+            refreshed.get("generation") or ""
+        ):
+            return refreshed
+        expected_run = str(refreshed.get("run_id") or "")
+        if expected_run and expected_run != str(getattr(entry, "run_id", None) or ""):
+            return refreshed
+        refreshed["lease_expires_at"] = (
+            datetime.now(timezone.utc) + timedelta(hours=1)
+        ).isoformat()
+        return refreshed
+
+    def _schedule_implementation_workflow_event(
+        self,
+        *,
+        project_id: str | None,
+        identifier: str,
+        action: Any,
+        payload: Mapping[str, Any] | None = None,
+        expected_evidence_revision: str | None = None,
+        expected_head_sha: str | None = None,
+        priority: int = 100,
+    ) -> Any | None:
+        """Publish one exact implementation event when enforce owns writes.
+
+        Returning ``None`` is the compatibility signal for off/shadow mode;
+        those modes retain the legacy lifecycle paths until cutover.
+        """
+
+        runtime = self.workflow_runtime
+        project = str(project_id or "").strip()
+        task = str(identifier or "").strip()
+        if runtime is None or runtime.enforce is not True or not project or not task:
+            return None
+        binding = runtime.project_bindings.get(project)
+        controller = (
+            getattr(binding, "implementation_controller", None)
+            if binding is not None
+            else None
+        )
+        if controller is None:
+            raise RuntimeError(
+                f"durable implementation controller is unavailable for {project}"
+            )
+        job = controller.schedule_event(
+            project_id=project,
+            task_id=task,
+            action=action,
+            payload=payload,
+            expected_evidence_revision=expected_evidence_revision,
+            expected_head_sha=expected_head_sha,
+            priority=priority,
+        )
+        self.request_refresh()
+        return job
+
+    def _durable_accepted_implementation_handoff(
+        self, issue: Issue
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Recover stronger accepted work before generic restart/retry work."""
+
+        try:
+            config_source = self._workflow_shadow_sources(issue).get(
+                FactDomain.CONFIG
+            )
+            value = config_source(issue) if callable(config_source) else None
+        except Exception:
+            logger.warning(
+                "Could not inspect accepted implementation handoff for %s",
+                issue.identifier,
+                exc_info=True,
+            )
+            return None
+        if not isinstance(value, Mapping):
+            return None
+        action = str(value.get("implementation_pending_action") or "").strip()
+        if action not in {"focus_handoff", "validation_submission"}:
+            return None
+        payload = value.get("implementation_pending_payload")
+        if not isinstance(payload, Mapping):
+            return None
+        return action, dict(payload)
+
+    def enqueue_durable_worker_submission(
+        self, project_id: str, issue: Issue, record: IntegrationRecord
+    ) -> None:
+        """One-task queue effect used only by the durable implementation adapter."""
+
+        if is_direct_epic_maintenance_issue(issue):
+            return
+        if not self.config.parallel_epic_children_enabled:
+            return
+        epic_id = str(issue.parent_id or "").strip()
+        if not epic_id:
+            return
+        if not record.task_branch or not record.head_sha:
+            raise ValueError(
+                "parallel epic submission requires task_branch and head_sha"
+            )
+        self.integration_queue.enqueue(
+            project_id=project_id,
+            epic_id=epic_id,
+            task_id=issue.identifier,
+            task_branch=record.task_branch,
+            head_sha=record.head_sha,
+            base_sha=record.base_sha,
+            priority=issue.priority,
+            submitted_at=record.submitted_at,
+            explicit_retry=True,
+            rearm_integrated=(
+                str(getattr(record, "state", "") or "").strip().lower()
+                == "ready"
+            ),
+        )
+
+    def _schedule_durable_worker_status(
+        self,
+        entry: RunningEntry,
+        *,
+        requested_status: str,
+        reason: str,
+        priority: int = 0,
+    ) -> bool:
+        """Route exceptional worker retirement through the transition service."""
+
+        if (
+            self.workflow_runtime is None
+            or self.workflow_runtime.enforce is not True
+            or entry.is_auditor
+        ):
+            return False
+        project_id = str(getattr(entry.issue, "project_id", None) or "").strip()
+        if not project_id:
+            return False
+        try:
+            current = self._tracker_for_project(project_id).fetch_issue_detail(
+                entry.identifier
+            )
+        except Exception:
+            current = None
+        current = current or entry.issue
+        current.project_id = project_id
+        head = issue_exact_head(current) or issue_exact_head(entry.issue)
+        scheduled = self._schedule_implementation_workflow_event(
+            project_id=project_id,
+            identifier=entry.identifier,
+            action="worker_exit",
+            payload={
+                "owner_id": str(entry.run_id or ""),
+                "assignment_id": str(entry.assignment_id or ""),
+                "run_id": str(entry.run_id or ""),
+                "focus": str(entry.focus_name or "implementation"),
+                "work_branch": str(
+                    current.work_branch or current.branch_name or ""
+                ),
+                "head_sha": str(head or ""),
+                "reason": reason,
+                "requested_status": requested_status,
+                "expected_status": current.state,
+            },
+            expected_evidence_revision=issue_authority_version(current),
+            expected_head_sha=head,
+            priority=priority,
+        )
+        return scheduled is not None
+
     @staticmethod
     def _shared_epic_landing_proven(facts: Any) -> bool:
         """Check the epic's own immediate-target LandingFact, not its status."""
@@ -16591,6 +17227,8 @@ class Orchestrator:
     def _prepare_epic_rebase_helper_target(
         self,
         issue: Issue,
+        *,
+        persist_repair: bool = True,
     ) -> tuple[bool, str]:
         """Populate and validate a helper's target before worker dispatch.
 
@@ -16641,6 +17279,8 @@ class Orchestrator:
 
         recorded = self._epic_rebase_helper_target(issue)
         if recorded and recorded != expected:
+            if not persist_repair:
+                return False, "epic_rebase_wrong_target"
             try:
                 tracker = self._tracker_for_issue(issue)
                 if not self._supersede_wrong_epic_rebase_helper(
@@ -16660,6 +17300,8 @@ class Orchestrator:
             return False, "epic_rebase_wrong_target"
 
         issue.target_branch = expected
+        if not persist_repair:
+            return True, ""
         try:
             tracker = self._tracker_for_issue(issue)
             tracker.set_metadata_field(
@@ -22137,6 +22779,8 @@ class Orchestrator:
         issue: Issue,
         *,
         duplicate_preflight: bool = False,
+        durable_recovery: bool = False,
+        suppress_lifecycle_writes: bool = False,
     ) -> bool:
         def _reject(reason: str) -> bool:
             # Track consecutive rejections for stuck-issue detection
@@ -22212,11 +22856,17 @@ class Orchestrator:
         if (issue.issue_type or "").strip().lower() == "epic" and not epic_review_repair:
             return _reject("epic")
         if not duplicate_preflight:
-            target_ready, target_reason = self._prepare_epic_rebase_helper_target(issue)
+            target_ready, target_reason = self._prepare_epic_rebase_helper_target(
+                issue,
+                persist_repair=not suppress_lifecycle_writes,
+            )
             if not target_ready:
                 return _reject(target_reason)
         if not epic_review_repair and self._issue_requires_parent_epic(issue):
-            if canonicalize_status(issue.state) != NEEDS_HUMAN:
+            if (
+                not suppress_lifecycle_writes
+                and canonicalize_status(issue.state) != NEEDS_HUMAN
+            ):
                 self._mark_issue_needs_epic_parent(issue, issue.project_id)
             return _reject("missing_parent_epic")
         # Never dispatch pre-backlog intake issues — Proposed is the intake
@@ -22233,11 +22883,22 @@ class Orchestrator:
         if canonicalize_status(issue.state) == DECOMPOSED or "decomposed" in issue.labels:
             return _reject("decomposed")
         # Never dispatch candidates flagged as duplicates of existing open issues
-        if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE or "duplicate-candidate" in issue.labels:
+        if not duplicate_preflight and (
+            canonicalize_status(issue.state) == DUPLICATE_CANDIDATE
+            or "duplicate-candidate" in issue.labels
+        ):
             return _reject("duplicate_candidate")
         if duplicate_preflight:
-            if not self._requires_duplicate_preflight(issue):
+            if not self._requires_duplicate_preflight(
+                issue,
+                allow_duplicate_candidate=True,
+            ):
                 return _reject("duplicate_preflight_not_applicable")
+            if (
+                self._duplicate_preflight_running_count()
+                >= self._duplicate_preflight_limit()
+            ):
+                return _reject("duplicate_preflight_no_slots")
         elif not self._implementation_duplicate_screening_ready(issue):
             assessment = self._duplicate_screening_assessment(issue)
             return _reject(f"duplicate_screening_{assessment.state.value}")
@@ -22259,8 +22920,18 @@ class Orchestrator:
                     )
                     return _reject(f"invalid_target_branch:{_tbv.reason}")
         state_norm = _state_key(issue.state)
-        if state_norm not in _dispatch_active_state_keys(
-            self.config.tracker_active_states
+        durable_active = bool(
+            durable_recovery and canonicalize_status(issue.state) == IN_PROGRESS
+        )
+        duplicate_candidate_active = bool(
+            duplicate_preflight
+            and canonicalize_status(issue.state) == DUPLICATE_CANDIDATE
+        )
+        if (
+            not durable_active
+            and not duplicate_candidate_active
+            and state_norm
+            not in _dispatch_active_state_keys(self.config.tracker_active_states)
         ):
             return _reject(f"inactive_state={state_norm}")
         if state_norm in {
@@ -32886,6 +33557,7 @@ class Orchestrator:
         *,
         identifier: str,
         action: str,
+        project_id: str | None = None,
         message: str | None = None,
         label: str | None = None,
         status: str | None = None,
@@ -32902,14 +33574,20 @@ class Orchestrator:
         single retirement and dispatch transition.
         """
         identifier = str(identifier or "").strip()
+        expected_project = str(project_id or "").strip()
         if not identifier:
             return False
         entry = None
         for _issue_id, candidate in self._running_items_snapshot():
+            candidate_issue = getattr(candidate, "issue", None)
+            candidate_project = str(
+                getattr(candidate_issue, "project_id", None) or ""
+            ).strip()
+            if expected_project and candidate_project != expected_project:
+                continue
             if str(getattr(candidate, "identifier", "") or "").strip() == identifier:
                 entry = candidate
                 break
-            candidate_issue = getattr(candidate, "issue", None)
             if str(getattr(candidate_issue, "identifier", "") or "").strip() == identifier:
                 entry = candidate
                 break
@@ -32973,6 +33651,33 @@ class Orchestrator:
                 return True
         elif action == "set-status" and _state_key(status) == "open":
             entry.handoff_status_open = True
+            self._schedule_implementation_workflow_event(
+                project_id=getattr(entry.issue, "project_id", None),
+                identifier=entry.identifier,
+                action="focus_handoff",
+                payload={
+                    "focus": str(
+                        entry.handoff_requested_focus
+                        or entry.focus_name
+                        or "implementation"
+                    ),
+                    "prior_generation": str(entry.authority_generation or ""),
+                    "prior_run_id": str(entry.run_id or ""),
+                    "expected_status": entry.issue.state,
+                    "work_branch": str(
+                        getattr(entry.issue, "work_branch", None)
+                        or getattr(entry.issue, "branch_name", None)
+                        or ""
+                    ),
+                    "head_sha": str(issue_exact_head(entry.issue) or ""),
+                    "lease_expires_at": (
+                        datetime.now(timezone.utc) + timedelta(hours=1)
+                    ).isoformat(),
+                },
+                expected_evidence_revision=issue_authority_version(entry.issue),
+                expected_head_sha=issue_exact_head(entry.issue),
+                priority=10,
+            )
             try:
                 self.request_refresh()
             except Exception:  # noqa: BLE001 - refresh is a wake hint
@@ -33270,6 +33975,8 @@ class Orchestrator:
         duplicate_preflight_claim: DuplicateScreeningRecord | None = None,
         auditor_plan: AuditDispatchPlan | None = None,
         retry_entry: RetryEntry | None = None,
+        workflow_generation: str | None = None,
+        status_managed_by_workflow: bool = False,
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
@@ -33333,9 +34040,9 @@ class Orchestrator:
         # (_on_retry_timer -> _dispatch) bypasses that check. Reject here
         # too so a retry that was already in flight when pause() was
         # called can't silently re-dispatch.
-        if self._dispatch_is_blocked():
+        if self._dispatch_is_blocked() or self._is_project_paused(issue.project_id):
             logger.info(
-                "Skipping dispatch of %s: orchestrator dispatch blocked",
+                "Skipping dispatch of %s: orchestrator or project dispatch blocked",
                 issue.identifier,
             )
             self.state.claimed.discard(issue.id)
@@ -33507,7 +34214,14 @@ class Orchestrator:
                 implementation_dispatch
                 and (
                     issue.id in self.state.completed
-                    or cur_state not in self._retryable_state_keys()
+                    or (
+                        cur_state not in self._retryable_state_keys()
+                        and not (
+                            status_managed_by_workflow
+                            and canonicalize_status(refreshed[0].state)
+                            == IN_PROGRESS
+                        )
+                    )
                 )
             )
             if cur_state in terminal or implementation_blocked:
@@ -33586,7 +34300,7 @@ class Orchestrator:
         retry_intended_active_state = _configured_in_progress_state(
             self.config.tracker_active_states
         )
-        if implementation_dispatch:
+        if implementation_dispatch and not status_managed_by_workflow:
             async with self.issue_transition_lock(issue.id):
                 # The first recheck above protects against stale candidate
                 # snapshots.  Repeat it while holding the ownership lock so a
@@ -33906,23 +34620,32 @@ class Orchestrator:
                     ),
                 )
 
-        # The terminal fence may have been installed while the post-update
-        # tracker read was in flight.  There are no awaits between this check
-        # and worker registration, so a successful check is the final ownership
-        # boundary before an implementation worker can start.
-        if implementation_dispatch and issue.id in self.state.completed:
+        # A terminal fence or project pause may have appeared while the
+        # post-update tracker read was in flight.  There are no awaits between
+        # this check and worker registration, so a successful check is the final
+        # ownership boundary before a worker can start.
+        final_dispatch_blocked = self._dispatch_is_blocked() or self._is_project_paused(
+            issue.project_id
+        )
+        if (
+            implementation_dispatch and issue.id in self.state.completed
+        ) or final_dispatch_blocked:
+            dimensions = (
+                ["dispatch_blocked"]
+                if final_dispatch_blocked
+                else ["terminal_owner"]
+            )
             logger.info(
-                "Aborting implementation dispatch of %s before worker start: "
-                "terminal transition fence appeared during state refresh "
-                "authority_dimensions=%s",
+                "Aborting dispatch of %s before worker start: final authority "
+                "fence appeared during state refresh authority_dimensions=%s",
                 issue.identifier,
-                ["terminal_owner"],
+                dimensions,
                 extra={
                     "retry_authority": {
                         "stage": "terminal_fence",
                         "issue_id": issue.id,
                         "identifier": issue.identifier,
-                        "dimensions": ["terminal_owner"],
+                        "dimensions": dimensions,
                     }
                 }
                 if retry_entry is not None
@@ -33931,12 +34654,21 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
             await _clear_dispatch_claim()
+            await _release_preflight(
+                "dispatch aborted because orchestrator or project became paused"
+                if final_dispatch_blocked
+                else "dispatch aborted because terminal transition owns the task"
+            )
             if retry_entry is not None:
                 self._cancel_retry_for_issue(
                     issue_id=issue.id,
                     identifier=issue.identifier,
                     project_id=issue.project_id,
-                    reason="terminal transition owns pre-start retry",
+                    reason=(
+                        "dispatch became blocked before retry worker start"
+                        if final_dispatch_blocked
+                        else "terminal transition owns pre-start retry"
+                    ),
                     notify=False,
                 )
             return
@@ -34020,10 +34752,12 @@ class Orchestrator:
         assignment_id = claimed_assignment_id or getattr(
             running_issue, "assignment_id", None
         )
-        authority_generation = self._retry_authority_generation(
-            running_issue,
-            attempt=attempt,
-            assignment_id=assignment_id,
+        authority_generation = str(workflow_generation or "").strip() or (
+            self._retry_authority_generation(
+                running_issue,
+                attempt=attempt,
+                assignment_id=assignment_id,
+            )
         )
         worker_kwargs = (
             {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
@@ -35536,6 +36270,7 @@ class Orchestrator:
                 successful_validation_handler=api_validation_success_handler,
                 project_store=self.project_store,
                 submission_handler=_api_submission_handler,
+                coordination_service=self,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -36600,6 +37335,20 @@ class Orchestrator:
     ) -> None:
         """Worker using CLI subprocess (original behavior)."""
         worker_identity = {"run_id": run_id} if run_id else {}
+        running_entry = self._current_running_entry(issue.id)
+        if running_entry is not None and getattr(
+            running_entry, "duplicate_preflight", False
+        ):
+            # The legacy CLI subprocess has unrestricted filesystem and shell
+            # access.  Unlike API/ACP sessions it has no enforceable read-only
+            # catalog, so it can never host the reserved duplicate investigator.
+            await self._on_worker_exit(
+                issue.id,
+                "abnormal",
+                "duplicate screening requires an API or ACP read-only transport",
+                **worker_identity,
+            )
+            return
         exit_reason = "normal"
         error_msg = None
         agent_command = profile.command if profile else self.config.agent_command
@@ -37723,28 +38472,6 @@ class Orchestrator:
         self.state.claimed_issues.pop(issue_id, None)
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
 
-        if recovery_publication_error is not None:
-            # Publication-pending is itself a hard integration fence. An
-            # active-operation checkpoint is created with commit-tree and can
-            # leave HEAD unchanged, so final-HEAD comparison is insufficient.
-            self._route_retryable_recovery_publication(
-                entry,
-                issue_id,
-                project_id_val,
-                recovery_publication_error,
-            )
-            self._notify_observers()
-            return
-        if recovery_preservation_error is not None:
-            self._hold_after_worktree_recovery_failure(
-                entry,
-                issue_id,
-                project_id_val,
-                str(recovery_preservation_error),
-            )
-            self._notify_observers()
-            return
-
         try:
             current_issue = tracker.fetch_issue_detail(entry.identifier)
         except Exception as exc:  # noqa: BLE001 - recovery remains fail-closed
@@ -37798,6 +38525,87 @@ class Orchestrator:
         # the already-fenced dispatch scope after rejecting any explicit
         # conflicting identity.
         current_issue.project_id = project_id
+        durable_implementation = bool(
+            self.workflow_runtime is not None
+            and self.workflow_runtime.enforce is True
+        )
+
+        def schedule_durable_status(status: str, reason: str) -> None:
+            head = issue_exact_head(current_issue) or record.head_sha
+            scheduled = self._schedule_implementation_workflow_event(
+                project_id=project_id,
+                identifier=current_issue.identifier,
+                action="worker_exit",
+                payload={
+                    "owner_id": str(entry.run_id or ""),
+                    "assignment_id": str(entry.assignment_id or ""),
+                    "run_id": str(entry.run_id or ""),
+                    "focus": str(entry.focus_name or "implementation"),
+                    "work_branch": str(
+                        current_issue.work_branch
+                        or current_issue.branch_name
+                        or record.task_branch
+                        or ""
+                    ),
+                    "head_sha": str(head or ""),
+                    "reason": reason,
+                    "requested_status": status,
+                    "expected_status": current_issue.state,
+                },
+                expected_evidence_revision=issue_authority_version(current_issue),
+                expected_head_sha=head,
+                priority=0,
+            )
+            if scheduled is None:
+                raise RuntimeError(
+                    "durable revoked-submission transition was not scheduled"
+                )
+
+        if recovery_publication_error is not None:
+            # Publication-pending is itself a hard integration fence. An
+            # active-operation checkpoint is created with commit-tree and can
+            # leave HEAD unchanged, so final-HEAD comparison is insufficient.
+            if durable_implementation:
+                schedule_durable_status(
+                    OPEN, "worktree_recovery_publication_pending"
+                )
+                self._post_comment(
+                    current_issue.identifier,
+                    "Recovery checkpoint publication is pending; the task will "
+                    "return to Open through the durable workflow.",
+                    project_id=project_id,
+                )
+            else:
+                self._route_retryable_recovery_publication(
+                    entry,
+                    issue_id,
+                    project_id_val,
+                    recovery_publication_error,
+                )
+            self._notify_observers()
+            return
+        if recovery_preservation_error is not None:
+            if durable_implementation:
+                schedule_durable_status(
+                    NEEDS_HUMAN, "worktree_recovery_failed"
+                )
+                self._post_comment(
+                    current_issue.identifier,
+                    "Oompah could not durably preserve this worker's task "
+                    "worktree. Operator recovery is required before resuming: "
+                    f"{recovery_preservation_error}",
+                    project_id=project_id,
+                )
+            else:
+                self._hold_after_worktree_recovery_failure(
+                    entry,
+                    issue_id,
+                    project_id_val,
+                    str(recovery_preservation_error),
+                )
+            self._notify_observers()
+            return
+
         if late_changes_detected and recovery_context:
             # Late changes detected — don't integrate the stale submission.
             # Instead, reopen the task with recovery context so the next
@@ -37806,11 +38614,16 @@ class Orchestrator:
             # ensures the preservation system gets one actionable retry.
             try:
                 if current_issue:
-                    # Reopen the task, removing it from completed state
-                    tracker.update_issue(
-                        current_issue.identifier,
-                        status=OPEN,
-                    )
+                    if durable_implementation:
+                        schedule_durable_status(
+                            OPEN, "late_mutation_after_submission"
+                        )
+                    else:
+                        # Reopen the task, removing it from completed state.
+                        tracker.update_issue(
+                            current_issue.identifier,
+                            status=OPEN,
+                        )
                     recovery_ref = recovery_context.get("recovery_ref")
                     snapshot_head = recovery_context.get("snapshot_head")
                     self._post_comment(
@@ -37846,19 +38659,24 @@ class Orchestrator:
                     exc,
                 )
         elif late_changes_detected:
-            self._hold_after_worktree_recovery_failure(
-                entry,
-                issue_id,
-                project_id_val,
-                "late worktree mutation was detected but no durable recovery "
-                "checkpoint could be proven",
-            )
+            if durable_implementation:
+                schedule_durable_status(
+                    NEEDS_HUMAN, "late_mutation_without_recovery"
+                )
+            else:
+                self._hold_after_worktree_recovery_failure(
+                    entry,
+                    issue_id,
+                    project_id_val,
+                    "late worktree mutation was detected but no durable recovery "
+                    "checkpoint could be proven",
+                )
         else:
             # No late changes detected (or no recovery context) — proceed with
             # integration eligibility. Mark the task as Ready to Integrate so
             # the integration executor can process it.
             try:
-                if current_issue:
+                if current_issue and not durable_implementation:
                     tracker.update_issue(
                         current_issue.identifier,
                         status=READY_TO_INTEGRATE,
@@ -38302,6 +39120,8 @@ class Orchestrator:
         entry: RunningEntry,
         reason: str,
         error: str | None,
+        *,
+        persist_status: bool = True,
     ) -> dict[str, Any]:
         """Apply a preflight verdict under the project tracker write lock."""
 
@@ -38337,8 +39157,9 @@ class Orchestrator:
 
             current_fingerprint = compute_task_fingerprint(current)
             expected_fingerprint = entry.duplicate_preflight_fingerprint
+            current_status = canonicalize_status(current.state)
             if (
-                canonicalize_status(current.state) != OPEN
+                current_status not in {OPEN, DUPLICATE_CANDIDATE}
                 or current_fingerprint != record.task_fingerprint
                 or current_fingerprint != expected_fingerprint
                 or record.detector_version != DUPLICATE_DETECTOR_VERSION
@@ -38376,7 +39197,14 @@ class Orchestrator:
                 )
                 save_duplicate_screening_record(tracker, current, completed)
                 issue.duplicate_screening = completed.to_dict()
-                return {"outcome": "checked", "terminal": False}
+                result = {"outcome": "checked", "terminal": False}
+                if current_status == DUPLICATE_CANDIDATE:
+                    if persist_status:
+                        tracker.update_issue(entry.identifier, status=OPEN)
+                        issue.state = OPEN
+                    else:
+                        result["requested_status"] = OPEN
+                return result
 
             if (
                 verdict == ScreeningVerdict.DUPLICATE_CANDIDATE
@@ -38397,10 +39225,11 @@ class Orchestrator:
                         continue
                     verified_matches.append(candidate.identifier)
                 if not invalid_matches and verified_matches:
-                    tracker.update_issue(
-                        entry.identifier,
-                        status=DUPLICATE_CANDIDATE,
-                    )
+                    if persist_status and current_status != DUPLICATE_CANDIDATE:
+                        tracker.update_issue(
+                            entry.identifier,
+                            status=DUPLICATE_CANDIDATE,
+                        )
                     completed = complete_claim_record(
                         record,
                         verdict=verdict,
@@ -38409,13 +39238,20 @@ class Orchestrator:
                         now=now,
                     )
                     save_duplicate_screening_record(tracker, current, completed)
-                    issue.state = DUPLICATE_CANDIDATE
+                    if persist_status and current_status != DUPLICATE_CANDIDATE:
+                        issue.state = DUPLICATE_CANDIDATE
                     issue.duplicate_screening = completed.to_dict()
-                    return {
+                    result = {
                         "outcome": "duplicate_candidate",
                         "terminal": False,
                         "matches": verified_matches,
                     }
+                    if (
+                        not persist_status
+                        and current_status != DUPLICATE_CANDIDATE
+                    ):
+                        result["requested_status"] = DUPLICATE_CANDIDATE
+                    return result
                 evidence = (
                     "Duplicate verdict referenced missing, self, or terminal "
                     f"task(s): {', '.join(invalid_matches or matched_identifiers)}"
@@ -38471,25 +39307,34 @@ class Orchestrator:
                 )
                 save_duplicate_screening_record(tracker, current, failed)
                 issue.duplicate_screening = failed.to_dict()
-                self._mark_needs_human(
-                    tracker,
-                    entry.identifier,
-                    (
-                        "Duplicate screening stopped with an actionable corpus "
-                        "diagnostic: "
-                        + corpus_budget_diagnostic
-                        + " Increase the duplicate corpus task/byte budget or "
-                        "have a project owner review the authoritative tracker "
-                        "corpus, then use the authenticated duplicate-screening "
-                        "owner-resolution action with a conclusive verdict."
-                    ),
+                diagnostic_message = (
+                    "Duplicate screening stopped with an actionable corpus "
+                    "diagnostic: "
+                    + corpus_budget_diagnostic
+                    + " Increase the duplicate corpus task/byte budget or "
+                    "have a project owner review the authoritative tracker "
+                    "corpus, then use the authenticated duplicate-screening "
+                    "owner-resolution action with a conclusive verdict."
                 )
-                issue.state = NEEDS_HUMAN
-                return {
+                if persist_status:
+                    self._mark_needs_human(
+                        tracker,
+                        entry.identifier,
+                        diagnostic_message,
+                    )
+                    issue.state = NEEDS_HUMAN
+                else:
+                    tracker.add_comment(
+                        entry.identifier, diagnostic_message, author="oompah"
+                    )
+                result = {
                     "outcome": "needs_human",
                     "terminal": True,
                     "diagnostic": "corpus_insufficient",
                 }
+                if not persist_status:
+                    result["requested_status"] = NEEDS_HUMAN
+                return result
 
             retry_count = record.retry_count + 1
             retry_delay = min(60 * (2 ** max(retry_count - 1, 0)), 15 * 60)
@@ -38503,25 +39348,37 @@ class Orchestrator:
             save_duplicate_screening_record(tracker, current, failed)
             issue.duplicate_screening = failed.to_dict()
             if retry_count >= _DUPLICATE_PREFLIGHT_MAX_RETRIES:
-                self._mark_needs_human(
-                    tracker,
-                    entry.identifier,
-                    (
-                        f"Duplicate screening was inconclusive {retry_count} "
-                        "times. Human action required: a project owner must "
-                        "review the authoritative task corpus and use the "
-                        "authenticated duplicate-screening owner-resolution "
-                        f"action (POST /api/v1/issues/{entry.identifier}/duplicate-"
-                        "screening/owner-resolution) with a conclusive verdict "
-                        "and reason. This records the owner decision, resets "
-                        "the retry budget, and returns no_duplicate tasks to "
-                        "Open (or routes a verified duplicate to Duplicate "
-                        "Candidate). A plain verdict comment is not "
-                        "authoritative."
-                    ),
+                exhaustion_message = (
+                    f"Duplicate screening was inconclusive {retry_count} "
+                    "times. Human action required: a project owner must "
+                    "review the authoritative task corpus and use the "
+                    "authenticated duplicate-screening owner-resolution "
+                    f"action (POST /api/v1/issues/{entry.identifier}/duplicate-"
+                    "screening/owner-resolution) with a conclusive verdict "
+                    "and reason. This records the owner decision, resets "
+                    "the retry budget, and returns no_duplicate tasks to "
+                    "Open (or routes a verified duplicate to Duplicate "
+                    "Candidate). A plain verdict comment is not "
+                    "authoritative."
                 )
-                issue.state = NEEDS_HUMAN
-                return {"outcome": "needs_human", "terminal": True}
+                if persist_status:
+                    self._mark_needs_human(
+                        tracker,
+                        entry.identifier,
+                        exhaustion_message,
+                    )
+                    issue.state = NEEDS_HUMAN
+                else:
+                    tracker.add_comment(
+                        entry.identifier, exhaustion_message, author="oompah"
+                    )
+                result = {
+                    "outcome": "needs_human",
+                    "terminal": True,
+                }
+                if not persist_status:
+                    result["requested_status"] = NEEDS_HUMAN
+                return result
             return {
                 "outcome": "retry",
                 "terminal": False,
@@ -38537,12 +39394,18 @@ class Orchestrator:
     ) -> None:
         issue_id = entry.issue.id
         try:
+            durable = bool(
+                self.workflow_runtime is not None
+                and self.workflow_runtime.enforce is True
+            )
             result = await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool,
-                self._finish_duplicate_preflight_sync,
-                entry,
-                reason,
-                error,
+                lambda: self._finish_duplicate_preflight_sync(
+                    entry,
+                    reason,
+                    error,
+                    persist_status=not durable,
+                ),
             )
         except Exception as exc:
             logger.exception(
@@ -38558,6 +39421,46 @@ class Orchestrator:
             self.state.completed.add(issue_id)
         else:
             self.state.completed.discard(issue_id)
+        if durable:
+            head = issue_exact_head(entry.issue)
+            common_payload = {
+                "owner_id": str(entry.run_id or ""),
+                "assignment_id": str(entry.assignment_id or ""),
+                "run_id": str(entry.run_id or ""),
+                "prior_generation": str(entry.authority_generation or ""),
+                "focus": "duplicate_detector",
+                "work_branch": str(
+                    entry.issue.work_branch or entry.issue.branch_name or ""
+                ),
+                "head_sha": str(head or ""),
+                "reason": str(result.get("outcome") or reason),
+                "expected_status": entry.issue.state,
+            }
+            requested_status = str(result.get("requested_status") or "").strip()
+            if requested_status or result.get("outcome") != "retry":
+                exit_payload = dict(common_payload)
+                if requested_status:
+                    exit_payload["requested_status"] = requested_status
+                self._schedule_implementation_workflow_event(
+                    project_id=entry.issue.project_id,
+                    identifier=entry.identifier,
+                    action="worker_exit",
+                    payload=exit_payload,
+                    expected_evidence_revision=issue_authority_version(entry.issue),
+                    expected_head_sha=head,
+                    priority=10,
+                )
+            elif result.get("outcome") == "retry":
+                self._schedule_retry(
+                    issue_id,
+                    attempt=int(result.get("retry_count") or 1),
+                    identifier=entry.identifier,
+                    delay_ms=int(result.get("retry_delay_seconds") or 1) * 1000,
+                    error=str(result.get("outcome") or reason),
+                    project_id=entry.issue.project_id,
+                    context_entry=entry,
+                    authority_issue=entry.issue,
+                )
         logger.info(
             "Duplicate preflight finished for %s: %s",
             entry.identifier,
@@ -39064,6 +39967,190 @@ class Orchestrator:
                     event_type=DispatchEventType.WORKER_EXIT,
                     issue_id=issue_id,
                     payload={"reason": reason, "auditor": True},
+                )
+            )
+            return
+
+        if (
+            self.workflow_runtime is not None
+            and self.workflow_runtime.enforce is True
+        ):
+            # The provider/process cleanup above has retired the exact run.
+            # Publish its one successor disposition instead of entering the
+            # legacy status/retry/timer state machine.  Submission and focus
+            # handoff are stronger dispositions than a generic worker exit.
+            try:
+                tracker = self._tracker_for_project(project_id)
+                current = await asyncio.to_thread(
+                    tracker.fetch_issue_detail, entry.identifier
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Durable worker-exit refresh failed for %s: %s",
+                    entry.identifier,
+                    type(exc).__name__,
+                )
+                current = entry.issue
+            current = current or entry.issue
+            head = issue_exact_head(current) or issue_exact_head(entry.issue)
+            common_payload = {
+                "owner_id": str(entry.run_id or ""),
+                "assignment_id": str(entry.assignment_id or ""),
+                "run_id": str(entry.run_id or ""),
+                "prior_generation": str(entry.authority_generation or ""),
+                "focus": str(entry.focus_name or "implementation"),
+                "work_branch": str(
+                    getattr(current, "work_branch", None)
+                    or getattr(current, "branch_name", None)
+                    or ""
+                ),
+                "head_sha": str(head or ""),
+                "reason": str(reason or "worker_exit"),
+                "error": str(error or ""),
+                "expected_status": current.state,
+            }
+            integration = getattr(current, "integration", None)
+            submitted = bool(
+                integration is not None
+                and str(getattr(integration, "state", "") or "").lower()
+                in {"ready", "queued", "integrating"}
+                and (
+                    not head
+                    or str(getattr(integration, "head_sha", "") or "") == head
+                )
+            )
+            requested_exit_status = ""
+            if actionable_handoff_failure or self._is_task_handoff_failure(error):
+                requested_exit_status = NEEDS_HUMAN
+                common_payload["reason"] = "task_handoff_failed"
+            elif reason == "ask_question":
+                requested_exit_status = NEEDS_ANSWER
+                question_text = error or "Agent has a question (no text provided)"
+                self._post_comment(
+                    entry.identifier,
+                    f"🤚 **Question from agent:**\n\n{question_text}",
+                    project_id=project_id,
+                )
+            if requested_exit_status:
+                self._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=entry.identifier,
+                    action="worker_exit",
+                    payload={
+                        **common_payload,
+                        "requested_status": requested_exit_status,
+                    },
+                    expected_evidence_revision=issue_authority_version(current),
+                    expected_head_sha=head,
+                    priority=0,
+                )
+            elif submitted:
+                self._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=entry.identifier,
+                    action="validation_submission",
+                    payload=common_payload,
+                    expected_evidence_revision=issue_authority_version(current),
+                    expected_head_sha=head,
+                    priority=10,
+                )
+            elif entry.handoff_pending:
+                self._schedule_implementation_workflow_event(
+                    project_id=project_id,
+                    identifier=entry.identifier,
+                    action="focus_handoff",
+                    payload={
+                        **{
+                            key: value
+                            for key, value in common_payload.items()
+                            if key not in {"owner_id", "assignment_id", "run_id"}
+                        },
+                        "focus": str(
+                            entry.handoff_requested_focus
+                            or entry.focus_name
+                            or "implementation"
+                        ),
+                        "prior_generation": str(
+                            entry.authority_generation or ""
+                        ),
+                        "prior_run_id": str(entry.run_id or ""),
+                        "lease_expires_at": (
+                            datetime.now(timezone.utc) + timedelta(hours=1)
+                        ).isoformat(),
+                    },
+                    expected_evidence_revision=issue_authority_version(current),
+                    expected_head_sha=head,
+                    priority=10,
+                )
+            elif reason == "normal":
+                next_attempt = (entry.retry_attempt or 0) + 1
+                if next_attempt >= 3:
+                    self._post_comment(
+                        entry.identifier,
+                        "Agent completed three sessions without handing off or "
+                        "submitting the task. Human action required: review the "
+                        "run history, add concrete guidance, then move the task "
+                        "back to Open.",
+                        project_id=project_id,
+                    )
+                    self._schedule_implementation_workflow_event(
+                        project_id=project_id,
+                        identifier=entry.identifier,
+                        action="worker_exit",
+                        payload={
+                            **common_payload,
+                            "requested_status": NEEDS_HUMAN,
+                            "incomplete_sessions": next_attempt,
+                            "reason": "completed_without_handoff",
+                        },
+                        expected_evidence_revision=issue_authority_version(current),
+                        expected_head_sha=head,
+                        priority=0,
+                    )
+                else:
+                    self._schedule_retry(
+                        issue_id,
+                        attempt=next_attempt,
+                        identifier=entry.identifier,
+                        delay_ms=self._backoff_delay(next_attempt),
+                        error="completed_without_handoff",
+                        project_id=project_id,
+                        context_entry=entry,
+                        authority_issue=current,
+                    )
+            else:
+                next_attempt = (entry.retry_attempt or 0) + 1
+                self._schedule_retry(
+                    issue_id,
+                    attempt=next_attempt,
+                    identifier=entry.identifier,
+                    delay_ms=self._backoff_delay(next_attempt),
+                    error=error or reason,
+                    project_id=project_id,
+                    context_entry=entry,
+                    authority_issue=current,
+                )
+            self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
+            self.state.stall_counts.pop(issue_id, None)
+            self.event_bus.emit(
+                EventType.AGENT_COMPLETED
+                if reason == "normal"
+                else EventType.AGENT_FAILED,
+                {
+                    "issue_id": issue_id,
+                    "identifier": entry.identifier,
+                    "reason": reason,
+                    "error": error,
+                    "durable": True,
+                },
+            )
+            self._notify_observers()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.WORKER_EXIT,
+                    issue_id=issue_id,
+                    payload={"reason": reason, "durable": True},
                 )
             )
             return
@@ -40704,16 +41791,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         except Exception:
             return False
 
-    def _persist_retry_entries(self) -> None:
-        """Persist retry authority without serializing event-loop handles."""
-        with self._retry_authority_lock:
-            entries = list(self.state.retry_attempts.values())
-            entries.extend(
-                entry
-                for issue_id, entry in self._retry_dispatching.items()
-                if issue_id not in self.state.retry_attempts
-            )
-            payload = {
+    @staticmethod
+    def _retry_entries_payload(entries: Iterable[RetryEntry]) -> dict[str, Any]:
+        """Serialize retry authority without event-loop timer handles."""
+
+        return {
                 entry.issue_id: {
                     "issue_id": entry.issue_id,
                     "identifier": entry.identifier,
@@ -40743,6 +41825,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 for entry in entries
                 if not entry.cancelled
             }
+
+    def _persist_retry_entries(self) -> None:
+        """Persist retry authority without serializing event-loop handles."""
+        with self._retry_authority_lock:
+            entries = list(self.state.retry_attempts.values())
+            entries.extend(
+                entry
+                for issue_id, entry in self._retry_dispatching.items()
+                if issue_id not in self.state.retry_attempts
+            )
+            payload = self._retry_entries_payload(entries)
         self._save_state(retry_attempts=payload)
 
     @staticmethod
@@ -40802,7 +41895,137 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self._persisted_retry_entries = []
         if not entries:
             return
-        # Consume the durable queue first.  Invalid entries are intentionally
+        if (
+            self.workflow_runtime is not None
+            and self.workflow_runtime.enforce is True
+        ):
+            # Convert every still-current legacy row into the durable ledger
+            # before clearing it.  A transient tracker/ledger failure is not
+            # evidence that the retry is obsolete: retain the exact row and
+            # fail startup so a later process can resume the conversion.
+            remaining: list[RetryEntry] = []
+            failures: list[str] = []
+            for retry in entries:
+                project_id = str(retry.project_id or "").strip()
+                if not project_id or retry.cancelled:
+                    continue
+                try:
+                    issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
+                except Exception as exc:
+                    logger.warning(
+                        "Retaining persisted durable retry for %s after "
+                        "refresh failure: %s",
+                        retry.identifier,
+                        exc,
+                    )
+                    remaining.append(retry)
+                    failures.append(
+                        f"{retry.identifier}: tracker refresh failed ({type(exc).__name__})"
+                    )
+                    continue
+                if issue is None:
+                    logger.info(
+                        "Discarding stale persisted durable retry for %s",
+                        retry.identifier,
+                    )
+                    continue
+                retry_mismatches = self._retry_authority_mismatches(issue, retry)
+                if retry.authority_generation and retry_mismatches:
+                    logger.info(
+                        "Persisted durable retry authority changed "
+                        "issue_id=%s identifier=%s authority_dimensions=%s",
+                        retry.issue_id,
+                        retry.identifier,
+                        list(retry_mismatches),
+                    )
+                    continue
+                accepted_handoff = self._durable_accepted_implementation_handoff(
+                    issue
+                )
+                if accepted_handoff is not None:
+                    accepted_action, accepted_payload = accepted_handoff
+                    try:
+                        self._schedule_implementation_workflow_event(
+                            project_id=project_id,
+                            identifier=retry.identifier,
+                            action=accepted_action,
+                            payload=accepted_payload,
+                            expected_evidence_revision=issue_authority_version(
+                                issue
+                            ),
+                            expected_head_sha=(
+                                str(accepted_payload.get("head_sha") or "")
+                                or issue_exact_head(issue)
+                            ),
+                            priority=0,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Retaining persisted durable retry for %s after "
+                            "accepted-handoff publication failure: %s",
+                            retry.identifier,
+                            exc,
+                        )
+                        remaining.append(retry)
+                        failures.append(
+                            f"{retry.identifier}: accepted handoff publication "
+                            f"failed ({type(exc).__name__})"
+                        )
+                    continue
+                retry_at = datetime.fromtimestamp(
+                    float(retry.due_at_epoch_ms or time.time() * 1000) / 1000,
+                    tz=timezone.utc,
+                ).isoformat()
+                try:
+                    self._schedule_implementation_workflow_event(
+                        project_id=project_id,
+                        identifier=retry.identifier,
+                        action="implementation_retry",
+                        payload={
+                            "owner_id": str(
+                                retry.assignment_id or f"retry:{retry.identifier}"
+                            ),
+                            "assignment_id": str(retry.assignment_id or ""),
+                            "work_branch": str(retry.work_branch or ""),
+                            "head_sha": str(retry.head_sha or ""),
+                            "retry_at": retry_at,
+                            "attempt": retry.attempt,
+                            "profile": str(
+                                retry.escalated_profile
+                                or retry.agent_profile_name
+                                or ""
+                            ),
+                            "incomplete_sessions": int(retry.attempt),
+                            "reason": str(retry.error or "restart recovery"),
+                            "workspace_path": str(retry.workspace_path or ""),
+                            "expected_status": issue.state,
+                        },
+                        expected_evidence_revision=issue_authority_version(issue),
+                        expected_head_sha=retry.head_sha,
+                        priority=20,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Retaining persisted durable retry for %s after ledger "
+                        "publication failure: %s",
+                        retry.identifier,
+                        exc,
+                    )
+                    remaining.append(retry)
+                    failures.append(
+                        f"{retry.identifier}: ledger publication failed "
+                        f"({type(exc).__name__})"
+                    )
+            self._save_state(
+                retry_attempts=self._retry_entries_payload(remaining)
+            )
+            if failures:
+                raise RuntimeError(
+                    "durable retry startup conversion incomplete: "
+                    + "; ".join(failures)
+                )
+            return
+        # Consume the legacy queue first. Invalid entries are intentionally
         # forgotten; their historical failure comments remain in the tracker.
         self._save_state(retry_attempts={})
         now_ms = time.time() * 1000
@@ -40906,7 +42129,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     continue
                 if identifier and entry.identifier != identifier and key != identifier:
                     continue
-                if project_id and entry.project_id and entry.project_id != project_id:
+                if project_id and entry.project_id != project_id:
                     continue
                 candidates.append((key, entry))
             for key, entry in list(self._retry_dispatching.items()):
@@ -40914,7 +42137,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     continue
                 if identifier and entry.identifier != identifier and key != identifier:
                     continue
-                if project_id and entry.project_id and entry.project_id != project_id:
+                if project_id and entry.project_id != project_id:
                     continue
                 if (key, entry) not in candidates:
                     candidates.append((key, entry))
@@ -40965,7 +42188,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 }:
                     continue
                 running_project = getattr(running_issue, "project_id", None)
-                if project_id and running_project and running_project != project_id:
+                if project_id and running_project != project_id:
                     continue
                 generation = getattr(running_entry, "authority_generation", None)
                 if generation:
@@ -41051,6 +42274,89 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         authority_issue: Issue | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
+        runtime = self.workflow_runtime
+        retry_project = str(
+            project_id
+            or getattr(getattr(context_entry, "issue", None), "project_id", None)
+            or getattr(context_retry, "project_id", None)
+            or ""
+        ).strip()
+        if runtime is not None and runtime.enforce is True and retry_project:
+            source_issue = authority_issue or getattr(context_entry, "issue", None)
+            head = (
+                issue_exact_head(source_issue) if source_issue is not None else None
+            ) or getattr(context_retry, "head_sha", None)
+            retry_at = (
+                datetime.now(timezone.utc)
+                + timedelta(milliseconds=max(int(delay_ms), 0))
+            ).isoformat()
+            self._schedule_implementation_workflow_event(
+                project_id=retry_project,
+                identifier=identifier,
+                action="implementation_retry",
+                payload={
+                    "owner_id": str(
+                        getattr(context_entry, "run_id", None)
+                        or getattr(context_retry, "assignment_id", None)
+                        or f"retry:{identifier}"
+                    ),
+                    "assignment_id": str(
+                        getattr(context_entry, "assignment_id", None)
+                        or getattr(context_retry, "assignment_id", None)
+                        or ""
+                    ),
+                    "run_id": str(getattr(context_entry, "run_id", None) or ""),
+                    "focus": str(getattr(context_entry, "focus_name", None) or ""),
+                    "work_branch": str(
+                        getattr(source_issue, "work_branch", None)
+                        or getattr(source_issue, "branch_name", None)
+                        or getattr(context_retry, "work_branch", None)
+                        or ""
+                    ),
+                    "head_sha": str(head or ""),
+                    "retry_at": retry_at,
+                    "attempt": int(attempt),
+                    "profile": str(
+                        escalated_profile
+                        or getattr(context_entry, "agent_profile_name", None)
+                        or getattr(context_retry, "agent_profile_name", None)
+                        or ""
+                    ),
+                    "incomplete_sessions": int(attempt),
+                    "reason": str(error or "implementation retry"),
+                    "workspace_path": str(
+                        getattr(context_entry, "workspace_path", None)
+                        or getattr(context_retry, "workspace_path", None)
+                        or ""
+                    ),
+                    "expected_status": str(
+                        getattr(source_issue, "state", None)
+                        or getattr(context_retry, "failed_status", None)
+                        or ""
+                    ),
+                },
+                expected_evidence_revision=(
+                    issue_authority_version(source_issue)
+                    if source_issue is not None
+                    else None
+                ),
+                expected_head_sha=head,
+                priority=20,
+            )
+            self.event_bus.emit(
+                EventType.ISSUE_RETRY_SCHEDULED,
+                {
+                    "issue_id": issue_id,
+                    "identifier": identifier,
+                    "attempt": attempt,
+                    "delay_ms": delay_ms,
+                    "error": error,
+                    "project_id": retry_project,
+                    "durable": True,
+                },
+            )
+            return
+
         # Replace the old generation atomically.  A second failure may arrive
         # after the first timer became due, so also withdraw an in-flight
         # dispatch claim for this task before creating the replacement.
@@ -41352,6 +42658,38 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             retry.identifier,
                             exc,
                         )
+                return
+
+            if (
+                self.workflow_runtime is not None
+                and self.workflow_runtime.enforce is True
+            ):
+                # A mode cutover can race a legacy timer that was armed while
+                # legacy ownership was still active. Convert that exact
+                # generation into the durable retry lane; never let the stale
+                # callback launch a second implementation worker directly.
+                with self._retry_authority_lock:
+                    if self.state.retry_attempts.get(issue_id) is retry:
+                        self.state.retry_attempts.pop(issue_id, None)
+                    retry.cancelled = True
+                self._schedule_retry(
+                    issue_id,
+                    retry.attempt,
+                    retry.identifier,
+                    0,
+                    retry.error or "legacy retry timer crossed enforce cutover",
+                    escalated_profile=retry.escalated_profile,
+                    project_id=issue.project_id or retry.project_id,
+                    context_retry=retry,
+                    authority_issue=issue,
+                )
+                logger.info(
+                    "Converted legacy retry callback to durable authority "
+                    "issue_id=%s identifier=%s generation=%s",
+                    issue_id,
+                    retry.identifier,
+                    retry.authority_generation or "legacy",
+                )
                 return
 
             if self._available_slots() <= 0:
@@ -42121,6 +43459,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if (
                 getattr(entry, "handoff_pending", False)
                 and not getattr(entry, "handoff_finalized", False)
+                and not (
+                    self.workflow_runtime is not None
+                    and self.workflow_runtime.enforce is True
+                )
             ):
                 try:
                     project_id = entry.issue.project_id if entry.issue else None
@@ -42352,21 +43694,31 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             return True
                 except RecoveryPublicationError as exc:
                     recovery_publication_pending = True
-                    self._route_retryable_recovery_publication(
+                    if not self._schedule_durable_worker_status(
                         entry,
-                        issue_id,
-                        project_id,
-                        exc,
-                    )
+                        requested_status=OPEN,
+                        reason="worktree_recovery_publication_pending",
+                    ):
+                        self._route_retryable_recovery_publication(
+                            entry,
+                            issue_id,
+                            project_id,
+                            exc,
+                        )
                 except Exception as exc:  # noqa: BLE001 - fail closed for retries
                     if self._current_running_entry(issue_id) is entry:
                         self._remove_running_entry(issue_id, entry)
-                    self._hold_after_worktree_recovery_failure(
+                    if not self._schedule_durable_worker_status(
                         entry,
-                        issue_id,
-                        project_id,
-                        str(exc),
-                    )
+                        requested_status=NEEDS_HUMAN,
+                        reason="worktree_recovery_failed",
+                    ):
+                        self._hold_after_worktree_recovery_failure(
+                            entry,
+                            issue_id,
+                            project_id,
+                            str(exc),
+                        )
                     return False
 
             if (

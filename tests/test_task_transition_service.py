@@ -179,6 +179,20 @@ async def test_applies_and_verifies_a_nonterminal_transition(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_project_scopes_native_issue_before_authority_compare(tmp_path):
+    issue = _issue(project_id=None)
+    tracker = FakeTracker(issue)
+    service = _service(tmp_path, tracker)
+    scoped = replace(issue, project_id="project-1")
+    intent = _intent(scoped)
+
+    outcome = await service.execute(intent)
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
+    assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
 async def test_replay_is_idempotent_and_does_not_write_again(tmp_path):
     tracker = FakeTracker(_issue())
     service = _service(tmp_path, tracker)

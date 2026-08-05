@@ -893,8 +893,12 @@ class TaskTransitionService:
     async def _fetch(self, task_id: str) -> Issue | None:
         operation = self.tracker.fetch_issue_detail
         if inspect.iscoroutinefunction(operation):
-            return await operation(task_id)
-        return await asyncio.to_thread(operation, task_id)
+            issue = await operation(task_id)
+        else:
+            issue = await asyncio.to_thread(operation, task_id)
+        if issue is not None and not issue.project_id:
+            issue.project_id = self.project_id
+        return issue
 
     async def _try_fetch(self, task_id: str) -> tuple[Issue | None, Exception | None]:
         try:

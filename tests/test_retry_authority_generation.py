@@ -6,6 +6,7 @@ import asyncio
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -139,6 +140,33 @@ def test_submission_cancellation_clears_claim_placeholder(tmp_path):
     assert retry.cancelled is True
     assert issue.id not in orch.state.claimed
     assert issue.id not in orch.state.claimed_issues
+
+
+def test_project_scoped_cancellation_ignores_unknown_or_foreign_runtime(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    foreign_issue = _issue()
+    foreign_issue.project_id = "project-b"
+    foreign = RunningEntry(
+        worker_task=None,
+        identifier=foreign_issue.identifier,
+        issue=foreign_issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        authority_generation="foreign-generation",
+    )
+    orch.state.running[issue.id] = foreign
+
+    orch._cancel_retry_for_issue(
+        issue_id=issue.id,
+        identifier=issue.identifier,
+        project_id=issue.project_id,
+        reason="project-a submission",
+    )
+
+    assert foreign.authority_revoked is False
+    assert orch.state.running[issue.id] is foreign
 
 
 def test_revoked_running_submission_is_quarantined_without_retry(tmp_path):
@@ -836,6 +864,31 @@ def test_due_retry_loses_to_submit_cancellation_race(tmp_path):
     asyncio.run(scenario())
 
 
+def test_legacy_timer_callback_converts_to_durable_retry_after_cutover(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        retry = _schedule(orch, issue)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._fetch_retry_issue = MagicMock(return_value=issue)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="durable-retry")
+        )
+        orch._dispatch = AsyncMock()
+
+        await orch._on_retry_timer(issue.id)
+
+        orch._dispatch.assert_not_awaited()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "implementation_retry"
+        assert scheduled["payload"]["attempt"] == retry.attempt
+        assert scheduled["payload"]["incomplete_sessions"] == retry.attempt
+        assert issue.id not in orch.state.retry_attempts
+        assert retry.cancelled is True
+
+    asyncio.run(scenario())
+
+
 def test_restart_discards_persisted_retry_with_replaced_head(tmp_path):
     original = _orchestrator(tmp_path)
     retry = _schedule(original, _issue())
@@ -897,6 +950,97 @@ def test_restart_repersist_valid_retry_after_rearming(tmp_path):
     persisted = restarted._load_state().get("retry_attempts")
     assert set(persisted) == {"task-1"}
     assert persisted["task-1"]["authority_generation"]
+
+
+def test_enforce_restart_converts_legacy_retry_with_full_launch_context(tmp_path):
+    original = _orchestrator(tmp_path)
+    current = _issue(head_sha=None)
+    retry = _schedule(original, current, attempt=2)
+    retry.agent_profile_name = "deep"
+    retry.workspace_path = "/work/TASK-1"
+    original._persist_retry_entries()
+    restarted = _orchestrator(tmp_path)
+    restarted.workflow_runtime = SimpleNamespace(enforce=True)
+    restarted._fetch_retry_issue = MagicMock(return_value=current)
+    restarted._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="durable-retry")
+    )
+
+    asyncio.run(restarted._restore_persisted_retries())
+
+    scheduled = restarted._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] == "implementation_retry"
+    assert scheduled["payload"]["attempt"] == 2
+    assert scheduled["payload"]["incomplete_sessions"] == 2
+    assert scheduled["payload"]["profile"] == "deep"
+    assert scheduled["payload"]["workspace_path"] == "/work/TASK-1"
+    assert restarted.state.retry_attempts == {}
+
+
+def test_enforce_restart_prefers_accepted_handoff_over_legacy_retry(tmp_path):
+    original = _orchestrator(tmp_path)
+    _schedule(original, _issue(), attempt=2)
+    restarted = _orchestrator(tmp_path)
+    restarted.workflow_runtime = SimpleNamespace(enforce=True)
+    current = _issue()
+    restarted._fetch_retry_issue = MagicMock(return_value=current)
+    accepted_payload = {
+        "focus": "testing",
+        "expected_status": current.state,
+        "work_branch": current.work_branch,
+        "head_sha": current.head_sha,
+    }
+    restarted._durable_accepted_implementation_handoff = MagicMock(
+        return_value=("focus_handoff", accepted_payload)
+    )
+    restarted._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="durable-handoff")
+    )
+
+    asyncio.run(restarted._restore_persisted_retries())
+
+    scheduled = restarted._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] == "focus_handoff"
+    assert scheduled["payload"] == accepted_payload
+    assert restarted.state.retry_attempts == {}
+
+
+def test_enforce_restart_retains_retry_when_ledger_publication_fails(tmp_path):
+    original = _orchestrator(tmp_path)
+    retry = _schedule(original, _issue(), attempt=2)
+    restarted = _orchestrator(tmp_path)
+    restarted.workflow_runtime = SimpleNamespace(enforce=True)
+    restarted._fetch_retry_issue = MagicMock(return_value=_issue())
+    restarted._schedule_implementation_workflow_event = MagicMock(
+        side_effect=RuntimeError("ledger unavailable")
+    )
+
+    with pytest.raises(RuntimeError, match="startup conversion incomplete"):
+        asyncio.run(restarted._restore_persisted_retries())
+
+    persisted = restarted._load_state()["retry_attempts"]
+    assert persisted[retry.issue_id]["authority_generation"] == (
+        retry.authority_generation
+    )
+    assert persisted[retry.issue_id]["attempt"] == 2
+
+
+def test_enforce_restart_retains_retry_when_tracker_refresh_fails(tmp_path):
+    original = _orchestrator(tmp_path)
+    retry = _schedule(original, _issue())
+    restarted = _orchestrator(tmp_path)
+    restarted.workflow_runtime = SimpleNamespace(enforce=True)
+    restarted._fetch_retry_issue = MagicMock(
+        side_effect=RuntimeError("tracker unavailable")
+    )
+
+    with pytest.raises(RuntimeError, match="startup conversion incomplete"):
+        asyncio.run(restarted._restore_persisted_retries())
+
+    persisted = restarted._load_state()["retry_attempts"]
+    assert persisted[retry.issue_id]["authority_generation"] == (
+        retry.authority_generation
+    )
 
 
 def test_restart_after_open_status_claim_starts_replacement_worker_once(tmp_path):
@@ -1041,6 +1185,40 @@ def test_api_status_authority_helper_ignores_noop_and_cancels_changed_status(
         project_id=issue.project_id,
         reason="task status changed",
     )
+
+
+def test_enforce_status_change_publishes_exact_durable_revocation():
+    orch = MagicMock()
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    issue = _issue()
+    live = SimpleNamespace(
+        run_id="run-1",
+        authority_generation="generation-1",
+    )
+    orch._current_running_entry.return_value = live
+    orch._schedule_implementation_workflow_event.return_value = SimpleNamespace(
+        job_id="revocation-job"
+    )
+
+    _cancel_retry_for_authority_change(
+        orch,
+        issue,
+        issue.identifier,
+        issue.project_id,
+        "Needs Human",
+        None,
+    )
+
+    orch._cancel_retry_for_issue.assert_not_called()
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["project_id"] == issue.project_id
+    assert scheduled["identifier"] == issue.identifier
+    assert scheduled["action"] == "authority_revocation"
+    assert scheduled["payload"]["prior_generation"] == "generation-1"
+    assert scheduled["payload"]["prior_run_id"] == "run-1"
+    assert scheduled["payload"]["authority_kind"] == "scheduler"
+    assert scheduled["expected_evidence_revision"] is None
+    assert scheduled["expected_head_sha"] == "a" * 40
 
 
 def test_legacy_retry_entries_remain_dispatchable(tmp_path):

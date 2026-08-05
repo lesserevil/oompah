@@ -9,6 +9,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,6 +38,7 @@ from oompah.statuses import (
     NEEDS_HUMAN,
     OPEN,
 )
+from oompah.workflow_facts import FactDomain
 
 
 def _issue(
@@ -161,6 +163,8 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._epic_maintenance_project_locks = {}
     orch._tracker_for_issue = lambda issue: tracker
     orch._tracker_for_project = lambda project_id: tracker
+    orch.project_store = MagicMock()
+    orch.project_store.get.return_value = None
     # Retry authority attributes added by OOMPAH-661; not present when
     # Orchestrator is constructed via __new__ without __init__.
     orch._retry_authority_lock = threading.RLock()
@@ -205,6 +209,50 @@ def test_concurrent_claim_attempts_have_exactly_one_winner():
     assert sum(record is not None for record in winners) == 1
     stored = tracker.get_metadata(issue.identifier)[METADATA_KEY]
     assert stored["claim_id"]
+
+
+def test_restart_re_adopts_only_its_exact_durable_generation_claim():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    first = _orch(tracker)
+    claim = first._claim_duplicate_preflight(
+        issue, claim_id="implementation-generation-1"
+    )
+    assert claim is not None
+
+    restarted = _orch(tracker)
+    adopted = restarted._claim_duplicate_preflight(
+        issue, claim_id="implementation-generation-1"
+    )
+    replacement = restarted._claim_duplicate_preflight(
+        issue, claim_id="replacement-generation"
+    )
+
+    assert adopted is not None
+    assert adopted.claim_id == "implementation-generation-1"
+    assert replacement is None
+
+
+def test_duplicate_claim_ignores_same_tracker_id_owned_by_another_project():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    foreign_issue = copy.deepcopy(issue)
+    foreign_issue.project_id = "project-2"
+    orch.state.running[issue.id] = _entry(
+        foreign_issue,
+        "foreign-generation",
+        compute_task_fingerprint(foreign_issue),
+    )
+
+    claim = orch._claim_duplicate_preflight(
+        issue,
+        claim_id="project-1-generation",
+    )
+
+    assert claim is not None
+    assert claim.claim_id == "project-1-generation"
+    assert orch.state.running[issue.id].issue.project_id == "project-2"
 
 
 def test_wrong_claim_cannot_clear_or_complete_replacement_claim():
@@ -337,6 +385,310 @@ def test_no_duplicate_completion_keeps_open_and_unlocks_implementation():
     assert refreshed.state == OPEN
     assert assess_screening(refreshed).implementation_eligible is True
     assert (issue.identifier, "In Progress") not in tracker.status_updates
+
+
+def test_candidate_investigation_is_claimed_read_only_and_can_return_open():
+    issue = _issue(state=DUPLICATE_CANDIDATE)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(
+        issue,
+        allow_duplicate_candidate=True,
+    )
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="structured verdict",
+            detail=(
+                "Focus handoff: duplicate_detector\n"
+                "Duplicate preflight verdict: no_duplicate\n"
+                "Matches: none\nEvidence: heuristic match was not equivalent."
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+
+    result = orch._finish_duplicate_preflight_sync(
+        entry,
+        "normal",
+        None,
+        persist_status=False,
+    )
+
+    assert result["outcome"] == "checked"
+    assert result["requested_status"] == OPEN
+    assert tracker.fetch_issue_detail(issue.identifier).state == DUPLICATE_CANDIDATE
+    assert orch._duplicate_preflight_claim_is_current(entry, entry.issue) is False
+
+
+@pytest.mark.parametrize(
+    ("status", "verdict", "requested_status"),
+    (
+        (OPEN, ScreeningVerdict.DUPLICATE_CANDIDATE, DUPLICATE_CANDIDATE),
+        (DUPLICATE_CANDIDATE, ScreeningVerdict.NO_DUPLICATE, OPEN),
+    ),
+)
+def test_workflow_source_recovers_persisted_verdict_status_mismatch(
+    status, verdict, requested_status
+):
+    issue = _issue(state=status)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    record = complete_claim_record(
+        new_claim_record(issue, owner="scheduler"),
+        verdict=verdict,
+        matched_identifiers=("TASK-2",)
+        if verdict is ScreeningVerdict.DUPLICATE_CANDIDATE
+        else (),
+    )
+    issue.duplicate_screening = record.to_dict()
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["duplicate_screening_state"] == "checked"
+    assert config["implementation_pending_action"] == "worker_exit"
+    assert (
+        config["implementation_pending_payload"]["requested_status"]
+        == requested_status
+    )
+
+
+def test_workflow_source_does_not_reschedule_a_live_duplicate_claim():
+    issue = _issue()
+    claim = new_claim_record(
+        issue,
+        owner="scheduler",
+        claim_id="implementation-generation-1",
+    )
+    issue.duplicate_screening = claim.to_dict()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["duplicate_screening_state"] == "running"
+    assert "implementation_pending_action" not in config
+
+
+def test_workflow_source_recovers_accepted_submission_before_event_publication():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["implementation_pending_action"] == "validation_submission"
+    assert config["implementation_pending_payload"]["head_sha"] == "a" * 40
+    assert config["implementation_pending_payload"]["work_branch"] == "TASK-1"
+
+
+def test_accepted_submission_precedes_duplicate_recovery_after_restart():
+    issue = _issue(state="In Progress")
+    issue.head_sha = "a" * 40
+    issue.integration = SimpleNamespace(
+        state="ready",
+        head_sha="a" * 40,
+        task_branch="TASK-1",
+        base_branch="main",
+        base_sha="b" * 40,
+    )
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    # Model stale/ambiguous duplicate eligibility evidence.  Accepted
+    # submission metadata is the stronger authority and must still win.
+    orch._eligible_for_duplicate_investigation = lambda *_args, **_kwargs: True
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["implementation_pending_action"] == "validation_submission"
+    assert config["implementation_pending_payload"]["head_sha"] == "a" * 40
+
+
+def test_workflow_source_recovers_trusted_focus_handoff_after_restart():
+    issue = _issue(state="In Progress")
+    issue.labels = ["focus-complete:docs", "needs:feature"]
+    issue.head_sha = "a" * 40
+    tracker = _Tracker([issue])
+    tracker.add_comment(
+        issue.identifier,
+        "Focus handoff: docs\nRecommended next focus: feature",
+        author="oompah",
+    )
+    orch = _orch(tracker)
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert config["implementation_pending_action"] == "focus_handoff"
+    assert config["implementation_pending_payload"]["focus"] == "feature"
+    assert config["implementation_pending_payload"]["head_sha"] == "a" * 40
+
+
+def test_workflow_source_does_not_replay_consumed_handoff_on_successor():
+    issue = _issue(state="In Progress")
+    issue.labels = ["focus-complete:docs"]
+    issue.head_sha = "a" * 40
+    tracker = _Tracker([issue])
+    tracker.add_comment(
+        issue.identifier,
+        "Focus handoff: docs\nRecommended next focus: feature",
+        author="oompah",
+    )
+    orch = _orch(tracker)
+    orch.state.running[issue.id] = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        focus_name="feature",
+        run_id="successor-run",
+        authority_generation="successor-generation",
+    )
+
+    config = orch._workflow_shadow_sources(issue)[FactDomain.CONFIG](issue)
+
+    assert "implementation_pending_action" not in config
+
+
+@pytest.mark.asyncio
+async def test_project_pause_wins_at_final_dispatch_boundary():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    orch._dispatch_is_blocked = lambda: False
+    orch._is_project_paused = lambda project_id: project_id == "project-1"
+
+    await orch._dispatch(
+        issue,
+        attempt=None,
+        workflow_generation="generation-1",
+        status_managed_by_workflow=True,
+    )
+
+    assert issue.id not in orch.state.running
+    assert issue.id not in orch.state.claimed
+
+
+@pytest.mark.asyncio
+async def test_project_pause_race_wins_after_dispatch_state_refresh():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker, slots=2, preflight_limit=1)
+    orch._paused = False
+    orch._tick_pool = ThreadPoolExecutor(max_workers=2)
+    orch._dispatch_is_blocked = lambda: False
+    paused = False
+    orch._is_project_paused = lambda _project_id: paused
+    real_fetch = tracker.fetch_issue_states_by_ids
+
+    def pause_during_refresh(identifiers):
+        nonlocal paused
+        result = real_fetch(identifiers)
+        paused = True
+        return result
+
+    tracker.fetch_issue_states_by_ids = pause_during_refresh
+    orch._run_worker = AsyncMock()
+    claim = orch._claim_duplicate_preflight(
+        issue,
+        claim_id="implementation-generation-1",
+    )
+    assert claim is not None
+
+    try:
+        await orch._dispatch(
+            issue,
+            attempt=None,
+            duplicate_preflight_claim=claim,
+            workflow_generation="implementation-generation-1",
+            status_managed_by_workflow=True,
+        )
+    finally:
+        orch._tick_pool.shutdown(wait=True)
+
+    assert issue.id not in orch.state.running
+    assert issue.id not in orch.state.claimed
+    orch._run_worker.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_investigator_never_uses_unrestricted_cli_transport():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(
+        issue, claim_id="implementation-generation-1"
+    )
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.run_id = "duplicate-run"
+    orch.state.running[issue.id] = entry
+    orch._on_worker_exit = AsyncMock()
+
+    await orch._run_cli_worker(
+        issue,
+        attempt=None,
+        profile=SimpleNamespace(command="unsafe-cli", max_turns=1),
+        run_id=entry.run_id,
+    )
+
+    orch._on_worker_exit.assert_awaited_once()
+    assert "requires an API or ACP read-only transport" in (
+        orch._on_worker_exit.await_args.args[2]
+    )
+
+
+def test_durable_conclusive_preflight_records_worker_exit_without_status_write():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.run_id = "duplicate-run"
+    entry.authority_generation = "duplicate-generation"
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="structured verdict",
+            detail=(
+                "Focus handoff: duplicate_detector\n"
+                "Duplicate preflight verdict: no_duplicate\n"
+                "Matches: none\nEvidence: no active equivalent."
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+    orch.workflow_runtime = SimpleNamespace(enforce=True)
+    orch._schedule_implementation_workflow_event = MagicMock(
+        return_value=SimpleNamespace(job_id="worker-exit")
+    )
+    orch._schedule_retry = MagicMock()
+    orch.event_bus = MagicMock()
+    orch._notify_observers = MagicMock()
+    orch._post_event = MagicMock()
+
+    asyncio.run(orch._handle_duplicate_preflight_exit(entry, "normal", None))
+
+    scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+    assert scheduled["action"] == "worker_exit"
+    assert "requested_status" not in scheduled["payload"]
+    assert scheduled["payload"]["prior_generation"] == "duplicate-generation"
+    orch._schedule_retry.assert_not_called()
+    assert tracker.status_updates == []
 
 
 def test_markdown_activity_verdict_completes_without_tracker_mutation():

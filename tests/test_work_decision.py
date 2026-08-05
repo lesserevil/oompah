@@ -359,6 +359,54 @@ def test_missing_implementation_authority_is_recovery_not_warning():
     assert decision.alert_level is AlertSeverity.INFO
 
 
+def test_accepted_submission_recovery_does_not_require_a_live_implementer():
+    issue = _issue(IN_PROGRESS)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "implementation_pending_action": "validation_submission",
+                        "implementation_pending_payload": {
+                            "head_sha": "a" * 40,
+                        },
+                    },
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.durable_jobs == ("validation_submission",)
+    assert decision.alert_level is AlertSeverity.INFO
+
+
+def test_accepted_focus_handoff_recovery_does_not_require_live_outgoing_run():
+    issue = _issue(IN_PROGRESS)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "implementation_pending_action": "focus_handoff",
+                        "implementation_pending_payload": {"focus": "feature"},
+                    },
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.RETRY_SCHEDULED
+    assert decision.durable_jobs == ("focus_handoff",)
+    assert decision.alert_level is AlertSeverity.INFO
+
+
 def test_duplicate_candidate_requires_duplicate_investigator_authority():
     issue = _issue(DUPLICATE_CANDIDATE)
     implementer = _facts(
@@ -394,6 +442,51 @@ def test_duplicate_candidate_requires_duplicate_investigator_authority():
     assert screened.durable_jobs == ("duplicate_screening",)
     assert owned.reason_code == "duplicate.investigating"
     assert owned.disposition is TaskDisposition.OWNED
+
+
+def test_confirmed_duplicate_candidate_waits_for_project_owner_resolution():
+    issue = _issue(DUPLICATE_CANDIDATE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {
+                        "duplicate_screening_state": "checked",
+                        "duplicate_screening_verdict": "duplicate_candidate",
+                    },
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.responsible_owner is WorkflowOwner.PROJECT_OWNER
+    assert decision.durable_jobs == ()
+    assert decision.reason_code == "duplicate.confirmed"
+
+
+def test_duplicate_candidate_does_not_spin_when_screening_is_disabled():
+    issue = _issue(DUPLICATE_CANDIDATE)
+    decision = evaluate_task(
+        issue,
+        _facts(
+            issue,
+            overrides={
+                FactDomain.CONFIG: _known(
+                    FactDomain.CONFIG,
+                    {"duplicate_screening_enabled": False},
+                )
+            },
+        ),
+    )
+
+    assert decision.disposition is TaskDisposition.ACTION_REQUIRED
+    assert decision.responsible_owner is WorkflowOwner.OPERATOR
+    assert decision.durable_jobs == ()
+    assert decision.reason_code == "duplicate.screening_disabled"
 
 
 @pytest.mark.parametrize(
