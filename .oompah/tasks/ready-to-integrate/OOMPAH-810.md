@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-810
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Return completed auditor command results without stranding the ACP session
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:46:28.510814Z'
+updated_at: '2026-08-05T17:46:48.825095Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a017c715-3099-4dff-a8d1-816f4d88b43b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-810
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-810
   base_branch: epic-OOMPAH-763
   base_sha: b1c089614b81076b961c7681b6ddad64ca68191e
-  updated_at: '2026-08-05T17:01:00.622811+00:00'
+  head_sha: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
+  submitted_at: '2026-08-05T17:46:35.612561+00:00'
+  updated_at: '2026-08-05T17:46:35.612561+00:00'
 oompah.task_costs:
   total_input_tokens: 46708
   total_output_tokens: 435
@@ -161,5 +163,20 @@ author: oompah
 created: 2026-08-05 17:46
 ---
 Completion: pushed bb42de1e7. Approved ACP/API commands now retain liveness through bounded result preparation and provider-visible delivery, transition to precise provider_stalled on the fixed handoff deadline, and expose result lifecycle metrics without provider-private paths. Large make-shaped output remains bounded/pageable, pass/fail and race regressions are covered, and focused plus reconciliation/state suites pass. Canonical make test/terminal-audit targets were attempted but task-private uv bootstrap is blocked by the environment DBus transient-scope error; make check-secrets passes.
+---
+author: oompah
+created: 2026-08-05 17:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 146
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 45m 45s
+- Log: OOMPAH-810__20260805T170109Z.jsonl
+---
+author: oompah
+created: 2026-08-05 17:46
+---
+Preserve bounded ACP/API command results through exactly-once provider delivery with race-safe liveness phases, precise delivery timeout recovery, and lifecycle metrics; pushed bb42de1e7.
 ---
 <!-- COMMENTS:END -->
