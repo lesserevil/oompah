@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-08-05T04:26:00.901294Z'
+updated_at: '2026-08-05T04:26:16.037849Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -29,7 +29,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-541
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -50,13 +50,27 @@ oompah.terminal_audit:
       branch_key: OOMPAH-541
       ended_at: '2026-08-05T04:25:55.816726+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-f031f0e95ebc
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b6e3da817cd8357a40252cb3199c3211b8dc5496a5bac99ffb32310064d7b161
+      created_at: '2026-08-05T04:26:08.304778+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T04:26:08.304778+00:00'
+      branch_key: OOMPAH-541
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T02:11:41.611401+00:00'
-    updated_at: '2026-08-05T03:03:58.949953+00:00'
+    updated_at: '2026-08-05T04:26:08.304778+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ac5e7e4358b6
@@ -73,6 +87,20 @@ oompah.terminal_audit:
     branch_key: OOMPAH-541
     ended_at: '2026-08-05T04:25:55.816726+00:00'
     failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-f031f0e95ebc
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b6e3da817cd8357a40252cb3199c3211b8dc5496a5bac99ffb32310064d7b161
+    created_at: '2026-08-05T04:26:08.304778+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T04:26:08.304778+00:00'
+    branch_key: OOMPAH-541
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -127,5 +155,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 55s
 - Log: OOMPAH-541__20260805T030426Z.jsonl
+---
+author: oompah
+created: 2026-08-05 04:26
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
