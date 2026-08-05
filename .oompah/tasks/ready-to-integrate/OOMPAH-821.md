@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:58:19.414816Z'
+updated_at: '2026-08-05T05:58:54.103660Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -46,12 +46,14 @@ oompah.agent_run_id: b06321d7-2501-4d86-bd80-ccc6baf2e6ad
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T05:39:46.973498+00:00'
+  head_sha: bdbe4ba222ba6aa110caa731d247f7a72c62e798
+  submitted_at: '2026-08-05T05:58:49.648883+00:00'
+  updated_at: '2026-08-05T05:58:49.648883+00:00'
 oompah.task_costs:
   total_input_tokens: 46470
   total_output_tokens: 272
@@ -179,5 +181,10 @@ New functions successfully exported and importable:
 Fix addresses core issue: Mixed attempt histories (FINALIZATION_FAILURE + terminal NO_AUDITOR) no longer block infrastructure retry. Retryability is now determined solely from terminal attempt classification, preserving prior attempt history for audit trail purposes.
 
 Alert/action parity achieved: retry_failed_audit() now uses same eligibility logic that should be used by recovery alert emission (ready for next agent to integrate alert-side changes).
+---
+author: oompah
+created: 2026-08-05 05:58
+---
+Implemented canonical retry-eligibility functions that check terminal attempt classification only. Fixed OOMPAH-745 regression where mixed attempt histories blocked infrastructure retry. Alert/action parity ensured: retry_failed_audit() now uses deterministic eligibility logic for both infrastructure and evidence recovery modes.
 ---
 <!-- COMMENTS:END -->
