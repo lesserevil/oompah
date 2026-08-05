@@ -125,6 +125,10 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
     TerminalAuditMetadataError,
 )
+from oompah.validation_resource_lease import (
+    VALIDATION_KIND_WORKER,
+    ValidationLeaseOwner,
+)
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
@@ -10848,7 +10852,12 @@ def _owner_claim_context(orch, project_id: str, identifier: str):
         identifier = _canonicalize_project_issue_identifier(tracker, identifier)
         issue = tracker.fetch_issue_detail(identifier)
     except Exception as exc:
-        logger.debug("Owner claim lookup failed for %s/%s: %s", project_id, identifier, exc)
+        logger.debug(
+            "Owner claim lookup failed for %s/%s: %s",
+            project_id,
+            identifier,
+            exc,
+        )
         issue = None
         tracker = None
     if tracker is None or issue is None:
@@ -10890,7 +10899,11 @@ async def _publish_owner_claim_state(orch) -> None:
     await _run_api_io(orch._notify_state_only)
 
 
-async def _retire_scheduler_for_owner_claim(orch, issue, project_id: str) -> tuple[bool, str]:
+async def _retire_scheduler_for_owner_claim(
+    orch,
+    issue,
+    project_id: str,
+) -> tuple[bool, str]:
     """Withdraw scheduler authority and visibly retire its exact runtime.
 
     The ``human-only`` label is persisted by the caller before this helper is
@@ -10937,6 +10950,220 @@ async def _retire_scheduler_for_owner_claim(orch, issue, project_id: str) -> tup
     return True, ""
 
 
+def _parse_expected_validation_owner(
+    body: dict[str, Any],
+    *,
+    project_id: str,
+    issue,
+) -> tuple[ValidationLeaseOwner | None, dict[str, int] | None, JSONResponse | None]:
+    """Validate the optional exact legacy-provider recovery fence."""
+
+    raw = body.get("expected_validation_owner")
+    if raw is None:
+        return None, None, None
+    if not isinstance(raw, dict):
+        return None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "expected_validation_owner must be an object",
+                }
+            },
+            status_code=400,
+        )
+    owner_fields = ("kind", "project_id", "task_id", "authority_generation")
+    values = {key: str(raw.get(key) or "").strip() for key in owner_fields}
+    if any(not values[key] for key in owner_fields):
+        return None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": (
+                        "expected_validation_owner requires kind, project_id, "
+                        "task_id, and authority_generation"
+                    ),
+                }
+            },
+            status_code=400,
+        )
+    if (
+        values["kind"] != VALIDATION_KIND_WORKER
+        or values["project_id"] != project_id
+        or values["task_id"] != issue.identifier
+    ):
+        return None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation_owner_mismatch",
+                    "message": (
+                        "The expected validation owner must identify this exact "
+                        "project worker task."
+                    ),
+                }
+            },
+            status_code=409,
+        )
+    process_fields = (
+        "requester_pid",
+        "requester_start_ticks",
+        "child_pid",
+        "child_start_ticks",
+    )
+    if any(key not in raw for key in process_fields):
+        return None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": (
+                        "expected_validation_owner requires requester_pid, "
+                        "requester_start_ticks, child_pid, and child_start_ticks"
+                    ),
+                }
+            },
+            status_code=400,
+        )
+    process_identity: dict[str, int] = {}
+    for key in process_fields:
+        value = raw[key]
+        if isinstance(value, bool):
+            return None, None, JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            f"expected_validation_owner.{key} must be an integer"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+        try:
+            process_identity[key] = int(value)
+        except (TypeError, ValueError):
+            return None, None, JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            f"expected_validation_owner.{key} must be an integer"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+        if process_identity[key] <= 0:
+            return None, None, JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            f"expected_validation_owner.{key} must be positive"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+    return (
+        ValidationLeaseOwner.worker(
+            project_id=values["project_id"],
+            task_id=values["task_id"],
+            authority_generation=values["authority_generation"],
+        ),
+        process_identity,
+        None,
+    )
+
+
+def _matching_legacy_validation_owner(
+    orch,
+    expected_owner: ValidationLeaseOwner,
+    expected_process_identity: Mapping[str, int],
+    *,
+    require_legacy_role: bool = True,
+) -> dict[str, object] | None:
+    """Return only a fresh, exact, flagged owner from durable lease state."""
+
+    for owner in orch.validation_resource_lease.status().owners:
+        if (
+            (
+                not require_legacy_role
+                or owner.get("process_role") == "legacy_provider_bootstrap"
+            )
+            and owner.get("kind") == expected_owner.kind
+            and owner.get("project_id") == expected_owner.project_id
+            and owner.get("task_id") == expected_owner.task_id
+            and owner.get("authority_generation")
+            == expected_owner.authority_generation
+            and all(
+                owner.get(key) == value
+                for key, value in expected_process_identity.items()
+            )
+        ):
+            return owner
+    return None
+
+
+def _retire_expected_legacy_validation_owner(
+    orch,
+    issue,
+    expected_owner: ValidationLeaseOwner,
+    expected_process_identity: Mapping[str, int],
+) -> tuple[bool, str]:
+    """Cancel exactly the health-advertised legacy worker generation."""
+
+    running = orch.state.running.get(issue.id)
+    if running is not None and str(
+        getattr(running, "authority_generation", "") or ""
+    ) != expected_owner.authority_generation:
+        return (
+            False,
+            "the scheduler runtime generation no longer matches the request",
+        )
+    if running is not None:
+        advertised_agent_pid = getattr(
+            getattr(running, "session", None),
+            "agent_pid",
+            None,
+        )
+        if advertised_agent_pid is not None:
+            try:
+                running_provider_matches = (
+                    int(advertised_agent_pid)
+                    == expected_process_identity["child_pid"]
+                )
+            except (TypeError, ValueError):
+                running_provider_matches = False
+            if not running_provider_matches:
+                return (
+                    False,
+                    "the live provider process no longer matches the request",
+                )
+    if _matching_legacy_validation_owner(
+        orch,
+        expected_owner,
+        expected_process_identity,
+    ) is None:
+        return False, "the legacy validation owner no longer matches the request"
+    if not orch.validation_resource_lease.cancel_exact_owner_process(
+        expected_owner,
+        requester_pid=expected_process_identity["requester_pid"],
+        requester_start_ticks=expected_process_identity[
+            "requester_start_ticks"
+        ],
+        child_pid=expected_process_identity["child_pid"],
+        child_start_ticks=expected_process_identity["child_start_ticks"],
+    ):
+        return False, "the exact legacy validation owner was already replaced"
+    if _matching_legacy_validation_owner(
+        orch,
+        expected_owner,
+        expected_process_identity,
+        require_legacy_role=False,
+    ) is not None:
+        return False, "the exact legacy validation owner has not retired yet"
+    return True, ""
+
+
 @app.post("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
 async def api_grant_owner_claim(project_id: str, identifier: str, request: Request):
     """Atomically take scheduler work over as a direct owner lease."""
@@ -10946,37 +11173,67 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
     if error is not None:
         return error
     assert body is not None
-    project, tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    project, tracker, issue, error = _owner_claim_context(
+        orch,
+        project_id,
+        identifier,
+    )
     if error is not None:
         return error
     assert project is not None and tracker is not None and issue is not None
     owner_login, error = _owner_claim_authorize(body, request, project)
     if error is not None:
         return error
-    if is_terminal_status(issue.state) or canonicalize_status(issue.state) == IN_VALIDATION:
+    if (
+        is_terminal_status(issue.state)
+        or canonicalize_status(issue.state) == IN_VALIDATION
+    ):
         return JSONResponse(
             {
                 "error": {
                     "code": "invalid_state",
-                    "message": "Direct-owner work cannot claim a terminal or In Validation task.",
+                    "message": (
+                        "Direct-owner work cannot claim a terminal or "
+                        "In Validation task."
+                    ),
                 }
             },
             status_code=409,
         )
+
+    expected_validation_owner, expected_process_identity, error = (
+        _parse_expected_validation_owner(
+            body,
+            project_id=project_id,
+            issue=issue,
+        )
+    )
+    if error is not None:
+        return error
 
     raw_ttl = body.get("ttl_hours")
     ttl_hours: int | None = None
     if raw_ttl is not None:
         if isinstance(raw_ttl, bool):
             return JSONResponse(
-                {"error": {"code": "validation", "message": "ttl_hours must be an integer"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "ttl_hours must be an integer",
+                    }
+                },
                 status_code=400,
             )
         try:
             ttl_hours = int(raw_ttl)
         except (TypeError, ValueError):
             return JSONResponse(
-                {"error": {"code": "validation", "message": "ttl_hours must be an integer"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "ttl_hours must be an integer",
+                    }
+                },
                 status_code=400,
             )
         if not 1 <= ttl_hours <= orch.config.owner_claim_ttl_hours:
@@ -11005,11 +11262,38 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 issue.labels = [*(issue.labels or []), "human-only"]
                 added_dispatch_fence = True
     except Exception as exc:
-        logger.warning("Owner takeover fence failed for %s/%s: %s", project_id, identifier, exc)
+        logger.warning(
+            "Owner takeover fence failed for %s/%s: %s",
+            project_id,
+            identifier,
+            exc,
+        )
         return JSONResponse(
             {"error": {"code": "owner_claim_failed", "message": str(exc)}},
             status_code=503,
         )
+
+    if expected_validation_owner is not None:
+        retired, retirement_error = _retire_expected_legacy_validation_owner(
+            orch,
+            issue,
+            expected_validation_owner,
+            expected_process_identity or {},
+        )
+        if not retired:
+            _api_cache.invalidate("issues:all")
+            _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
+            await _publish_owner_claim_state(orch)
+            await broadcast_issues()
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation_owner_recovery_pending",
+                        "message": retirement_error,
+                    }
+                },
+                status_code=409,
+            )
 
     retired, retirement_error = await _retire_scheduler_for_owner_claim(
         orch,
@@ -11040,9 +11324,11 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             except Exception:
                 pass
             current = tracker.fetch_issue_detail(issue.identifier)
-            if current is None or is_terminal_status(current.state) or canonicalize_status(
-                current.state
-            ) == IN_VALIDATION:
+            if (
+                current is None
+                or is_terminal_status(current.state)
+                or canonicalize_status(current.state) == IN_VALIDATION
+            ):
                 return JSONResponse(
                     {
                         "error": {
@@ -11064,7 +11350,10 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
                 try:
                     tracker.update_issue(issue.identifier, status=IN_PROGRESS)
                 except Exception:
-                    orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
+                    orch.release_owner_claim(
+                        issue_id=issue.id,
+                        project_id=project_id,
+                    )
                     raise
             if added_dispatch_fence:
                 # The durable lease and In Progress state now fence both fresh
@@ -11092,7 +11381,12 @@ async def api_grant_owner_claim(project_id: str, identifier: str, request: Reque
             status_code=409,
         )
     except Exception as exc:
-        logger.warning("Owner claim grant failed for %s/%s: %s", project_id, identifier, exc)
+        logger.warning(
+            "Owner claim grant failed for %s/%s: %s",
+            project_id,
+            identifier,
+            exc,
+        )
         return JSONResponse(
             {"error": {"code": "owner_claim_failed", "message": str(exc)}},
             status_code=503,
@@ -11110,7 +11404,11 @@ async def api_get_owner_claim(project_id: str, identifier: str):
     """Return direct-owner ownership and expiry evidence for one task."""
 
     orch = _get_orchestrator()
-    _project, _tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    _project, _tracker, issue, error = _owner_claim_context(
+        orch,
+        project_id,
+        identifier,
+    )
     if error is not None:
         return error
     assert issue is not None

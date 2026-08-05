@@ -84,6 +84,10 @@ def install_native_validation_guard(
     validation_lease: ValidationResourceLease,
     owner: ValidationLeaseOwner,
     timeout_seconds: float,
+    provider_bootstrap_entrypoint: str | os.PathLike[str] | None = None,
+    provider_bootstrap_interpreter: str | os.PathLike[str] | None = None,
+    provider_bootstrap_entrypoint_identity: tuple[int, int] | None = None,
+    provider_untrusted_roots: tuple[str | os.PathLike[str], ...] = (),
 ) -> tuple[dict[str, str], Path]:
     """Return an environment whose validation launchers are command guarded.
 
@@ -120,6 +124,69 @@ def install_native_validation_guard(
             "priority": owner.priority,
         },
     }
+    if (provider_bootstrap_entrypoint is None) != (
+        provider_bootstrap_interpreter is None
+    ):
+        raise RuntimeError(
+            "native provider bootstrap entrypoint and interpreter must be paired"
+        )
+    if (
+        provider_bootstrap_entrypoint is None
+        and provider_bootstrap_entrypoint_identity is not None
+    ):
+        raise RuntimeError(
+            "native provider bootstrap identity requires an entrypoint"
+        )
+    if provider_bootstrap_entrypoint is not None:
+        assert provider_bootstrap_interpreter is not None
+        entrypoint = Path(provider_bootstrap_entrypoint).resolve(strict=True)
+        interpreter = Path(provider_bootstrap_interpreter).resolve(strict=True)
+        untrusted_roots = tuple(
+            Path(candidate).resolve(strict=True) for candidate in provider_untrusted_roots
+        )
+        for trusted_path in (entrypoint, interpreter):
+            if any(
+                trusted_path == untrusted_root
+                or untrusted_root in trusted_path.parents
+                for untrusted_root in untrusted_roots
+            ):
+                raise RuntimeError(
+                    "native provider bootstrap executable is task-writable"
+                )
+        entrypoint_stat = entrypoint.stat()
+        interpreter_stat = interpreter.stat()
+        if (
+            provider_bootstrap_entrypoint_identity is not None
+            and (
+                int(entrypoint_stat.st_dev),
+                int(entrypoint_stat.st_ino),
+            )
+            != tuple(int(value) for value in provider_bootstrap_entrypoint_identity)
+        ):
+            raise RuntimeError(
+                "native provider bootstrap entrypoint identity changed"
+            )
+        parent_pid = os.getpid()
+        parent_start_ticks = _process_start_ticks(parent_pid)
+        if parent_start_ticks is None:
+            raise RuntimeError("cannot fence native provider bootstrap parent")
+        config["provider_bootstrap"] = {
+            # The Codex npm launcher uses ``#!/usr/bin/env node``.  Its first
+            # process therefore resolves through the guarded PATH before the
+            # provider has started.  Permit only that exact operator-installed
+            # entrypoint, only for the ``exec`` provider subcommand, and only
+            # when it is spawned directly by this exact service process.
+            "command": "node",
+            "entrypoint": str(entrypoint),
+            "entrypoint_device": int(entrypoint_stat.st_dev),
+            "entrypoint_inode": int(entrypoint_stat.st_ino),
+            "interpreter": str(interpreter),
+            "interpreter_device": int(interpreter_stat.st_dev),
+            "interpreter_inode": int(interpreter_stat.st_ino),
+            "parent_pid": parent_pid,
+            "parent_start_ticks": parent_start_ticks,
+            "subcommand": "exec",
+        }
     config_path = root / _CONFIG_NAME
     config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
     config_path.chmod(0o400)
@@ -175,6 +242,63 @@ def _real_executable(command: str, search_path: str, guard_bin: Path) -> str:
     return resolved
 
 
+def _process_start_ticks(pid: int) -> int | None:
+    """Return Linux process start ticks for exact bootstrap-parent fencing."""
+
+    try:
+        raw = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8")
+        return int(raw[raw.rfind(")") + 2 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _trusted_provider_bootstrap_interpreter(
+    command: str,
+    arguments: list[str],
+    config: Mapping[str, object],
+) -> str | None:
+    """Recognize only the exact service-launched Codex npm bootstrap.
+
+    A path/argv match alone would let a task launch the installed Codex entry
+    point and escape command-scoped validation.  The direct parent PID and
+    Linux start ticks bind this exception to the service process that created
+    the read-only guard configuration.  All provider descendants and
+    task-controlled lookalikes continue through normal heavyweight
+    classification.
+    """
+
+    raw = config.get("provider_bootstrap")
+    if not isinstance(raw, dict) or command != str(raw.get("command") or ""):
+        return None
+    if len(arguments) < 2 or arguments[1] != str(raw.get("subcommand") or ""):
+        return None
+    try:
+        expected_parent = int(raw["parent_pid"])
+        expected_ticks = int(raw["parent_start_ticks"])
+        expected_device = int(raw["entrypoint_device"])
+        expected_inode = int(raw["entrypoint_inode"])
+        expected_entrypoint = Path(str(raw["entrypoint"])).resolve(strict=True)
+        expected_interpreter = Path(str(raw["interpreter"])).resolve(strict=True)
+        invoked_entrypoint = Path(arguments[0]).resolve(strict=True)
+        invoked_stat = invoked_entrypoint.stat()
+        interpreter_stat = expected_interpreter.stat()
+        expected_interpreter_device = int(raw["interpreter_device"])
+        expected_interpreter_inode = int(raw["interpreter_inode"])
+    except (KeyError, OSError, TypeError, ValueError):
+        return None
+    parent_pid = os.getppid()
+    trusted = (
+        parent_pid == expected_parent
+        and _process_start_ticks(parent_pid) == expected_ticks
+        and invoked_entrypoint == expected_entrypoint
+        and int(invoked_stat.st_dev) == expected_device
+        and int(invoked_stat.st_ino) == expected_inode
+        and int(interpreter_stat.st_dev) == expected_interpreter_device
+        and int(interpreter_stat.st_ino) == expected_interpreter_inode
+    )
+    return str(expected_interpreter) if trusted else None
+
+
 def main() -> int:
     """Shim entry point.  Successful execution never returns."""
 
@@ -182,8 +306,22 @@ def main() -> int:
     invocation = " ".join([command, *(str(value) for value in sys.argv[1:])])
     config, guard_bin = _load_invocation_config(sys.argv[0])
     search_path = str(config.get("path") or os.defpath)
-    executable = _real_executable(command, search_path, guard_bin)
     child_env = dict(os.environ)
+
+    bootstrap_interpreter = _trusted_provider_bootstrap_interpreter(
+        command,
+        sys.argv[1:],
+        config,
+    )
+    if bootstrap_interpreter is not None:
+        # Keep the guarded PATH/SHELL in the provider environment: only its
+        # bootstrap is exempt.  Genuine commands launched by the provider must
+        # still resolve through these shims and acquire capacity themselves.
+        # Execute the pre-resolved operator interpreter, never a PATH-selected
+        # task lookalike.
+        os.execve(bootstrap_interpreter, [command, *sys.argv[1:]], child_env)
+
+    executable = _real_executable(command, search_path, guard_bin)
 
     if not is_heavyweight_validation_command(invocation):
         os.execve(executable, [command, *sys.argv[1:]], child_env)

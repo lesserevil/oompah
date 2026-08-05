@@ -87,7 +87,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator, TYPE_CHECKING
+from typing import Any, AsyncIterator, Mapping, TYPE_CHECKING
 
 from oompah.acp_backends.base import (
     AcpBackend,
@@ -110,6 +110,60 @@ if TYPE_CHECKING:
     from oompah.models import ModelProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _native_validation_untrusted_roots(
+    workspace_path: str,
+    additional_dirs: list[str] | None,
+    environment: Mapping[str, str],
+) -> tuple[Path, ...]:
+    """Return every root writable by a native workspace-write session."""
+
+    candidates: list[str | os.PathLike[str]] = [
+        "/tmp",
+        "/var/tmp",
+        tempfile.gettempdir(),
+        workspace_path,
+        *(additional_dirs or ()),
+    ]
+    workspace = Path(workspace_path).expanduser().resolve()
+    for name in ("TMPDIR", "TMP", "TEMP"):
+        value = environment.get(name)
+        if not value:
+            continue
+        candidate = Path(value).expanduser()
+        # The Codex process runs with the task workspace as cwd, so a relative
+        # temp override names a task-relative writable root, not service cwd.
+        candidates.append(
+            candidate if candidate.is_absolute() else workspace / candidate
+        )
+    roots: list[Path] = []
+    for candidate in candidates:
+        resolved = Path(candidate).expanduser().resolve()
+        if resolved not in roots:
+            roots.append(resolved)
+    return tuple(roots)
+
+
+def _create_native_validation_runtime_root(
+    *,
+    untrusted_roots: tuple[Path, ...],
+) -> str:
+    """Create guard state outside every path writable by the task sandbox."""
+
+    parent = (Path.home() / ".oompah" / "native-validation-guards").resolve()
+    if any(parent == root or root in parent.parents for root in untrusted_roots):
+        raise RuntimeError(
+            "native validation guard runtime root is task-writable"
+        )
+    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    parent.chmod(0o700)
+    runtime_root = tempfile.mkdtemp(
+        prefix="oompah-codex-validation-",
+        dir=parent,
+    )
+    Path(runtime_root).chmod(0o700)
+    return runtime_root
 
 
 def _import_sdk():
@@ -333,6 +387,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         self._native_validation_owner: Any = None
         self._native_validation_lease: Any = None
         self._native_validation_cancel_path: str | None = None
+        self._codex_executable_fd: int | None = None
 
     def _resolve_billing_model(self) -> str:
         """Resolve the billing model that selects the execution path.
@@ -831,6 +886,23 @@ class CodexAcpBackendSession(AcpBackendSession):
                 cli_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
         cli_env.pop("CODEX_API_KEY", None)
 
+        # Resolve writable roots before installing a provider-bootstrap
+        # exception.  Neither the exact Codex entrypoint nor its interpreter
+        # may live under a task-writable sandbox root.
+        additional_dirs = (
+            None
+            if self._options.read_only
+            else _get_worktree_git_write_dirs(self._options.workspace_path)
+        )
+        sandbox_mode = "read-only" if self._options.read_only else "workspace-write"
+        codex_entrypoint: str | None = None
+        codex_launch_path: str | None = None
+        untrusted_roots = _native_validation_untrusted_roots(
+            self._options.workspace_path,
+            additional_dirs,
+            cli_env,
+        )
+
         # The subscription CLI owns a native shell surface below the SDK
         # process. Install command shims that acquire capacity only around an
         # actual heavyweight validation process. The shim execs that process
@@ -859,7 +931,9 @@ class CodexAcpBackendSession(AcpBackendSession):
                 self._status = "errored"
                 return
             try:
-                runtime_root = tempfile.mkdtemp(prefix="oompah-codex-validation-")
+                runtime_root = _create_native_validation_runtime_root(
+                    untrusted_roots=untrusted_roots,
+                )
                 self._validation_guard_dir = runtime_root
                 self._native_validation_owner = validation_owner
                 self._native_validation_lease = validation_lease
@@ -867,12 +941,60 @@ class CodexAcpBackendSession(AcpBackendSession):
                     runtime_root,
                     "cancelled",
                 )
+                from agents.extensions.experimental.codex.exec import find_codex_path
+
+                codex_entrypoint_path = Path(find_codex_path()).resolve(strict=True)
+                if any(
+                    codex_entrypoint_path == untrusted_root
+                    or untrusted_root in codex_entrypoint_path.parents
+                    for untrusted_root in untrusted_roots
+                ):
+                    raise RuntimeError(
+                        "operator Codex executable is task-writable"
+                    )
+                codex_entrypoint = str(codex_entrypoint_path)
+                executable_fd = os.open(
+                    codex_entrypoint_path,
+                    os.O_RDONLY | getattr(os, "O_CLOEXEC", 0),
+                )
+                self._codex_executable_fd = executable_fd
+                entrypoint_stat = os.fstat(executable_fd)
+                entrypoint_prefix = os.pread(executable_fd, 128, 0)
+                node_bootstrap = entrypoint_prefix.startswith(b"#!/usr/bin/env node")
+                codex_launch_path = (
+                    codex_entrypoint
+                    if node_bootstrap
+                    else f"/proc/{os.getpid()}/fd/{executable_fd}"
+                )
+                node_interpreter = None
+                if node_bootstrap:
+                    node_interpreter = shutil.which(
+                        "node",
+                        path=str(os.environ.get("PATH") or os.defpath),
+                    )
+                    if not node_interpreter:
+                        raise RuntimeError(
+                            "operator Node interpreter is unavailable for Codex bootstrap"
+                        )
                 cli_env, _ = install_native_validation_guard(
                     cli_env,
                     runtime_root=runtime_root,
                     validation_lease=validation_lease,
                     owner=validation_owner,
                     timeout_seconds=self._options.turn_timeout_s,
+                    provider_bootstrap_entrypoint=(
+                        codex_entrypoint if node_bootstrap else None
+                    ),
+                    provider_bootstrap_interpreter=node_interpreter,
+                    provider_bootstrap_entrypoint_identity=(
+                        (
+                            int(entrypoint_stat.st_dev),
+                            int(entrypoint_stat.st_ino),
+                        )
+                        if node_bootstrap
+                        else None
+                    ),
+                    provider_untrusted_roots=untrusted_roots,
                 )
             except Exception as exc:
                 self._cleanup_worker_runtime_dir()
@@ -884,22 +1006,15 @@ class CodexAcpBackendSession(AcpBackendSession):
                 self._status = "errored"
                 return
 
-        # Detect git worktrees: the Codex ``workspace-write`` sandbox only
-        # allows writes inside the workspace directory, but git worktree
-        # metadata (index, HEAD, ORIG_HEAD …) lives at the path recorded in
-        # ``<workspace>/.git`` — typically inside the shared repo's
-        # ``.git/worktrees/<branch>/``.  Add that directory as an additional
-        # writable path so ``git add``, ``git commit``, and ``git pull --rebase``
-        # work without broadening access to the entire repository.
-        additional_dirs = (
-            None
-            if self._options.read_only
-            else _get_worktree_git_write_dirs(self._options.workspace_path)
-        )
-        sandbox_mode = "read-only" if self._options.read_only else "workspace-write"
-
         try:
-            codex = Codex(env=cli_env)
+            codex = (
+                Codex(
+                    env=cli_env,
+                    codex_path_override=codex_launch_path,
+                )
+                if codex_launch_path is not None
+                else Codex(env=cli_env)
+            )
             thread = codex.start_thread(
                 ThreadOptions(
                     model=self._options.model or None,
@@ -1025,11 +1140,15 @@ class CodexAcpBackendSession(AcpBackendSession):
                     directory,
                     exc,
                 )
+        if self._codex_executable_fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(self._codex_executable_fd)
         self._worker_runtime_dir = None
         self._validation_guard_dir = None
         self._native_validation_owner = None
         self._native_validation_lease = None
         self._native_validation_cancel_path = None
+        self._codex_executable_fd = None
 
     def _absorb_cli_usage(self, usage: Any) -> None:
         """Roll a Codex CLI ``Usage`` object into our counters.

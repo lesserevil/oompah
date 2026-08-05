@@ -14,7 +14,9 @@ import logging
 import os
 import shlex
 import signal
+import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 import uuid
@@ -158,6 +160,11 @@ class ValidationLeaseStatus:
         return max(self.capacity - self.owner_count, 0)
 
     def to_dict(self) -> dict[str, object]:
+        legacy_provider_bootstrap_owner_count = sum(
+            1
+            for owner in self.owners
+            if owner.get("process_role") == "legacy_provider_bootstrap"
+        )
         return {
             "capacity": self.capacity,
             "available_capacity": self.available_capacity,
@@ -166,8 +173,17 @@ class ValidationLeaseStatus:
             "oldest_waiter_age_seconds": self.oldest_waiter_age_seconds,
             "owners": list(self.owners),
             "waiters": list(self.waiters),
+            "legacy_provider_bootstrap_owner_count": (
+                legacy_provider_bootstrap_owner_count
+            ),
             # A normal capacity wait is activity, not an actionable warning.
-            "status": "busy" if self.waiter_count or self.owner_count else "idle",
+            "status": (
+                "action_required"
+                if legacy_provider_bootstrap_owner_count
+                else "busy"
+                if self.waiter_count or self.owner_count
+                else "idle"
+            ),
         }
 
 
@@ -199,6 +215,176 @@ def _process_identity_alive(pid: object, start_ticks: object) -> bool:
     except (TypeError, ValueError):
         return False
     return current is not None and current == expected
+
+
+def _process_parent_identity(pid: int) -> tuple[int, int] | None:
+    """Return the exact current parent PID/start-tick identity."""
+
+    try:
+        raw = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8")
+        fields = raw[raw.rfind(")") + 2 :].split()
+        parent_pid = int(fields[1])
+    except (OSError, ValueError, IndexError):
+        return None
+    parent_ticks = _process_start_ticks(parent_pid)
+    if parent_ticks is None:
+        return None
+    return parent_pid, parent_ticks
+
+
+def _is_legacy_provider_bootstrap_snapshot(
+    arguments: tuple[str, ...],
+    environment: dict[str, str],
+    entrypoint_prefix: bytes,
+    *,
+    entrypoint_matches_operator: bool,
+    interpreter_matches_operator: bool,
+    parent_matches_operator: bool,
+    bootstrap_is_task_writable: bool,
+) -> bool:
+    return (
+        len(arguments) >= 4
+        and os.path.basename(arguments[0]) == "node"
+        and arguments[2] == "exec"
+        and "--experimental-json" in arguments[3:]
+        and entrypoint_prefix.startswith(b"#!/usr/bin/env node")
+        and environment.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") == "codex_sdk_ts"
+        and entrypoint_matches_operator
+        and interpreter_matches_operator
+        and parent_matches_operator
+        and not bootstrap_is_task_writable
+    )
+
+
+def _path_is_within(path: Path, roots: Iterable[Path]) -> bool:
+    return any(path == root or root in path.parents for root in roots)
+
+
+def _trusted_codex_bootstrap_identity(
+) -> tuple[Path, tuple[int, int], Path, tuple[int, int]] | None:
+    """Resolve the operator's current Codex launcher and Node identities."""
+
+    try:
+        from agents.extensions.experimental.codex.exec import find_codex_path
+
+        entrypoint = Path(find_codex_path()).resolve(strict=True)
+        interpreter_raw = shutil.which(
+            "node",
+            path=str(os.environ.get("PATH") or os.defpath),
+        )
+        if not interpreter_raw:
+            return None
+        interpreter = Path(interpreter_raw).resolve(strict=True)
+        entrypoint_stat = entrypoint.stat()
+        interpreter_stat = interpreter.stat()
+    except Exception:  # noqa: BLE001 - optional observability must fail closed
+        return None
+    return (
+        entrypoint,
+        (int(entrypoint_stat.st_dev), int(entrypoint_stat.st_ino)),
+        interpreter,
+        (int(interpreter_stat.st_dev), int(interpreter_stat.st_ino)),
+    )
+
+
+def _legacy_provider_bootstrap_process(
+    pid: object,
+    start_ticks: object,
+    trusted_identity: tuple[Path, tuple[int, int], Path, tuple[int, int]] | None,
+    trusted_parent_identity: tuple[int, int] | None,
+) -> bool:
+    """Recognize a pre-fix Codex provider root holding a command lease.
+
+    This is observability only; it never terminates a process or releases a
+    fence.  The exact PID/start-tick pair is checked before and after reading
+    procfs.  The SDK origin marker plus the npm Node/``codex exec`` invocation
+    shape distinguish the long-lived provider root from ordinary Node tests.
+    """
+
+    try:
+        normalized_pid = int(pid)
+        expected_ticks = int(start_ticks)
+    except (TypeError, ValueError):
+        return False
+    if not _process_identity_alive(normalized_pid, expected_ticks):
+        return False
+    if trusted_identity is None:
+        return False
+    (
+        trusted_entrypoint,
+        trusted_entrypoint_identity,
+        trusted_interpreter,
+        trusted_interpreter_identity,
+    ) = trusted_identity
+    try:
+        arguments = tuple(
+            value.decode("utf-8", errors="replace")
+            for value in Path(f"/proc/{normalized_pid}/cmdline").read_bytes().split(b"\0")
+            if value
+        )
+        environment: dict[str, str] = {}
+        for item in Path(f"/proc/{normalized_pid}/environ").read_bytes().split(
+            b"\0"
+        ):
+            key, separator, value = item.partition(b"=")
+            if separator and key:
+                environment[key.decode("utf-8", errors="replace")] = value.decode(
+                    "utf-8", errors="replace"
+                )
+        entrypoint = Path(arguments[1]).resolve(strict=True)
+        interpreter = Path(f"/proc/{normalized_pid}/exe").resolve(strict=True)
+        cwd = Path(f"/proc/{normalized_pid}/cwd").resolve(strict=True)
+        entrypoint_stat = entrypoint.stat()
+        interpreter_stat = interpreter.stat()
+        with entrypoint.open("rb") as stream:
+            entrypoint_prefix = stream.read(128)
+    except (OSError, IndexError, ValueError):
+        return False
+    unsafe_roots = {
+        Path("/tmp").resolve(),
+        Path("/var/tmp").resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+        (Path.home() / ".oompah" / "workspaces").resolve(),
+        (Path.home() / ".oompah" / "worktrees").resolve(),
+        cwd,
+    }
+    for name in ("TMPDIR", "TMP", "TEMP"):
+        for source in (os.environ, environment):
+            value = source.get(name)
+            if value:
+                unsafe_roots.add(Path(value).expanduser().resolve())
+    entrypoint_matches_operator = (
+        entrypoint == trusted_entrypoint
+        and (int(entrypoint_stat.st_dev), int(entrypoint_stat.st_ino))
+        == trusted_entrypoint_identity
+    )
+    interpreter_matches_operator = (
+        interpreter == trusted_interpreter
+        and (int(interpreter_stat.st_dev), int(interpreter_stat.st_ino))
+        == trusted_interpreter_identity
+    )
+    parent_identity = _process_parent_identity(normalized_pid)
+    parent_matches_operator = (
+        parent_identity is not None
+        and (
+            parent_identity == trusted_parent_identity
+            or parent_identity[0] == 1
+        )
+    )
+    return _process_identity_alive(
+        normalized_pid, expected_ticks
+    ) and _is_legacy_provider_bootstrap_snapshot(
+        arguments,
+        environment,
+        entrypoint_prefix,
+        entrypoint_matches_operator=entrypoint_matches_operator,
+        interpreter_matches_operator=interpreter_matches_operator,
+        parent_matches_operator=parent_matches_operator,
+        bootstrap_is_task_writable=(
+            _path_is_within(entrypoint, unsafe_roots)
+            or _path_is_within(interpreter, unsafe_roots)
+        ),
+    )
 
 
 def _pidfd_open(pid: int) -> int:
@@ -1074,6 +1260,18 @@ class ValidationResourceLease:
         self.capacity = max(int(capacity), 1)
         self.aging_seconds = max(float(aging_seconds), 0.01)
         self.poll_seconds = max(float(poll_seconds), 0.01)
+        # Capture operator executable identities before any managed task can
+        # run. A later path replacement must not redefine what an old provider
+        # process is trusted to be.
+        self._trusted_codex_bootstrap_identity = (
+            _trusted_codex_bootstrap_identity()
+        )
+        service_start_ticks = _process_start_ticks(os.getpid())
+        self._trusted_provider_parent_identity = (
+            (os.getpid(), service_start_ticks)
+            if service_start_ticks is not None
+            else None
+        )
         self._slot_dir = self.state_path.with_suffix(self.state_path.suffix + ".locks")
         self._slot_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._slot_dir.chmod(0o700)
@@ -1690,6 +1888,73 @@ class ValidationResourceLease:
             _terminate_exact_process_group(pid, row["child_start_ticks"])
         return len(rows) + int(cancelled_waiters or 0)
 
+    def cancel_exact_owner_process(
+        self,
+        owner: ValidationLeaseOwner,
+        *,
+        requester_pid: int,
+        requester_start_ticks: int,
+        child_pid: int,
+        child_start_ticks: int,
+    ) -> bool:
+        """Atomically cancel one health-advertised attached owner process.
+
+        Recovery requests originate from a status snapshot that can become
+        stale before the operator posts it.  Select and fence the complete
+        process identity under the same write transaction that records the
+        generation cancellation.  Requiring exactly one row for the owner
+        generation prevents both an ABA replacement and an overlapping
+        same-generation process from being retired by stale evidence.
+        """
+
+        expected_identity = (
+            int(requester_pid),
+            int(requester_start_ticks),
+            int(child_pid),
+            int(child_start_ticks),
+        )
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._prune_cancelled_locked(connection)
+            rows = connection.execute(
+                """SELECT requester_pid, requester_start_ticks,
+                          child_pid, child_start_ticks
+                   FROM owners
+                   WHERE kind = ? AND project_id = ? AND task_id = ?
+                     AND authority_generation = ?""",
+                self._identity_values(owner),
+            ).fetchall()
+            if len(rows) != 1:
+                connection.rollback()
+                return False
+            row = rows[0]
+            actual_identity = (
+                int(row["requester_pid"]),
+                int(row["requester_start_ticks"]),
+                int(row["child_pid"]) if row["child_pid"] is not None else 0,
+                (
+                    int(row["child_start_ticks"])
+                    if row["child_start_ticks"] is not None
+                    else 0
+                ),
+            )
+            if actual_identity != expected_identity:
+                connection.rollback()
+                return False
+            connection.execute(
+                """INSERT INTO cancelled_owners(
+                       kind, project_id, task_id, authority_generation,
+                       cancelled_at
+                   ) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(
+                       kind, project_id, task_id, authority_generation
+                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at""",
+                (*self._identity_values(owner), time.time()),
+            )
+            connection.commit()
+        _terminate_exact_process_group(child_pid, child_start_ticks)
+        return True
+
     def status(self) -> ValidationLeaseStatus:
         """Read fresh durable state and remove provably dead records."""
 
@@ -1730,7 +1995,7 @@ class ValidationResourceLease:
         now = time.time()
 
         def owner_dict(row: sqlite3.Row) -> dict[str, object]:
-            return {
+            owner = {
                 "slot": int(row["slot"]),
                 "kind": str(row["kind"]),
                 "project_id": str(row["project_id"]),
@@ -1749,6 +2014,53 @@ class ValidationResourceLease:
                 ),
                 "deadline_at": row["deadline_at"],
             }
+            if (
+                row["child_pid"] is not None
+                and row["child_start_ticks"] is not None
+                and int(row["requester_pid"]) == int(row["child_pid"])
+                and int(row["requester_start_ticks"])
+                == int(row["child_start_ticks"])
+                and _legacy_provider_bootstrap_process(
+                    row["child_pid"],
+                    row["child_start_ticks"],
+                    self._trusted_codex_bootstrap_identity,
+                    self._trusted_provider_parent_identity,
+                )
+            ):
+                owner["process_role"] = "legacy_provider_bootstrap"
+                if str(row["kind"]) == VALIDATION_KIND_WORKER:
+                    expected_owner = {
+                        "kind": str(row["kind"]),
+                        "project_id": str(row["project_id"]),
+                        "task_id": str(row["task_id"]),
+                        "authority_generation": str(
+                            row["authority_generation"]
+                        ),
+                        "requester_pid": int(row["requester_pid"]),
+                        "requester_start_ticks": int(
+                            row["requester_start_ticks"]
+                        ),
+                        "child_pid": int(row["child_pid"]),
+                        "child_start_ticks": int(row["child_start_ticks"]),
+                    }
+                    owner.update(
+                        {
+                            "recovery_action": "claim_task_directly",
+                            "recovery_preserves_worktree": True,
+                            "recovery_request": {
+                                "method": "POST",
+                                "endpoint": (
+                                    "/api/v1/projects/"
+                                    f"{row['project_id']}/tasks/"
+                                    f"{row['task_id']}/owner-claim"
+                                ),
+                                "body": {
+                                    "expected_validation_owner": expected_owner,
+                                },
+                            },
+                        }
+                    )
+            return owner
 
         def waiter_dict(row: sqlite3.Row) -> dict[str, object]:
             return {
