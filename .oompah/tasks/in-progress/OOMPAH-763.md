@@ -32,7 +32,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-05T06:43:25.243719Z'
+updated_at: '2026-08-05T14:48:09.764866Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +66,10 @@ author: oompah
 created: 2026-08-05 06:05
 ---
 Reconciled current main exact-head/cross-loop delivery fencing (OOMPAH-818/820) into the systemic workflow parent at ceafd8e14100964ee84821c4fbe75cf0ac772f43. The semantic merge keeps queue-generation/action-time CAS as the outer fence and routes the actual stalled-task reopen through OOMPAH-806 TaskTransitionService before posting the watchdog sentinel. Verification so far: 1,665 focused checks pass across watchdog/gate/transition authority, workflow shadow/durability, exact review-generation delivery, server/webhook/tracker behavior; terminal mutation scan 8/8 and secret scan pass. Branch is clean and pushed. A full exact-head gate will run after the currently active independent auditors release the four-worker resource lane.
+---
+author: oompah
+created: 2026-08-05 14:48
+---
+Operator checkpoint boundary (2026-08-05): finish only the already-active OOMPAH-815 CI repair and the bounded in-flight batch OOMPAH-505/OOMPAH-523/OOMPAH-807/OOMPAH-821. Keep project dispatch paused; do not start the next systemic-program stage (including OOMPAH-781/OOMPAH-791/OOMPAH-804) in this work session. Once the active batch reaches safe terminal or clearly handed-off states, publish a concise clean-state handoff covering exact heads, tracker states, validation/alert health, remaining dependency order, and cleanup status, then stop.
 ---
 <!-- COMMENTS:END -->
