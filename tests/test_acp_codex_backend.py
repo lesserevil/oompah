@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -129,6 +130,70 @@ def test_codex_native_validation_uses_server_authority_generation():
     )
 
     assert session._native_cli_validation_generation == "server-generation"
+
+
+def test_native_validation_untrusted_roots_include_implicit_temp_dirs(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    private_temp = tmp_path / "service-temp"
+    private_temp.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    git_metadata = tmp_path / "git-metadata"
+    git_metadata.mkdir()
+    monkeypatch.setenv("TMPDIR", str(private_temp))
+
+    roots = codex_module._native_validation_untrusted_roots(
+        str(workspace),
+        [str(git_metadata)],
+        {"TMPDIR": str(private_temp), "TMP": "../relative-temp"},
+    )
+
+    assert Path("/tmp").resolve() in roots
+    assert Path("/var/tmp").resolve() in roots
+    assert private_temp.resolve() in roots
+    assert workspace.resolve() in roots
+    assert git_metadata.resolve() in roots
+    assert (workspace / "../relative-temp").resolve() in roots
+
+
+def test_native_validation_runtime_root_rejects_task_writable_parent(
+    tmp_path,
+    monkeypatch,
+):
+    from oompah.acp_backends import codex as codex_module
+
+    operator_home = tmp_path / "operator-home"
+    operator_home.mkdir()
+    monkeypatch.setattr(codex_module.Path, "home", lambda: operator_home)
+
+    with pytest.raises(RuntimeError, match="runtime root is task-writable"):
+        codex_module._create_native_validation_runtime_root(
+            untrusted_roots=(operator_home.resolve(),),
+        )
+
+
+def test_native_validation_uses_effective_child_temp_environment(tmp_path):
+    from oompah.acp_backends import codex as codex_module
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    effective_temp = (Path.home() / ".oompah").resolve()
+
+    roots = codex_module._native_validation_untrusted_roots(
+        str(workspace),
+        None,
+        {"TMPDIR": str(effective_temp)},
+    )
+
+    assert effective_temp in roots
+    with pytest.raises(RuntimeError, match="runtime root is task-writable"):
+        codex_module._create_native_validation_runtime_root(
+            untrusted_roots=roots,
+        )
 
 
 # ----------------------------------------------------------------------
@@ -375,6 +440,16 @@ def _install_fake_cli(monkeypatch, *, events, capture=None):
     were built with, so tests can assert e.g. that no api_key was passed.
     """
     cap = capture if capture is not None else {}
+    from agents.extensions.experimental.codex import exec as codex_exec_module
+
+    # Managed native sessions pin the exact SDK-resolved executable.  Generic
+    # fake-CLI tests use the current trusted interpreter as a stable executable
+    # fixture; tests of the npm bootstrap override this with a script.
+    monkeypatch.setattr(
+        codex_exec_module,
+        "find_codex_path",
+        lambda: sys.executable,
+    )
 
     class _FakeStreamed:
         def __init__(self, evs):
@@ -389,6 +464,13 @@ def _install_fake_cli(monkeypatch, *, events, capture=None):
     class _FakeCodex:
         def __init__(self, *args, **kwargs):
             cap["codex_kwargs"] = kwargs
+            override = kwargs.get("codex_path_override")
+            if override:
+                executable_stat = os.stat(override)
+                cap["codex_path_identity"] = (
+                    int(executable_stat.st_dev),
+                    int(executable_stat.st_ino),
+                )
             environment = kwargs.get("env") or {}
             guard_bin = environment.get("OOMPAH_NATIVE_VALIDATION_GUARD")
             if guard_bin:
@@ -853,6 +935,256 @@ class TestCodexCliPath:
         assert "validation-guard-bin" in guarded_env["PATH"]
         gate.release()
 
+    def test_managed_native_cli_fences_exact_provider_bootstrap(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from oompah.acp_backends import codex as codex_module
+        from agents.extensions.experimental.codex import exec as codex_exec_module
+
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        operator_bin = tmp_path / "operator-bin"
+        operator_bin.mkdir()
+        codex_entrypoint = operator_bin / "codex"
+        codex_entrypoint.write_text("#!/usr/bin/env node\n", encoding="utf-8")
+        codex_entrypoint.chmod(0o700)
+        node_interpreter = operator_bin / "node"
+        node_interpreter.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        node_interpreter.chmod(0o700)
+        task_bin = workspace / "bin"
+        task_bin.mkdir()
+        (task_bin / "node").write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+        (task_bin / "node").chmod(0o700)
+        monkeypatch.setattr(
+            codex_exec_module,
+            "find_codex_path",
+            lambda: str(codex_entrypoint),
+        )
+        real_which = codex_module.shutil.which
+
+        def exact_operator_which(command, *args, **kwargs):
+            if command == "node":
+                return str(node_interpreter)
+            return real_which(command, *args, **kwargs)
+
+        monkeypatch.setattr(codex_module.shutil, "which", exact_operator_which)
+        monkeypatch.setattr(
+            codex_module,
+            "_native_validation_untrusted_roots",
+            lambda workspace_path, _additional_dirs, _environment: (
+                Path(workspace_path).resolve(),
+            ),
+        )
+        observed: dict[str, object] = {}
+        real_install = codex_module.install_native_validation_guard
+
+        def capture_install(*args, **kwargs):
+            observed["entrypoint"] = kwargs.get("provider_bootstrap_entrypoint")
+            observed["runtime_root"] = kwargs.get("runtime_root")
+            return real_install(*args, **kwargs)
+
+        monkeypatch.setattr(
+            codex_module,
+            "install_native_validation_guard",
+            capture_install,
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+
+        async def run():
+            options = AcpBackendOptions(
+                workspace_path=str(workspace),
+                prompt="implement the task",
+                billing_model="subscription",
+                coordination_service=service,
+                project_id="worker-project",
+                task_identifier="WORK-1",
+                env={
+                    "PATH": (
+                        f"{task_bin}{os.pathsep}"
+                        f"{os.environ.get('PATH', os.defpath)}"
+                    )
+                },
+            )
+            session = CodexAcpBackendSession(options)
+            return [event async for event in session.run_turn()]
+
+        events = asyncio.run(run())
+
+        assert events[0].kind == "session_start"
+        assert (
+            Path(str(observed["entrypoint"])).resolve()
+            == codex_entrypoint.resolve()
+        )
+        assert capture["codex_kwargs"]["codex_path_override"] == str(
+            codex_entrypoint.resolve()
+        )
+        codex_stat = codex_entrypoint.stat()
+        assert capture["codex_path_identity"] == (
+            int(codex_stat.st_dev),
+            int(codex_stat.st_ino),
+        )
+        assert Path(str(observed["runtime_root"])).parent == (
+            Path.home() / ".oompah" / "native-validation-guards"
+        ).resolve()
+        assert workspace.resolve() not in Path(
+            str(observed["runtime_root"])
+        ).parents
+        guard = capture["validation_guard_config"]["provider_bootstrap"]
+        assert Path(guard["interpreter"]) == node_interpreter.resolve()
+
+    def test_managed_native_cli_reads_only_prefix_of_large_direct_binary(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from oompah.acp_backends import codex as codex_module
+        from agents.extensions.experimental.codex import exec as codex_exec_module
+
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        direct_binary = tmp_path / "direct-codex"
+        with direct_binary.open("wb") as stream:
+            stream.write(b"\x7fELF")
+            stream.seek(32 * 1024 * 1024 - 1)
+            stream.write(b"\0")
+        direct_binary.chmod(0o700)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        monkeypatch.setattr(
+            codex_exec_module,
+            "find_codex_path",
+            lambda: str(direct_binary),
+        )
+        monkeypatch.setattr(
+            codex_module,
+            "_native_validation_untrusted_roots",
+            lambda workspace_path, _additional_dirs, _environment: (
+                Path(workspace_path).resolve(),
+            ),
+        )
+        original_direct_stat = direct_binary.stat()
+        real_install = codex_module.install_native_validation_guard
+
+        def replace_direct_binary_before_launch(*args, **kwargs):
+            replacement = tmp_path / "replacement-direct-codex"
+            replacement.write_bytes(b"\x7fELF-replacement")
+            replacement.chmod(0o700)
+            replacement.replace(direct_binary)
+            return real_install(*args, **kwargs)
+
+        monkeypatch.setattr(
+            codex_module,
+            "install_native_validation_guard",
+            replace_direct_binary_before_launch,
+        )
+        original_read_bytes = Path.read_bytes
+
+        def reject_whole_binary_read(path):
+            if path.resolve() == direct_binary.resolve():
+                raise AssertionError("large Codex binary was read in full")
+            return original_read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", reject_whole_binary_read)
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+
+        async def run():
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(workspace),
+                    prompt="implement the task",
+                    billing_model="subscription",
+                    coordination_service=service,
+                    project_id="worker-project",
+                    task_identifier="WORK-1",
+                )
+            )
+            return [event async for event in session.run_turn()]
+
+        events = asyncio.run(run())
+
+        assert events[0].kind == "session_start"
+        assert capture["codex_kwargs"]["codex_path_override"].startswith(
+            f"/proc/{os.getpid()}/fd/"
+        )
+        assert capture["codex_path_identity"] == (
+            int(original_direct_stat.st_dev),
+            int(original_direct_stat.st_ino),
+        )
+        replacement_stat = direct_binary.stat()
+        assert int(replacement_stat.st_ino) != int(original_direct_stat.st_ino)
+        assert "provider_bootstrap" not in capture["validation_guard_config"]
+
+    def test_managed_native_cli_rejects_task_writable_direct_codex(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from agents.extensions.experimental.codex import exec as codex_exec_module
+
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        task_codex = workspace / "codex"
+        task_codex.write_bytes(b"\x7fELF")
+        task_codex.chmod(0o700)
+        monkeypatch.setattr(
+            codex_exec_module,
+            "find_codex_path",
+            lambda: str(task_codex),
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+
+        async def run():
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(workspace),
+                    prompt="implement the task",
+                    billing_model="subscription",
+                    coordination_service=service,
+                    project_id="worker-project",
+                    task_identifier="WORK-1",
+                )
+            )
+            return session, [event async for event in session.run_turn()]
+
+        session, events = asyncio.run(run())
+
+        assert session.status == "errored"
+        assert "operator Codex executable is task-writable" in str(
+            session.last_error
+        )
+        assert events == []
+        assert "codex_kwargs" not in capture
+
     def test_managed_native_cli_guard_uses_auditor_owner_identity(
         self,
         monkeypatch,
@@ -1099,7 +1431,6 @@ class TestCodexCounters:
 # ----------------------------------------------------------------------
 
 
-import os
 import re
 
 

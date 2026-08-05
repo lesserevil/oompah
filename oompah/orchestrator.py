@@ -39799,6 +39799,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         quality_gate_state = self._quality_gate_state_snapshot()
         validation_resource_state = self.validation_resource_lease.status().to_dict()
+        validation_resource_action_required = (
+            validation_resource_state.get("status") == "action_required"
+        )
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -39924,7 +39927,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "validation_resources": validation_resource_state,
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
-                "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
+                "status": (
+                    "degraded"
+                    if getattr(
+                        self, "_audit_health", TerminalAuditHealth()
+                    ).degraded
+                    or validation_resource_action_required
+                    else "healthy"
+                ),
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
                 "quality_gates": quality_gate_state,
                 "validation_resources": validation_resource_state,

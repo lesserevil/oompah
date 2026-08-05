@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.terminal_audit_health import HEALTH_ALERT_PREFIX, TerminalAuditHealth
+from oompah.validation_resource_lease import ValidationLeaseStatus
 
 
 def _make_orchestrator(tmp_path):
@@ -92,3 +93,28 @@ class TestUnavailableStateIsExplicitlyDegraded:
         # because degradation requires positive failure/stale signals
         assert "health" in snapshot
         assert snapshot["health"]["status"] in ("healthy", "degraded")
+
+
+def test_legacy_provider_root_validation_owner_degrades_aggregate_health(tmp_path):
+    orch = _make_orchestrator(tmp_path)
+    orch.validation_resource_lease.status = MagicMock(
+        return_value=ValidationLeaseStatus(
+            capacity=1,
+            owner_count=1,
+            waiter_count=1,
+            oldest_waiter_age_seconds=30,
+            owners=(
+                {
+                    "task_id": "OOMPAH-1",
+                    "process_role": "legacy_provider_bootstrap",
+                    "recovery_action": "claim_task_directly",
+                },
+            ),
+            waiters=(),
+        )
+    )
+
+    snapshot = orch.get_snapshot()
+
+    assert snapshot["validation_resources"]["status"] == "action_required"
+    assert snapshot["health"]["status"] == "degraded"
