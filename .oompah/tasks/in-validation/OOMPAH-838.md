@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-838
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Preserve forced quality-gate retry through integration claim
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T17:17:04.586282Z'
+updated_at: '2026-08-05T17:26:25.255955Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
@@ -31,6 +31,45 @@ oompah.review_number: '722'
 oompah.work_branch: OOMPAH-838
 oompah.target_branch: main
 oompah.review_head: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-41bcaf72f72b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-838
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T17:26:12.554338+00:00'
+  - version: 1
+    audit_id: audit-e856e8a1a478
+    project_id: proj-14849f1b
+    task_id: OOMPAH-838
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T17:26:12.554338+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -76,5 +115,15 @@ author: oompah
 created: 2026-08-05 17:16
 ---
 Branch quality gate passed for `005e9e717de8cf1d77b4c3331df20ecc64c421e9` using `make test` in 635.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 17:26
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 17:26
+---
+YOLO: merged PR #722.
 ---
 <!-- COMMENTS:END -->
