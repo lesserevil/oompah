@@ -212,6 +212,8 @@ from oompah.terminal_audit_health import (
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
+    is_audit_infrastructure_retryable,
+    is_audit_evidence_retryable,
 )
 from oompah.workflow_contract import (
     LIFECYCLE_FINAL_STATUSES,
@@ -8574,6 +8576,69 @@ class Orchestrator:
             alert["level"] = level
             alert["updated_at"] = updated_at_iso
 
+    def _determine_terminal_audit_recovery_mode(
+        self,
+        project_id: str,
+        task_id: str,
+        target_state: TargetState,
+    ) -> str | None:
+        """Determine the appropriate recovery mode for a completed terminal audit.
+
+        Returns one of:
+        - "evidence_addendum": for MISSING_EVIDENCE terminal failures
+        - "infrastructure": for NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY
+        - None: if no recovery is possible or record not found
+
+        This function queries the terminal audit metadata store synchronously
+        to inspect the COMPLETED record and determine what recovery actions
+        are valid based on the terminal attempt's failure classification.
+        """
+        try:
+            tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self.project_store, project_id
+            )
+            doc = store.load()
+            
+            # Find the most recent COMPLETED record for this task and target
+            matching = [
+                record
+                for record in doc.pending_chain
+                if record.target_state == target_state
+                and record.project_id == project_id
+                and record.task_id in {task_id, str(task_id)}
+            ]
+            
+            # Find the most recent COMPLETED record
+            completed = next(
+                (
+                    record
+                    for record in reversed(matching)
+                    if record.request_state == RequestState.COMPLETED
+                ),
+                None,
+            )
+            
+            if completed is None:
+                return None
+            
+            # Check what recovery modes are available based on terminal failure
+            if is_audit_evidence_retryable(completed):
+                return "evidence_addendum"
+            elif is_audit_infrastructure_retryable(completed):
+                return "infrastructure"
+            else:
+                return None
+        except Exception as exc:
+            logger.warning(
+                "Could not determine recovery mode for %s/%s: %s",
+                project_id,
+                task_id,
+                exc,
+                exc_info=True,
+            )
+            return None
+
     def _arm_integrated_audit_recovery_alert(
         self,
         project_id: str,
@@ -8581,16 +8646,38 @@ class Orchestrator:
         target_state: str,
         reason: str,
         integrated_sha: str,
+        recovery_mode: str | None = None,
     ) -> bool:
-        """Surface one owner-rearm instruction for a completed audit failure."""
+        """Surface one owner-rearm instruction for a completed audit failure.
+
+        Parameters
+        ----------
+        recovery_mode : str | None
+            One of "evidence_addendum" (for MISSING_EVIDENCE failures),
+            "infrastructure" (for NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY),
+            or None (no retry possible). If None, no recovery action is advertised.
+        """
 
         source = f"terminal_audit_recovery:{project_id}:{task_id}"
-        message = (
-            f"Integrated task {task_id} at {integrated_sha} has no active terminal "
-            f"audit ({reason}). An authenticated project owner must supply the "
-            f"required evidence and rearm target {target_state} with "
-            "`audit_retry_evidence_addendum`; the task remains fail-closed."
-        )
+        
+        # Build message based on recovery mode
+        if recovery_mode == "evidence_addendum":
+            message = (
+                f"Integrated task {task_id} at {integrated_sha} has no active terminal "
+                f"audit ({reason}). An authenticated project owner must supply the "
+                f"required evidence and rearm target {target_state} with "
+                "`audit_retry_evidence_addendum`; the task remains fail-closed."
+            )
+        elif recovery_mode == "infrastructure":
+            message = (
+                f"Integrated task {task_id} at {integrated_sha} has no active terminal "
+                f"audit ({reason}). An authenticated project owner can rearm target "
+                f"{target_state} to retry the audit; the task remains fail-closed."
+            )
+        else:
+            # No known recovery action; don't emit an alert
+            return False
+        
         existing = next(
             (alert for alert in self._alerts if alert.get("source") == source),
             None,
@@ -12355,24 +12442,33 @@ class Orchestrator:
             evidence_fingerprint=fingerprint,
         )
         if not transition.success:
+            # Determine what recovery mode is available for this failed audit
+            recovery_mode = self._determine_terminal_audit_recovery_mode(
+                item.project_id,
+                item.task_id,
+                TargetState.DONE,
+            )
             alert_added = self._arm_integrated_audit_recovery_alert(
                 item.project_id,
                 item.task_id,
                 DONE,
                 transition.reason or "terminal audit transition failed",
                 record.integrated_sha,
+                recovery_mode=recovery_mode,
             )
             if alert_added:
                 logger.warning(
-                    "Integrated task %s could not enter terminal audit: %s",
+                    "Integrated task %s could not enter terminal audit: %s (recovery_mode=%s)",
                     item.task_id,
                     transition.reason,
+                    recovery_mode,
                 )
             else:
                 logger.debug(
-                    "Integrated task %s still awaits terminal audit recovery: %s",
+                    "Integrated task %s still awaits terminal audit recovery: %s (recovery_mode=%s)",
                     item.task_id,
                     transition.reason,
+                    recovery_mode,
                 )
             return
         self._clear_integrated_audit_recovery_alert(

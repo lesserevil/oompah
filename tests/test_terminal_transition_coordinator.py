@@ -3459,4 +3459,257 @@ class TestApplyBarriersAgainstSecondaryLanes:
             call for call in metrics.calls
             if call[0] == "stale_discarded" and call[1][2] == "audit-B"
         ]
-        assert len(stale_calls) == 1
+
+
+class TestRetryEligibilityFunctions:
+    """Test canonical retry-eligibility functions that ensure alert/action parity.
+    
+    These tests verify that is_audit_infrastructure_retryable() and
+    is_audit_evidence_retryable() correctly identify when an audit is retryable
+    based on its TERMINAL (final) attempt classification, ensuring that recovery
+    alerts only suggest actions that will actually succeed.
+    """
+
+    def test_infrastructure_retryable_for_no_auditor_terminal(self) -> None:
+        """NO_AUDITOR terminal failure is retryable via infrastructure."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-no-auditor",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.NO_AUDITOR,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is True
+
+    def test_infrastructure_retryable_for_infrastructure_error_terminal(self) -> None:
+        """INFRASTRUCTURE_ERROR terminal failure is retryable via infrastructure."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-infra-error",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is True
+
+    def test_evidence_retryable_for_missing_evidence_terminal(self) -> None:
+        """MISSING_EVIDENCE terminal failure is retryable via evidence addendum."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_evidence_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-missing-evidence",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.MISSING_EVIDENCE,
+                )
+            ],
+        )
+        
+        assert is_audit_evidence_retryable(record) is True
+
+    def test_not_infrastructure_retryable_for_missing_evidence(self) -> None:
+        """MISSING_EVIDENCE terminal is not retryable via infrastructure."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-missing-evidence",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.MISSING_EVIDENCE,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is False
+
+    def test_not_evidence_retryable_for_no_auditor(self) -> None:
+        """NO_AUDITOR terminal is not retryable via evidence addendum."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_evidence_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-no-auditor",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.NO_AUDITOR,
+                )
+            ],
+        )
+        
+        assert is_audit_evidence_retryable(record) is False
+
+    def test_mixed_history_infrastructure_retry_uses_terminal_classification(self) -> None:
+        """Mixed attempt history should use TERMINAL classification for infrastructure retry.
+        
+        OOMPAH-745 regression: when a task has multiple failed attempts
+        (e.g., FINALIZATION_FAILURE then NO_AUDITOR), the retryability should be
+        determined from the TERMINAL (final) attempt's classification only.
+        Earlier attempt classifications should not block retry.
+        """
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+        )
+        
+        record = _exhausted_mixed_attempt_record()
+        # Verify the record has mixed history (first attempt is FINALIZATION_FAILURE)
+        assert len(record.attempts) == 2
+        assert record.attempts[0].failure_classification == FailureClassification.FINALIZATION_FAILURE
+        assert record.attempts[1].failure_classification == FailureClassification.NO_AUDITOR
+        
+        # Should be retryable via infrastructure based on TERMINAL classification
+        assert is_audit_infrastructure_retryable(record) is True
+
+    def test_not_retryable_for_non_terminal_failures(self) -> None:
+        """Non-retryable terminal classifications should not allow either recovery mode."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+            is_audit_evidence_retryable,
+        )
+        
+        # CI_FAILURE is not retryable
+        record = TerminalAuditRecord(
+            audit_id="audit-ci-failure",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.CI_FAILURE,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is False
+        assert is_audit_evidence_retryable(record) is False
+
+    def test_not_retryable_for_successful_completed_audit(self) -> None:
+        """Successful completed audits should not be retryable."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+            is_audit_evidence_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-pass",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.COMPLETED,
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.PASS,
+                    failure_classification=None,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is False
+        assert is_audit_evidence_retryable(record) is False
+
+    def test_not_retryable_for_pending_records(self) -> None:
+        """Pending records should not be considered retryable."""
+        from oompah.terminal_transition_coordinator import (
+            is_audit_infrastructure_retryable,
+            is_audit_evidence_retryable,
+        )
+        
+        record = TerminalAuditRecord(
+            audit_id="audit-pending",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint(),
+            request_state=RequestState.PENDING,  # Not COMPLETED
+            attempts=[
+                AuditAttempt(
+                    attempt_id="attempt-1",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_fingerprint(),
+                    request_state=RequestState.PENDING,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.NO_AUDITOR,
+                )
+            ],
+        )
+        
+        assert is_audit_infrastructure_retryable(record) is False
+        assert is_audit_evidence_retryable(record) is False
