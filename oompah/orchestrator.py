@@ -297,6 +297,7 @@ from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
     ProjectStore,
+    RecoveryPublicationError,
     github_owner_repo_from_url,
     github_work_branch_name,
 )
@@ -1502,6 +1503,11 @@ class Orchestrator:
             dict(cursors) if isinstance(cursors, dict) else {}
         )
         self._maintenance_status: dict[str, Any] = {}
+        # Source-local Git refs are the durable journal; this map is only the
+        # cheap in-process retry index rebuilt from those refs at startup.
+        self._pending_recovery_publications: dict[
+            tuple[str, str], dict[str, object]
+        ] = {}
         self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
         # Repository hygiene is a derived view, but retain the last complete
         # evaluation so a restart does not briefly hide known hygiene debt
@@ -6350,6 +6356,14 @@ class Orchestrator:
         # while the durable worker drains its bounded queue.
         self._schedule_terminal_lifecycle_reconciliation(discover_new=True)
         await self.startup_cleanup()
+        # Rebuild retry authority from source-local Git refs before generic
+        # restart recovery can classify an ownerless In Progress task as
+        # stalled.  Publication/tracker failures remain indexed for later
+        # scheduler ticks.
+        await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool,
+            lambda: self._reconcile_pending_recovery_publications(discover=True),
+        )
         await self._recover_restart_issues()
         await self._restore_persisted_retries()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
@@ -6957,6 +6971,15 @@ class Orchestrator:
         # full-corpus read+parse is the dominant tick cost). Writes during
         # the tick re-invalidate, so reads never go stale.
         self._invalidate_tracker_read_caches()
+
+        # Retry only known pending recovery transactions. Startup discovery
+        # rebuilds this cheap index from durable Git evidence; live failures
+        # register themselves before their tracker write is attempted.
+        if self._pending_recovery_publications:
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self._reconcile_pending_recovery_publications,
+            )
 
         # Arm standalone delivery before the dispatch and maintenance lanes.
         # A full task scan or a long maintenance operation must not defer the
@@ -32730,6 +32753,245 @@ class Orchestrator:
             )
         )
 
+    def _route_retryable_recovery_publication(
+        self,
+        entry: RunningEntry,
+        issue_id: str,
+        project_id: str | None,
+        error: RecoveryPublicationError,
+    ) -> None:
+        """Return a stopped task to durable flow after publication interruption.
+
+        The checkpoint itself already exists in the task checkout and is held
+        by a source-local pending ref (or by the task branch HEAD).  Reopening
+        gives the scheduler a durable owner after ordinary termination; an
+        owner-takeover request remains fenced by its temporary ``human-only``
+        label and immediately replaces this state with a direct-owner lease.
+        """
+
+        context = dict(error.context)
+        snapshot_head = str(context.get("snapshot_head") or "").strip()
+        pending_ref = str(context.get("pending_ref") or "").strip()
+        scoped_project_id = str(project_id or "").strip()
+        if scoped_project_id:
+            self._pending_recovery_publications[
+                (scoped_project_id, entry.identifier)
+            ] = context
+        message = (
+            "Recovery checkpoint publication was interrupted after the exact "
+            "task state had been retained locally. The task was returned to "
+            "automatic/direct-owner flow; the next workspace preparation will "
+            "retry publication without resetting, cleaning, or rewriting the "
+            "checkout. "
+            f"Pending ref: {pending_ref or 'checkpoint HEAD'}; "
+            f"snapshot: {snapshot_head or 'unknown'}. Error: {error}"
+        )
+        self.state.completed.discard(issue_id)
+        self.state.stall_counts.pop(issue_id, None)
+        self._clear_reopen_count(issue_id)
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            current = tracker.fetch_issue_detail(entry.identifier)
+            if (
+                current is not None
+                and not is_terminal_status(current.state)
+                and canonicalize_status(current.state) != IN_VALIDATION
+                and canonicalize_status(current.state) != OPEN
+            ):
+                tracker.update_issue(entry.identifier, status=OPEN)
+            self._post_comment(entry.identifier, message, project_id=project_id)
+        except Exception as exc:  # noqa: BLE001 - retained checkpoint is authority
+            logger.error(
+                "Could not persist retryable recovery publication state for %s: %s",
+                entry.identifier,
+                exc,
+            )
+        self.event_bus.emit(
+            EventType.AGENT_FAILED,
+            {
+                "issue_id": issue_id,
+                "identifier": entry.identifier,
+                "reason": "worktree_recovery_publication_pending",
+                "error": str(error),
+                "snapshot_head": snapshot_head or None,
+                "pending_ref": pending_ref or None,
+            },
+        )
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.WORKER_EXIT,
+                issue_id=issue_id,
+                payload={"reason": "worktree_recovery_publication_pending"},
+            )
+        )
+
+    def _has_retry_authority_for_issue(
+        self,
+        issue_id: str,
+        identifier: str,
+        project_id: str,
+    ) -> bool:
+        """Return whether an implementation retry still owns this task."""
+
+        with self._retry_authority_lock:
+            entries = [
+                *self.state.retry_attempts.values(),
+                *self._retry_dispatching.values(),
+                *self._persisted_retry_entries,
+            ]
+            return any(
+                (
+                    entry.issue_id == issue_id
+                    or entry.identifier == identifier
+                )
+                and (not entry.project_id or entry.project_id == project_id)
+                and not entry.cancelled
+                for entry in entries
+            )
+
+    def _reconcile_pending_recovery_publications(
+        self,
+        *,
+        discover: bool = False,
+    ) -> dict[str, object]:
+        """Publish durable checkpoints and reopen ownerless tasks automatically.
+
+        Discovery is mandatory at startup and inexpensive retries use the
+        in-memory index afterward.  Tracker failures leave the entry indexed;
+        the next scheduler event retries without relying on ephemeral process
+        state.  A service restart rebuilds the same index from Git refs/HEAD.
+        """
+
+        errors: list[str] = []
+        if discover:
+            try:
+                contexts = self.project_store.pending_worktree_recoveries()
+            except Exception as exc:  # noqa: BLE001 - retain existing retry index
+                contexts = []
+                errors.append(f"discovery: {exc}")
+                logger.exception("Pending worktree recovery discovery failed")
+            for context in contexts:
+                project_id = str(context.get("project_id") or "").strip()
+                identifier = str(
+                    context.get("issue_identifier") or ""
+                ).strip()
+                if project_id and identifier:
+                    self._pending_recovery_publications[
+                        (project_id, identifier)
+                    ] = dict(context)
+
+        reopened = 0
+        published = 0
+        deferred = 0
+        manual = 0
+        for key, context in list(self._pending_recovery_publications.items()):
+            project_id, identifier = key
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issue = tracker.fetch_issue_detail(identifier)
+            except Exception as exc:  # noqa: BLE001 - retry on next scheduler event
+                errors.append(f"{identifier}: tracker read: {exc}")
+                continue
+            if issue is None:
+                errors.append(f"{identifier}: task is unavailable")
+                continue
+            if (
+                self._current_running_entry(issue.id) is not None
+                or self._has_live_owner_claim(issue.id, project_id)
+                or self._has_retry_authority_for_issue(
+                    issue.id,
+                    identifier,
+                    project_id,
+                )
+            ):
+                deferred += 1
+                continue
+
+            worktree_path = str(context.get("worktree_path") or "").strip()
+            try:
+                recovery = self.project_store.preserve_worktree_changes(
+                    project_id,
+                    identifier,
+                    worktree_path or None,
+                    (
+                        getattr(issue, "work_branch", None)
+                        or getattr(issue, "branch_name", None)
+                        or None
+                    ),
+                )
+            except RecoveryPublicationError as exc:
+                self._pending_recovery_publications[key] = dict(exc.context)
+                errors.append(f"{identifier}: publication pending: {exc}")
+                continue
+            except Exception as exc:  # noqa: BLE001 - corruption is not retryable
+                message = (
+                    "A durable worktree recovery checkpoint could not be "
+                    "reconciled automatically. The checkout and recovery "
+                    f"evidence were retained. Error: {exc}"
+                )
+                try:
+                    self._mark_needs_human(tracker, identifier, message)
+                except Exception as tracker_exc:  # noqa: BLE001
+                    errors.append(
+                        f"{identifier}: recovery error {exc}; tracker write: "
+                        f"{tracker_exc}"
+                    )
+                    continue
+                self._pending_recovery_publications.pop(key, None)
+                manual += 1
+                continue
+
+            if recovery is None:
+                errors.append(f"{identifier}: pending checkpoint disappeared")
+                continue
+            published += 1
+            current_state = canonicalize_status(issue.state)
+            if is_terminal_status(issue.state) or current_state == IN_VALIDATION:
+                self._pending_recovery_publications.pop(key, None)
+                continue
+            if current_state not in {OPEN, IN_PROGRESS}:
+                # A historical recovery ref is evidence, not authority to
+                # override a deliberate Needs Human/CI/Ready transition.
+                self._pending_recovery_publications.pop(key, None)
+                continue
+            if current_state == IN_PROGRESS:
+                try:
+                    tracker.update_issue(identifier, status=OPEN)
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    self.state.completed.discard(issue.id)
+                    self._post_comment(
+                        identifier,
+                        (
+                            "Recovered an unpublished worktree checkpoint after "
+                            "worker/service interruption. Exact recovery evidence "
+                            f"is durable at {recovery.get('recovery_ref') or 'the recovery ref'} "
+                            f"({recovery.get('snapshot_head') or 'unknown snapshot'}); "
+                            "the ownerless task was returned to Open."
+                        ),
+                        project_id=project_id,
+                    )
+                    reopened += 1
+                except Exception as exc:  # noqa: BLE001 - retry from durable ref
+                    errors.append(f"{identifier}: tracker reopen: {exc}")
+                    continue
+            self._pending_recovery_publications.pop(key, None)
+
+        result: dict[str, object] = {
+            "pending": len(self._pending_recovery_publications),
+            "published": published,
+            "reopened": reopened,
+            "deferred": deferred,
+            "manual": manual,
+            "errors": errors,
+        }
+        self._maintenance_status["worktree_recovery_publication"] = result
+        return result
+
     async def _run_worker(
         self,
         issue: Issue,
@@ -35503,6 +35765,8 @@ class Orchestrator:
         workspace_path = entry.workspace_path
         late_changes_detected = False
         recovery_context = None
+        recovery_publication_error: RecoveryPublicationError | None = None
+        recovery_preservation_error: Exception | None = None
         
         # Preserve any dirty changes to recovery checkpoint before validation.
         # This must happen even if HEAD matches — any generated files or
@@ -35532,14 +35796,26 @@ class Orchestrator:
                         record.head_sha or "unknown",
                         recovery_context.get("recovery_ref", "unknown"),
                     )
+            except RecoveryPublicationError as exc:
+                recovery_context = dict(exc.context)
+                recovery_publication_error = exc
+                logger.warning(
+                    "Recovery checkpoint publication pending for revoked "
+                    "submission issue_identifier=%s snapshot=%s error=%s",
+                    entry.identifier,
+                    recovery_context.get("snapshot_head"),
+                    exc,
+                )
             except Exception as exc:
+                recovery_preservation_error = exc
                 logger.warning(
                     "Failed to preserve recovery checkpoint for revoked submission "
                     "issue_identifier=%s: %s",
                     entry.identifier,
                     exc,
                 )
-                # Don't fail hard — we'll still try to validate below
+                # The revoked generation has no authority to continue and an
+                # unpreserved late mutation must never be integrated.
         
         # Now validate that final worktree HEAD matches submitted HEAD
         final_head = None
@@ -35566,12 +35842,46 @@ class Orchestrator:
                 record.head_sha,
                 final_head,
             )
+        recovery_snapshot = str(
+            (recovery_context or {}).get("snapshot_head") or ""
+        ).strip()
+        if recovery_snapshot and record.head_sha and recovery_snapshot != record.head_sha:
+            late_changes_detected = True
+            logger.warning(
+                "Accepted submission produced a distinct recovery checkpoint "
+                "issue_identifier=%s submitted_sha=%s recovery_sha=%s",
+                entry.identifier,
+                record.head_sha,
+                recovery_snapshot,
+            )
         
         # Clean up the running entry
         self._remove_running_entry(issue_id, entry)
         self.state.claimed.discard(issue_id)
         self.state.claimed_issues.pop(issue_id, None)
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
+
+        if recovery_publication_error is not None:
+            # Publication-pending is itself a hard integration fence. An
+            # active-operation checkpoint is created with commit-tree and can
+            # leave HEAD unchanged, so final-HEAD comparison is insufficient.
+            self._route_retryable_recovery_publication(
+                entry,
+                issue_id,
+                project_id_val,
+                recovery_publication_error,
+            )
+            self._notify_observers()
+            return
+        if recovery_preservation_error is not None:
+            self._hold_after_worktree_recovery_failure(
+                entry,
+                issue_id,
+                project_id_val,
+                str(recovery_preservation_error),
+            )
+            self._notify_observers()
+            return
         
         if late_changes_detected and recovery_context:
             # Late changes detected — don't integrate the stale submission.
@@ -35621,6 +35931,14 @@ class Orchestrator:
                     entry.identifier,
                     exc,
                 )
+        elif late_changes_detected:
+            self._hold_after_worktree_recovery_failure(
+                entry,
+                issue_id,
+                project_id_val,
+                "late worktree mutation was detected but no durable recovery "
+                "checkpoint could be proven",
+            )
         else:
             # No late changes detected (or no recovery context) — proceed with
             # integration eligibility. Mark the task as Ready to Integrate so
@@ -39885,6 +40203,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # recovery ref.
             project_id = entry.issue.project_id if entry.issue else None
             project_store = getattr(self, "project_store", None)
+            recovery_publication_pending = False
             recovery_preserver = getattr(
                 type(project_store), "preserve_worktree_changes", None
             ) if project_store is not None else None
@@ -39934,6 +40253,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 getattr(entry, "run_id", None),
                             )
                             return True
+                except RecoveryPublicationError as exc:
+                    recovery_publication_pending = True
+                    self._route_retryable_recovery_publication(
+                        entry,
+                        issue_id,
+                        project_id,
+                        exc,
+                    )
                 except Exception as exc:  # noqa: BLE001 - fail closed for retries
                     if self._current_running_entry(issue_id) is entry:
                         self._remove_running_entry(issue_id, entry)
@@ -40037,7 +40364,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         exc,
                     )
 
-            if cleanup_workspace:
+            if cleanup_workspace and not recovery_publication_pending:
                 try:
                     if project_id:
                         workspace_identifier = (

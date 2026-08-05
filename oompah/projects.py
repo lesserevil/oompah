@@ -36,6 +36,21 @@ class ProjectError(Exception):
     """Raised when project registration or worktree management fails."""
 
 
+class RecoveryPublicationError(ProjectError):
+    """A checkpoint exists locally but its durable recovery ref is pending.
+
+    ``context`` identifies the exact checkpoint and task checkout that must be
+    retried.  Callers may safely release the stopped worker and hand ownership
+    to a scheduler or direct owner; they must not treat this as an
+    un-snapshotable workspace or mutate the checkout to roll the checkpoint
+    back.
+    """
+
+    def __init__(self, message: str, *, context: dict[str, object]) -> None:
+        super().__init__(message)
+        self.context = dict(context)
+
+
 @dataclass(frozen=True)
 class EpicWorktreeReconciliation:
     """Result of reconciling a shared epic checkout after direct maintenance."""
@@ -203,108 +218,180 @@ def _recovery_git_env() -> dict[str, str]:
     return env
 
 
+def _recovery_marker_context(
+    repo_path: str,
+    snapshot_head: str,
+) -> dict[str, object] | None:
+    """Read one structured recovery marker without trusting its identity.
+
+    Discovery after a service restart does not yet know which task owns a
+    checkpoint.  This bounded parser returns the marker payload so the caller
+    can validate the project, task identifier, checkout path, and exact ref
+    before acting on it.
+    """
+
+    try:
+        message = subprocess.run(
+            ["git", "show", "-s", "--format=%B", snapshot_head],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProjectError(
+            f"git recovery evidence lookup failed for {snapshot_head}: {exc}"
+        ) from exc
+    if message.returncode != 0:
+        raise ProjectError(
+            "git recovery evidence commit cannot be read for "
+            f"{snapshot_head}: {message.stderr.strip()[:500]}"
+        )
+
+    for line in message.stdout.splitlines():
+        if not line.startswith(_WORKTREE_RECOVERY_MARKER):
+            continue
+        try:
+            context = json.loads(line[len(_WORKTREE_RECOVERY_MARKER) :].strip())
+        except (TypeError, ValueError) as exc:
+            raise ProjectError(
+                f"invalid recovery evidence in {snapshot_head}"
+            ) from exc
+        if not isinstance(context, dict):
+            raise ProjectError(f"invalid recovery evidence in {snapshot_head}")
+        result = dict(context)
+        result["snapshot_head"] = snapshot_head
+        return result
+    return None
+
+
 def _transfer_recovery_snapshot_objects(
     snapshot_sha: str,
     worktree_path: str,
     authoritative_repo_path: str,
 ) -> bool:
-    """Transfer snapshot objects from worktree to authoritative repo.
+    """Copy one exact commit graph into the authoritative object database.
 
-    This ensures recovery snapshot objects created in a separate worktree or
-    clone are made durable in the authoritative repository before the recovery
-    ref is published. This handles both linked worktrees (which may share the
-    object database with git/objects) and standalone clones (which have their
-    own separate object database).
-
-    Parameters
-    ----------
-    snapshot_sha:
-        The commit SHA to transfer (and all its transitive dependencies).
-    worktree_path:
-        Path to the worktree where the snapshot was created.
-    authoritative_repo_path:
-        Path to the authoritative repository where the ref will be published.
-
-    Returns
-    -------
-    bool
-        True if the object was successfully transferred and is readable from
-        the authoritative repo; False if the snapshot_sha already existed in
-        the authoritative repo (redundant transfer).
-
-    Raises
-    ------
-    ProjectError
-        If the object transfer fails or the object is not readable after
-        transfer.
+    The source commit is exposed through a unique, short-lived local ref so a
+    normal local ``git fetch`` can transfer an otherwise-unadvertised
+    ``commit-tree`` checkpoint.  No checkout, branch, index, or working-tree
+    state is changed.  Success requires the destination to resolve the exact
+    full commit ID, not merely an object with the supplied prefix.
     """
 
-    if not snapshot_sha or not worktree_path or not authoritative_repo_path:
-        raise ProjectError(
-            "transfer_recovery_snapshot_objects: missing required parameters"
-        )
+    snapshot_sha = str(snapshot_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", snapshot_sha):
+        raise ProjectError("recovery snapshot must be a full hexadecimal object id")
+    if not os.path.isdir(worktree_path) or not os.path.isdir(
+        authoritative_repo_path
+    ):
+        raise ProjectError("recovery snapshot source or authority is unavailable")
 
-    # First check if the object already exists in the authoritative repo
-    check_existing = subprocess.run(
-        ["git", "cat-file", "-e", snapshot_sha],
-        cwd=authoritative_repo_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=10,
-        env=_recovery_git_env(),
-    )
-    if check_existing.returncode == 0:
-        # Object already exists in authoritative repo
+    def _resolve(repo_path: str) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{snapshot_sha}^{{commit}}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not resolve recovery snapshot {snapshot_sha}: {exc}"
+            ) from exc
+        resolved = result.stdout.strip().lower()
+        return resolved if result.returncode == 0 and resolved == snapshot_sha else None
+
+    if _resolve(worktree_path) is None:
+        raise ProjectError(
+            f"recovery snapshot {snapshot_sha} is not an exact commit in its source"
+        )
+    if _resolve(authoritative_repo_path) == snapshot_sha:
         return False
 
-    # Object doesn't exist, transfer it from the worktree using fetch-pack +
-    # upload-pack to copy all transitive dependencies
+    transfer_ref = f"refs/oompah/recovery-transfer/{uuid.uuid4().hex}"
     try:
-        # Use git fetch-pack to transfer objects. We fetch into the
-        # authoritative repo from the worktree's git repository.
-        fetch_result = subprocess.run(
-            [
-                "git",
-                "fetch-pack",
-                "--no-progress",
-                worktree_path,
-                snapshot_sha,
-            ],
-            cwd=authoritative_repo_path,
+        created = subprocess.run(
+            ["git", "update-ref", transfer_ref, snapshot_sha, ""],
+            cwd=worktree_path,
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=10,
             env=_recovery_git_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ProjectError(
-            f"could not transfer recovery snapshot objects for {snapshot_sha}: {exc}"
+            f"could not expose recovery snapshot {snapshot_sha} for transfer: {exc}"
         ) from exc
-
-    if fetch_result.returncode != 0:
+    if created.returncode != 0:
         raise ProjectError(
-            f"could not transfer recovery snapshot objects for {snapshot_sha}: "
-            f"{fetch_result.stderr.strip()[:500]}"
+            f"could not expose recovery snapshot {snapshot_sha} for transfer: "
+            f"{created.stderr.strip()[:500]}"
         )
 
-    # Verify the object is now readable in the authoritative repo
-    verify_result = subprocess.run(
-        ["git", "cat-file", "-e", snapshot_sha],
-        cwd=authoritative_repo_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=10,
-        env=_recovery_git_env(),
-    )
-    if verify_result.returncode != 0:
-        raise ProjectError(
-            f"recovery snapshot object {snapshot_sha} transferred but not readable "
-            f"in authoritative repository"
-        )
+    try:
+        try:
+            fetched = subprocess.run(
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--no-write-fetch-head",
+                    worktree_path,
+                    transfer_ref,
+                ],
+                cwd=authoritative_repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"could not transfer recovery snapshot {snapshot_sha}: {exc}"
+            ) from exc
+        if fetched.returncode != 0:
+            raise ProjectError(
+                f"could not transfer recovery snapshot {snapshot_sha}: "
+                f"{fetched.stderr.strip()[:500]}"
+            )
+    finally:
+        try:
+            removed = subprocess.run(
+                ["git", "update-ref", "-d", transfer_ref, snapshot_sha],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.warning(
+                "Could not remove temporary recovery transfer ref %s: %s",
+                transfer_ref,
+                exc,
+            )
+        else:
+            if removed.returncode != 0:
+                logger.warning(
+                    "Could not remove temporary recovery transfer ref %s: %s",
+                    transfer_ref,
+                    removed.stderr.strip()[:500],
+                )
 
+    if _resolve(authoritative_repo_path) != snapshot_sha:
+        raise ProjectError(
+            f"recovery snapshot {snapshot_sha} was transferred but its exact commit "
+            "is not readable in the authoritative repository"
+        )
     return True
 
 
@@ -468,6 +555,16 @@ def _worktree_recovery_ref(issue_identifier: str) -> str:
     return (
         "refs/oompah/recovery/"
         f"{_sanitize_identifier(identifier)}-{digest}"
+    )
+
+
+def _worktree_pending_recovery_ref(issue_identifier: str) -> str:
+    """Return the source-local ref retaining an unpublished checkpoint."""
+
+    return _worktree_recovery_ref(issue_identifier).replace(
+        "refs/oompah/recovery/",
+        "refs/oompah/recovery-pending/",
+        1,
     )
 
 
@@ -2880,7 +2977,7 @@ class ProjectStore:
         recovery_ref = _worktree_recovery_ref(issue_identifier)
         try:
             resolved = subprocess.run(
-                ["git", "rev-parse", "--verify", recovery_ref],
+                ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -2895,45 +2992,45 @@ class ProjectStore:
         if resolved.returncode != 0 or not resolved.stdout.strip():
             return None
 
-        snapshot_head = resolved.stdout.strip()
-        try:
-            message = subprocess.run(
-                ["git", "show", "-s", "--format=%B", snapshot_head],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=10,
-                env=_recovery_git_env(),
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"git recovery evidence lookup failed for {issue_identifier}: {exc}"
-            ) from exc
-        if message.returncode != 0:
-            raise ProjectError(
-                "git recovery evidence commit cannot be read for "
-                f"{issue_identifier}: {message.stderr.strip()[:500]}"
-            )
+        snapshot_head = resolved.stdout.strip().lower()
+        context = self._recovery_context_from_commit(
+            project,
+            issue_identifier,
+            project.repo_path,
+            snapshot_head,
+            recovery_ref=recovery_ref,
+            require_marker=False,
+        )
+        if context is not None:
+            context["publication_state"] = "published"
+        return context
 
-        for line in message.stdout.splitlines():
-            if not line.startswith(_WORKTREE_RECOVERY_MARKER):
-                continue
-            try:
-                context = json.loads(
-                    line[len(_WORKTREE_RECOVERY_MARKER) :].strip()
-                )
-            except (TypeError, ValueError) as exc:
+    def _recovery_context_from_commit(
+        self,
+        project: Project,
+        issue_identifier: str,
+        repo_path: str,
+        snapshot_head: str,
+        *,
+        recovery_ref: str,
+        require_marker: bool,
+    ) -> dict[str, object] | None:
+        """Parse and identity-check one exact recovery checkpoint commit."""
+
+        context = _recovery_marker_context(repo_path, snapshot_head)
+        if context is not None:
+            if str(context.get("project_id") or "") != project.id or str(
+                context.get("issue_identifier") or ""
+            ) != issue_identifier:
                 raise ProjectError(
-                    f"invalid recovery evidence for {issue_identifier}"
-                ) from exc
-            if not isinstance(context, dict):
-                raise ProjectError(f"invalid recovery evidence for {issue_identifier}")
-            context = dict(context)
+                    f"recovery evidence identity mismatch for {issue_identifier}"
+                )
             context.setdefault("recovery_ref", recovery_ref)
-            context.setdefault("snapshot_head", snapshot_head)
+            context["snapshot_head"] = snapshot_head
             return context
 
+        if require_marker:
+            return None
         # A ref without the structured marker is still evidence that must not
         # be discarded.  Return a minimal context so a retry can show the
         # operator/agent exactly which commit to inspect.
@@ -2946,6 +3043,187 @@ class ProjectStore:
             "evidence": "recovery ref exists but its commit metadata is unavailable",
         }
 
+    def _pending_recovery_context(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+    ) -> dict[str, object] | None:
+        """Find a source-local unpublished checkpoint after a failed publish."""
+
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        candidates = [pending_ref, "HEAD"]
+        for revision in candidates:
+            try:
+                resolved = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{revision}^{{commit}}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ProjectError(
+                    f"git pending recovery lookup failed for {issue_identifier}: {exc}"
+                ) from exc
+            if resolved.returncode != 0 or not resolved.stdout.strip():
+                continue
+            snapshot_head = resolved.stdout.strip().lower()
+            context = self._recovery_context_from_commit(
+                project,
+                issue_identifier,
+                wt_path,
+                snapshot_head,
+                recovery_ref=_worktree_recovery_ref(issue_identifier),
+                require_marker=True,
+            )
+            if context is None:
+                continue
+            context["pending_ref"] = pending_ref
+            return context
+        return None
+
+    def _publish_recovery_snapshot(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        """Publish an exact checkpoint after proving its objects are durable."""
+
+        context = dict(context)
+        snapshot_head = str(context.get("snapshot_head") or "").strip().lower()
+        recovery_ref = _worktree_recovery_ref(issue_identifier)
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        context.update(
+            {
+                "snapshot_head": snapshot_head,
+                "recovery_ref": recovery_ref,
+                "pending_ref": pending_ref,
+            }
+        )
+
+        def _publication_git(
+            args: list[str],
+            *,
+            cwd: str,
+        ) -> subprocess.CompletedProcess:
+            try:
+                return subprocess.run(
+                    args,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise RecoveryPublicationError(
+                    f"recovery publication command failed for "
+                    f"{issue_identifier}: {exc}",
+                    context=context,
+                ) from exc
+
+        try:
+            _transfer_recovery_snapshot_objects(
+                snapshot_head,
+                wt_path,
+                project.repo_path,
+            )
+        except ProjectError as exc:
+            raise RecoveryPublicationError(
+                f"could not make recovery checkpoint durable for "
+                f"{issue_identifier}: {exc}",
+                context=context,
+            ) from exc
+
+        exact_commit = _publication_git(
+            ["git", "rev-parse", "--verify", f"{snapshot_head}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        if (
+            exact_commit.returncode != 0
+            or exact_commit.stdout.strip().lower() != snapshot_head
+        ):
+            raise RecoveryPublicationError(
+                f"authoritative repository cannot resolve exact recovery commit "
+                f"{snapshot_head} for {issue_identifier}",
+                context=context,
+            )
+
+        current = _publication_git(
+            ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        current_head = current.stdout.strip().lower() if current.returncode == 0 else ""
+        if current_head and current_head != snapshot_head:
+            raise RecoveryPublicationError(
+                f"recovery ref {recovery_ref} already names a different checkpoint "
+                f"for {issue_identifier}",
+                context=context,
+            )
+        if not current_head:
+            updated_ref = _publication_git(
+                ["git", "update-ref", recovery_ref, snapshot_head, ""],
+                cwd=project.repo_path,
+            )
+            if updated_ref.returncode != 0:
+                # A concurrent idempotent publisher may have won after the
+                # empty-old-value guard.  Accept only the identical exact head.
+                raced = _publication_git(
+                    ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+                    cwd=project.repo_path,
+                )
+                if (
+                    raced.returncode != 0
+                    or raced.stdout.strip().lower() != snapshot_head
+                ):
+                    raise RecoveryPublicationError(
+                        f"could not persist recovery ref for {issue_identifier}: "
+                        f"{updated_ref.stderr.strip()[:500]}",
+                        context=context,
+                    )
+
+        proven_ref = _publication_git(
+            ["git", "rev-parse", "--verify", f"{recovery_ref}^{{commit}}"],
+            cwd=project.repo_path,
+        )
+        if proven_ref.returncode != 0 or proven_ref.stdout.strip().lower() != snapshot_head:
+            raise RecoveryPublicationError(
+                f"recovery ref {recovery_ref} does not resolve exact checkpoint "
+                f"{snapshot_head} for {issue_identifier}",
+                context=context,
+            )
+
+        try:
+            removed_pending = _publication_git(
+                ["git", "update-ref", "-d", pending_ref, snapshot_head],
+                cwd=wt_path,
+            )
+        except RecoveryPublicationError as exc:
+            logger.warning(
+                "Could not remove published recovery pending ref issue=%s "
+                "ref=%s: %s",
+                issue_identifier,
+                pending_ref,
+                exc,
+            )
+        else:
+            if removed_pending.returncode != 0:
+                logger.warning(
+                    "Could not remove published recovery pending ref issue=%s "
+                    "ref=%s: %s",
+                    issue_identifier,
+                    pending_ref,
+                    removed_pending.stderr.strip()[:500],
+                )
+        context["publication_state"] = "published"
+        return context
+
     def worktree_recovery_context(
         self,
         project_id: str,
@@ -2957,7 +3235,289 @@ class ProjectStore:
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
         with self.project_write_lock(project_id):
-            return self._recovery_context_from_ref(project, issue_identifier)
+            published = self._recovery_context_from_ref(project, issue_identifier)
+            if published is not None:
+                return published
+            path = self.worktree_path_for(project_id, issue_identifier)
+            if not os.path.isdir(path):
+                return None
+            pending = self._pending_recovery_context(
+                project,
+                issue_identifier,
+                path,
+            )
+            if pending is not None:
+                pending["publication_state"] = "pending"
+            return pending
+
+    def pending_worktree_recoveries(self) -> list[dict[str, object]]:
+        """Discover task checkpoints needing lifecycle reconciliation.
+
+        A pending ref is the durable transaction journal for publication.  An
+        ordinary recovery commit also advances the task checkout's ``HEAD``,
+        so it remains discoverable if creating the pending ref itself was
+        interrupted.  Active-operation checkpoints never advance ``HEAD`` and
+        therefore are reported as non-retryable if their pending-ref write
+        fails rather than pretending that an unreachable object is durable.
+        Published authoritative refs are also returned because a process can
+        die after publication but before the tracker is durably reopened.
+        """
+
+        discovered: dict[tuple[str, str], dict[str, object]] = {}
+        for project in self.list_all():
+            project_root = self._project_worktree_root(project)
+            with self.project_write_lock(project.id):
+                # A publication may have reached the authoritative recovery
+                # ref immediately before the process died or the tracker Open
+                # write failed.  The published ref therefore remains part of
+                # lifecycle recovery, even after the source-local pending ref
+                # was successfully removed.
+                try:
+                    published_refs = subprocess.run(
+                        [
+                            "git",
+                            "for-each-ref",
+                            "--format=%(refname)%09%(objectname)",
+                            "refs/oompah/recovery/",
+                        ],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    logger.warning(
+                        "Could not scan published recovery refs project=%s: %s",
+                        project.id,
+                        exc,
+                    )
+                    published_refs = None
+                if published_refs is not None and published_refs.returncode == 0:
+                    for line in published_refs.stdout.splitlines():
+                        ref_name, separator, snapshot_head = line.partition("\t")
+                        if not separator or not snapshot_head:
+                            continue
+                        try:
+                            context = _recovery_marker_context(
+                                project.repo_path,
+                                snapshot_head.lower(),
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not parse published recovery project=%s "
+                                "ref=%s: %s",
+                                project.id,
+                                ref_name,
+                                exc,
+                            )
+                            continue
+                        if context is None:
+                            continue
+                        project_id = str(context.get("project_id") or "").strip()
+                        identifier = str(
+                            context.get("issue_identifier") or ""
+                        ).strip()
+                        if (
+                            project_id != project.id
+                            or not identifier
+                            or ref_name != _worktree_recovery_ref(identifier)
+                        ):
+                            logger.error(
+                                "Ignoring published recovery identity mismatch "
+                                "project=%s ref=%s marker_project=%s issue=%s",
+                                project.id,
+                                ref_name,
+                                project_id,
+                                identifier or "unknown",
+                            )
+                            continue
+                        context.update(
+                            {
+                                "project_id": project.id,
+                                "issue_identifier": identifier,
+                                "snapshot_head": snapshot_head.lower(),
+                                "recovery_ref": ref_name,
+                                "worktree_path": self.worktree_path_for(
+                                    project.id,
+                                    identifier,
+                                ),
+                                "publication_state": "published",
+                            }
+                        )
+                        discovered[(project.id, identifier)] = context
+
+                if not os.path.isdir(project_root):
+                    continue
+                try:
+                    worktrees = list(os.scandir(project_root))
+                except OSError as exc:
+                    logger.warning(
+                        "Could not scan recovery worktrees project=%s: %s",
+                        project.id,
+                        exc,
+                    )
+                    continue
+                for entry in worktrees:
+                    if (
+                        not entry.is_dir(follow_symlinks=False)
+                        or entry.is_symlink()
+                        or not os.path.exists(os.path.join(entry.path, ".git"))
+                    ):
+                        continue
+                    try:
+                        refs = subprocess.run(
+                            [
+                                "git",
+                                "for-each-ref",
+                                "--format=%(refname)%09%(objectname)",
+                                "refs/oompah/recovery-pending/",
+                            ],
+                            cwd=entry.path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                        head = subprocess.run(
+                            ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                            cwd=entry.path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        logger.warning(
+                            "Could not inspect pending recovery checkout path=%s: %s",
+                            entry.path,
+                            exc,
+                        )
+                        continue
+                    candidates: list[tuple[str | None, str]] = []
+                    if refs.returncode == 0:
+                        for line in refs.stdout.splitlines():
+                            ref_name, separator, snapshot_head = line.partition("\t")
+                            if separator and snapshot_head:
+                                candidates.append((ref_name, snapshot_head.lower()))
+                    if head.returncode == 0 and head.stdout.strip():
+                        candidates.append((None, head.stdout.strip().lower()))
+
+                    seen_candidates: set[tuple[str | None, str]] = set()
+                    for source_ref, snapshot_head in candidates:
+                        candidate = (source_ref, snapshot_head)
+                        if candidate in seen_candidates:
+                            continue
+                        seen_candidates.add(candidate)
+                        try:
+                            context = _recovery_marker_context(
+                                entry.path,
+                                snapshot_head,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not parse pending recovery path=%s ref=%s: %s",
+                                entry.path,
+                                source_ref or "HEAD",
+                                exc,
+                            )
+                            continue
+                        if context is None:
+                            continue
+                        project_id = str(context.get("project_id") or "").strip()
+                        identifier = str(
+                            context.get("issue_identifier") or ""
+                        ).strip()
+                        if project_id != project.id or not identifier:
+                            logger.error(
+                                "Ignoring recovery marker identity mismatch path=%s "
+                                "expected_project=%s marker_project=%s issue=%s",
+                                entry.path,
+                                project.id,
+                                project_id,
+                                identifier or "unknown",
+                            )
+                            continue
+                        expected_path = self.worktree_path_for(project.id, identifier)
+                        if os.path.realpath(expected_path) != os.path.realpath(entry.path):
+                            # Linked worktrees share refs. Seeing another task's
+                            # pending ref while scanning this checkout is normal;
+                            # only its exact managed path may claim the marker.
+                            logger.debug(
+                                "Skipping recovery marker from another checkout "
+                                "issue=%s expected=%s actual=%s",
+                                identifier,
+                                expected_path,
+                                entry.path,
+                            )
+                            continue
+                        pending_ref = _worktree_pending_recovery_ref(identifier)
+                        if source_ref is not None and source_ref != pending_ref:
+                            logger.error(
+                                "Ignoring recovery marker ref mismatch issue=%s "
+                                "expected=%s actual=%s",
+                                identifier,
+                                pending_ref,
+                                source_ref,
+                            )
+                            continue
+                        try:
+                            published = self._recovery_context_from_ref(
+                                project,
+                                identifier,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Could not inspect published recovery issue=%s: %s",
+                                identifier,
+                                exc,
+                            )
+                            published = None
+                        if published is not None:
+                            if source_ref is not None:
+                                try:
+                                    subprocess.run(
+                                        [
+                                            "git",
+                                            "update-ref",
+                                            "-d",
+                                            pending_ref,
+                                            snapshot_head,
+                                        ],
+                                        cwd=entry.path,
+                                        capture_output=True,
+                                        text=True,
+                                        check=False,
+                                        timeout=10,
+                                        env=_recovery_git_env(),
+                                    )
+                                except (OSError, subprocess.TimeoutExpired):
+                                    logger.warning(
+                                        "Could not clear already-published pending "
+                                        "recovery issue=%s ref=%s",
+                                        identifier,
+                                        pending_ref,
+                                        exc_info=True,
+                                    )
+                            continue
+                        context.update(
+                            {
+                                "project_id": project.id,
+                                "issue_identifier": identifier,
+                                "snapshot_head": snapshot_head,
+                                "pending_ref": pending_ref,
+                                "recovery_ref": _worktree_recovery_ref(identifier),
+                                "worktree_path": entry.path,
+                                "publication_state": "pending",
+                            }
+                        )
+                        key = (project.id, identifier)
+                        if key not in discovered or source_ref is not None:
+                            discovered[key] = context
+        return list(discovered.values())
 
     def _preserve_dirty_worktree_locked(
         self,
@@ -3055,11 +3615,32 @@ class ProjectStore:
                 f"{expected_branch!r} to {current_branch!r}"
             )
 
+        # A prior publish may have completed, or a transient publication
+        # failure may have left a source-local pending ref (or an ordinary
+        # checkpoint at HEAD).  Reconcile that exact checkpoint before making
+        # another commit.  This is the restart-safe retry path used by both
+        # owner takeover and normal worktree reuse.
+        published = self._recovery_context_from_ref(project, issue_identifier)
+        if published is not None:
+            return published
+        pending = self._pending_recovery_context(
+            project,
+            issue_identifier,
+            wt_path,
+        )
+        if pending is not None:
+            return self._publish_recovery_snapshot(
+                project,
+                issue_identifier,
+                wt_path,
+                pending,
+            )
+
         # A helper-only change is not a task change.  Do not manufacture a
         # recovery commit for it, but still checkpoint an active operation so
         # its detached state and todo metadata are durable.
         if not dirty_paths and not operation:
-            return self._recovery_context_from_ref(project, issue_identifier)
+            return None
 
         before = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -3106,6 +3687,7 @@ class ProjectStore:
             "changed_paths": dirty_paths,
             "excluded_generated_helpers": generated_paths,
             "recovery_ref": recovery_ref,
+            "pending_ref": _worktree_pending_recovery_ref(issue_identifier),
             "preserved_at": time.time(),
         }
         if operation:
@@ -3263,30 +3845,15 @@ class ProjectStore:
             )
         context["snapshot_head"] = snapshot_head
 
-        # Transfer snapshot objects from worktree to authoritative repo BEFORE
-        # publishing the recovery ref. This ensures the object is durable and
-        # readable from the recovery authority (project.repo_path) regardless of
-        # whether the worktree has its own separate object database (linked
-        # worktree or standalone clone).
+        # Retain the exact checkpoint in the object database that created it
+        # before attempting any cross-repository publication.  If publication
+        # is interrupted this ref, or HEAD for an ordinary commit, makes the
+        # same transaction discoverable after process restart.
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
         try:
-            _transfer_recovery_snapshot_objects(
-                snapshot_head,
-                wt_path,
-                project.repo_path,
-            )
-        except ProjectError as exc:
-            logger.error(
-                "recovery snapshot object transfer failed issue=%s sha=%s error=%s",
-                issue_identifier,
-                snapshot_head,
-                str(exc)[:500],
-            )
-            raise
-
-        try:
-            updated_ref = subprocess.run(
-                ["git", "update-ref", recovery_ref, snapshot_head],
-                cwd=project.repo_path,
+            retained = subprocess.run(
+                ["git", "update-ref", pending_ref, snapshot_head],
+                cwd=wt_path,
                 capture_output=True,
                 text=True,
                 check=False,
@@ -3294,14 +3861,36 @@ class ProjectStore:
                 env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"could not persist recovery ref for {issue_identifier}: {exc}"
+            if operation:
+                raise ProjectError(
+                    f"could not retain active-operation recovery checkpoint for "
+                    f"{issue_identifier}; the commit-tree object is not durably "
+                    f"discoverable: {exc}"
+                ) from exc
+            raise RecoveryPublicationError(
+                f"could not retain pending recovery checkpoint for "
+                f"{issue_identifier}: {exc}",
+                context=context,
             ) from exc
-        if updated_ref.returncode != 0:
-            raise ProjectError(
-                f"could not persist recovery ref for {issue_identifier}: "
-                f"{updated_ref.stderr.strip()[:500]}"
+        if retained.returncode != 0:
+            if operation:
+                raise ProjectError(
+                    f"could not retain active-operation recovery checkpoint for "
+                    f"{issue_identifier}; the commit-tree object is not durably "
+                    f"discoverable: {retained.stderr.strip()[:500]}"
+                )
+            raise RecoveryPublicationError(
+                f"could not retain pending recovery checkpoint for "
+                f"{issue_identifier}: {retained.stderr.strip()[:500]}",
+                context=context,
             )
+
+        context = self._publish_recovery_snapshot(
+            project,
+            issue_identifier,
+            wt_path,
+            context,
+        )
 
         # The helper is disposable only after the task snapshot/ref is durable.
         # A subsequent dispatch reinstalls the hook before the worker starts.

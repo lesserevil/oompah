@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
 from oompah.config import ServiceConfig
-from oompah.models import Issue, Project, WorkflowDefinition
+from oompah.models import Issue, Project, RunningEntry, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
-from oompah.projects import ProjectStore
+from oompah.projects import ProjectError, ProjectStore, RecoveryPublicationError
 from oompah.server import app
 
 
@@ -276,6 +280,289 @@ def test_owner_claim_api_retires_scheduler_before_granting_direct_work(tmp_path)
     # The scheduler already owned the task in In Progress; takeover preserves
     # that state without a dispatchable Open transition.
     tracker.update_issue.assert_not_called()
+
+
+def test_owner_claim_completes_after_retryable_recovery_publication(tmp_path):
+    """A retained checkpoint cannot leave owner takeover ownerless."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+
+    def update_state(_identifier, *, status, **_kwargs):
+        issue.state = status
+
+    tracker.update_issue.side_effect = update_state
+    running = MagicMock()
+    running.issue = issue
+    running.identifier = issue.identifier
+    running.authority_generation = "generation-1"
+    orch.state.running[issue.id] = running
+    publication_error = RecoveryPublicationError(
+        "local transfer interrupted",
+        context={
+            "snapshot_head": "a" * 40,
+            "pending_ref": "refs/oompah/recovery-pending/OOMPAH-1",
+        },
+    )
+
+    async def terminate(issue_id, *, cleanup_workspace):
+        assert issue_id == issue.id
+        assert cleanup_workspace is False
+        orch.state.running.pop(issue.id)
+        orch._route_retryable_recovery_publication(
+            running,
+            issue.id,
+            issue.project_id,
+            publication_error,
+        )
+        return True
+
+    orch._terminate_running = AsyncMock(side_effect=terminate)
+    orch._post_comment = MagicMock()
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(endpoint, json={"actor_login": "alice"})
+
+    assert response.status_code == 200, response.text
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
+    assert issue.state == "In Progress"
+    assert [call.kwargs["status"] for call in tracker.update_issue.call_args_list] == [
+        "Open",
+        "In Progress",
+    ]
+    tracker.mark_needs_human.assert_not_called()
+    assert issue.id not in orch.state.running
+
+
+def test_owner_claim_retries_real_standalone_pending_checkpoint(tmp_path):
+    """The owner API can take over without losing a real unpublished commit."""
+
+    store, project = _project_store(tmp_path)
+    authority = Path(project.repo_path)
+    authority.mkdir()
+
+    def git(repo, *args, check=True):
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=check,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+    git(authority, "init", "--initial-branch=main")
+    git(authority, "config", "user.name", "Test")
+    git(authority, "config", "user.email", "test@example.com")
+    (authority / "base.txt").write_text("base\n", encoding="utf-8")
+    git(authority, "add", "base.txt")
+    git(authority, "commit", "-m", "base")
+    issue = _issue()
+    issue.labels = []
+    issue.work_branch = issue.identifier
+    checkout = Path(store.worktree_path_for(project.id, issue.identifier))
+    checkout.parent.mkdir(parents=True)
+    git(tmp_path, "clone", str(authority), str(checkout))
+    git(checkout, "config", "user.name", "Test")
+    git(checkout, "config", "user.email", "test@example.com")
+    git(checkout, "switch", "-c", issue.identifier)
+    (checkout / "owner.txt").write_text("owner state\n", encoding="utf-8")
+    with patch(
+        "oompah.projects._transfer_recovery_snapshot_objects",
+        side_effect=ProjectError("first transfer interrupted"),
+    ):
+        with pytest.raises(RecoveryPublicationError) as interrupted:
+            store.preserve_worktree_changes(
+                project.id,
+                issue.identifier,
+                str(checkout),
+                issue.identifier,
+            )
+
+    orch = Orchestrator(
+        config=ServiceConfig(owner_claim_ttl_hours=48, duplicate_preflight_max_agents=0),
+        workflow_path="WORKFLOW.md",
+        project_store=store,
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+
+    def update_state(_identifier, *, status, **_kwargs):
+        issue.state = status
+
+    tracker.update_issue.side_effect = update_state
+    orch._project_trackers[project.id] = tracker
+    worker_task = MagicMock()
+    worker_task.done.return_value = True
+    entry = RunningEntry(
+        worker_task=worker_task,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        workspace_path=str(checkout),
+    )
+    orch.state.running[issue.id] = entry
+    orch._fire_task_cost_record = MagicMock()
+    orch._fire_telemetry_comment = MagicMock()
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(endpoint, json={"actor_login": "alice"})
+
+    assert response.status_code == 200, response.text
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
+    assert issue.state == "In Progress"
+    recovery_ref = str(interrupted.value.context["recovery_ref"])
+    recovery_head = git(
+        authority,
+        "rev-parse",
+        "--verify",
+        f"{recovery_ref}^{{commit}}",
+    ).stdout.strip()
+    assert recovery_head == interrupted.value.context["snapshot_head"]
+    assert issue.id not in orch.state.running
+
+
+def test_restart_reconciles_checkpoint_after_tracker_reopen_failure(tmp_path):
+    """Published Git evidence survives the tracker-write crash window."""
+
+    authority = tmp_path / "authority"
+    authority.mkdir()
+
+    def git(repo, *args, check=True):
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=check,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+    git(authority, "init", "--initial-branch=main")
+    git(authority, "config", "user.name", "Test")
+    git(authority, "config", "user.email", "test@example.com")
+    (authority / "base.txt").write_text("base\n", encoding="utf-8")
+    git(authority, "add", "base.txt")
+    git(authority, "commit", "-m", "base")
+
+    projects_path = tmp_path / "projects.json"
+    worktrees_root = tmp_path / "worktrees"
+    store = ProjectStore(
+        path=str(projects_path),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(worktrees_root),
+    )
+    project = Project(
+        id="proj-1",
+        name="example",
+        repo_url=str(authority),
+        repo_path=str(authority),
+        branch="main",
+        default_branch="main",
+    )
+    store._projects[project.id] = project
+    store._save()
+    issue = _issue()
+    issue.work_branch = issue.identifier
+    checkout = Path(store.worktree_path_for(project.id, issue.identifier))
+    checkout.parent.mkdir(parents=True)
+    git(tmp_path, "clone", str(authority), str(checkout))
+    git(checkout, "config", "user.name", "Test")
+    git(checkout, "config", "user.email", "test@example.com")
+    git(checkout, "switch", "-c", issue.identifier)
+    (checkout / "retained.txt").write_text("retained\n", encoding="utf-8")
+
+    with patch(
+        "oompah.projects._transfer_recovery_snapshot_objects",
+        side_effect=ProjectError("initial publication interruption"),
+    ):
+        with pytest.raises(RecoveryPublicationError):
+            store.preserve_worktree_changes(
+                project.id,
+                issue.identifier,
+                str(checkout),
+                issue.identifier,
+            )
+
+    first_store = ProjectStore(
+        path=str(projects_path),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(worktrees_root),
+    )
+    first = Orchestrator(
+        config=ServiceConfig(duplicate_preflight_max_agents=0),
+        workflow_path="WORKFLOW.md",
+        project_store=first_store,
+        state_path=str(tmp_path / "first-state.json"),
+    )
+    unavailable_tracker = MagicMock()
+    unavailable_tracker.fetch_issue_detail.return_value = issue
+    unavailable_tracker.update_issue.side_effect = RuntimeError("tracker unavailable")
+    first._project_trackers[project.id] = unavailable_tracker
+
+    first_result = first._reconcile_pending_recovery_publications(discover=True)
+
+    assert first_result["errors"], first_result
+    assert (project.id, issue.identifier) in first._pending_recovery_publications
+    recovery_ref = str(
+        first._pending_recovery_publications[(project.id, issue.identifier)][
+            "recovery_ref"
+        ]
+    )
+    ref_result = git(
+        authority,
+        "rev-parse",
+        "--verify",
+        f"{recovery_ref}^{{commit}}",
+        check=False,
+    )
+    assert ref_result.returncode == 0, (first_result, ref_result.stderr)
+
+    second_store = ProjectStore(
+        path=str(projects_path),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(worktrees_root),
+    )
+    second = Orchestrator(
+        config=ServiceConfig(duplicate_preflight_max_agents=0),
+        workflow_path="WORKFLOW.md",
+        project_store=second_store,
+        state_path=str(tmp_path / "second-state.json"),
+    )
+    recovered_issue = _issue()
+    recovered_issue.work_branch = recovered_issue.identifier
+    recovered_tracker = MagicMock()
+    recovered_tracker.fetch_issue_detail.return_value = recovered_issue
+
+    def reopen(_identifier, *, status, **_kwargs):
+        recovered_issue.state = status
+
+    recovered_tracker.update_issue.side_effect = reopen
+    second._project_trackers[project.id] = recovered_tracker
+    second._post_comment = MagicMock()
+
+    second_result = second._reconcile_pending_recovery_publications(discover=True)
+
+    assert second_result["reopened"] == 1
+    assert second_result["pending"] == 0
+    recovered_tracker.update_issue.assert_called_once_with(
+        recovered_issue.identifier,
+        status="Open",
+    )
 
 
 def test_owner_claim_api_keeps_resistant_scheduler_runtime_visible(tmp_path):
