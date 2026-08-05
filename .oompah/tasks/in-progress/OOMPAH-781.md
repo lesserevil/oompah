@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-05T16:30:46.476096Z'
+updated_at: '2026-08-05T19:28:32.611458Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -446,5 +446,10 @@ author: oompah
 created: 2026-08-05 12:10
 ---
 New live restart/duplicate-finalization evidence (2026-08-05, OOMPAH-824) is within this task's accepted scope, so no separate bug was filed. A standalone task staged one Merged transition but the terminal store simultaneously exposed pending audit-6b3fa26bb2f6 and running audit-11ec4964b81b. The latter independently audited exact head 50d19fe5d, posted PASS at 12:05, incremented passed, then was stale-discarded and left the task In Validation. A normal draining restart recovered audit-6b3fa26bb2f6, launched one new attempt, and that PASS authoritatively applied Merged at 12:08. Safety held (stale verdict never mutated terminal state), but work was duplicated and convergence required a second expensive Opus audit. Required regression: concurrent webhook/review/reconcile staging must coalesce by exact target+evidence generation; restart must replay an already-persisted PASS/finalization checkpoint before launching another auditor; only a genuinely distinct authoritative generation may supersede and redispatch. Live IDs and timestamps above should be used in the duplicate/restart/finalization acceptance matrix.
+---
+author: oompah
+created: 2026-08-05 19:28
+---
+Fresh independent post-repair review is not test-ready and found six remaining liveness/authority blockers: generic workers can claim terminal-audit actions they do not handle; selected and prerequisite audit rows are not fenced to the containing project/task; consumed owner-rearm proofs are reapplied and wedge later exhaustion; corrupt FINALIZING payloads remain permanently RUNNING and block siblings; LIMIT-before-skip lets preserved finalizers starve generic recovery; and completed-result recurrence lacks the normal cache-invalidated live refresh. Review also flagged project-scoped active-attempt identity and bounded filtered-list/transport retry risks. No tests were run. Repairs and deterministic cross-project/crash/restart regressions are required before the next independent review.
 ---
 <!-- COMMENTS:END -->
