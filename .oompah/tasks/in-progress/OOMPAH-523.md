@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:11:04.135987Z'
+updated_at: '2026-08-05T06:12:47.833233Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1060,5 +1060,15 @@ author: oompah
 created: 2026-08-05 06:11
 ---
 Discovery: audited oompah/server.py and oompah/__main__.py. _BasicAuthMiddleware is outermost over FastAPI/mounts, checks HTTP and WebSocket handshakes before application dispatch, uses strict Basic parsing and literal raw_path exemptions, redacts Authorization downstream, and startup wiring covers both lifespan and uvicorn. Existing focused tests cover the required auth, health, WebSocket, webhook, and redaction cases; no source gap is evident in the integrated head.
+---
+author: oompah
+created: 2026-08-05 06:12
+---
+Verification: focused auth, health, WebSocket, docs, webhook, favicon, and lifecycle-adjacent suites passed: 570 passed, 28 existing warnings. make check-secrets passed with the known null-byte warning. The worktree remains clean and the branch is already tracking origin at 9ea2b5523.
+---
+author: oompah
+created: 2026-08-05 06:12
+---
+Implementation: no additional source edits were needed because the recovered implementation is already integrated at HEAD 9ea2b5523. It includes outermost ASGI Basic enforcement, exact literal exemptions for GET /healthz and the two webhook POSTs, pre-accept WebSocket validation, downstream Authorization redaction, minimal health output, and uvicorn/lifespan startup wiring.
 ---
 <!-- COMMENTS:END -->
