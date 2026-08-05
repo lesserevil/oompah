@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:19:04.765947Z'
+updated_at: '2026-08-05T22:23:19.087825Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -35,6 +35,31 @@ oompah.target_branch: main
 oompah.review_head: c5c0f4029096f43c669840e3138e1317a1aa3361
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7e11ef429641: '2026-08-05T22:23:10.359201+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    target_state: Done
+    evidence_fingerprint: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    audit_ids:
+    - audit-9ae8619f760e
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T22:23:10.359210+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    audit_id: audit-9ae8619f760e
+    attempt_id: attempt-7e11ef429641
+    target_state: Done
+    evidence_fingerprint: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    status: In Validation
+    audit_ids:
+    - audit-9ae8619f760e
+    applied: true
+    created_at: '2026-08-05T22:23:10.359221+00:00'
+    applied_at: '2026-08-05T22:23:16.457318+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -42,7 +67,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-842
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -51,7 +76,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7e11ef429641
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -61,13 +86,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T22:18:56.622928+00:00'
       branch_key: OOMPAH-842
+      verdict: pass
+      completed_at: '2026-08-05T22:23:10.359077+00:00'
+      ended_at: '2026-08-05T22:23:10.359077+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T22:17:23.501614+00:00'
-    updated_at: '2026-08-05T22:18:56.622928+00:00'
+    updated_at: '2026-08-05T22:23:10.359077+00:00'
   - version: 1
     audit_id: audit-2fb4256b75cb
     project_id: proj-14849f1b
@@ -151,5 +179,23 @@ author: oompah
 created: 2026-08-05 22:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 22:23
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c5c0f4029096f43c669840e3138e1317a1aa3361
+- origin_main_head: b98ebb40d269ebeb7a134dc43add36bf782d9402
+- prior_main_head: 2c7f609e0
+- merge_pr: PR #725
+- commit_title: Prevent native provider bootstrap validation leases
+- diff_scope_files: oompah/acp_backends/codex.py, oompah/native_validation_guard.py, oompah/orchestrator.py, oompah/server.py, oompah/validation_resource_lease.py, tests/test_acp_codex_backend.py, tests/test_native_validation_guard.py, tests/test_owner_claim.py, tests/test_terminal_audit_health_api.py, tests/test_validation_resource_lease.py
+- [REDACTED-credential-key]: pass (exit 0)
+- focused_tests_present: test_trusted_provider_node_bootstrap_does_not_lease_entire_session, test_managed_native_cli_fences_exact_provider_bootstrap, and 14 additional native guard regression tests
+- prior_full_gate: 15721 passed 7 skipped 1 xfailed exit 0 in 649.5s (per prior audit comment 2026-08-05 22:07)
 ---
 <!-- COMMENTS:END -->
