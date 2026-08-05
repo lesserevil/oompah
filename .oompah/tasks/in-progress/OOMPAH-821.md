@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T22:42:26.746768Z'
+updated_at: '2026-08-05T22:42:46.599198Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -356,5 +356,10 @@ author: oompah
 created: 2026-08-05 22:42
 ---
 Live repro on deployed main b98ebb40: OOMPAH-745 is Ready to Integrate with integration/integration_queue state=integrated at b08a12057, terminal_audit_summary phase=failed classification=no_auditor, 3 completed attempts, and no active audit. Recovery alert incorrectly instructs audit_retry_evidence_addendum. Owner retry without addendum () returns 409 'No matching exhausted audit can be retried for this task.' This exact mixed/completed-history task remains fail-closed and is the current lone UI alert. Preserve this as an acceptance case: select the retryable exhausted request/attempt identity truthfully, emit the correct owner action, and allow exact-head rearm without reopening implementation or fabricating missing-evidence addenda.
+---
+author: oompah
+created: 2026-08-05 22:42
+---
+Correction to the preceding live-repro comment: the attempted owner command was oompah task set-status OOMPAH-745 Done --project proj-14849f1b --audit-retry with a retry reason. The server returned HTTP 409: No matching exhausted audit can be retried for this task. No task status changed. The rest of the reported deployed-main evidence and acceptance case is unchanged.
 ---
 <!-- COMMENTS:END -->
