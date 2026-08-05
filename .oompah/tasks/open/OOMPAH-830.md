@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T18:18:31.008611Z'
+updated_at: '2026-08-05T18:18:49.269068Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 8dad7f24-0220-49d8-a372-7c235aa16db9
 ---
 ## Summary
 
@@ -48,3 +49,11 @@ Live OOMPAH-825 observability regression on 2026-08-05. A standalone merge corre
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:18
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
