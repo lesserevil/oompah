@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T14:38:26.377128Z'
+updated_at: '2026-08-05T14:46:29.504512Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -314,5 +314,10 @@ author: oompah
 created: 2026-08-05 14:38
 ---
 Understanding: The prior attempt aligned coordinator retry checks but exact-head review found remaining invariants: retry must honor the newest same-fingerprint successful audit, infrastructure retry must be fingerprint-fenced, and the live integrated recovery alert must be truthful, coalesced, and clear after a fresh audit. I will inspect the current branch delta and surrounding coordinator/orchestrator/server tests before making a focused correction.
+---
+author: oompah
+created: 2026-08-05 14:46
+---
+Implementation: Replaced the split retry checks with canonical audit_recovery_mode(), made retry_failed_audit authoritative to the newest matching record so newer PASS outcomes fence older failures, and required/refreshed the current evidence fingerprint for both infrastructure and evidence recovery. Fixed the sweep to read durable metadata correctly, pass the current fingerprint, suppress stale alerts, and advertise explicit audit_retry infrastructure guidance. Added mixed-history, successful-finality, fingerprint-fence, API forwarding, and live alert-mode tests.
 ---
 <!-- COMMENTS:END -->
