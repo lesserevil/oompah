@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T06:18:40.867263Z'
+updated_at: '2026-08-05T06:18:51.734543Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1183,5 +1183,10 @@ author: oompah
 created: 2026-08-05 06:18
 ---
 Verification: Focused test suite passing: 152 provider/API/role/UI tests (test_acp_backends, test_providers, test_providers_ui) PASSED; 329 ACP/orchestrator/dispatch tests (test_acp_agent, test_orchestrator_handlers) PASSED. Total: 481 focused tests passed. make check-secrets PASSED (null-byte warning is expected). Branch state: epic-OOMPAH-502 and epic-OOMPAH-502--task-OOMPAH-505 both exist on remote at e1b0f4846; git status clean and up-to-date with origin.
+---
+author: oompah
+created: 2026-08-05 06:18
+---
+Completion: OOMPAH-505 implementation is verified and ready for integration. The explicit Claude and Codex model tiers feature is complete across all components: (1) Backend descriptors expose supports_manual_model_selection independently from has_catalog; (2) UI provides free-text manual model entry for catalog-less ACP backends with SDK-default fallback; (3) Role store validates and persists explicit role candidates; (4) All dispatch tests confirm explicit models propagate correctly. The integration validation error has been resolved by creating the epic-OOMPAH-502 branch. 481 focused tests pass, secrets scan clean, branch pushed and verified at e1b0f4846.
 ---
 <!-- COMMENTS:END -->
