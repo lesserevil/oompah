@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-08-05T01:43:33.102038Z'
+updated_at: '2026-08-05T01:50:59.768736Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
@@ -71,6 +71,30 @@ oompah.work_branch: OOMPAH-540
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-3f75671c01da: '2026-08-05T01:50:57.140898+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-540
+    target_state: Archived
+    evidence_fingerprint: 612c5e2ae2c34dbe19551a6b83fb6857230fce1ab1bdb02dd969a1b2c1e9349c
+    audit_ids:
+    - audit-af6130950368
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T01:50:57.140910+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-540
+    audit_id: audit-af6130950368
+    attempt_id: attempt-3f75671c01da
+    target_state: Archived
+    evidence_fingerprint: 612c5e2ae2c34dbe19551a6b83fb6857230fce1ab1bdb02dd969a1b2c1e9349c
+    status: Archived
+    audit_ids:
+    - audit-af6130950368
+    applied: false
+    created_at: '2026-08-05T01:50:57.140926+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -78,7 +102,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-540
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -87,7 +111,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3f75671c01da
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -97,13 +121,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T01:43:05.314229+00:00'
       branch_key: OOMPAH-540
+      verdict: pass
+      completed_at: '2026-08-05T01:50:57.140757+00:00'
+      ended_at: '2026-08-05T01:50:57.140757+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T01:42:28.575495+00:00'
-    updated_at: '2026-08-05T01:43:05.314229+00:00'
+    updated_at: '2026-08-05T01:50:57.140757+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3f75671c01da

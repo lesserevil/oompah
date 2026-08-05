@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:47:34.641779Z'
+updated_at: '2026-08-05T01:50:54.100224Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-05 01:47
 ---
 Do not submit the current draft as described in comment #8: it still fails the durable-authority/action-fence acceptance blocker in #7.  cannot be the latest authoritative source across restart, and classification-time inspection is not an action-time CAS. Wire the matching IntegrationQueueStore row into evidence, persist/compare a concrete row generation (or exact immutable tuple), and immediately re-read that same task/head/state/generation under the mutation authority before Open. If any dimension changed, abort the reopen. Add tests that mutate the durable queue between classification and update, and rebuild the orchestrator with only persisted queue/tracker state. Passing classifier tests alone are insufficient.
+---
+author: oompah
+created: 2026-08-05 01:50
+---
+Verification: 106 tests pass in tests/test_stalled_task_watchdog.py (90 original + 16 new); 307 pass across stalled/watchdog/integration_executor/quality_gate; 472 pass across the wider orchestrator/quality-gate suite. Spot-checked the exact OOMPAH-814 shape (integration.head_sha=254b131c, branch head unchanged, ci=passed, gate=failed at same head): classifier now returns insufficient_evidence with evidence_head=254b131c...faee, evidence_result=failed, evidence_generation=auth-gen and no tracker.update_issue call, so no downstream integration-row cancellation. Legacy path (no integration record) still permits the historical passing-CI reopen for backwards compatibility. Repair-advanced path (branch head SHA past accepted head) still reopens. Comment and to_dict expose evidence head/result/generation.
 ---
 <!-- COMMENTS:END -->
