@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-457
 type: epic
-status: Open
+status: In Validation
 priority: 0
 title: Build the terminal-audit state model and transition coordinator
 parent: null
@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-05T00:10:36.881534Z'
+updated_at: '2026-08-05T00:12:32.660428Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
