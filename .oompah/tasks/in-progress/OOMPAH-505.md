@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:17:54.686524Z'
+updated_at: '2026-08-05T18:18:16.090358Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1345,5 +1345,10 @@ author: oompah
 created: 2026-08-05 18:17
 ---
 Understanding: source implementation is already present on the task branch. I will verify the current branch and remote parent/task refs, inspect the landed ACP/API/UI/role routing coverage, run the focused Makefile checks and secrets scan, then synchronize and submit only if the exact head is clean.
+---
+author: oompah
+created: 2026-08-05 18:18
+---
+Discovery: the current clean head is e1b0f4846, with origin/epic-OOMPAH-502--task-OOMPAH-505 at the same commit and origin/epic-OOMPAH-502 present at b53bdbc77. Relevant implementation is in oompah/acp_backends/{base,claude,codex}.py, oompah/server.py, oompah/roles.py, oompah/orchestrator.py, and oompah/templates/providers.html; focused regression coverage is present across ACP backends, provider/API/UI, roles, ACP handoff, and orchestrator routing.
 ---
 <!-- COMMENTS:END -->

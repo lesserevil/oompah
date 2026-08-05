@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T18:18:06.256723Z'
+updated_at: '2026-08-05T18:18:29.017667Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 3f9f6276-7026-48e1-aecb-1525456b35a5
 ---
 ## Summary
 
@@ -49,3 +50,16 @@ Live acceptance failure after deploying OOMPAH-825 on exact main 7978ec91b553278
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:18
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-08-05 18:18
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
