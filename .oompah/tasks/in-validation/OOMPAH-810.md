@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-810
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Return completed auditor command results without stranding the ACP session
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:46:48.825095Z'
+updated_at: '2026-08-05T18:14:14.104268Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -47,14 +47,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-810
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-810
   base_branch: epic-OOMPAH-763
   base_sha: b1c089614b81076b961c7681b6ddad64ca68191e
   head_sha: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
+  integrated_sha: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
   submitted_at: '2026-08-05T17:46:35.612561+00:00'
-  updated_at: '2026-08-05T17:46:35.612561+00:00'
+  updated_at: '2026-08-05T18:14:04.464750+00:00'
 oompah.task_costs:
   total_input_tokens: 46708
   total_output_tokens: 435
@@ -81,6 +82,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-810
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T22:06:45.735007+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-af70e1b81ff1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-810
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c37b3647f25b881d76c64e2ca782c859944ed97f1235879018cb0f69c93b7d90
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T18:14:08.249508+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -178,5 +201,10 @@ author: oompah
 created: 2026-08-05 17:46
 ---
 Preserve bounded ACP/API command results through exactly-once provider delivery with race-safe liveness phases, precise delivery timeout recovery, and lifecycle metrics; pushed bb42de1e7.
+---
+author: oompah
+created: 2026-08-05 18:14
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
