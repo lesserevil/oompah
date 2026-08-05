@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-823
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Bootstrap lifecycle reconciliation retry backoff onto main
 parent: null
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T07:22:41.119744Z'
+updated_at: '2026-08-05T07:26:26.472047Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-823
+  head_sha: d509c08214c45bb7c0e4f93c1d42e57a01633f87
+  submitted_at: '2026-08-05T07:26:16.478559+00:00'
+  updated_at: '2026-08-05T07:26:16.478559+00:00'
 ---
 ## Summary
 
@@ -40,5 +48,10 @@ author: oompah
 created: 2026-08-05 07:22
 ---
 Independent-review repairs are complete and pushed at new exact head d509c08214c45bb7c0e4f93c1d42e57a01633f87 on origin/OOMPAH-823. P1: project snapshot failures now defer that scope without consuming row attempts, and absence exhaustion reopens when the task becomes visible. P2: discovery events arriving during an active lifecycle future are retained as one coalesced rediscovery edge and replayed after completion, including otherwise idle/exhausted results. P3: a deterministic API regression holds the third repeated serialized 850 KiB lifecycle checkpoint blocked while /api/v1/state responds from its cached snapshot. Verification: 217 focused tests passed in the branch-local environment; terminal mutation scan 8/8 passed; check-secrets and diff checks passed. The task remains unsubmitted and the owner claim is retained for exact-head independent review/landing.
+---
+author: oompah
+created: 2026-08-05 07:26
+---
+Bounded lifecycle reconciliation retries, pending-first fairness, durable backoff/exhaustion, lossless rediscovery, coalesced persistence, and responsive state API verified at exact head d509c08214c45bb7c0e4f93c1d42e57a01633f87.
 ---
 <!-- COMMENTS:END -->
