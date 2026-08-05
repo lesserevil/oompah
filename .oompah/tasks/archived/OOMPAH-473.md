@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-08-05T20:14:16.950500Z'
+updated_at: '2026-08-05T20:14:22.800072Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -118,8 +118,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-ae421fba5424
-    applied: false
+    applied: true
     created_at: '2026-08-05T20:14:13.335233+00:00'
+    applied_at: '2026-08-05T20:14:21.483768+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -452,5 +453,31 @@ author: oompah
 created: 2026-08-05 19:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 20:14
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- previous_state: Merged
+- auto_archive_reason: Aged Merged auto-archive (7 days retention)
+- merged_at_source: task file .oompah/tasks/merged/OOMPAH-473.md checkpointed 2026-07-29T17:56:47Z
+- archive_audit_created_at: 2026-08-05T18:22:59.504339+00:00
+- retention_days_elapsed: 7
+- implementation_commits: 1cf4d7edeaf844795908e8de95d9ac4ce5c74a00, 6b12c62cc5a3567a889c522937a0a82b7e3596d3
+- current_head: da53569a99412c0c8bf2e45f1c0587837a36b444 (main)
+- commits_ancestor_of_head: true
+- post_audit_source_changes: none — no commits touch archived_evidence_collector.py or its tests after 6b12c62cc
+- children: []
+- active_worker: false (task is In Validation for archive audit only)
+- open_review: false (previously merged)
+- focused_tests_file: tests/test_archived_evidence_collector.py
+- focused_tests_count: 53
+- full_gate_result: 15682 passed, 7 skipped, 1 xfailed, 0 failures in 621.41s via `make test`
+- collector_file: oompah/archived_evidence_collector.py (41,126 chars)
+- collector_features: DispositionType(retention/duplicate/obsolete/blocked/superseded), TaskStateSnapshot, AuditReferenceEvidence, SafetyFailureMode(20 modes), RestorationGuidance
 ---
 <!-- COMMENTS:END -->
