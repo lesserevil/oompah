@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-813
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Fence revoked accepted-submission worker exits with the resolved project
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:45:58.774062Z'
+updated_at: '2026-08-05T00:46:17.892387Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,6 +32,28 @@ oompah.integration:
   updated_at: '2026-08-05T00:45:57.410703+00:00'
   dependency_heads:
     OOMPAH-782: a3948097f27f4e84ac0f2375408ac05f4e419d2c
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2d68a82cf57b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-813
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cf287da8ca8c3edc626b125a6e1b4d1da7c80ee201d4e8c38ea79184375a665
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T00:46:11.334005+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -89,5 +111,10 @@ author: oompah
 created: 2026-08-05 00:26
 ---
 Fixed revoked accepted-submission exit fencing at eb5d206f: exact project scope, post-await generation CAS, and deterministic replacement-run regression; 101 focused tests plus independent acceptance audit pass.
+---
+author: oompah
+created: 2026-08-05 00:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
