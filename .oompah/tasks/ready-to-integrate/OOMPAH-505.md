@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:48:08.798197Z'
+updated_at: '2026-08-05T01:48:27.722252Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -242,12 +242,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:41:56.015941+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T01:48:20.003108+00:00'
+  updated_at: '2026-08-05T01:48:20.003108+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -768,5 +770,10 @@ author: oompah
 created: 2026-08-05 01:48
 ---
 Verification: Ran focused test suite for OOMPAH-505 implementation. Results: 429 tests in test_acp_backends/test_providers/test_acp_agent/test_orchestrator_handlers PASSED; 52 tests in test_providers_ui PASSED; 183 tests in test_client_auth/test_http_auth/test_label_auth PASSED. Total: 664 tests passed. make check-secrets PASSED. Branch is clean and up-to-date with origin. All three implementation commits present and verified (59a06459a, 5cf99179e, ab00e7cf3). No regressions detected.
+---
+author: oompah
+created: 2026-08-05 01:48
+---
+Explicit Claude and Codex model tiers feature complete, tested, and verified. Exposes supports_manual_model_selection in backend descriptors independently from has_catalog. Provides free-text manual model input for catalog-less ACP backends. Six explicit role mappings configured (fast=Claude/haiku+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol). 664 tests pass, no regressions, make check-secrets passes.
 ---
 <!-- COMMENTS:END -->
