@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-830
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Project the active terminal-audit stage in multi-target chains
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T13:41:41.865936Z'
+updated_at: '2026-08-05T13:41:53.983619Z'
 work_branch: null
 target_branch: null
 review_url: null
