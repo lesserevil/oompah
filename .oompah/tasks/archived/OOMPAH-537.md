@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-537
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Wake event-driven scheduler when a project resumes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-08-05T00:42:12.932787Z'
+updated_at: '2026-08-05T00:57:04.085105Z'
 work_branch: OOMPAH-537
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/571
@@ -78,6 +78,30 @@ oompah.work_branch: OOMPAH-537
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5c79ef58efd3: '2026-08-05T00:57:00.536072+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-537
+    target_state: Archived
+    evidence_fingerprint: b1695532ecad7412473792208c2a1160880cb723a664a93b6bb71ce546e8209b
+    audit_ids:
+    - audit-bff8f23a19bb
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:57:00.536084+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-537
+    audit_id: audit-bff8f23a19bb
+    attempt_id: attempt-5c79ef58efd3
+    target_state: Archived
+    evidence_fingerprint: b1695532ecad7412473792208c2a1160880cb723a664a93b6bb71ce546e8209b
+    status: Archived
+    audit_ids:
+    - audit-bff8f23a19bb
+    applied: false
+    created_at: '2026-08-05T00:57:00.536100+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -85,7 +109,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-537
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -94,7 +118,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5c79ef58efd3
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -104,13 +128,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T00:42:03.248759+00:00'
       branch_key: OOMPAH-537
+      verdict: pass
+      completed_at: '2026-08-05T00:57:00.535885+00:00'
+      ended_at: '2026-08-05T00:57:00.535885+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T00:41:33.938712+00:00'
-    updated_at: '2026-08-05T00:42:03.248759+00:00'
+    updated_at: '2026-08-05T00:57:00.535885+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5c79ef58efd3
