@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:01:05.735740Z'
+updated_at: '2026-08-05T17:16:27.912604Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-05 17:01
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 17:16
+---
+Understanding: the approved auditor command can exit successfully while its result remains trapped between subprocess completion, liveness cleanup, output paging, and ACP/provider delivery. I will trace those boundaries, establish one bounded durable result or precise transport failure with race-safe state transitions, add focused regression tests, and verify the affected Makefile checks.
 ---
 <!-- COMMENTS:END -->
