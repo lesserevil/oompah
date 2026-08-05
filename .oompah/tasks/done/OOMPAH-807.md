@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T16:47:37.993152Z'
+updated_at: '2026-08-05T16:48:00.580780Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -62,13 +62,17 @@ oompah.integration:
     OOMPAH-814: 7bf278b09de0a311c1d1050f6733c5fc9f530975
     OOMPAH-806: 30dc2b2075a48c6c542da55a46ad0285f492d527
 oompah.task_costs:
-  total_input_tokens: 47501
-  total_output_tokens: 583
+  total_input_tokens: 47572
+  total_output_tokens: 3515
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 47501
       output_tokens: 583
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 71
+      output_tokens: 2932
       cost_usd: 0.0
   runs:
   - profile: default
@@ -83,6 +87,12 @@ oompah.task_costs:
     output_tokens: 291
     cost_usd: 0.0
     recorded_at: '2026-08-05T15:29:57.637208+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 71
+    output_tokens: 2932
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T16:47:57.977124+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-807__20260804T213742Z
@@ -464,5 +474,15 @@ Safe evidence:
 - done_merged_archived_lifecycle_tests: 53 passed
 - orchestrator_handlers_tests: 279 passed
 - trailer: canonical (oompah <lesserevil@users.noreply.github.com>)
+---
+author: oompah
+created: 2026-08-05 16:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 50
+- Tokens: 71 in / 2.9K out [3.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 34s
+- Log: OOMPAH-807__20260805T162931Z.jsonl
 ---
 <!-- COMMENTS:END -->
