@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T09:15:19.276132Z'
+updated_at: '2026-08-05T09:19:44.233899Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -49,14 +49,49 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-816
   base_branch: epic-OOMPAH-763
   base_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
   head_sha: 71af47ac143d3dd614eb2d235e9cf79037bf54c6
   submitted_at: '2026-08-05T09:15:07.880569+00:00'
-  updated_at: '2026-08-05T09:15:07.880569+00:00'
+  updated_at: '2026-08-05T09:19:37.587333+00:00'
+  last_error: "Combined-tree quality gate failed:    config.hook.pytest_runtestloop(session=session)\n\
+    INTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_hooks.py\"\
+    , line 512, in __call__\nINTERNALERROR>     return self._hookexec(self.name, self._hookimpls.copy(),\
+    \ kwargs, firstresult)\nINTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    INTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_manager.py\"\
+    , line 120, in _hookexec\nINTERNALERROR>     return self._inner_hookexec(hook_name,\
+    \ methods, kwargs, firstresult)\nINTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+    INTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
+    , line 167, in _multicall\nINTERNALERROR>     raise exception\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
+    , line 139, in _multicall\nINTERNALERROR>     teardown.throw(exception)\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/logging.py\"\
+    , line 801, in pytest_runtestloop\nINTERNALERROR>     return (yield)  # Run all\
+    \ the tests.\nINTERNALERROR>             ^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
+    , line 139, in _multicall\nINTERNALERROR>     teardown.throw(exception)\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/terminal.py\"\
+    , line 707, in pytest_runtestloop\nINTERNALERROR>     result = yield\nINTERNALERROR>\
+    \              ^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
+    , line 121, in _multicall\nINTERNALERROR>     res = hook_impl.function(*args)\n\
+    INTERNALERROR>           ^^^^^^^^^^^^^^^^^^^^^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 138, in pytest_runtestloop\nINTERNALERROR>     self.loop_once()\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 163, in loop_once\nINTERNALERROR>     call(**kwargs)\nINTERNALERROR>  \
+    \ File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 217, in worker_workerfinished\nINTERNALERROR>     assert not crashitem,\
+    \ (crashitem, node)\nINTERNALERROR> AssertionError: ('tests/test_dispatch_loop_heartbeat.py::TestGetSnapshotIncludesAlert::test_orchestrator_metrics_has_last_tick_finished_at',\
+    \ <WorkerController gw3>)\nINTERNALERROR> assert not 'tests/test_dispatch_loop_heartbeat.py::TestGetSnapshotIncludesAlert::test_orchestrator_metrics_has_last_tick_finished_at'\n\
+    \n================= 4042 passed, 6 warnings in 206.20s (0:03:26) =================\n\
+    \n/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
+    \ PytestUnraisableExceptionWarning: Exception ignored in: <function WeakKeyDictionary.__init__.<locals>.remove\
+    \ at 0x7e15acc18400>\n\nTraceback (most recent call last):\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/weakref.py\"\
+    , line 369, in remove\n    def remove(k, selfref=ref(self)):\n    \nKeyboardInterrupt\n\
+    \nEnable tracemalloc to get traceback where the object was allocated.\nSee https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n  warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
+    make: *** [Makefile:401: test] Error 3\n"
 oompah.task_costs:
   total_input_tokens: 47030
   total_output_tokens: 474
@@ -265,5 +300,60 @@ author: oompah
 created: 2026-08-05 09:15
 ---
 Fixed all four exact full-gate failures without weakening validation behavior; pushed 71af47ac1 after 320 affected tests and 80 repeated parallel node passes.
+---
+author: oompah
+created: 2026-08-05 09:19
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-816`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+   config.hook.pytest_runtestloop(session=session)
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+INTERNALERROR>     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+INTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+INTERNALERROR>     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+INTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+INTERNALERROR>     raise exception
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+INTERNALERROR>     teardown.throw(exception)
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 801, in pytest_runtestloop
+INTERNALERROR>     return (yield)  # Run all the tests.
+INTERNALERROR>             ^^^^^
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+INTERNALERROR>     teardown.throw(exception)
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/terminal.py", line 707, in pytest_runtestloop
+INTERNALERROR>     result = yield
+INTERNALERROR>              ^^^^^
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+INTERNALERROR>     res = hook_impl.function(*args)
+INTERNALERROR>           ^^^^^^^^^^^^^^^^^^^^^^^^^
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 138, in pytest_runtestloop
+INTERNALERROR>     self.loop_once()
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 163, in loop_once
+INTERNALERROR>     call(**kwargs)
+INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 217, in worker_workerfinished
+INTERNALERROR>     assert not crashitem, (crashitem, node)
+INTERNALERROR> AssertionError: ('tests/test_dispatch_loop_heartbeat.py::TestGetSnapshotIncludesAlert::test_orchestrator_metrics_has_last_tick_finished_at', <WorkerController gw3>)
+INTERNALERROR> assert not 'tests/test_dispatch_loop_heartbeat.py::TestGetSnapshotIncludesAlert::test_orchestrator_metrics_has_last_tick_finished_at'
+
+================= 4042 passed, 6 warnings in 206.20s (0:03:26) =================
+
+/home/shedwards/.oompah/tmp/oompah-quality-gate-yqbfpc7y/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function WeakKeyDictionary.__init__.<locals>.remove at 0x7e15acc18400>
+
+Traceback (most recent call last):
+  File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/weakref.py", line 369, in remove
+    def remove(k, selfref=ref(self)):
+    
+KeyboardInterrupt
+
+Enable tracemalloc to get traceback where the object was allocated.
+See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+  warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+make: *** [Makefile:401: test] Error 3
+
+```
 ---
 <!-- COMMENTS:END -->
