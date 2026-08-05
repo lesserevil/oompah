@@ -76,6 +76,8 @@ def _make_orchestrator(tmp_path):
     # closes its loop and can consume the five-second timeout of later xdist
     # tests on a busy gate host.
     orch.config.parallel_epic_children_enabled = False
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
     orch._run_step5b_maintenance = MagicMock()
     orch._run_step5c_epic_maintenance = MagicMock()
     _TEST_ORCHESTRATORS.append(orch)

@@ -2589,6 +2589,11 @@ class TestMaintenanceLaneNonBlocking:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # This test owns only the step-5b future.  Shared integration and
+        # lifecycle reconciliation are independent background lanes and must
+        # not outlive either asyncio loop under the full xdist gate.
+        orch.config.parallel_epic_children_enabled = False
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
         # The release-addendum recovery reads tracker state in the tick pool.
         # It is unrelated to this maintenance-future sequencing assertion and
         # can exceed the five-second test timeout under parallel CI load.
@@ -2600,7 +2605,10 @@ class TestMaintenanceLaneNonBlocking:
             nonlocal call_count
             call_count += 1
 
-        orch._maybe_heal_repos = _count_calls
+        # Count the future body itself.  Calling the production maintenance
+        # body would also run unrelated archive/cleanup/label sweeps and turn
+        # this executor-guard assertion into a filesystem integration test.
+        orch._run_step5b_maintenance = _count_calls
 
         async def _run_two_ticks():
             # First tick — starts maintenance
@@ -2622,7 +2630,10 @@ class TestMaintenanceLaneNonBlocking:
 
             return first_count
 
-        first_count = asyncio.run(_run_two_ticks())
+        try:
+            first_count = asyncio.run(_run_two_ticks())
+        finally:
+            orch._tick_pool.shutdown(wait=True, cancel_futures=False)
 
         # Both ticks should have triggered a maintenance run (first was done)
         assert call_count == first_count + 1
