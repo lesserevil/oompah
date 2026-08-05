@@ -19,7 +19,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:31:01.110547Z'
+updated_at: '2026-08-05T16:31:23.081300Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-08-04 23:39
 ---
 Pre-integration composition audit at 0baeb01f found the branch is not yet acceptance-complete and must remain last. Final implementation must construct ReviewWorkflowController and EpicWorkflowController/EpicFactCollector; bind complete project-routed production handlers using authoritative domain action sets (including review_merge, integration_attempt, integration_recovery, historical_audit_replay_batch); reject enforce mode unless total handler coverage exists; remove/partition the duplicate generic decision lane; scope restart recovery by proven-dead owner, project, phase, and actions while leaving terminal audits to TerminalAuditWorkflow recovery/finalization; preserve one event-loop owner; and add multi-project routing, cutover-totality, restart/finalization, domain-deduplication, epic-supersession, loop, and drain regressions. Textual clean merges hide these semantic omissions. Recommended composition after domain branches land, with WAL/NORMAL performance commit applied last.
+---
+author: oompah
+created: 2026-08-05 16:31
+---
+Direct-owner claim established while the project remains paused: the all-domain runtime composition is being completed in the prepared post-OOMPAH-781 worktree. Enforce mode must have authoritative project-routed handlers for every accepted action, shadow mode must perform zero durable writes/effects, and focused production-routing coverage is required before this branch is submitted. The claim prevents duplicate scheduler dispatch while that accepted work is in flight.
 ---
 <!-- COMMENTS:END -->
