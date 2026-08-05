@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Needs Human
+status: Open
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T00:01:06.657215Z'
+updated_at: '2026-08-05T00:04:35.008829Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -457,5 +457,17 @@ created: 2026-08-05 00:01
 Needs Human — Archived audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-05 00:04
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #12)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 564 is merged
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->

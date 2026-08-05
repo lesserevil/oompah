@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:03:57.549859Z'
+updated_at: '2026-08-05T00:04:27.777463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-05 00:03
 ---
 Implemented deterministic submit-queue fixtures: real Project and ProjectStore objects replace incomplete MagicMock project/store doubles, Orchestrator construction is bounded by concrete no-I/O tracker instances, and every helper-owned executor/store plus the API TestClient is closed. Added regression proving an unset default_branch cannot invoke _new_tracker_for_project during _should_dispatch. Checks passed: exact regression + original failure (2), full module serial (62), full module xdist -n4 (62), 40 repetitions in 8 concurrent processes, related tracker factory tests (12), and make terminal-audit-scan. Preparing the commit/push; exact server full gate and task submission remain with the landing coordinator.
+---
+author: oompah
+created: 2026-08-05 00:04
+---
+Implementation handoff is pushed at cb1446d4beba7ad83a1b67d94574ad5c01cf8814 on epic-OOMPAH-763--task-OOMPAH-814 (exact base 30dc2b2075a48c6c542da55a46ad0285f492d527). Branch is clean and up to date with origin. Focused verification remains green: module serial 62/62, module xdist -n4 62/62, related tracker factory tests 12/12, 40 concurrent repetitions, terminal mutation scan. Per coordination instructions, I did not submit OOMPAH-814 or release its owner claim; landing coordinator should land this ahead of rebasing OOMPAH-807 and run the exact server full gate.
 ---
 <!-- COMMENTS:END -->
