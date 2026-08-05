@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T06:12:11.547203Z'
+updated_at: '2026-08-05T06:12:17.334407Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
@@ -167,8 +167,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-5655290fb5cc
-    applied: false
+    applied: true
     created_at: '2026-08-05T06:12:08.208856+00:00'
+    applied_at: '2026-08-05T06:12:16.104106+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -604,5 +605,25 @@ author: oompah
 created: 2026-08-05 05:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 06:12
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
+- pr: 718
+- merge_commit_on_main: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+- merge_status: merged to main
+- ancestor_of_main: true
+- full_gate_result: make test: 15426 passed, 7 skipped, 1 xfailed in 446.59s
+- gate_class_present: TestGateFailureFencesWatchdogReopen in tests/test_stalled_task_watchdog.py:1073
+- cas_test_present: test_action_time_queue_cas_rejects_concurrent_gate_transition at line 1357
+- restart_test_present: test_durable_gate_evidence_survives_orchestrator_restart at line 1313
+- rollback_test_present: test_action_time_queue_cas_rejects_branch_rollback_to_failed_head
+- evidence_fields_present: evidence_head/evidence_result/evidence_generation on StalledTaskDecision in oompah/stalled_task_watchdog.py
 ---
 <!-- COMMENTS:END -->
