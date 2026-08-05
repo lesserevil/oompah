@@ -38373,8 +38373,19 @@ class Orchestrator:
                 recovery_snapshot,
             )
         
-        # Clean up the running entry
-        self._remove_running_entry(issue_id, entry)
+        # Atomically retire only the generation that entered this handler.
+        # Worktree preservation yielded above, so a replacement run may now
+        # own the task.  Never clear its claims or let the retired submission
+        # mutate tracker state.
+        if not self._remove_running_entry(issue_id, entry):
+            logger.info(
+                "Ignoring superseded revoked submission exit "
+                "issue_id=%s issue_identifier=%s run_id=%s",
+                issue_id,
+                entry.identifier,
+                getattr(entry, "run_id", None),
+            )
+            return
         self.state.claimed.discard(issue_id)
         self.state.claimed_issues.pop(issue_id, None)
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
