@@ -269,6 +269,65 @@ def test_pending_probe_failure_retains_authoritative_generation(tmp_path):
     assert _resolve(checkout, f"{pending_ref}^{{commit}}") == snapshot
 
 
+def test_pending_recreation_and_post_delete_probe_failure_retain_authority(tmp_path):
+    store, project, checkout = _standalone_task(tmp_path)
+    issue = "TASK-RECOVERY"
+    (checkout / "checkpoint.txt").write_text("checkpoint\n", encoding="utf-8")
+    checkpoint = store.preserve_worktree_changes(
+        project.id, issue, str(checkout), issue
+    )
+    assert checkpoint is not None
+    snapshot = str(checkpoint["snapshot_head"])
+    pending_ref = _worktree_pending_recovery_ref(issue)
+    recovery_ref = _worktree_recovery_ref(issue)
+    _git(checkout, "update-ref", pending_ref, snapshot)
+    (checkout / "successor.txt").write_text("accepted\n", encoding="utf-8")
+    _git(checkout, "add", "successor.txt")
+    _git(checkout, "commit", "-m", "accepted successor")
+    successor = _resolve(checkout, "HEAD")
+    real_run = subprocess.run
+    quiet_probes = 0
+
+    def recreate_then_fail_post_delete_probe(args, *positional, **kwargs):
+        nonlocal quiet_probes
+        command = list(args)
+        if command[:5] == [
+            "git",
+            "show-ref",
+            "--verify",
+            "--quiet",
+            pending_ref,
+        ]:
+            quiet_probes += 1
+            if quiet_probes == 2:
+                real_run(
+                    ["git", "update-ref", pending_ref, snapshot],
+                    cwd=checkout,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                return subprocess.CompletedProcess(command, 128, "", "probe failed")
+        return real_run(args, *positional, **kwargs)
+
+    with patch(
+        "oompah.projects.subprocess.run",
+        side_effect=recreate_then_fail_post_delete_probe,
+    ):
+        result = store.consume_worktree_recovery_if_incorporated(
+            project.id,
+            issue,
+            successor,
+            accepted_branch=issue,
+            wt_path=str(checkout),
+            expected_snapshot=snapshot,
+        )
+
+    assert result == "unknown"
+    assert _resolve(project.repo_path, f"{recovery_ref}^{{commit}}") == snapshot
+    assert _resolve(checkout, f"{pending_ref}^{{commit}}") == snapshot
+
+
 def test_restart_consumes_successor_from_authoritative_branch(tmp_path):
     store, project, checkout = _standalone_task(tmp_path)
     issue = "TASK-RECOVERY"
