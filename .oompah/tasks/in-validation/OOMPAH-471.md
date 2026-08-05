@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T17:56:43.172921Z'
+updated_at: '2026-08-05T18:22:48.135020Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -92,6 +92,28 @@ oompah.task_costs:
     output_tokens: 46
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:33:26.181352+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-131e63acc190
+    project_id: proj-14849f1b
+    task_id: OOMPAH-471
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d7d02c780db65efa5b284ed93a3c92f05974809f3f6400ecb2e93b4dc7a5f315
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:22:41.575623+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -544,5 +566,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 13s
 - Log: OOMPAH-471__20260729T013121Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:22
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
