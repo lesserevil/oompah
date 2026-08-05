@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T20:21:48.366935Z'
+updated_at: '2026-08-05T20:22:39.674042Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-08-05 20:21
 ---
 Verification: Focused workflow suites pass. tests/test_work_decision.py: 45 passed (5 new). tests/test_workflow_facts.py: 40 passed (7 new). tests/test_workflow_controller.py: 17 passed (6 new). tests/test_workflow_shadow_integration.py: 11 passed. tests/test_workflow_jobs.py: 30 passed. tests/test_workflow_reasons.py: 12 passed. tests/test_workflow_scheduler.py: 17 passed. tests/test_workflow_contract.py: 22 passed. tests/test_integration_queue.py: 20 passed. tests/test_workflow_incident_fixtures.py: 33 passed. Neighbour suites tests/test_orchestrator_handlers.py + test_orchestrator_conflict_repair.py + test_orchestrator_full_sync.py: 307 passed. Total focused verification: 554 tests pass. Pushed as 2af2f103d.
+---
+author: oompah
+created: 2026-08-05 20:22
+---
+Completion: Delivered commit 2af2f103d addressing all pre-landing audit blockers from comments #20/#30/#31/#32. Overlay is exact-head fenced, retry_forced authority is preserved end-to-end, live_claim_precedes_history is now emitted from production facts and evaluated ahead of tracker action_required, and both WorkflowFactCollector construction sites in orchestrator.py pass the durable IntegrationQueueStore. Regression coverage: 18 new tests spanning fact overlay, decision ordering, generation-race stale-head suppression, and restart-convergence idempotency. Branch clean, pushed to origin, all focused workflow suites green (247 tests).
 ---
 <!-- COMMENTS:END -->
