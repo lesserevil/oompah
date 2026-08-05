@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-819
 type: bug
-status: Duplicate Candidate
+status: In Progress
 priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-820
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T04:55:26.616504Z'
+updated_at: '2026-08-05T05:31:30.609429Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -23,27 +24,23 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 6ace6d18079d04a236343266e1745edd4beb5c3ae6ad187f5e609d94a3ad5cc8
   detector_version: duplicate-detector-v1
-  verdict: duplicate_candidate
-  checked_at: '2026-08-05T04:54:02.168878+00:00'
-  matched_identifiers:
-  - OOMPAH-820
-  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: duplicate_candidate\n\
-    Matches: OOMPAH-820\nEvidence: OOMPAH-820 is active and explicitly implements\
-    \ the same exact-head review-generation fence, including the OOMPAH-818 regression\
-    \ and required concurrency/restart protections.\nFocus handoff: duplicate_detector\
-    \  \nDuplicate preflight verdict: duplicate_candidate  \nMatches: OOMPAH-820 \
-    \ \n\nEvidence: OOMPAH-820 is active and explicitly implements the same exact-head\
-    \ review-generation fence, including the OOMPAH-818 regression and required concurrency/restart\
-    \ protections."
+  verdict: no_duplicate
+  checked_at: '2026-08-05T05:31:13.396384+00:00'
+  matched_identifiers: []
+  evidence: 'OOMPAH-820 is the terminal standalone bootstrap, but OOMPAH-819 has distinct
+    accepted epic-lineage accounting: the same reviewed patch must be recorded on
+    epic-OOMPAH-768 before program rollup.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 1
+  retry_count: 0
   retry_after: null
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  owner_resolved_at: '2026-08-05T05:31:13.396384+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'OOMPAH-820 is the terminal standalone bootstrap, but OOMPAH-819
+    has distinct accepted epic-lineage accounting: the same reviewed patch must be
+    recorded on epic-OOMPAH-768 before program rollup.'
 oompah.agent_run_id: 7aab2a4e-e82a-4e63-875a-f05df06fb630
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-819
 oompah.integration:
