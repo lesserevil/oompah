@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:07:31.422813Z'
+updated_at: '2026-08-05T19:08:23.408430Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ author: oompah
 created: 2026-08-05 19:07
 ---
 Verification: focused fingerprint/enforcement/coordinator suites passed (240 passed). The correctly provisioned full branch gate passed via make test: 15,682 passed, 7 skipped, 1 xfailed, 44 warnings in 650.32s; terminal mutation scan also passed. The initial Snap/DBus uv bootstrap issue was bypassed with the existing project venv, and the prior environment-only subprocess checks independently passed (35 passed, 5 skipped).
+---
+author: oompah
+created: 2026-08-05 19:08
+---
+Completion: delivered and pushed commit 8c262588c86e873665bc92fe0b885f6d734412bf on OOMPAH-829. The migration reconstructs only the durable integrated/work-branch fingerprint pair, checkpoints versioned equivalence before the one Done mutation, revalidates authority during locked execution and crash recovery, and retires only exact task-scoped incompatible Merged metadata. Production-shaped OOMPAH-660, OOMPAH-662 control, fail-closed drift/outage/classification, restart recovery, idempotence, and cross-project isolation are covered. Branch is clean and matches origin; GitHub has no pre-existing PR or Actions run for this branch.
 ---
 <!-- COMMENTS:END -->
