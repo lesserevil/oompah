@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T15:00:47.660932Z'
+updated_at: '2026-08-05T15:01:26.133758Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -42,16 +42,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d66550fa-95f2-4f1d-a19e-6b5ce71bcdf8
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T14:19:24.826082+00:00'
+  head_sha: d5ee41a18c3ced4958b679b50a224f412c2bf895
+  submitted_at: '2026-08-05T15:01:08.633641+00:00'
+  updated_at: '2026-08-05T15:01:08.633641+00:00'
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -324,5 +326,25 @@ author: oompah
 created: 2026-08-05 15:00
 ---
 Verification: full make test passed at the current worktree (15,685 passed, 7 skipped, 1 xfailed, 57 warnings in 605.35s). Focused recovery/coordinator/server suites and adjacent terminal-audit suites also pass.
+---
+author: oompah
+created: 2026-08-05 15:01
+---
+Completion: delivered canonical terminal-outcome recovery eligibility shared by coordinator and integration sweep. Mixed abandoned/finalization-failure/no-auditor histories now advertise owner infrastructure retry with the current evidence fingerprint; missing_evidence remains addendum-only; newer success, stale fingerprints, non-owner requests, and unsupported outcomes remain fenced. Added alert lifecycle and parity regressions. Pushed exact head d5ee41a18c3ced4958b679b50a224f412c2bf895.
+---
+author: oompah
+created: 2026-08-05 15:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 102
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 42m 5s
+- Log: OOMPAH-821__20260805T141938Z.jsonl
+---
+author: oompah
+created: 2026-08-05 15:01
+---
+Align terminal-audit recovery alerts with durable terminal outcomes and exact-fingerprint retry fencing; focused, adjacent, and full make test gates pass.
 ---
 <!-- COMMENTS:END -->
