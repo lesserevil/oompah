@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-823
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bootstrap lifecycle reconciliation retry backoff onto main
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T06:45:49.274283Z'
+updated_at: '2026-08-05T06:45:56.138869Z'
 work_branch: null
 target_branch: null
 review_url: null
