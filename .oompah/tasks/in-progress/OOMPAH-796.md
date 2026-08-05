@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-04T23:58:34.484993Z'
+updated_at: '2026-08-05T17:00:00.727142Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 1e438b28-a341-4eef-a29b-93fca1634730
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
@@ -219,5 +219,10 @@ author: oompah
 created: 2026-08-04 23:58
 ---
 Pre-landing combined-tree audit found acceptance blockers despite a clean patch-identical merge onto the expected 806/807 lineage. Repair before resubmission: (1) _integration_decision must treat a blocked exact-head gate as authoritative and schedule no integration_attempt until explicit same-generation retry, newer head, or repair evidence; (2) universal facts must overlay the durable IntegrationQueueStore row/lease because live tracker metadata can remain ready while the queue is integrating, otherwise the controller duplicates an active integration; (3) terminal-audit facts/tests must preserve queued/running revisionless metadata dispositions and route unsafe evidence to action_required rather than revision/transport retry. Add generation-race/restart regressions and run combined 796+806+807 suites. Task returned to Open and its OOMPAH-807 edge upgraded to hard-start so the server can repair it only from the final landed root head.
+---
+author: oompah
+created: 2026-08-05 17:00
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
