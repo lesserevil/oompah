@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T20:22:39.674042Z'
+updated_at: '2026-08-05T20:22:57.415316Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -52,12 +52,14 @@ oompah.agent_run_id: 5e122298-13ee-45f4-a1cd-8ecf6d95f6eb
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T19:23:48.689619+00:00'
+  head_sha: 2af2f103d0375e267de1bcf542d06825bce80d44
+  submitted_at: '2026-08-05T20:22:51.265104+00:00'
+  updated_at: '2026-08-05T20:22:51.265104+00:00'
 oompah.task_costs:
   total_input_tokens: 46681
   total_output_tokens: 2620
@@ -343,5 +345,10 @@ author: oompah
 created: 2026-08-05 20:22
 ---
 Completion: Delivered commit 2af2f103d addressing all pre-landing audit blockers from comments #20/#30/#31/#32. Overlay is exact-head fenced, retry_forced authority is preserved end-to-end, live_claim_precedes_history is now emitted from production facts and evaluated ahead of tracker action_required, and both WorkflowFactCollector construction sites in orchestrator.py pass the durable IntegrationQueueStore. Regression coverage: 18 new tests spanning fact overlay, decision ordering, generation-race stale-head suppression, and restart-convergence idempotency. Branch clean, pushed to origin, all focused workflow suites green (247 tests).
+---
+author: oompah
+created: 2026-08-05 20:22
+---
+Fenced integration overlay to exact head, honoured retry_forced authority, wired IntegrationQueueStore into production facts, reordered live_claim_precedes_history ahead of tracker action_required, and added generation-race and restart-convergence regressions.
 ---
 <!-- COMMENTS:END -->
