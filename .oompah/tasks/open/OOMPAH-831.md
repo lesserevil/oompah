@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T15:50:12.299435Z'
+updated_at: '2026-08-05T15:53:37.745186Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-08-05 15:50
 ---
 Additional live evidence from OOMPAH-815 Done audit attempt attempt-6259cc99f102: read-only `git ls-remote origin <two branch names>` and local `git for-each-ref --format=... refs/remotes/origin/` each received the generic fatal policy denial and consumed two of three denial slots. The auditor recovered with `git branch -r` plus `git rev-parse`, so its audit remains live. Extend the safe/recoverable git inspection classification matrix beyond ls-tree to these forms where containment/network policy permits; unsupported read-only forms must return the stable recoverable marker rather than consume fatal mutation budget.
+---
+author: oompah
+created: 2026-08-05 15:53
+---
+OOMPAH-815 attempt #1 was then terminated when safe `wc -l oompah/projects.py` became its third fatal denial, after `git ls-remote` and `git for-each-ref`; the intervening awk/sed mismatches were correctly recoverable. This confirms the bug is not one git subcommand: any demonstrably read-only inspection outside the allowlist needs either a supported catalog operation or the stable non-budget-consuming recoverable response. Preserve fatal handling for ambiguous/arbitrary execution.
 ---
 <!-- COMMENTS:END -->
