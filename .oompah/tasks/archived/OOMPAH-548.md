@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-08-05T19:55:33.658229Z'
+updated_at: '2026-08-05T19:56:19.310294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,6 +96,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T19:47:42.350287+00:00'
     branch_key: OOMPAH-548
+oompah.task_costs:
+  total_input_tokens: 42
+  total_output_tokens: 936
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 42
+      output_tokens: 936
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 42
+    output_tokens: 936
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:56:15.672280+00:00'
 ---
 ## Summary
 
@@ -171,5 +187,15 @@ Safe evidence:
 - primary_tests: tests/test_worker_submission.py (113 lines), tests/test_integration_record.py (52 lines)
 - followup_tasks_touching_submission_tests: OOMPAH-669, OOMPAH-684, OOMPAH-717, OOMPAH-731, OOMPAH-758
 - archive_trigger: Aged Merged auto-archive (closed 7 days ago 2026-07-29)
+---
+author: oompah
+created: 2026-08-05 19:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 19
+- Tokens: 42 in / 936 out [978 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 22s
+- Log: OOMPAH-548__20260805T194802Z.jsonl
 ---
 <!-- COMMENTS:END -->
