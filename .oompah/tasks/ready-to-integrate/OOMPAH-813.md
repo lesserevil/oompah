@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-813
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence revoked accepted-submission worker exits with the resolved project
 parent: OOMPAH-768
@@ -12,13 +12,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:03:45.261870Z'
+updated_at: '2026-08-05T00:04:11.593716Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-813
+  head_sha: 7eada51f6fe7ea384c02317654c0b376183fb7af
+  submitted_at: '2026-08-05T00:04:04.526160+00:00'
+  updated_at: '2026-08-05T00:04:04.526160+00:00'
 ---
 ## Summary
 
@@ -46,5 +54,10 @@ author: oompah
 created: 2026-08-05 00:03
 ---
 Completed and pushed exact task head 7eada51f6fe7ea384c02317654c0b376183fb7af on epic-OOMPAH-768--task-OOMPAH-813, with direct parent a3948097f27f4e84ac0f2375408ac05f4e419d2c. Focused verification remains green: 100 tests, terminal mutation scan 8/8, Ruff F821, and diff check. Branch is clean and up to date with origin. Per ordered-landing handoff, OOMPAH-813 remains In Progress/claimed and has not been submitted; project owner should submit only after OOMPAH-782 lands.
+---
+author: oompah
+created: 2026-08-05 00:04
+---
+Fixed revoked accepted-submission exit project fencing at exact head 7eada51f6fe7ea384c02317654c0b376183fb7af, directly based on OOMPAH-782 a3948097f. Wrapper/cross-project/non-revoked regressions included; 100 focused tests, terminal scan 8/8, Ruff F821 and diff checks pass.
 ---
 <!-- COMMENTS:END -->
