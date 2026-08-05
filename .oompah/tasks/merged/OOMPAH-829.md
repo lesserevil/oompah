@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T20:14:41.258083Z'
+updated_at: '2026-08-05T20:14:49.864640Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -145,8 +145,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-fbd06944968b
-    applied: false
+    applied: true
     created_at: '2026-08-05T20:14:37.835252+00:00'
+    applied_at: '2026-08-05T20:14:47.106889+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -450,5 +451,23 @@ author: oompah
 created: 2026-08-05 19:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 20:14
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 8c262588c86e873665bc92fe0b885f6d734412bf
+- merge_commit: da53569a99412c0c8bf2e45f1c0587837a36b444
+- pr: 723
+- pr_merged: true
+- target_branch_head: da53569a9
+- commit_scope: oompah/terminal_audit.py, oompah/terminal_audit_enforcement.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_fingerprint_canonicalization.py
+- migration_version: LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION=1
+- focused_tests: fingerprint=10 enforcement=95 audit=38 lifecycle_override_fingerprint_filter=716 all_pass
+- acceptance_scenarios: OOMPAH-660 ab401↔62954 repairs once and is idempotent; OOMPAH-662 control no marker; 12 fail-closed drift; SCM outage closed; post-write recovery; cross-project isolation
 ---
 <!-- COMMENTS:END -->
