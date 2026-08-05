@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T20:45:31.816957Z'
+updated_at: '2026-08-05T20:46:33.296499Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ OOMPAH-841 fixes a live service-capacity deadlock on the OOMPAH-763 program bran
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 20:46
+---
+Direct implementation claimed after OOMPAH-841 passed independent review and its 254-test focused gate. Cherry-picked the exact reviewed OOMPAH-841 commit onto current origin/main da53569a; the only conflict was the owner-claim test import block, resolved by preserving main's imports plus the new regression dependencies. Resulting OOMPAH-842 head is d0286b5b. git diff --check and production py_compile pass. Runtime gates are waiting behind the scheduler-owned OOMPAH-828/OOMPAH-841 validation lane.
+---
+<!-- COMMENTS:END -->
