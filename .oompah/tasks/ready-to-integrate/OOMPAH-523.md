@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:48:22.322296Z'
+updated_at: '2026-08-05T05:49:06.161578Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -21,13 +21,13 @@ merged_at: null
 oompah.agent_run_id: 2a0b72ad-8bdb-475f-ab06-0b50872198ca
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
-  total_input_tokens: 500
-  total_output_tokens: 46123
+  total_input_tokens: 790
+  total_output_tokens: 52354
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 366
-      output_tokens: 11561
+      input_tokens: 656
+      output_tokens: 17792
       cost_usd: 0.0
     sonnet:
       input_tokens: 67
@@ -68,6 +68,12 @@ oompah.task_costs:
     output_tokens: 2713
     cost_usd: 0.0
     recorded_at: '2026-08-04T23:48:32.744889+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 290
+    output_tokens: 6231
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T05:49:03.662177+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -972,5 +978,15 @@ author: oompah
 created: 2026-08-05 05:48
 ---
 OOMPAH-523: Enforce Basic authentication across HTTP and WebSocket surfaces - Complete. ASGI middleware enforces Basic auth at the outermost boundary protecting dashboard, static assets, APIs, OpenAPI, and WebSocket surfaces. WebSocket auth is validated before accept() ensuring unauthenticated connections never register. Exact exemptions for GET /healthz (minimal health only), POST /api/v1/webhooks/github, and POST /api/v1/webhooks/gitlab preserve forge signature/token validation. Authorization headers are redacted throughout. 178 focused auth tests pass; disabled deployments retain current behavior exactly.
+---
+author: oompah
+created: 2026-08-05 05:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 35
+- Tokens: 290 in / 6.2K out [6.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 49s
+- Log: OOMPAH-523__20260805T053530Z.jsonl
 ---
 <!-- COMMENTS:END -->
