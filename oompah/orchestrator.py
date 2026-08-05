@@ -331,6 +331,7 @@ from oompah.ipc import OrchestratorIPC, get_ipc
 
 _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
 _DUPLICATE_PREFLIGHT_MAX_RETRIES = 3
+_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS = 10.0
 _DUPLICATE_PREFLIGHT_VERDICT_RE = re.compile(
     r"(?im)^\s*duplicate preflight verdict:\s*"
     r"(no_duplicate|duplicate_candidate|inconclusive)\s*$"
@@ -4040,6 +4041,150 @@ class Orchestrator:
             )
             kwargs["current_issue"] = refreshed_request
             return await self.request_terminal_transition(**kwargs)
+
+    def adopt_open_review_from_webhook(
+        self,
+        *,
+        observed_issue: Issue,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        repo_slug: str,
+        review_id: str,
+        review_url: str,
+        source_branch: str,
+        target_branch: str,
+        review_head: str,
+    ) -> tuple[bool, str]:
+        """Atomically adopt one exact open-review webhook generation.
+
+        Resolution happens before a webhook worker reaches this method, so submit
+        may have accepted a newer generation in the meantime.  The final tracker
+        and forge observations, required metadata writes, and In Review update
+        share the same task mutex as submit and terminal transitions.
+        """
+
+        issue_id = str(
+            getattr(observed_issue, "id", "")
+            or getattr(observed_issue, "identifier", "")
+        ).strip()
+        identifier = str(getattr(observed_issue, "identifier", "") or issue_id)
+        if not issue_id or not identifier:
+            return False, "resolved task has no stable identity"
+        expected_review_id = str(review_id or "").strip()
+        expected_source = str(source_branch or "").strip()
+        expected_target = str(target_branch or "").strip()
+        expected_head = str(review_head or "").strip().lower()
+        if not all(
+            (
+                expected_review_id,
+                expected_source,
+                expected_target,
+                expected_head,
+                str(review_url or "").strip(),
+            )
+        ):
+            return False, "open-review webhook lacks exact review identity or head"
+
+        with self.issue_transition_lock(issue_id).sync():
+            try:
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                current = tracker.fetch_issue_detail(identifier)
+            except Exception as exc:  # noqa: BLE001 - webhook adoption fails closed
+                return False, f"current task evidence could not be refreshed: {exc}"
+            if not isinstance(current, Issue):
+                return False, "current task evidence is unavailable"
+            if self._standalone_delivery_evidence_revision(
+                current
+            ) != self._standalone_delivery_evidence_revision(observed_issue):
+                return False, "task delivery or integration generation changed"
+            current_status = canonicalize_status(current.state)
+            if current_status in {MERGED, ARCHIVED}:
+                return False, f"task is already {current_status}"
+            if self._branch_for_issue(current, project) != expected_source:
+                return False, "webhook source branch no longer owns the task"
+            current_target = str(
+                current.target_branch or project.default_branch or ""
+            ).strip()
+            if current_target != expected_target:
+                return False, "webhook target branch no longer matches the task"
+
+            try:
+                review = provider.find_pr_for_branch(repo_slug, expected_source)
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return False, f"current review evidence could not be refreshed: {exc}"
+            if review is None:
+                return False, "current review evidence is unavailable"
+            current_review_id = str(getattr(review, "id", "") or "").strip()
+            current_review_state = str(
+                getattr(review, "state", "") or ""
+            ).strip().lower()
+            current_review_source = str(
+                getattr(review, "source_branch", "") or ""
+            ).strip()
+            current_review_target = str(
+                getattr(review, "target_branch", "") or ""
+            ).strip()
+            current_review_head = str(
+                getattr(review, "head_sha", "") or ""
+            ).strip().lower()
+            if (
+                current_review_id != expected_review_id
+                or current_review_state != "open"
+                or current_review_source != expected_source
+                or current_review_target != expected_target
+                or not current_review_head
+                or current_review_head != expected_head
+            ):
+                return False, "open review changed before webhook adoption"
+            integration_head = str(
+                getattr(getattr(current, "integration", None), "head_sha", "") or ""
+            ).strip().lower()
+            if integration_head and integration_head != expected_head:
+                return False, "review head does not match the accepted submission"
+
+            integration_revision = self._standalone_integration_generation_revision(
+                current
+            )
+            if not self._write_review_metadata(
+                tracker,
+                identifier,
+                review_id=expected_review_id,
+                review_url=review_url,
+                source_branch=expected_source,
+                target_branch=expected_target,
+                review_head=expected_head,
+                strict=True,
+            ):
+                return False, "required review metadata could not be persisted"
+            try:
+                if callable(invalidate):
+                    invalidate()
+                persisted = tracker.fetch_issue_detail(identifier)
+            except Exception as exc:  # noqa: BLE001 - final tracker CAS fails closed
+                return False, f"persisted review evidence could not be verified: {exc}"
+            if not isinstance(persisted, Issue):
+                return False, "persisted review evidence is unavailable"
+            if (
+                self._standalone_integration_generation_revision(persisted)
+                != integration_revision
+                or str(persisted.work_branch or persisted.branch_name or "").strip()
+                != expected_source
+                or str(
+                    persisted.target_branch or project.default_branch or ""
+                ).strip()
+                != expected_target
+                or str(persisted.review_number or "").strip() != expected_review_id
+                or str(persisted.review_url or "").strip()
+                != str(review_url).strip()
+                or str(persisted.review_head or "").strip().lower() != expected_head
+            ):
+                return False, "required review metadata did not persist exactly"
+            if current_status != IN_REVIEW:
+                tracker.update_issue(identifier, status=IN_REVIEW)
+            return True, ""
 
     def _running_items_snapshot(self) -> tuple[tuple[str, RunningEntry], ...]:
         """Return a stable runtime snapshot across API and scheduler threads.
@@ -10542,7 +10687,7 @@ class Orchestrator:
                 return False, None
             return True, action()
 
-    async def _request_standalone_merged_with_authority_async(
+    async def _request_standalone_merged_with_authority_inner(
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol,
@@ -10558,7 +10703,7 @@ class Orchestrator:
         """Stage Merged after a final generation CAS under task ownership.
 
         Accepted submissions and terminal API operations use the same per-issue
-        asyncio lock.  Re-read the delivery evidence inside that serialization
+        cross-loop lock. Re-read the delivery evidence inside that serialization
         boundary, then release the delivery authority ``RLock`` before awaiting
         the coordinator.  The coordinator revokes delivery authority from its
         project worker thread, so retaining that thread-owned lock across the
@@ -10660,6 +10805,46 @@ class Orchestrator:
                 return True, None
             return True, transition
 
+    async def _request_standalone_merged_with_authority_async(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        **kwargs: Any,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Keep the lock-owning operation alive if its outer bridge is cancelled.
+
+        ``asyncio.to_thread`` work is not cancelled with its awaiting task.  The
+        inner task therefore owns the cross-loop mutex, while the bridge awaits it
+        through ``shield``.  A timeout or caller cancellation can stop waiting but
+        cannot release ownership around still-running tracker/coordinator effects.
+        """
+
+        operation = asyncio.create_task(
+            self._request_standalone_merged_with_authority_inner(
+                authority,
+                tracker,
+                **kwargs,
+            )
+        )
+        try:
+            return await asyncio.shield(operation)
+        except asyncio.CancelledError:
+
+            def _consume_result(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:  # noqa: BLE001 - detached owner cleanup
+                    logger.warning(
+                        "Detached standalone terminal staging failed for %s: %s",
+                        authority.task_id,
+                        exc,
+                    )
+
+            operation.add_done_callback(_consume_result)
+            raise
+
     def _request_standalone_merged_with_authority(
         self,
         authority: StandaloneDeliveryAuthority,
@@ -10687,11 +10872,13 @@ class Orchestrator:
                 request.close()
                 return False, None
             try:
-                return future.result(timeout=10.0)
+                return future.result(
+                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                )
             except TimeoutError:
-                future.cancel()
                 logger.warning(
-                    "Timed out bridging standalone terminal staging for %s",
+                    "Timed out waiting for standalone terminal staging for %s; "
+                    "the detached operation retains task ownership until it exits",
                     authority.task_id,
                 )
                 return False, None
@@ -21559,16 +21746,19 @@ class Orchestrator:
         target_branch: str | None = None,
         review_head: str | None = None,
         authority: StandaloneDeliveryAuthority | None = None,
+        strict: bool = False,
     ) -> bool:
-        """Persist review metadata fields on a task (best-effort).
+        """Persist review metadata fields on a task.
 
         Writes ``oompah.review_url`` and ``oompah.review_number`` to the
         task's metadata block.  Also writes ``oompah.work_branch`` (source),
         ``oompah.target_branch``, and ``oompah.review_head`` (the exact SHA
         the review was created for) when supplied and not already set.
 
-        All writes are best-effort: failures are logged as warnings but do
-        not propagate so the caller's control flow is unaffected.
+        Legacy callers without delivery authority retain best-effort writes.
+        Authority-owned delivery and explicit strict callers are fail-closed:
+        every supplied field is required before the task may leave its prior
+        lifecycle state.
         """
         fields: dict[str, object] = {}
         if review_url:
@@ -21604,6 +21794,8 @@ class Orchestrator:
                     identifier,
                     exc,
                 )
+                if authority is not None or strict:
+                    return False
         return True
 
     def _defer_review_handoff(

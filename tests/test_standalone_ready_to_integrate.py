@@ -34,7 +34,7 @@ from oompah.terminal_audit import (
     Verdict,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
-from oompah.terminal_transition_coordinator import AuditResult
+from oompah.terminal_transition_coordinator import AuditResult, TransitionResult
 
 
 def _issue(
@@ -1649,6 +1649,139 @@ def test_owned_webhook_refresh_preserves_intentional_state_override(harness):
     assert staged_issue.integration.head_sha == "d" * 40
 
 
+def test_submit_wins_before_open_webhook_adoption(harness):
+    """A delayed open webhook cannot overwrite a newer accepted submission."""
+
+    from oompah.server import _mark_task_in_review_from_webhook
+    from oompah.webhooks import WebhookEvent
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    old_head = "e" * 40
+    task = _issue("TASK-OPEN-WEBHOOK", branch="feature/open-webhook")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=old_head,
+        submitted_at="2026-08-05T03:14:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    observed = copy.deepcopy(task)
+    resolved = threading.Event()
+    orch._resolve_task_for_branch = mock.MagicMock(
+        side_effect=lambda *_args, **_kwargs: resolved.set() or observed
+    )
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="711",
+        head_sha=old_head,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="pull_request",
+        action="opened",
+        repo_slug="org/repo",
+        review_id="711",
+        source_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        review_head=old_head,
+    )
+    errors: list[BaseException] = []
+
+    def deliver_webhook() -> None:
+        try:
+            with mock.patch("oompah.server.detect_provider", return_value=provider):
+                _mark_task_in_review_from_webhook(orch, event, project)
+        except BaseException as exc:  # noqa: BLE001 - surface thread failure
+            errors.append(exc)
+
+    worker = threading.Thread(target=deliver_webhook)
+    lock = orch.issue_transition_lock(task.id)
+    with lock.sync():
+        worker.start()
+        assert resolved.wait(timeout=2)
+        task.integration = IntegrationRecord(
+            state="ready",
+            task_branch=task.work_branch,
+            base_branch=project.default_branch,
+            head_sha="f" * 40,
+            submitted_at="2026-08-05T03:15:00+00:00",
+        )
+    worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert errors == []
+    provider.find_pr_for_branch.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+    assert task.integration.head_sha == "f" * 40
+
+
+def test_exact_open_webhook_persists_metadata_before_in_review(harness):
+    """The production owned webhook path accepts one exact review generation."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "0" * 40
+    task = _issue("TASK-OPEN-WEBHOOK-EXACT", branch="feature/open-webhook-exact")
+    task.target_branch = project.default_branch
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        base_branch=project.default_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T03:16:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    observed = copy.deepcopy(task)
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="715",
+        head_sha=accepted_head,
+    )
+    metadata_attributes = {
+        "oompah.review_url": "review_url",
+        "oompah.review_number": "review_number",
+        "oompah.work_branch": "work_branch",
+        "oompah.target_branch": "target_branch",
+        "oompah.review_head": "review_head",
+    }
+
+    def persist_metadata(_identifier, key, value) -> None:
+        setattr(task, metadata_attributes[key], value)
+
+    def persist_status(_identifier, **fields) -> None:
+        task.state = fields["status"]
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    tracker.update_issue.side_effect = persist_status
+    review_url = "https://github.com/org/repo/pull/715"
+
+    adopted, reason = orch.adopt_open_review_from_webhook(
+        observed_issue=observed,
+        project=project,
+        tracker=tracker,
+        provider=provider,
+        repo_slug="org/repo",
+        review_id="715",
+        review_url=review_url,
+        source_branch=task.work_branch or "",
+        target_branch=project.default_branch,
+        review_head=accepted_head,
+    )
+
+    assert adopted is True
+    assert reason == ""
+    assert task.review_number == "715"
+    assert task.review_url == review_url
+    assert task.review_head == accepted_head
+    assert task.state == IN_REVIEW
+    tracker.update_issue.assert_called_once_with(task.identifier, status=IN_REVIEW)
+
+
 def test_submit_wins_before_historical_review_cleanup(harness):
     """History comments and clears cannot cross a newer submit generation."""
 
@@ -1878,6 +2011,59 @@ def test_metadata_refresh_never_adopts_concurrent_integration_generation(harness
     assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
 
 
+def test_open_review_metadata_failure_cannot_advance_status(harness):
+    """Every authority-owned review field is required before In Review."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-OPEN-METADATA", branch="feature/open-metadata")
+    tracker.fetch_issues_by_states.return_value = [task]
+    exact_open = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="713",
+        head_sha="abc123",
+    )
+    provider.find_pr_for_branch.return_value = exact_open
+
+    def fail_review_head(_identifier, key, _value) -> None:
+        if key == "oompah.review_head":
+            raise RuntimeError("review head persistence failed")
+
+    tracker.set_metadata_field.side_effect = fail_review_head
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    tracker.update_issue.assert_not_called()
+    gate.assert_not_called()
+
+
+def test_created_review_metadata_failure_cannot_advance_status(harness):
+    """A created review remains Ready when exact metadata persistence fails."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-CREATE-METADATA", branch="feature/create-metadata")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    provider.create_review.return_value = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="714",
+        head_sha="abc123",
+    )
+
+    def fail_review_head(_identifier, key, _value) -> None:
+        if key == "oompah.review_head":
+            raise RuntimeError("review head persistence failed")
+
+    tracker.set_metadata_field.side_effect = fail_review_head
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once()
+    provider.create_review.assert_called_once()
+    tracker.update_issue.assert_not_called()
+
+
 def test_final_review_revalidation_rejects_state_change_before_metadata(harness):
     """A review that is no longer exact-Merged cannot reach tracker or audit writes."""
 
@@ -1952,6 +2138,184 @@ def test_stopped_dispatch_loop_bridge_fails_bounded_without_leaking_coroutine(
 
     assert result == (False, None)
     assert time.monotonic() - started < 1
+
+
+def test_bridge_timeout_retains_task_ownership_until_inner_operation_exits(harness):
+    """A timed-out bridge cannot orphan coordinator work outside the task lock."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "1" * 40
+    task = _issue("TASK-BRIDGE-OWNER", branch="feature/bridge-owner")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T03:16:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="merged",
+        review_id="712",
+        head_sha=accepted_head,
+    )
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+
+    coordinator_started = threading.Event()
+    release_coordinator = threading.Event()
+
+    async def blocked_coordinator(**_kwargs):
+        coordinator_started.set()
+        await asyncio.to_thread(release_coordinator.wait)
+        return TransitionResult(success=True)
+
+    orch.request_terminal_transition = mock.AsyncMock(side_effect=blocked_coordinator)
+    dispatch_loop = asyncio.new_event_loop()
+    loop_started = threading.Event()
+
+    def run_dispatch_loop() -> None:
+        asyncio.set_event_loop(dispatch_loop)
+        dispatch_loop.call_soon(loop_started.set)
+        dispatch_loop.run_forever()
+        dispatch_loop.close()
+
+    loop_worker = threading.Thread(target=run_dispatch_loop)
+    orch._dispatch_loop = dispatch_loop
+    loop_worker.start()
+    assert loop_started.wait(timeout=2)
+
+    submit_acquired = threading.Event()
+
+    def submit() -> None:
+        async def own_task() -> None:
+            async with orch.issue_transition_lock(task.id):
+                submit_acquired.set()
+
+        asyncio.run(own_task())
+
+    submit_worker = threading.Thread(target=submit)
+    try:
+        with mock.patch(
+            "oompah.orchestrator._STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS",
+            0.05,
+        ):
+            started = time.monotonic()
+            result = orch._request_standalone_merged_with_authority(
+                authority,
+                tracker,
+                provider=provider,
+                repo_slug="org/repo",
+                work_branch=task.work_branch or "",
+                target_branch=project.default_branch,
+                review_number="712",
+                review_url="https://github.com/org/repo/pull/712",
+                review_head=accepted_head,
+            )
+        assert result == (False, None)
+        assert time.monotonic() - started < 1
+        assert coordinator_started.wait(timeout=2)
+
+        submit_worker.start()
+        assert not submit_acquired.wait(timeout=0.1)
+
+        release_coordinator.set()
+        assert submit_acquired.wait(timeout=2)
+        submit_worker.join(timeout=2)
+        assert not submit_worker.is_alive()
+    finally:
+        release_coordinator.set()
+        if submit_worker.is_alive():
+            submit_worker.join(timeout=2)
+        dispatch_loop.call_soon_threadsafe(dispatch_loop.stop)
+        loop_worker.join(timeout=2)
+        orch._dispatch_loop = None
+
+    assert not loop_worker.is_alive()
+    orch.request_terminal_transition.assert_awaited_once()
+
+
+def test_cancelled_bridge_keeps_inner_task_ownership_until_coordinator_exits(harness):
+    """Cancelling the outer await cannot expose in-flight terminal side effects."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "2" * 40
+    task = _issue("TASK-BRIDGE-CANCEL", branch="feature/bridge-cancel")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T03:17:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = _review(
+        task.work_branch or "",
+        state="merged",
+        review_id="716",
+        head_sha=accepted_head,
+    )
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    coordinator_started = threading.Event()
+    release_coordinator = threading.Event()
+
+    async def blocked_coordinator(**_kwargs):
+        coordinator_started.set()
+        await asyncio.to_thread(release_coordinator.wait)
+        return TransitionResult(success=True)
+
+    orch.request_terminal_transition = mock.AsyncMock(side_effect=blocked_coordinator)
+
+    async def race() -> None:
+        outer = asyncio.create_task(
+            orch._request_standalone_merged_with_authority_async(
+                authority,
+                tracker,
+                provider=provider,
+                repo_slug="org/repo",
+                work_branch=task.work_branch or "",
+                target_branch=project.default_branch,
+                review_number="716",
+                review_url="https://github.com/org/repo/pull/716",
+                review_head=accepted_head,
+            )
+        )
+        assert await asyncio.to_thread(coordinator_started.wait, 2)
+        outer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await outer
+
+        submit_acquired = asyncio.Event()
+
+        async def submit() -> None:
+            async with orch.issue_transition_lock(task.id):
+                submit_acquired.set()
+
+        submit_task = asyncio.create_task(submit())
+        await asyncio.sleep(0.05)
+        assert not submit_acquired.is_set()
+        release_coordinator.set()
+        await asyncio.wait_for(submit_task, timeout=2)
+
+    try:
+        asyncio.run(race())
+    finally:
+        release_coordinator.set()
+
+    orch.request_terminal_transition.assert_awaited_once()
 
 
 def test_restart_stale_ready_snapshot_cannot_mutate_terminal_task(harness):

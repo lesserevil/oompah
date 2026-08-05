@@ -125,7 +125,7 @@ def _github_signature(body_bytes: bytes, secret: str) -> str:
 def _github_pr_payload(
     action="opened", number=42, repo="org/repo",
     source="feat-branch", target="main", author="octocat",
-    title="Test PR", merged=False,
+    title="Test PR", merged=False, head_sha="abc123",
 ):
     return {
         "action": action,
@@ -134,7 +134,7 @@ def _github_pr_payload(
             "title": title,
             "merged": merged,
             "user": {"login": author},
-            "head": {"ref": source},
+            "head": {"ref": source, "sha": head_sha},
             "base": {"ref": target},
         },
         "repository": {"full_name": repo},
@@ -144,7 +144,7 @@ def _github_pr_payload(
 def _gitlab_mr_payload(
     action="open", iid=7, repo="group/project",
     source="fix-branch", target="main", author="tanuki",
-    title="Test MR", state="opened",
+    title="Test MR", state="opened", head_sha="abc123",
 ):
     return {
         "object_attributes": {
@@ -154,6 +154,7 @@ def _gitlab_mr_payload(
             "state": state,
             "source_branch": source,
             "target_branch": target,
+            "last_commit": {"id": head_sha},
         },
         "user": {"username": author},
         "project": {"path_with_namespace": repo},
