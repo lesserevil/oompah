@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-08-05T01:51:04.531868Z'
+updated_at: '2026-08-05T01:51:16.044724Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
@@ -93,8 +93,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-af6130950368
-    applied: false
+    applied: true
     created_at: '2026-08-05T01:50:57.140926+00:00'
+    applied_at: '2026-08-05T01:51:12.148708+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -262,5 +263,22 @@ author: oompah
 created: 2026-08-05 01:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 01:51
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 676ef95ba
+- pr_number: 572
+- on_main: true
+- orchestrator_lines_present: 12955,12976,13000,18764,18826
+- docs_line: docs/duplicate-screening.md:52
+- focused_tests: 5 passed
+- shared_mode_class_tests: 30 passed
+- days_since_merge: 7
 ---
 <!-- COMMENTS:END -->
