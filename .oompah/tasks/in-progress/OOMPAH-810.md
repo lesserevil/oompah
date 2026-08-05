@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-810
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Return completed auditor command results without stranding the ACP session
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T16:04:47.988886Z'
+updated_at: '2026-08-05T17:00:20.541092Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
