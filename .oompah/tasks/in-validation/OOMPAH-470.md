@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: Merged
+status: In Validation
 priority: 3
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T18:01:41.879126Z'
+updated_at: '2026-08-05T18:22:39.335928Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -444,6 +444,28 @@ oompah.task_costs:
     output_tokens: 1137
     cost_usd: 0.0
     recorded_at: '2026-07-29T14:24:01.394216+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d40b8c2b7c8e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-470
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5b22ead98051487a0aa9d1a055289be7f24913ac96ba833bca9da12cf7364dd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:22:32.423501+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -4051,5 +4073,10 @@ author: oompah
 created: 2026-07-29 14:34
 ---
 Verified complete: auditor role seeding and independent provider-model selection are committed and pushed on epic-OOMPAH-458; the shared worktree is clean and origin is synchronized. Existing completion evidence reports the full suite passing and maps delivery to every acceptance criterion.
+---
+author: oompah
+created: 2026-08-05 18:22
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
