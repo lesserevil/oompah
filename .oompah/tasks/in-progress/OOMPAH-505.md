@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:23:40.741733Z'
+updated_at: '2026-08-05T18:24:31.064606Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1355,5 +1355,10 @@ author: oompah
 created: 2026-08-05 18:23
 ---
 Verification: 623 focused tests passed with OOMPAH_AGENT_LOG_DIR set to a private temporary directory; the default sandbox log path alone caused the known 7-case read-only failure. make check-secrets passed with only the existing null-byte scanner warning. Source remains clean.
+---
+author: oompah
+created: 2026-08-05 18:24
+---
+Completion: no source changes were needed in this recovery pass. The explicit Claude/Codex tiers, manual catalog-less ACP model entry, validation/fallback, round-robin role selection, ACP handoff, and telemetry coverage are present at e1b0f4846. Focused tests and secrets scan pass; task and restored epic refs both point to the pushed clean head.
 ---
 <!-- COMMENTS:END -->
