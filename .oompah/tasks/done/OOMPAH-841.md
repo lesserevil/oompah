@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-841
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T21:18:28.716581Z'
+updated_at: '2026-08-05T21:40:53.397981Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,30 @@ oompah.integration:
   updated_at: '2026-08-05T21:17:45.607388+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-ef651c224859: '2026-08-05T21:40:49.646308+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-841
+    target_state: Done
+    evidence_fingerprint: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
+    audit_ids:
+    - audit-57b9189aa8e6
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T21:40:49.646320+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-841
+    audit_id: audit-57b9189aa8e6
+    attempt_id: attempt-ef651c224859
+    target_state: Done
+    evidence_fingerprint: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
+    status: Done
+    audit_ids:
+    - audit-57b9189aa8e6
+    applied: false
+    created_at: '2026-08-05T21:40:49.646338+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -38,7 +62,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-841
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -47,7 +71,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ef651c224859
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -57,13 +81,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T21:18:20.629995+00:00'
       branch_key: OOMPAH-841
+      verdict: pass
+      completed_at: '2026-08-05T21:40:49.646093+00:00'
+      ended_at: '2026-08-05T21:40:49.646093+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T21:17:48.052797+00:00'
-    updated_at: '2026-08-05T21:18:20.629995+00:00'
+    updated_at: '2026-08-05T21:40:49.646093+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ef651c224859
