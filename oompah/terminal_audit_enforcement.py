@@ -1201,17 +1201,20 @@ class TerminalAuditEnforcement:
     ) -> tuple[
         dict[str, Any],
         dict[tuple[str, str], tuple[TrackerProtocol, Issue]],
+        set[str],
         bool,
     ]:
         """Discover Merged rows and prepare one coalesced durable projection."""
 
         current: dict[tuple[str, str], tuple[TrackerProtocol, Issue]] = {}
         merged_keys: set[tuple[str, str]] = set()
+        unavailable_projects: set[str] = set()
         scan_errors: list[str] = []
         for project_id, tracker in scopes:
             try:
                 issues = self._all_issues(tracker)
             except Exception as exc:  # noqa: BLE001 - isolate one project
+                unavailable_projects.add(str(project_id))
                 scan_errors.append(f"scan_failed:{project_id}:{type(exc).__name__}")
                 continue
             for issue in issues:
@@ -1293,7 +1296,12 @@ class TerminalAuditEnforcement:
             elif status == "exhausted" and tracker_issue is not None:
                 fingerprint = self._lifecycle_source_fingerprint(*tracker_issue)
                 previous = row.get("failure_fingerprint")
-                if isinstance(previous, str) and previous and previous != fingerprint:
+                task_reappeared = (
+                    row.get("last_error") == "task_not_present_in_current_snapshot"
+                )
+                if task_reappeared or (
+                    isinstance(previous, str) and previous and previous != fingerprint
+                ):
                     try:
                         retry_epochs = (
                             max(int(row.get("retry_epochs", 0) or 0), 0) + 1
@@ -1333,7 +1341,7 @@ class TerminalAuditEnforcement:
         if changed:
             queue["updated_at"] = now.isoformat()
         self._set_lifecycle_state(queue)
-        return queue, current, changed
+        return queue, current, unavailable_projects, changed
 
     def reconcile_lifecycle_batch(
         self,
@@ -1384,7 +1392,12 @@ class TerminalAuditEnforcement:
                     self.state = loaded
                     self.errors = list(dict.fromkeys([*self.errors, *loaded.errors]))
                 self._state_loaded = True
-            queue, current, prepared_changed = self._lifecycle_prepare_queue(
+            (
+                queue,
+                current,
+                unavailable_projects,
+                prepared_changed,
+            ) = self._lifecycle_prepare_queue(
                 scope_list,
                 now=current_time,
                 max_attempts=max_attempts,
@@ -1403,6 +1416,7 @@ class TerminalAuditEnforcement:
                     (index, row)
                     for index, row in enumerate(records)
                     if row.get("status") == "pending"
+                    and str(row.get("project_id", "")) not in unavailable_projects
                 ),
                 key=lambda item: _cursor_order(item[0]),
             )
@@ -1414,6 +1428,7 @@ class TerminalAuditEnforcement:
                         (index, row)
                         for index, row in enumerate(records)
                         if row.get("status") == "failed"
+                        and str(row.get("project_id", "")) not in unavailable_projects
                         and (
                             self._lifecycle_timestamp(row.get("next_attempt_at"))
                             or current_time
