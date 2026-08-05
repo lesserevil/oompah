@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T17:05:33.795806Z'
+updated_at: '2026-08-05T17:08:05.697473Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -272,14 +272,15 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
   head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   submitted_at: '2026-08-05T17:05:18.272726+00:00'
-  updated_at: '2026-08-05T17:05:18.272726+00:00'
+  updated_at: '2026-08-05T17:07:57.633988+00:00'
+  last_error: remote epic branch epic-OOMPAH-502 does not exist
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1325,5 +1326,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 21s
 - Log: OOMPAH-505__20260805T165929Z.jsonl
+---
+author: oompah
+created: 2026-08-05 17:08
+---
+Integration could not verify `epic-OOMPAH-502--task-OOMPAH-505`: remote epic branch epic-OOMPAH-502 does not exist
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
