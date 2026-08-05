@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T19:44:07.962533Z'
+updated_at: '2026-08-05T19:44:21.265826Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-05 19:44
 ---
 Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-05 19:44
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

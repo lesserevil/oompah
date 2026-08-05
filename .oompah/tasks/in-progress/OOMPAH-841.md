@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T19:41:35.521747Z'
+updated_at: '2026-08-05T19:44:15.876113Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,5 +50,10 @@ author: oompah
 created: 2026-08-05 19:41
 ---
 Repaired the two independent-review blockers. Legacy worker bootstrap health now publishes a concrete POST owner-claim request containing the exact project/task/authority generation plus process identity; the existing authenticated owner-claim route revalidates that exact flagged durable lease, rejects auditor/cross-task/stale generation recovery, cancels only that generation, preserves the worktree, and verifies retirement before granting direct ownership. Codex executable detection now reads only a bounded 128-byte prefix. Added regression coverage including an end-to-end two-generation process test proving the flagged orphan is retired, the unrelated generation survives, and direct ownership is granted. Static compile and diff checks pass; focused runtime tests remain pending until the currently busy shared validation lane becomes idle.
+---
+author: oompah
+created: 2026-08-05 19:44
+---
+Focused post-repair gate passed: make test-setup terminal-audit-scan succeeded and 242/242 targeted tests passed across native guard, validation-resource leasing, Codex backend, authenticated owner-claim recovery, and aggregate health. The end-to-end recovery test launched two independent durable worker generations, retired only the exact health-advertised legacy provider process, preserved the unrelated generation, and granted direct ownership. Validation lane returned idle. Branch remains uncommitted pending one fresh independent final review.
 ---
 <!-- COMMENTS:END -->
