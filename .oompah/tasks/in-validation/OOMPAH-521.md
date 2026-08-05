@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-08-05T00:03:00.826057Z'
+updated_at: '2026-08-05T00:20:31.801302Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -46,6 +46,31 @@ oompah.task_costs:
     recorded_at: '2026-07-28T21:21:41.634977+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-4b7d627f11bc: '2026-08-05T00:20:21.531524+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-521
+    target_state: Archived
+    evidence_fingerprint: 168332a1dae5a5f931cbf5f2dd6cfff21eb1353608aca2a641d1d5095ccaa723
+    audit_ids:
+    - audit-fb69a2491a3b
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:20:21.531535+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-521
+    audit_id: audit-fb69a2491a3b
+    attempt_id: attempt-4b7d627f11bc
+    target_state: Archived
+    evidence_fingerprint: 168332a1dae5a5f931cbf5f2dd6cfff21eb1353608aca2a641d1d5095ccaa723
+    status: In Validation
+    audit_ids:
+    - audit-fb69a2491a3b
+    applied: true
+    created_at: '2026-08-05T00:20:21.531550+00:00'
+    applied_at: '2026-08-05T00:20:29.102459+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -53,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-521
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -93,7 +118,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4b7d627f11bc
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -104,13 +129,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T00:02:44.447322+00:00'
       branch_key: epic-OOMPAH-521
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-05T00:20:21.531356+00:00'
+      ended_at: '2026-08-05T00:20:21.531356+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T21:34:18.368853+00:00'
-    updated_at: '2026-08-05T00:02:44.447322+00:00'
+    updated_at: '2026-08-05T00:20:21.531356+00:00'
   - version: 1
     audit_id: audit-a62a16b4c5ff
     project_id: proj-14849f1b
@@ -331,5 +359,22 @@ author: oompah
 created: 2026-08-05 00:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 00:20
+---
+Audit PASS — Archived
+
+OOMPAH-521 audit PASS: Epic successfully merged to main (commit e9681a58d via PR #567), all child tasks (OOMPAH-522-526) implemented, 15,386 tests pass with only 1 unrelated timeout, auth implementation complete across HTTP/WebSocket/MCP/CLI surfaces. Safe to archive.
+
+Safe evidence:
+- merge_commit: e9681a58d
+- current_head: e1b0f4846
+- tests_passed: 15386
+- tests_failed: 1 (unrelated timeout)
+- child_tasks: 5 (OOMPAH-522-526)
+- quality_gate_previous: PASSED (69.5s)
+- branch_age_days: 8
+- auth_tests: PASSED (test_http_auth.py, test_ws_full_sync.py, test_mcp_gateway.py)
 ---
 <!-- COMMENTS:END -->
