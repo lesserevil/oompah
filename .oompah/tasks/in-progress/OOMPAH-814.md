@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: Needs Human
+status: In Progress
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:59:38.527735Z'
+updated_at: '2026-08-05T01:00:05.564176Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
