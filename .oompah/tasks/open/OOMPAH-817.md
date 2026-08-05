@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:08:04.840046Z'
+updated_at: '2026-08-05T01:08:12.793050Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Live reproduction during direct-owner takeover of OOMPAH-814 on 2026-08-05: Proj
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 01:08
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
