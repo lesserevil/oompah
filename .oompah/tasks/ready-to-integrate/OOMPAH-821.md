@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:23:00.355911Z'
+updated_at: '2026-08-05T06:23:16.051295Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -256,5 +256,24 @@ author: oompah
 created: 2026-08-05 06:23
 ---
 Aligned terminal-audit recovery alerts with retryable mixed-attempt histories. Implemented canonical retry-eligibility consumer in orchestrator to ensure alert/action parity: recovery alerts only suggest actions that will actually succeed based on TERMINAL attempt classification.
+---
+author: oompah
+created: 2026-08-05 06:23
+---
+Completion: OOMPAH-821 submitted for integration. 
+
+Delivered:
+✓ Canonical retry-eligibility functions (is_audit_infrastructure_retryable, is_audit_evidence_retryable) used by both retry_failed_audit() and recovery alert generation
+✓ _determine_terminal_audit_recovery_mode() helper in orchestrator that queries metadata and classifies retryability based on TERMINAL attempt
+✓ Alert/action parity: recovery alerts now generate mode-specific messages (evidence_addendum, infrastructure, or None)
+✓ Mixed attempt history support: FINALIZATION_FAILURE + terminal NO_AUDITOR now correctly suggests infrastructure recovery
+✓ Comprehensive test suite (TestRetryEligibilityFunctions): 9 tests covering all retryable classifications and edge cases
+✓ All 201 focused tests pass (143 terminal transition + 58 audit/observability)
+
+Implementation ensures:
+- Same-head integration reflow cannot move exhausted task into state where advertised recovery command is rejected
+- Owner authentication, evidence fingerprint fencing, independent-auditor requirements preserved
+- Alert/action parity for every supported terminal failure classification
+- OOMPAH-745 regression fixed: mixed attempt history doesn't block infrastructure retry
 ---
 <!-- COMMENTS:END -->

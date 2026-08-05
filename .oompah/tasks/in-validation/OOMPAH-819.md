@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T06:23:04.748033Z'
+updated_at: '2026-08-05T06:23:21.188428Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -53,13 +53,17 @@ oompah.integration:
   submitted_at: '2026-08-05T05:34:40.842315+00:00'
   updated_at: '2026-08-05T05:54:45.428840+00:00'
 oompah.task_costs:
-  total_input_tokens: 47589
-  total_output_tokens: 254
+  total_input_tokens: 47675
+  total_output_tokens: 3820
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 47589
       output_tokens: 254
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 86
+      output_tokens: 3566
       cost_usd: 0.0
   runs:
   - profile: default
@@ -68,6 +72,12 @@ oompah.task_costs:
     output_tokens: 254
     cost_usd: 0.0
     recorded_at: '2026-08-05T04:54:02.158626+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 86
+    output_tokens: 3566
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T06:23:17.216825+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-819__20260805T045317Z
@@ -233,5 +243,15 @@ author: oompah
 created: 2026-08-05 06:23
 ---
 Verified process ancestry correction: the redundant second audit suite root was make-test PID 3437512 in this terminal-audit worktree; that exact tree is now terminated. Do not relaunch a full suite. Complete from durable exact-head gate evidence plus bounded inspection.
+---
+author: oompah
+created: 2026-08-05 06:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 63
+- Tokens: 86 in / 3.6K out [3.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 14s
+- Log: OOMPAH-819__20260805T055612Z.jsonl
 ---
 <!-- COMMENTS:END -->
