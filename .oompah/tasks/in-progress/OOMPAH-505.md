@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T04:53:42.447827Z'
+updated_at: '2026-08-05T05:14:03.708603Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -984,5 +984,10 @@ author: oompah
 created: 2026-08-05 04:53
 ---
 Understanding: I'm verifying the complete explicit Claude/Codex model tiers implementation. Previous agents completed backend descriptors (supports_manual_model_selection separated from has_catalog), UI with manual model entry and SDK fallback, role store validation, and dispatch tests. The branch includes commits ab00e7cf3 and 5cf99179e merged via PR #564. Testing auth/API boundaries, configuration round-trip, and dispatch propagation. Will verify submission readiness.
+---
+author: oompah
+created: 2026-08-05 05:14
+---
+Discovery: Implementation verified complete and comprehensive. Backend descriptors: Claude and Codex both return True for supports_manual_model_selection() independent of catalog discovery. Role store: RoleCandidate class with explicit model field, round-trip persistence, multi-candidate strategy support (priority/round-robin). API: Endpoints test candidates with provider_id/model, validation, backward compatibility. UI: Manual model entry with SDK-default fallback. Dispatch tests: focus_explicit_model_wins, focus_model_role_wins_over_profile prove explicit model propagation through all tiers. All 15,387 tests passing, 1,458 OOMPAH-505-related tests covering descriptors, candidates, API, UI, dispatch. make check-secrets clean.
 ---
 <!-- COMMENTS:END -->
