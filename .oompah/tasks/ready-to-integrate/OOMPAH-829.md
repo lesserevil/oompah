@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-829
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Migrate legacy equivalent Done-override fingerprints for structural maintenance
   tasks
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:08:23.408430Z'
+updated_at: '2026-08-05T19:08:50.777232Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d3fabe44-0203-4ac9-96ea-01f088528f3a
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48324
   total_output_tokens: 274
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-829
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:25:26.100920+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-829
+  head_sha: 8c262588c86e873665bc92fe0b885f6d734412bf
+  submitted_at: '2026-08-05T19:08:30.124055+00:00'
+  updated_at: '2026-08-05T19:08:30.124055+00:00'
 ---
 ## Summary
 
@@ -139,5 +147,20 @@ author: oompah
 created: 2026-08-05 19:08
 ---
 Completion: delivered and pushed commit 8c262588c86e873665bc92fe0b885f6d734412bf on OOMPAH-829. The migration reconstructs only the durable integrated/work-branch fingerprint pair, checkpoints versioned equivalence before the one Done mutation, revalidates authority during locked execution and crash recovery, and retires only exact task-scoped incompatible Merged metadata. Production-shaped OOMPAH-660, OOMPAH-662 control, fail-closed drift/outage/classification, restart recovery, idempotence, and cross-project isolation are covered. Branch is clean and matches origin; GitHub has no pre-existing PR or Actions run for this branch.
+---
+author: oompah
+created: 2026-08-05 19:08
+---
+Migrated bounded legacy-equivalent Done override fingerprints for structural maintenance tasks with durable intent/recovery, exact metadata retirement, and production-shaped fail-closed coverage. Focused and full Makefile gates pass; pushed 8c262588c86e873665bc92fe0b885f6d734412bf.
+---
+author: oompah
+created: 2026-08-05 19:08
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 108
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 38m 59s
+- Log: OOMPAH-829__20260805T183002Z.jsonl
 ---
 <!-- COMMENTS:END -->
