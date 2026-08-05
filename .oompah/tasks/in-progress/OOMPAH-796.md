@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:42:47.965789Z'
+updated_at: '2026-08-05T19:01:50.414654Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-08-05 18:42
 ---
 Additional exact retry fence: integration.gate_blocked must remain authoritative only absent explicit same-generation retry or repair evidence. Carry retry_forced / matching repair authority into the fact and let that evidence permit the intended recovery/attempt; an unconditional state==blocked ACTION_REQUIRED would ignore OOMPAH-838 explicit retry semantics.
+---
+author: oompah
+created: 2026-08-05 19:01
+---
+Additional combined-tree contract from OOMPAH-836 review: the live_claim_precedes_history incident fixture expects an active exact integration claim to take precedence over historical recovery, but current work_decision ordering evaluates historical first and production facts do not emit the flag. Resolve this in the universal fact/decision controller (or file a precise child before completion); do not leave the incident contract disconnected from production facts.
 ---
 <!-- COMMENTS:END -->
