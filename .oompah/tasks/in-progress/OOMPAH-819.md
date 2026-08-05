@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T03:07:00.478946Z'
+updated_at: '2026-08-05T03:08:05.217106Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live regression on 2026-08-05 while resubmitting OOMPAH-818: task branch advance
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 03:08
+---
+Started implementation. The tracker claim is live, but the claimed /home/shedwards/.oompah/worktrees/oompah/OOMPAH-819 checkout and local OOMPAH-819 branch were absent from Git's worktree registry. I am resolving the recorded claim base and will recreate only that missing checkout before implementing the exact-head Ready reconciliation fence and race regressions.
+---
+<!-- COMMENTS:END -->
