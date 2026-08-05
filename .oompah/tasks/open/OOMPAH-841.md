@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-841
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:41:26.625994Z'
+updated_at: '2026-08-05T20:42:05.769111Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,12 +20,16 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: OOMPAH-841
+  base_branch: epic-OOMPAH-763
   head_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
   submitted_at: '2026-08-05T20:41:19.024936+00:00'
-  updated_at: '2026-08-05T20:41:19.024936+00:00'
+  updated_at: '2026-08-05T20:41:57.592699+00:00'
+  last_error: task worktree head bb42de1e71f355a8f0eb2c4c0ddd958715b646e6 differs
+    from the published task head 58ffd477b19f370c7ed53a191e1a05580b016c85; refusing
+    to reset a preserved recovery snapshot
 ---
 ## Summary
 
@@ -88,5 +92,12 @@ author: oompah
 created: 2026-08-05 20:41
 ---
 Prevented native provider bootstrap processes from acquiring validation capacity, pinned trusted executable identities, and added exact safe recovery for legacy provider-root leases; 254 focused tests and all static/security checks passed.
+---
+author: oompah
+created: 2026-08-05 20:42
+---
+Integration could not verify `OOMPAH-841`: task worktree head bb42de1e71f355a8f0eb2c4c0ddd958715b646e6 differs from the published task head 58ffd477b19f370c7ed53a191e1a05580b016c85; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
