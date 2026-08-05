@@ -14,13 +14,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:31:57.626503Z'
+updated_at: '2026-08-05T00:32:06.513078Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b3ac4afc-3a05-48d7-bfe6-dc0f2e807b9c
+oompah.agent_run_id: 0f4058aa-239b-4ee1-9d79-888fd85318d5
 oompah.work_branch: epic-OOMPAH-521
 oompah.task_costs:
   total_input_tokens: 1067620
@@ -208,6 +208,23 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-05T00:02:21.683687+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 204d885d71bcc81769e05f23d1e4547ae43b843a5e2fae0c8f002a7c40e9dd7a
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 352d5ced-8ed6-4444-81c4-15e4c68f2569
+  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
+  claimed_at: '2026-08-05T00:31:57.661931+00:00'
+  claim_expires_at: '2026-08-05T01:01:57.661931+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
@@ -546,5 +563,10 @@ created: 2026-08-05 00:29
 **Evidence:** current review 567 is merged
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 00:32
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
