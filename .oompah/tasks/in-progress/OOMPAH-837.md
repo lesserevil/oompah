@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-05T16:39:15.847448Z'
+updated_at: '2026-08-05T17:02:58.678279Z'
 work_branch: null
 target_branch: null
 review_url: null
