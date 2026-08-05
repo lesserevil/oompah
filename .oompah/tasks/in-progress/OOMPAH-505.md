@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T15:08:32.800460Z'
+updated_at: '2026-08-05T16:59:22.073315Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: null
+oompah.agent_run_id: 9fc0b24f-7097-46e9-b6f2-b106e5f9b822
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9681529
@@ -272,16 +272,12 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
-  base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  submitted_at: '2026-08-05T14:37:55.501617+00:00'
-  updated_at: '2026-08-05T15:08:25.582853+00:00'
-  last_error: 'fatal: cannot change to ''/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-502'':
-    No such file or directory'
+  base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
+  updated_at: '2026-08-05T16:59:20.776439+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1277,5 +1273,10 @@ created: 2026-08-05 15:08
 Integration could not verify `epic-OOMPAH-502--task-OOMPAH-505`: fatal: cannot change to '/home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-502': No such file or directory
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-05 16:59
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
