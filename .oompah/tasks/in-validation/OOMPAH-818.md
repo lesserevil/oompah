@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:49:23.941577Z'
+updated_at: '2026-08-05T05:55:45.369691Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
@@ -117,6 +117,31 @@ oompah.work_branch: OOMPAH-818
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-86c05f6b1b39: '2026-08-05T05:55:33.013042+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Done
+    evidence_fingerprint: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    audit_ids:
+    - audit-e913d52ad78b
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T05:55:33.013051+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    audit_id: audit-e913d52ad78b
+    attempt_id: attempt-86c05f6b1b39
+    target_state: Done
+    evidence_fingerprint: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    status: In Validation
+    audit_ids:
+    - audit-e913d52ad78b
+    applied: true
+    created_at: '2026-08-05T05:55:33.013063+00:00'
+    applied_at: '2026-08-05T05:55:42.757931+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -189,7 +214,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -217,7 +242,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-86c05f6b1b39
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -228,13 +253,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T05:49:15.906687+00:00'
       branch_key: OOMPAH-818
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-05T05:55:33.012945+00:00'
+      ended_at: '2026-08-05T05:55:33.012945+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T05:42:38.136978+00:00'
-    updated_at: '2026-08-05T05:49:15.906687+00:00'
+    updated_at: '2026-08-05T05:55:33.012945+00:00'
   - version: 1
     audit_id: audit-5655290fb5cc
     project_id: proj-14849f1b
@@ -483,5 +511,21 @@ author: oompah
 created: 2026-08-05 05:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 05:55
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
+- pr: 718
+- merge_status: merged to main
+- test_watchdog: 122/122 passed
+- test_integration_queue: 25/25 passed
+- gate_class_count: 32/32 TestGateFailureFencesWatchdogReopen passed
+- full_gate_result: make test passed in 447.1s at e3140b65f
 ---
 <!-- COMMENTS:END -->
