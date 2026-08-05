@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:09.212852Z'
-updated_at: '2026-08-05T19:29:49.586679Z'
+updated_at: '2026-08-05T19:41:09.162079Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-547
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +35,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bf8b6e697d8d
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,18 +45,24 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T19:29:29.140327+00:00'
       branch_key: OOMPAH-547
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-05T19:41:00.478829+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy permits only read-only repository inspection and
+        configured test commands; command denied'
+      next_retry_at: '2026-08-05T19:41:10.478799+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T19:24:20.053853+00:00'
-    updated_at: '2026-08-05T19:29:29.140327+00:00'
+    updated_at: '2026-08-05T19:41:00.478829+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bf8b6e697d8d
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,6 +72,28 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T19:29:29.140327+00:00'
     branch_key: OOMPAH-547
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-05T19:41:00.478829+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy permits only read-only repository inspection and configured
+      test commands; command denied'
+    next_retry_at: '2026-08-05T19:41:10.478799+00:00'
+oompah.task_costs:
+  total_input_tokens: 57
+  total_output_tokens: 1975
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 57
+      output_tokens: 1975
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 57
+    output_tokens: 1975
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:40:57.093997+00:00'
 ---
 ## Summary
 
@@ -122,5 +150,20 @@ author: oompah
 created: 2026-08-05 19:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 34
+- Tokens: 57 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 13s
+- Log: OOMPAH-547__20260805T192953Z.jsonl
+---
+author: oompah
+created: 2026-08-05 19:41
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
 ---
 <!-- COMMENTS:END -->
