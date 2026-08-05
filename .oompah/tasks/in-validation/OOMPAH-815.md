@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-815
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Preserve accepted child branch identity across repair dispatch
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T15:20:41.493321Z'
+updated_at: '2026-08-05T15:46:54.591997Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -60,14 +60,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-815
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-815
   base_branch: epic-OOMPAH-763
   base_sha: 22252cc0486e919a657d15e5367ce29476622ce3
   head_sha: 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce
+  integrated_sha: 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce
   submitted_at: '2026-08-05T15:20:34.216015+00:00'
-  updated_at: '2026-08-05T15:20:34.216015+00:00'
+  updated_at: '2026-08-05T15:46:45.165377+00:00'
 oompah.task_costs:
   total_input_tokens: 48168
   total_output_tokens: 5288
@@ -100,6 +101,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-815
     source_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
     completed_at: '2026-08-05T00:34:07.357924+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cdb3a68f1765
+    project_id: proj-14849f1b
+    task_id: OOMPAH-815
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a26816809a2ddf483c46696bb3cb32e37f1ccc0374a87dd6f015032624afc144
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T15:46:48.635769+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -256,5 +279,10 @@ author: oompah
 created: 2026-08-05 15:20
 ---
 Fixed the eight stale project-lock test doubles exposed by the canonical full gate; repeated focused verification and independent exact-head review pass at 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce.
+---
+author: oompah
+created: 2026-08-05 15:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
