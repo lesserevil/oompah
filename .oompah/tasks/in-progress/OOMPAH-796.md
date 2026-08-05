@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T19:01:50.414654Z'
+updated_at: '2026-08-05T19:22:19.292591Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -59,13 +59,17 @@ oompah.integration:
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
   updated_at: '2026-08-05T18:16:22.645873+00:00'
 oompah.task_costs:
-  total_input_tokens: 46596
-  total_output_tokens: 599
+  total_input_tokens: 46681
+  total_output_tokens: 2620
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46596
       output_tokens: 599
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 85
+      output_tokens: 2021
       cost_usd: 0.0
   runs:
   - profile: default
@@ -86,6 +90,12 @@ oompah.task_costs:
     output_tokens: 100
     cost_usd: 0.0
     recorded_at: '2026-08-05T18:14:23.248101+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 85
+    output_tokens: 2021
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:22:11.940904+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-796__20260804T212503Z
@@ -288,5 +298,20 @@ author: oompah
 created: 2026-08-05 19:01
 ---
 Additional combined-tree contract from OOMPAH-836 review: the live_claim_precedes_history incident fixture expects an active exact integration claim to take precedence over historical recovery, but current work_decision ordering evaluates historical first and production facts do not emit the flag. Resolve this in the universal fact/decision controller (or file a precise child before completion); do not leave the incident contract disconnected from production facts.
+---
+author: oompah
+created: 2026-08-05 19:22
+---
+Agent stalled 1 time(s) (3959s (2106 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (attempt #2)
+---
+author: oompah
+created: 2026-08-05 19:22
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 79, Tool calls: 48
+- Tokens: 85 in / 2.0K out [2.1K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 5m 59s
+- Log: OOMPAH-796__20260805T181630Z.jsonl
 ---
 <!-- COMMENTS:END -->
