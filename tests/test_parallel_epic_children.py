@@ -19,7 +19,13 @@ from oompah.models import (
     RunningEntry,
 )
 from oompah.orchestrator import Orchestrator
-from oompah.projects import ProjectError, ProjectStore
+from oompah.projects import (
+    ProjectError,
+    ProjectStore,
+    RecoveryPublicationError,
+    _worktree_pending_recovery_ref,
+    _worktree_recovery_ref,
+)
 from oompah.roles import Candidate
 from oompah.server import _integration_queue_summary
 from oompah.terminal_audit import EvidenceFingerprint, TargetState
@@ -1025,6 +1031,181 @@ def test_parallel_repair_reuses_accepted_plain_branch_and_repairs_projection(
         "oompah.work_branch",
         "OOMPAH-814",
     )
+
+
+def test_accepted_plain_branch_reconciles_pending_recovery_without_reset(
+    tmp_path,
+):
+    """Accepted OOMPAH-815 authority composes with OOMPAH-817 recovery."""
+
+    authority = tmp_path / "authority"
+    authority.mkdir()
+
+    def git(repo, *args, check=True):
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=check,
+            capture_output=True,
+            text=True,
+        )
+
+    git(authority, "init", "--initial-branch=main")
+    git(authority, "config", "user.name", "Test")
+    git(authority, "config", "user.email", "test@example.com")
+    (authority / "base.txt").write_text("base\n", encoding="utf-8")
+    git(authority, "add", "base.txt")
+    git(authority, "commit", "-m", "base")
+    base_head = git(authority, "rev-parse", "HEAD").stdout.strip()
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    project = Project(
+        id="project-recovery-seam",
+        name="recovery-seam",
+        repo_url=str(authority),
+        repo_path=str(authority),
+        branch="main",
+        default_branch="main",
+        epic_strategy="shared",
+    )
+    store._projects[project.id] = project
+    task_id = "OOMPAH-814"
+    accepted_branch = task_id
+    checkout = Path(store.worktree_path_for(project.id, task_id))
+    checkout.parent.mkdir(parents=True)
+    git(tmp_path, "clone", str(authority), str(checkout))
+    git(checkout, "config", "user.name", "Test")
+    git(checkout, "config", "user.email", "test@example.com")
+    git(checkout, "switch", "-c", accepted_branch)
+    (checkout / "recovered.txt").write_text(
+        "accepted recovery\n",
+        encoding="utf-8",
+    )
+
+    with patch(
+        "oompah.projects._transfer_recovery_snapshot_objects",
+        side_effect=ProjectError("authority temporarily unavailable"),
+    ):
+        with pytest.raises(RecoveryPublicationError) as raised:
+            store.preserve_worktree_changes(
+                project.id,
+                task_id,
+                str(checkout),
+                accepted_branch,
+            )
+    accepted_head = str(raised.value.context["snapshot_head"])
+    pending_ref = _worktree_pending_recovery_ref(task_id)
+    recovery_ref = _worktree_recovery_ref(task_id)
+    assert git(checkout, "rev-parse", "HEAD").stdout.strip() == accepted_head
+    assert (
+        git(checkout, "rev-parse", f"{pending_ref}^{{commit}}").stdout.strip()
+        == accepted_head
+    )
+    assert git(
+        authority,
+        "rev-parse",
+        "--verify",
+        recovery_ref,
+        check=False,
+    ).returncode != 0
+    git(checkout, "push", "origin", f"HEAD:refs/heads/{accepted_branch}")
+
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store = store
+    orchestrator.config.parallel_epic_children_enabled = True
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    accepted = IntegrationRecord(
+        state="blocked",
+        task_branch=accepted_branch,
+        base_branch="epic-OOMPAH-763",
+        base_sha=base_head,
+        head_sha=accepted_head,
+        last_error="retry after exact gate failure",
+    )
+    child = _make_issue(
+        identifier=task_id,
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+    )
+    child.integration = accepted
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+    git_calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def record_git(args, *positional, **kwargs):
+        git_calls.append(list(args))
+        return real_run(args, *positional, **kwargs)
+
+    with (
+        patch.object(orchestrator, "_tracker_for_issue", return_value=tracker),
+        patch.object(
+            store,
+            "prepare_epic_branch_for_private_dispatch",
+            return_value=(str(tmp_path / "epic"), base_head),
+        ),
+        patch.object(
+            store,
+            "epic_child_branch_name",
+            wraps=store.epic_child_branch_name,
+        ) as hierarchy_branch,
+        patch.object(
+            store,
+            "create_worktree",
+            wraps=store.create_worktree,
+        ) as create_worktree,
+        patch("oompah.projects.subprocess.run", side_effect=record_git),
+    ):
+        workspace, shared_epic = orchestrator._create_workspace_for_issue(child)
+
+    assert Path(workspace).resolve() == checkout.resolve()
+    assert shared_epic is None
+    assert child.work_branch == accepted_branch
+    assert child.branch_name == accepted_branch
+    assert child.integration is accepted
+    hierarchy_branch.assert_not_called()
+    create_worktree.assert_called_once_with(
+        project.id,
+        task_id,
+        base_branch="epic-OOMPAH-763",
+        branch_name=accepted_branch,
+        prefer_remote_branch=True,
+        expected_head_sha=accepted_head,
+    )
+    tracker.set_metadata_field.assert_called_once_with(
+        task_id,
+        "oompah.work_branch",
+        accepted_branch,
+    )
+    assert not any(
+        command[:2] in (["git", "reset"], ["git", "clean"])
+        for command in git_calls
+    )
+    assert git(checkout, "rev-parse", "HEAD").stdout.strip() == accepted_head
+    assert git(
+        checkout,
+        "show-ref",
+        "--verify",
+        "--quiet",
+        pending_ref,
+        check=False,
+    ).returncode == 1
+    assert (
+        git(authority, "rev-parse", f"{recovery_ref}^{{commit}}").stdout.strip()
+        == accepted_head
+    )
+    assert child.worktree_recovery["publication_state"] == "published"
+    assert child.worktree_recovery["snapshot_head"] == accepted_head
 
 
 def test_parallel_restart_reuses_working_accepted_branch_projection(tmp_path):
