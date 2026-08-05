@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:56:29.810407Z'
+updated_at: '2026-08-05T05:57:04.590597Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
@@ -274,18 +274,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-607ac6dbb05e
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+      created_at: '2026-08-05T05:56:53.531522+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T05:56:53.531522+00:00'
+      branch_key: OOMPAH-818
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T05:42:38.136978+00:00'
+    updated_at: '2026-08-05T05:56:53.531522+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-885c15bc709c
@@ -333,6 +347,19 @@ oompah.terminal_audit:
     started_at: '2026-08-05T05:49:15.906687+00:00'
     branch_key: OOMPAH-818
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-607ac6dbb05e
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    created_at: '2026-08-05T05:56:53.531522+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T05:56:53.531522+00:00'
+    branch_key: OOMPAH-818
 oompah.review_head: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
 ---
 ## Summary
@@ -543,5 +570,15 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 9s
 - Log: OOMPAH-818__20260805T054925Z.jsonl
+---
+author: oompah
+created: 2026-08-05 05:57
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 05:57
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
