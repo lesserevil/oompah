@@ -10,12 +10,13 @@ blocked_by:
 - OOMPAH-793
 - OOMPAH-812
 - OOMPAH-813
+- OOMPAH-807
 start_blocked_by: &id001
 - OOMPAH-785
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-05T00:13:03.333333Z'
+updated_at: '2026-08-05T00:13:32.567483Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -280,5 +281,10 @@ author: oompah
 created: 2026-08-05 00:11
 ---
 Advanced the prepared domain stack onto OOMPAH-813 exact head 7eada51f6 after OOMPAH-782 landed. Six OOMPAH-791 patches rebased cleanly; new pushed head a1b0c82ef6d67c6c8e20bd3471407a43a4bd0199. Post-rebase epic/workflow/integration/submission-fencing smoke: 74 passed; diff check clean. Hold submission until OOMPAH-813 lands.
+---
+author: oompah
+created: 2026-08-05 00:13
+---
+Added finish-order dependency on root repair OOMPAH-807. Once OOMPAH-814 lands and 807 rebases/passes, refresh epic-OOMPAH-768 onto that exact common root lineage and rebase this prepared stack once more before submission. This carries the stable gate fixture plus metadata-only audit fix into the production composition and avoids repeatedly gating divergent nested lineages.
 ---
 <!-- COMMENTS:END -->
