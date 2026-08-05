@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T06:33:14.556018Z'
+updated_at: '2026-08-05T06:48:31.768062Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -21,15 +21,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 1
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-763--task-OOMPAH-814
   base_branch: epic-OOMPAH-763
   base_sha: ceafd8e14100964ee84821c4fbe75cf0ac772f43
   head_sha: 7bf278b09de0a311c1d1050f6733c5fc9f530975
+  integrated_sha: 7bf278b09de0a311c1d1050f6733c5fc9f530975
   submitted_at: '2026-08-05T06:17:37.420216+00:00'
-  updated_at: '2026-08-05T06:33:13.140691+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-08-05T06:48:22.433762+00:00'
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-814
 oompah.duplicate_screening:
@@ -82,6 +82,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-814
     source_sha: cb1446d4beba7ad83a1b67d94574ad5c01cf8814
     completed_at: '2026-08-05T00:30:51.940545+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-52af8741de4f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-814
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T06:48:25.196547+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -450,5 +472,10 @@ author: oompah
 created: 2026-08-05 06:23
 ---
 Operator correction: while protecting the heavyweight lane, I initially misidentified two concurrent process trees and terminated this exact gate's sandbox root instead of the redundant OOMPAH-819 audit tree. Process ancestry/cwd evidence corrected the mistake immediately; the verified OOMPAH-819 make-test root has now been terminated. Treat this OOMPAH-814 gate interruption as operator-caused infrastructure failure, not candidate evidence. I will requeue unchanged exact head 7bf278b09de0a311c1d1050f6733c5fc9f530975 for a clean canonical gate once the interrupted row settles.
+---
+author: oompah
+created: 2026-08-05 06:48
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
