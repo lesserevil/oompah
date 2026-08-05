@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T21:17:53.842462Z'
+updated_at: '2026-08-05T21:18:28.716581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,19 +38,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-841
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ef651c224859
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
+      created_at: '2026-08-05T21:18:20.629995+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T21:18:20.629995+00:00'
+      branch_key: OOMPAH-841
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T21:17:48.052797+00:00'
-  attempt_history: []
+    updated_at: '2026-08-05T21:18:20.629995+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ef651c224859
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
+    created_at: '2026-08-05T21:18:20.629995+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T21:18:20.629995+00:00'
+    branch_key: OOMPAH-841
 ---
 ## Summary
 
@@ -130,5 +157,15 @@ author: oompah
 created: 2026-08-05 21:17
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 21:18
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 21:18
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
