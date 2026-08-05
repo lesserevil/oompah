@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T01:11:08.980367Z'
+updated_at: '2026-08-05T01:11:33.166356Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-813
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -86,13 +86,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-05T01:11:18.724775+00:00'
+    - version: 1
+      attempt_id: attempt-b5b143d24221
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9cf287da8ca8c3edc626b125a6e1b4d1da7c80ee201d4e8c38ea79184375a665
+      created_at: '2026-08-05T01:11:22.915135+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-05T01:11:22.915135+00:00'
+      branch_key: OOMPAH-813
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T00:46:11.334005+00:00'
-    updated_at: '2026-08-05T01:10:58.724802+00:00'
+    updated_at: '2026-08-05T01:11:22.915135+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fa066f51e77c
@@ -133,6 +147,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-05T01:11:18.724775+00:00'
+  - version: 1
+    attempt_id: attempt-b5b143d24221
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cf287da8ca8c3edc626b125a6e1b4d1da7c80ee201d4e8c38ea79184375a665
+    created_at: '2026-08-05T01:11:22.915135+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-05T01:11:22.915135+00:00'
+    branch_key: OOMPAH-813
+    candidate_rotation_count: 2
 oompah.task_costs:
   total_input_tokens: 104
   total_output_tokens: 2871
@@ -262,5 +290,20 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 57s
 - Log: OOMPAH-813__20260805T010602Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:11
+---
+Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-05 01:11
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-05 01:11
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
