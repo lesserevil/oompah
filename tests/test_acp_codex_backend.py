@@ -74,6 +74,23 @@ class TestCodexRegistration:
         assert "claude" in BACKENDS
         assert BACKENDS["claude"] is ClaudeAcpBackend
 
+    def test_registry_lists_both(self):
+        """Both backends remain available to the provider UI."""
+
+        assert {"claude", "codex"}.issubset(set(BACKENDS.keys()))
+
+    def test_acp_mode_provider_with_codex_validates_via_registry(self):
+        """An ACP Codex provider resolves through the backend registry."""
+
+        provider = ModelProvider(
+            id="p",
+            name="codex",
+            base_url="",
+            backend="codex",
+            api_key="sk-codex-test",
+        )
+        assert provider.validate_for_mode("acp") == []
+
 
 def test_codex_completed_message_extracts_verdict_before_display_truncation():
     text = (
@@ -101,21 +118,17 @@ def test_codex_completed_message_extracts_verdict_before_display_truncation():
         "no_duplicate"
     )
 
-    def test_registry_lists_both(self):
-        """Both backends present so the /providers UI dropdown can
-        offer the operator a real choice."""
-        assert {"claude", "codex"}.issubset(set(BACKENDS.keys()))
 
-    def test_acp_mode_provider_with_codex_validates_via_registry(self):
-        """Provider record with mode=acp + backend='codex' passes the
-        registry lookup check (validate_for_mode) — acceptance
-        criterion in the task description."""
-        provider = ModelProvider(
-            id="p", name="codex", base_url="", backend="codex",
-            api_key="sk-codex-test",
+def test_codex_native_validation_uses_server_authority_generation():
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path="/tmp/ws",
+            prompt="screen",
+            validation_authority_generation="server-generation",
         )
-        # Backend resolves and registry-level validation is empty.
-        assert provider.validate_for_mode("acp") == []
+    )
+
+    assert session._native_cli_validation_generation == "server-generation"
 
 
 # ----------------------------------------------------------------------

@@ -9,6 +9,7 @@ process cannot make a still-running command disappear from capacity.
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import logging
 import os
 import shlex
@@ -28,6 +29,29 @@ except ImportError:  # pragma: no cover
 
 
 logger = logging.getLogger(__name__)
+
+_ABSOLUTE_LIGHTWEIGHT_INSPECTION_TOOLS = frozenset(
+    {
+        "awk",
+        "cat",
+        "cut",
+        "diff",
+        "find",
+        "git",
+        "grep",
+        "head",
+        "jq",
+        "ls",
+        "pwd",
+        "rg",
+        "sed",
+        "stat",
+        "tail",
+        "wc",
+    }
+)
+_CANCELLED_OWNER_RETENTION_SECONDS = 24 * 60 * 60
+_CANCELLED_OWNER_LIMIT = 1024
 
 VALIDATION_KIND_EXACT_GATE = "exact_gate"
 VALIDATION_KIND_AUDITOR = "auditor"
@@ -157,6 +181,17 @@ def _process_start_ticks(pid: int) -> int | None:
         return None
 
 
+def _process_stat(pid: int) -> tuple[str, int, int] | None:
+    """Return state, process-group id, and start ticks for one Linux PID."""
+
+    try:
+        raw = Path(f"/proc/{int(pid)}/stat").read_text(encoding="utf-8")
+        fields = raw[raw.rfind(")") + 2 :].split()
+        return fields[0], int(fields[2]), int(fields[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def _process_identity_alive(pid: object, start_ticks: object) -> bool:
     try:
         expected = int(start_ticks)
@@ -166,10 +201,163 @@ def _process_identity_alive(pid: object, start_ticks: object) -> bool:
     return current is not None and current == expected
 
 
+def _pidfd_open(pid: int) -> int:
+    """Open a Linux pidfd even on Python builds that omit ``os.pidfd_open``."""
+
+    native = getattr(os, "pidfd_open", None)
+    if callable(native):
+        return int(native(pid, 0))
+    libc = ctypes.CDLL(None, use_errno=True)
+    function = libc.pidfd_open
+    function.argtypes = (ctypes.c_int, ctypes.c_uint)
+    function.restype = ctypes.c_int
+    descriptor = int(function(int(pid), 0))
+    if descriptor < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    return descriptor
+
+
+def _pidfd_send_signal(pidfd: int, signum: int) -> None:
+    """Signal the exact process referenced by a Linux pidfd."""
+
+    native = getattr(signal, "pidfd_send_signal", None)
+    if callable(native):
+        native(pidfd, signum)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    function = libc.pidfd_send_signal
+    function.argtypes = (
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        ctypes.c_uint,
+    )
+    function.restype = ctypes.c_int
+    if int(function(int(pidfd), int(signum), None, 0)) < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def _stop_exact_process_group_leader(
+    pid: object,
+    start_ticks: object,
+) -> int | None:
+    """Pin an exact live process-group leader and return its pidfd.
+
+    A stale numeric PID/PGID is never sufficient authority for ``killpg``.
+    Stopping the start-tick-matched leader through its pidfd keeps that process
+    group id reserved while the caller signals the group.
+    """
+
+    try:
+        normalized_pid = int(pid)
+        expected_ticks = int(start_ticks)
+    except (TypeError, ValueError):
+        return None
+    if normalized_pid == os.getpid():
+        # A caller cannot synchronously stop itself and still perform the
+        # identity checks, group signal, and resume sequence below.
+        return None
+    if not _process_identity_alive(normalized_pid, expected_ticks):
+        return None
+    try:
+        pidfd = _pidfd_open(normalized_pid)
+    except (OSError, ProcessLookupError):
+        return None
+    keep_stopped = False
+    try:
+        stat_record = _process_stat(normalized_pid)
+        if (
+            stat_record is None
+            or stat_record[1] != normalized_pid
+            or stat_record[2] != expected_ticks
+        ):
+            return None
+        try:
+            _pidfd_send_signal(pidfd, signal.SIGSTOP)
+        except (OSError, ProcessLookupError):
+            return None
+        stop_deadline = time.monotonic() + 0.25
+        while time.monotonic() < stop_deadline:
+            stat_record = _process_stat(normalized_pid)
+            if stat_record is None or stat_record[2] != expected_ticks:
+                return None
+            if stat_record[0] in {"T", "t"}:
+                keep_stopped = True
+                return pidfd
+            time.sleep(0.005)
+        return None
+    finally:
+        if not keep_stopped:
+            with contextlib.suppress(OSError, ProcessLookupError):
+                _pidfd_send_signal(pidfd, signal.SIGCONT)
+            os.close(pidfd)
+
+
+def _terminate_exact_process_group(
+    pid: object,
+    start_ticks: object,
+    *,
+    grace_seconds: float = 0.25,
+) -> bool:
+    """Terminate only a live, identity-fenced process group."""
+
+    try:
+        normalized_pid = int(pid)
+        expected_ticks = int(start_ticks)
+    except (TypeError, ValueError):
+        return False
+    pidfd = _stop_exact_process_group_leader(normalized_pid, expected_ticks)
+    if pidfd is None:
+        return False
+    resumed = False
+    try:
+        try:
+            os.killpg(normalized_pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            return False
+        with contextlib.suppress(OSError, ProcessLookupError):
+            _pidfd_send_signal(pidfd, signal.SIGCONT)
+            resumed = True
+        deadline = time.monotonic() + max(float(grace_seconds), 0.0)
+        while (
+            time.monotonic() < deadline
+            and _process_identity_alive(normalized_pid, expected_ticks)
+        ):
+            time.sleep(0.01)
+        if _process_identity_alive(normalized_pid, expected_ticks):
+            # Re-pin the exact leader before escalating.  If it exited, its
+            # old numeric group id is no longer safe to address.
+            second_pidfd = _stop_exact_process_group_leader(
+                normalized_pid,
+                expected_ticks,
+            )
+            if second_pidfd is not None:
+                try:
+                    with contextlib.suppress(ProcessLookupError, PermissionError):
+                        os.killpg(normalized_pid, signal.SIGKILL)
+                finally:
+                    os.close(second_pidfd)
+        return True
+    finally:
+        if not resumed:
+            with contextlib.suppress(OSError, ProcessLookupError):
+                _pidfd_send_signal(pidfd, signal.SIGCONT)
+        os.close(pidfd)
+
+
 def _shell_segments(command: str) -> list[list[str]]:
     """Tokenize top-level shell commands without executing shell syntax."""
 
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+    # A literal newline is a shell command boundary just like ``;``.  shlex
+    # otherwise treats it as ordinary whitespace, which let a light first
+    # command hide a heavyweight command on the following line.
+    lexer = shlex.shlex(
+        command.replace("\r\n", "\n").replace("\r", "\n").replace("\n", ";"),
+        posix=True,
+        punctuation_chars=";&|()",
+    )
     lexer.whitespace_split = True
     lexer.commenters = ""
     tokens = list(lexer)
@@ -210,6 +398,13 @@ def _command_tokens(tokens: list[str]) -> list[str]:
             }
             while index < len(tokens):
                 option = tokens[index]
+                if option in {"-S", "--split-string"} or option.startswith(
+                    ("-S", "--split-string=")
+                ):
+                    # env reparses this opaque value into a command. Mark it
+                    # heavy rather than allowing quoting or PATH changes to
+                    # bypass classification and the native PATH shims.
+                    return ["__oompah_opaque_env_split_string__"]
                 if option in env_value_options:
                     index += 2
                 elif option.startswith("-") or "=" in option:
@@ -397,6 +592,18 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
     arguments = command_tokens[first_argument:]
     if any(argument in {"--help", "-h", "--version"} for argument in arguments):
         return False
+    if any(
+        argument in {"-n", "--numprocesses", "--dist", "--forked"}
+        or argument.startswith(("-n=", "--numprocesses=", "--dist="))
+        or (
+            argument.startswith("-n")
+            and len(argument) > 2
+            and not argument.startswith("--")
+        )
+        for argument in arguments
+    ):
+        # One selected file can still fan out into a host-wide process tree.
+        return True
     positionals: list[str] = []
     skip_next = False
     options_with_values = {
@@ -582,6 +789,80 @@ def _nested_shell_command(tokens: list[str]) -> str | None:
     return None
 
 
+def _opaque_script_segment_is_heavy(tokens: list[str]) -> bool:
+    """Fail closed for configured script entrypoints we cannot inspect."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens:
+        return False
+    executable = os.path.basename(command_tokens[0])
+    if executable in {"bash", "dash", "sh", "zsh"}:
+        # Shell -c input is recursively classified by _nested_shell_command.
+        if any(
+            item in {"-c", "+c", "--command"}
+            or (
+                item.startswith(("-", "+"))
+                and not item.startswith(("--", "++"))
+                and "c" in item[1:]
+            )
+            for item in command_tokens[1:]
+        ):
+            return False
+        arguments = [
+            item
+            for item in command_tokens[1:]
+            if not item.startswith(("-", "+"))
+        ]
+        if any(item in {"--help", "--version"} for item in command_tokens[1:]):
+            return False
+        # A bare shell or -s reads opaque code from stdin (including a
+        # preceding pipeline), so absence of a script argument is not proof of
+        # bounded work.
+        return True
+    if executable == "python" or (
+        executable.startswith("python")
+        and executable[6:].replace(".", "").isdigit()
+    ):
+        arguments = command_tokens[1:]
+        if any(item in {"-h", "--help", "-V", "--version"} for item in arguments):
+            return False
+        if any(item == "-c" or item.startswith("-c") for item in arguments):
+            return True
+        if "-m" in arguments:
+            module_index = arguments.index("-m")
+            module = arguments[module_index + 1] if module_index + 1 < len(arguments) else ""
+            # The dedicated classifiers decide whether explicit pytest and
+            # unittest selectors are bounded. Other modules are opaque code.
+            return module not in {"pytest", "unittest"}
+        skip_next = False
+        for item in arguments:
+            if skip_next:
+                skip_next = False
+                continue
+            if item in {"-W", "-X", "--check-hash-based-pycs"}:
+                skip_next = True
+                continue
+            if item == "-" or not item.startswith("-"):
+                return True
+        # Bare Python (possibly with flags) executes opaque stdin.
+        return True
+    if executable in {"node", "perl", "ruby"}:
+        arguments = command_tokens[1:]
+        if any(item in {"-h", "--help", "-v", "-V", "--version"} for item in arguments):
+            return False
+        eval_options = {"-e", "--eval"} if executable == "node" else {"-e"}
+        if any(
+            item in eval_options
+            or any(item.startswith(option) and item != option for option in eval_options)
+            for item in arguments
+        ):
+            return True
+        # Option-only and bare forms can execute opaque stdin too. Help and
+        # version invocations were handled above.
+        return True
+    return False
+
+
 def is_heavyweight_validation_command(command: str) -> bool:
     """Classify auditor shell input, with heavyweight evidence winning.
 
@@ -609,9 +890,12 @@ def is_heavyweight_validation_command(command: str) -> bool:
             or _unittest_segment_is_heavy(tokens)
             or _npm_segment_is_heavy(tokens)
             or _cargo_segment_is_heavy(tokens)
+            or _opaque_script_segment_is_heavy(tokens)
         ):
             return True
         command_tokens = _command_tokens(tokens)
+        if command_tokens == ["__oompah_opaque_env_split_string__"]:
+            return True
         nested_command = _nested_shell_command(command_tokens)
         if nested_command is not None and is_heavyweight_validation_command(
             nested_command
@@ -619,6 +903,26 @@ def is_heavyweight_validation_command(command: str) -> bool:
             return True
         if command_tokens and os.path.basename(command_tokens[0]) in {"tox", "nox"}:
             return True
+        if command_tokens:
+            executable = command_tokens[0]
+            # Project-local and absolute launchers are opaque before they run.
+            # They may be configured full-suite wrappers (for example
+            # ``./ci/test.sh``), so managed validation must fail closed.  The
+            # normal bounded inspection tools are invoked by name and remain
+            # outside this branch.
+            if executable.startswith(("./", "../")):
+                return True
+            if os.path.isabs(executable):
+                trusted_system_tool = (
+                    os.path.dirname(os.path.normpath(executable))
+                    in {"/bin", "/usr/bin", "/usr/local/bin"}
+                    and os.path.basename(executable)
+                    in _ABSOLUTE_LIGHTWEIGHT_INSPECTION_TOOLS
+                )
+                if not trusted_system_tool:
+                    return True
+            elif "/" in executable:
+                return True
     return False
 
 
@@ -723,9 +1027,27 @@ class ValidationLeaseHandle:
         with self._release_lock:
             if self._released:
                 return False
-            removed = self._manager._release(self.token, self._lock_fd)
-            self._released = True
-            return removed
+            try:
+                return self._manager._release(
+                    self.token,
+                    self.slot,
+                    self._lock_fd,
+                )
+            except Exception:  # noqa: BLE001 - release must never mask a result
+                logger.exception(
+                    "Unable to finalize validation lease release token=%s slot=%s",
+                    self.token,
+                    self.slot,
+                )
+                # Close this process's duplicate without an explicit LOCK_UN:
+                # a background descendant may still hold the inherited open
+                # file description and must continue fencing capacity.
+                with contextlib.suppress(OSError):
+                    os.close(self._lock_fd)
+                return False
+            finally:
+                self._lock_fd = -1
+                self._released = True
 
     def __enter__(self) -> "ValidationLeaseHandle":
         return self
@@ -849,6 +1171,16 @@ class ValidationResourceLease:
                     project_id TEXT PRIMARY KEY,
                     last_grant INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS cancelled_owners (
+                    kind TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    authority_generation TEXT NOT NULL,
+                    cancelled_at REAL NOT NULL,
+                    PRIMARY KEY (
+                        kind, project_id, task_id, authority_generation
+                    )
+                );
                 """
             )
             existing = connection.execute(
@@ -903,7 +1235,6 @@ class ValidationResourceLease:
             except BlockingIOError:
                 os.close(fd)
             else:
-                os.set_inheritable(fd, True)
                 available[slot] = fd
         return available
 
@@ -919,27 +1250,15 @@ class ValidationResourceLease:
         now = time.time()
         with self._connect() as connection:
             rows = connection.execute(
-                """SELECT child_pid, child_start_ticks FROM owners
+                """SELECT slot, child_pid, child_start_ticks FROM owners
                    WHERE deadline_at IS NOT NULL AND deadline_at <= ?""",
                 (now,),
             ).fetchall()
         for row in rows:
             pid = row["child_pid"]
-            if not _process_identity_alive(pid, row["child_start_ticks"]):
+            if pid is None:
                 continue
-            try:
-                os.killpg(int(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                continue
-            deadline = time.monotonic() + 0.25
-            while (
-                time.monotonic() < deadline
-                and _process_identity_alive(pid, row["child_start_ticks"])
-            ):
-                time.sleep(0.01)
-            if _process_identity_alive(pid, row["child_start_ticks"]):
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(int(pid), signal.SIGKILL)
+            _terminate_exact_process_group(pid, row["child_start_ticks"])
 
     @staticmethod
     def _owner_alive(row: sqlite3.Row) -> bool:
@@ -966,10 +1285,11 @@ class ValidationResourceLease:
         owner_rows = connection.execute("SELECT * FROM owners").fetchall()
         for row in owner_rows:
             slot = int(row["slot"])
-            # A live, identity-matched owner is authoritative.  A dead owner
-            # may be removed only while this process holds the kernel slot,
-            # proving neither it nor a descendant retained the execution lock.
-            if slot in available_slots and not self._owner_alive(row):
+            # Successfully taking the kernel slot proves that neither the
+            # requester nor any descendant still owns the execution fence.
+            # This is stronger than process identity and also repairs a stale
+            # durable row after a transient release-persistence failure.
+            if slot in available_slots:
                 connection.execute("DELETE FROM owners WHERE slot = ?", (slot,))
 
     def _select_waiter(
@@ -1009,6 +1329,10 @@ class ValidationResourceLease:
                 ).fetchone()
                 if waiter is None:
                     connection.rollback()
+                    return None
+                if self._identity_cancelled_locked(connection, waiter):
+                    connection.execute("DELETE FROM waiters WHERE token = ?", (token,))
+                    connection.commit()
                     return None
                 candidate = self._select_waiter(
                     connection.execute("SELECT * FROM waiters").fetchall(),
@@ -1085,6 +1409,7 @@ class ValidationResourceLease:
         owner: ValidationLeaseOwner,
         *,
         is_cancelled: Callable[[], bool] | None = None,
+        on_wait: Callable[[], object] | None = None,
         wait_timeout_seconds: float | None = None,
     ) -> ValidationLeaseHandle:
         """Queue durably and wait without consuming command runtime timeout."""
@@ -1097,6 +1422,12 @@ class ValidationResourceLease:
         queued_at = time.time()
         queued_monotonic = time.monotonic()
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._prune_cancelled_locked(connection)
+            if self._identity_cancelled_locked(connection, owner):
+                raise ValidationLeaseCancelled(
+                    "validation authority was withdrawn before capacity acquisition"
+                )
             connection.execute(
                 """INSERT INTO waiters(
                        token, kind, project_id, task_id, authority_generation,
@@ -1135,7 +1466,29 @@ class ValidationResourceLease:
                     )
                 handle = self._try_acquire(token)
                 if handle is not None:
+                    if self._owner_cancelled(owner):
+                        handle.release()
+                        raise ValidationLeaseCancelled(
+                            "validation authority withdrawn while acquiring capacity"
+                        )
                     return handle
+                with self._connect() as connection:
+                    still_queued = connection.execute(
+                        "SELECT 1 FROM waiters WHERE token = ?",
+                        (token,),
+                    ).fetchone()
+                if still_queued is None:
+                    raise ValidationLeaseCancelled(
+                        "validation authority withdrawn while waiting for capacity"
+                    )
+                if on_wait is not None:
+                    try:
+                        on_wait()
+                    except Exception:  # noqa: BLE001 - telemetry is advisory
+                        logger.debug(
+                            "Validation capacity wait observer failed",
+                            exc_info=True,
+                        )
                 time.sleep(self.poll_seconds)
         except BaseException:
             with self._connect() as connection:
@@ -1153,23 +1506,189 @@ class ValidationResourceLease:
         with self._connect() as connection:
             cursor = connection.execute(
                 """UPDATE owners SET child_pid = ?, child_start_ticks = ?,
-                       deadline_at = ? WHERE token = ?""",
+                       deadline_at = ? WHERE token = ?
+                       AND NOT EXISTS (
+                           SELECT 1 FROM cancelled_owners AS cancelled
+                           WHERE cancelled.kind = owners.kind
+                             AND cancelled.project_id = owners.project_id
+                             AND cancelled.task_id = owners.task_id
+                             AND cancelled.authority_generation =
+                                 owners.authority_generation
+                       )""",
                 (pid, start_ticks, deadline_at, token),
             )
             if cursor.rowcount != 1:
-                raise ValidationLeaseError("validation lease ownership was lost")
+                raise ValidationLeaseCancelled(
+                    "validation authority was withdrawn before process attachment"
+                )
 
-    def _release(self, token: str, lock_fd: int) -> bool:
-        # Delete durable authority before dropping the kernel fence. If the
-        # database is temporarily unavailable the handle remains retryable and
-        # capacity cannot be exposed while a stale live owner row remains.
+    @staticmethod
+    def _identity_values(owner: object) -> tuple[str, str, str, str]:
+        def value(name: str) -> str:
+            if isinstance(owner, sqlite3.Row):
+                return str(owner[name])
+            return str(getattr(owner, name))
+
+        return (
+            value("kind"),
+            value("project_id"),
+            value("task_id"),
+            value("authority_generation"),
+        )
+
+    def _identity_cancelled_locked(
+        self,
+        connection: sqlite3.Connection,
+        owner: object,
+    ) -> bool:
+        return connection.execute(
+            """SELECT 1 FROM cancelled_owners
+               WHERE kind = ? AND project_id = ? AND task_id = ?
+                 AND authority_generation = ?""",
+            self._identity_values(owner),
+        ).fetchone() is not None
+
+    def _owner_cancelled(self, owner: ValidationLeaseOwner) -> bool:
         with self._connect() as connection:
-            cursor = connection.execute(
-                "DELETE FROM owners WHERE token = ?", (token,)
+            return self._identity_cancelled_locked(connection, owner)
+
+    @staticmethod
+    def _prune_cancelled_locked(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """DELETE FROM cancelled_owners AS cancelled
+               WHERE cancelled.cancelled_at < ?
+                 AND NOT EXISTS (
+                     SELECT 1 FROM owners
+                     WHERE owners.kind = cancelled.kind
+                       AND owners.project_id = cancelled.project_id
+                       AND owners.task_id = cancelled.task_id
+                       AND owners.authority_generation =
+                           cancelled.authority_generation
+                 )
+                 AND NOT EXISTS (
+                     SELECT 1 FROM waiters
+                     WHERE waiters.kind = cancelled.kind
+                       AND waiters.project_id = cancelled.project_id
+                       AND waiters.task_id = cancelled.task_id
+                       AND waiters.authority_generation =
+                           cancelled.authority_generation
+                 )""",
+            (time.time() - _CANCELLED_OWNER_RETENTION_SECONDS,),
+        )
+        connection.execute(
+            """DELETE FROM cancelled_owners
+               WHERE rowid IN (
+                   SELECT cancelled.rowid FROM cancelled_owners AS cancelled
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM owners
+                       WHERE owners.kind = cancelled.kind
+                         AND owners.project_id = cancelled.project_id
+                         AND owners.task_id = cancelled.task_id
+                         AND owners.authority_generation =
+                             cancelled.authority_generation
+                   )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM waiters
+                       WHERE waiters.kind = cancelled.kind
+                         AND waiters.project_id = cancelled.project_id
+                         AND waiters.task_id = cancelled.task_id
+                         AND waiters.authority_generation =
+                             cancelled.authority_generation
+                   )
+                   ORDER BY cancelled.cancelled_at DESC
+                   LIMIT -1 OFFSET ?
+               )""",
+            (_CANCELLED_OWNER_LIMIT,),
+        )
+
+    def _release(self, token: str, slot: int, lock_fd: int) -> bool:
+        """Drop a fence without letting metadata errors leak capacity.
+
+        Close the requester's descriptor first.  If a background descendant
+        inherited it, the immediate non-blocking probe will fail and the
+        durable owner row deliberately remains visible until the descendant
+        exits.  Otherwise the probe itself is proof that deleting the row is
+        safe.  A transient SQLite error cannot leak the raw descriptor or
+        override the completed command result; later status/acquire
+        reconciliation repairs the stale row from the same kernel proof.
+        """
+
+        # Do not call LOCK_UN here.  The descriptor was deliberately inherited
+        # by the attached validation tree; closing our copy preserves the
+        # flock until the last background descendant exits.
+        with contextlib.suppress(OSError):
+            os.close(lock_fd)
+        available = self._try_lock_slots()
+        try:
+            if slot not in available:
+                return False
+            try:
+                with self._connect() as connection:
+                    cursor = connection.execute(
+                        "DELETE FROM owners WHERE token = ?", (token,)
+                    )
+                    return cursor.rowcount == 1
+            except (OSError, sqlite3.Error):
+                logger.exception(
+                    "Validation lease metadata release will be reconciled "
+                    "from the kernel fence token=%s slot=%s",
+                    token,
+                    slot,
+                )
+                return False
+        finally:
+            self._close_slot_locks(available.values())
+
+    def cancel_owner(self, owner: ValidationLeaseOwner) -> int:
+        """Cancel matching queued/running native validation work.
+
+        Queue waiters observe their session cancellation callback and remove
+        their own row.  Attached commands are process-group leaders, so this
+        method can terminate only the exact durable owner generation without
+        touching unrelated validation work.
+        """
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._prune_cancelled_locked(connection)
+            connection.execute(
+                """INSERT INTO cancelled_owners(
+                       kind, project_id, task_id, authority_generation,
+                       cancelled_at
+                   ) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(
+                       kind, project_id, task_id, authority_generation
+                   ) DO UPDATE SET cancelled_at = excluded.cancelled_at""",
+                (*self._identity_values(owner), time.time()),
             )
-            removed = cursor.rowcount == 1
-        self._close_slot_locks((lock_fd,))
-        return removed
+            rows = connection.execute(
+                """SELECT slot, child_pid, child_start_ticks FROM owners
+                   WHERE kind = ? AND project_id = ? AND task_id = ?
+                     AND authority_generation = ?""",
+                (
+                    owner.kind,
+                    owner.project_id,
+                    owner.task_id,
+                    owner.authority_generation,
+                ),
+            ).fetchall()
+            cancelled_waiters = connection.execute(
+                """DELETE FROM waiters
+                   WHERE kind = ? AND project_id = ? AND task_id = ?
+                     AND authority_generation = ?""",
+                (
+                    owner.kind,
+                    owner.project_id,
+                    owner.task_id,
+                    owner.authority_generation,
+                ),
+            ).rowcount
+        for row in rows:
+            pid = row["child_pid"]
+            if pid is None:
+                continue
+            _terminate_exact_process_group(pid, row["child_start_ticks"])
+        return len(rows) + int(cancelled_waiters or 0)
 
     def status(self) -> ValidationLeaseStatus:
         """Read fresh durable state and remove provably dead records."""
@@ -1192,7 +1711,7 @@ class ValidationResourceLease:
                 )
                 for row in waiter_rows
             ) or any(
-                int(row["slot"]) in available and not self._owner_alive(row)
+                int(row["slot"]) in available
                 for row in owner_rows
             )
             if needs_reconciliation:

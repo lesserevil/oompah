@@ -19,7 +19,6 @@ import os
 import shutil
 import stat
 import sys
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Mapping
@@ -39,11 +38,14 @@ _WRAPPED_COMMANDS = frozenset(
         "cargo",
         "dash",
         "make",
+        "node",
         "nox",
         "npm",
         "pnpm",
         "py.test",
         "pytest",
+        "perl",
+        "ruby",
         "sh",
         "tox",
         "uv",
@@ -100,8 +102,12 @@ def install_native_validation_guard(
         "capacity": validation_lease.capacity,
         "aging_seconds": validation_lease.aging_seconds,
         "poll_seconds": validation_lease.poll_seconds,
-        "deadline_at": time.time() + max(float(timeout_seconds), 1.0),
+        # The runtime clock begins only after the command owns capacity.  Guard
+        # installation happens before model reasoning and must not consume it.
+        "timeout_seconds": max(float(timeout_seconds), 1.0),
         "path": original_path,
+        "shell": str(guarded.get("SHELL") or "/bin/sh"),
+        "cancellation_path": str(root / "cancelled"),
         "owner": {
             "kind": owner.kind,
             "project_id": owner.project_id,
@@ -115,8 +121,13 @@ def install_native_validation_guard(
     config_path.chmod(0o400)
 
     launcher = guard_bin / "oompah-validation-guard"
+    trusted_source_root = str(Path(__file__).resolve().parents[1])
     launcher.write_text(
-        f"#!{sys.executable}\n"
+        # Isolated mode ignores PYTHONPATH and the candidate working directory.
+        # Insert only the deployed package root before importing the guard.
+        f"#!{sys.executable} -I\n"
+        "import sys\n"
+        f"sys.path.insert(0, {trusted_source_root!r})\n"
         "from oompah.native_validation_guard import main\n"
         "raise SystemExit(main())\n",
         encoding="utf-8",
@@ -126,6 +137,10 @@ def install_native_validation_guard(
         (guard_bin / command).symlink_to(launcher.name)
 
     guarded["PATH"] = f"{guard_bin}{os.pathsep}{original_path}"
+    # Codex's native command runner consults SHELL for compound invocations.
+    # Pointing it at the trusted wrapper lets the wrapper classify the complete
+    # shell program before any absolute/project-local child can bypass PATH.
+    guarded["SHELL"] = str(guard_bin / "bash")
     guarded[_GUARD_ENV] = str(guard_bin)
     return guarded, root
 
@@ -173,6 +188,7 @@ def main() -> int:
     # the shim directory only now so make/tox/npm descendants cannot queue
     # recursively behind their own parent's lease.
     child_env["PATH"] = search_path
+    child_env["SHELL"] = str(config.get("shell") or "/bin/sh")
     child_env.pop(_GUARD_ENV, None)
 
     owner_raw = config.get("owner")
@@ -185,9 +201,15 @@ def main() -> int:
         authority_generation=str(owner_raw.get("authority_generation") or ""),
         priority=int(owner_raw.get("priority") or 0),
     )
-    remaining_seconds = float(config.get("deadline_at") or 0.0) - time.time()
-    if remaining_seconds <= 0:
-        raise RuntimeError("native validation command deadline already expired")
+    timeout_seconds = max(float(config.get("timeout_seconds") or 0.0), 1.0)
+    cancellation_raw = str(config.get("cancellation_path") or "").strip()
+    if not cancellation_raw:
+        raise RuntimeError("native validation cancellation fence is unavailable")
+    cancellation_path = Path(cancellation_raw)
+
+    def _cancelled() -> bool:
+        return cancellation_path.exists() or os.getppid() == 1
+
     lease = ValidationResourceLease(
         str(config.get("state_path") or ""),
         capacity=int(config.get("capacity") or 1),
@@ -196,25 +218,41 @@ def main() -> int:
     )
     handle = lease.acquire(
         owner,
-        is_cancelled=lambda: os.getppid() == 1,
+        is_cancelled=_cancelled,
     )
+    if _cancelled():
+        handle.release()
+        raise RuntimeError("native validation authority was withdrawn before launch")
     if os.name == "posix":
-        try:
-            os.setsid()
-        except PermissionError as exc:
+        # Some native runners already launch each command as a process-group
+        # leader.  That is sufficient for ownership-scoped killpg; calling
+        # setsid from an existing group leader would fail with EPERM.
+        if os.getpgrp() != os.getpid():
+            try:
+                os.setsid()
+            except PermissionError as exc:
+                handle.release()
+                raise RuntimeError(
+                    "native validation command could not create a dedicated "
+                    "process group"
+                ) from exc
+        if os.getpgrp() != os.getpid():
             handle.release()
             raise RuntimeError(
-                "native validation command could not create a dedicated process group"
-            ) from exc
-        if os.getsid(0) != os.getpid():
-            handle.release()
-            raise RuntimeError(
-                "native validation command lacks an isolated process group"
+                "native validation command lacks a dedicated process group"
             )
     handle.attach_process(
         SimpleNamespace(pid=os.getpid()),
-        timeout_seconds=remaining_seconds,
+        timeout_seconds=timeout_seconds,
     )
+    if _cancelled():
+        # This wrapper is now the attached process. Calling cancel_owner here
+        # would pidfd-stop our own process before it could resume or release
+        # the fence. Exiting before exec is already the complete cancellation
+        # action; the backend's independent cancellation records the durable
+        # authority tombstone for any concurrent invocation.
+        handle.release()
+        raise RuntimeError("native validation authority was withdrawn before exec")
     for descriptor in handle.pass_fds:
         os.set_inheritable(descriptor, True)
     os.execve(executable, [command, *sys.argv[1:]], child_env)

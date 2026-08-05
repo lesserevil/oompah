@@ -34362,6 +34362,15 @@ class Orchestrator:
                     and self.state.running[issue.id].session
                     else None
                 ),
+                validation_authority_generation=(
+                    (
+                        self.state.running[issue.id].audit_attempt_id
+                        if self.state.running[issue.id].is_auditor
+                        else self.state.running[issue.id].authority_generation
+                    )
+                    if issue.id in self.state.running
+                    else None
+                ),
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -39116,6 +39125,55 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # silent worker alive until the full agent deadline.
         return False, None
 
+    def _validation_capacity_protects_stall(self, entry: RunningEntry) -> bool:
+        """Return whether *entry* owns or is queued for validation capacity.
+
+        Native CLI commands run below the SDK's tool monitor, so the durable
+        lease is their authoritative liveness source. Matching is scoped to
+        the managed project, task, and exact active authority generation. A
+        detached descendant may intentionally retain an older generation's
+        kernel fence, so project/task matching alone is not current liveness.
+        """
+
+        issue = entry.issue
+        if issue is None:
+            return False
+        project_id = str(issue.project_id or "").strip()
+        task_ids = {
+            str(issue.id or "").strip(),
+            str(issue.identifier or "").strip(),
+            str(entry.identifier or "").strip(),
+        }
+        task_ids.discard("")
+        if not project_id or not task_ids:
+            return False
+        authority_generation = str(
+            (
+                entry.audit_attempt_id
+                if entry.is_auditor
+                else entry.authority_generation
+            )
+            or ""
+        ).strip()
+        if not authority_generation:
+            return False
+        try:
+            snapshot = self.validation_resource_lease.status()
+        except Exception as exc:  # pragma: no cover - defensive observer path
+            logger.debug(
+                "Validation capacity snapshot failed for %s: %s",
+                entry.identifier,
+                exc,
+            )
+            return False
+        return any(
+            str(record.get("project_id") or "") == project_id
+            and str(record.get("task_id") or "") in task_ids
+            and str(record.get("authority_generation") or "")
+            == authority_generation
+            for record in (*snapshot.owners, *snapshot.waiters)
+        )
+
     async def _reconcile_retry_authority(self) -> None:
         """Withdraw retries whose tracker authority changed before due time."""
         with self._retry_authority_lock:
@@ -39188,9 +39246,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 await self._terminate_running(issue_id, cleanup_workspace=False)
                 continue
             protected_by_tool, tool_timeout_reason = self._tool_stall_status(entry)
-            if protected_by_tool:
+            protected_by_capacity = self._validation_capacity_protects_stall(entry)
+            if protected_by_tool or protected_by_capacity:
                 logger.debug(
                     "Deferring generic stall detection for live bounded tool "
+                    "or validation-capacity activity "
                     "issue_id=%s issue_identifier=%s",
                     issue_id,
                     entry.identifier,

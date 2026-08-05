@@ -1555,103 +1555,125 @@ class BranchQualityGate:
             head_sha=head_sha,
             command=command,
         )
-        with self._key_lock(key):
+
+        def _load_reusable_result() -> tuple[
+            dict[str, dict[str, object]], QualityGateResult | None
+        ]:
             try:
                 with self._lock:
-                    entries = self._load()
+                    loaded = self._load()
             except OSError:
-                entries = {}
-            cached = entries.get(key)
-            if isinstance(cached, dict) and cached.get("status"):
-                cached_status = str(cached["status"])
-                # On forced retry, skip cache for failed/timed_out/error.
-                # Reuse passed results regardless of retry_forced flag.
-                if retry_forced and cached_status in {"failed", "timed_out", "error"}:
-                    # Fall through to re-execute instead of returning cached result
-                    pass
-                else:
-                    _release_owned_generation()
-                    return QualityGateResult(
-                        status=cached_status,
-                        head_sha=head_sha,
-                        command=command,
-                        duration_seconds=float(cached.get("duration_seconds", 0) or 0),
-                        output_tail=str(cached.get("output_tail", "") or ""),
-                        cached=True,
+                loaded = {}
+            cached_entry = loaded.get(key)
+            if not isinstance(cached_entry, dict) or not cached_entry.get("status"):
+                return loaded, None
+            cached_status = str(cached_entry["status"])
+            if retry_forced and cached_status in {"failed", "timed_out", "error"}:
+                return loaded, None
+            return loaded, QualityGateResult(
+                status=cached_status,
+                head_sha=head_sha,
+                command=command,
+                duration_seconds=float(
+                    cached_entry.get("duration_seconds", 0) or 0
+                ),
+                output_tail=str(cached_entry.get("output_tail", "") or ""),
+                cached=True,
+            )
+
+        # Fast cache lookup does not consume host capacity.  Crucially, the
+        # evidence key is released before a lease wait: a successful auditor
+        # owns that lease while synchronously recording compatible evidence
+        # under this same key.
+        with self._key_lock(key):
+            entries, cached_result = _load_reusable_result()
+            if cached_result is not None:
+                _release_owned_generation()
+                return cached_result
+
+        validation_handle = None
+        if self.validation_lease is not None:
+            validation_owner = ValidationLeaseOwner.exact_gate(
+                project_id=(
+                    owned_owner.project_id
+                    if owned_owner is not None
+                    else repo_identity
+                ),
+                task_id=(
+                    owned_owner.task_id
+                    if owned_owner is not None
+                    else work_branch
+                ),
+                authority_generation=(
+                    owned_owner.authority_generation
+                    if owned_owner is not None
+                    else f"{head_sha}:{key}"
+                ),
+            )
+
+            def _lease_wait_cancelled() -> bool:
+                if (
+                    owned_generation is not None
+                    and self._generation_is_cancelled(
+                        owned_generation,
+                        owner_key,
                     )
+                ):
+                    return True
+                if is_current is None:
+                    return False
+                try:
+                    return not bool(is_current())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Quality gate lease authority check failed: %s",
+                        exc,
+                    )
+                    return True
+
+            try:
+                validation_handle = self.validation_lease.acquire(
+                    validation_owner,
+                    is_cancelled=_lease_wait_cancelled,
+                )
+            except ValidationLeaseCancelled as exc:
+                _release_owned_generation()
+                return QualityGateResult(
+                    status="interrupted",
+                    head_sha=head_sha,
+                    command=command,
+                    output_tail=str(exc),
+                )
+            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+                _release_owned_generation()
+                return QualityGateResult(
+                    status="infrastructure_error",
+                    head_sha=head_sha,
+                    command=command,
+                    output_tail=(
+                        "Exact quality gate could not acquire host "
+                        f"validation capacity: {exc}"
+                    ),
+                )
+
+        # The auditor may have published a PASS while this gate waited.  Take
+        # the single-flight key only after capacity, reload durable evidence,
+        # and avoid executing the exact command twice.
+        with self._key_lock(key):
+            entries, cached_result = _load_reusable_result()
+            if cached_result is not None:
+                if validation_handle is not None:
+                    validation_handle.release()
+                _release_owned_generation()
+                return cached_result
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
-            validation_handle = None
             run_root = self._gate_run_root()
             snapshot: Path | None = None
             monitor_stop = threading.Event()
             monitor: threading.Thread | None = None
             try:
-                if self.validation_lease is not None:
-                    validation_owner = ValidationLeaseOwner.exact_gate(
-                        project_id=(
-                            owned_owner.project_id
-                            if owned_owner is not None
-                            else repo_identity
-                        ),
-                        task_id=(
-                            owned_owner.task_id
-                            if owned_owner is not None
-                            else work_branch
-                        ),
-                        authority_generation=(
-                            owned_owner.authority_generation
-                            if owned_owner is not None
-                            else f"{head_sha}:{key}"
-                        ),
-                    )
-
-                    def _lease_wait_cancelled() -> bool:
-                        if (
-                            owned_generation is not None
-                            and self._generation_is_cancelled(
-                                owned_generation,
-                                owner_key,
-                            )
-                        ):
-                            return True
-                        if is_current is None:
-                            return False
-                        try:
-                            return not bool(is_current())
-                        except Exception as exc:  # noqa: BLE001
-                            logger.warning(
-                                "Quality gate lease authority check failed: %s",
-                                exc,
-                            )
-                            return True
-
-                    try:
-                        validation_handle = self.validation_lease.acquire(
-                            validation_owner,
-                            is_cancelled=_lease_wait_cancelled,
-                        )
-                    except ValidationLeaseCancelled as exc:
-                        return QualityGateResult(
-                            status="interrupted",
-                            head_sha=head_sha,
-                            command=command,
-                            duration_seconds=time.monotonic() - started,
-                            output_tail=str(exc),
-                        )
-                    except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
-                        return QualityGateResult(
-                            status="infrastructure_error",
-                            head_sha=head_sha,
-                            command=command,
-                            duration_seconds=time.monotonic() - started,
-                            output_tail=(
-                                "Exact quality gate could not acquire host "
-                                f"validation capacity: {exc}"
-                            ),
-                        )
-
                 # --- Barrier 1: before snapshot creation ---
                 # Check authority before creating the immutable archive.
                 # cancel_generation() may have been called while we were

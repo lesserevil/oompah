@@ -86,6 +86,7 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from oompah.acp_backends.base import (
@@ -317,7 +318,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Codex extension cancels a turn via an ``asyncio.Event`` signal
         # passed in TurnOptions; close() sets it.
         self._cli_abort: Any = None
-        self._native_cli_validation_generation = os.urandom(16).hex()
+        self._native_cli_validation_generation = str(
+            options.validation_authority_generation or os.urandom(16).hex()
+        )
         # Billing tier drives the execution path AND cost reporting:
         #   * "per_token"    -> in-process OpenAI-Agents SDK (API key)
         #   * "subscription" -> Codex CLI subprocess (OAuth via auth.json)
@@ -327,6 +330,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir: str | None = None
         self._validation_guard_dir: str | None = None
+        self._native_validation_owner: Any = None
+        self._native_validation_lease: Any = None
+        self._native_validation_cancel_path: str | None = None
 
     def _resolve_billing_model(self) -> str:
         """Resolve the billing model that selects the execution path.
@@ -391,6 +397,21 @@ class CodexAcpBackendSession(AcpBackendSession):
         run_turn() short-circuit.
         """
         self._stop_requested = True
+        # Native commands may have created their own process group so that the
+        # durable lease can expire them safely.  Withdraw the exact session
+        # generation before asking the SDK to stop, covering both queued and
+        # already-attached validation commands without touching another task.
+        if self._native_validation_cancel_path:
+            with contextlib.suppress(OSError):
+                Path(self._native_validation_cancel_path).touch(mode=0o600)
+        if (
+            self._native_validation_lease is not None
+            and self._native_validation_owner is not None
+        ):
+            with contextlib.suppress(Exception):
+                self._native_validation_lease.cancel_owner(
+                    self._native_validation_owner
+                )
         # CLI path: signal the Codex subprocess to abort.
         if self._cli_abort is not None:
             with contextlib.suppress(Exception):
@@ -840,6 +861,12 @@ class CodexAcpBackendSession(AcpBackendSession):
             try:
                 runtime_root = tempfile.mkdtemp(prefix="oompah-codex-validation-")
                 self._validation_guard_dir = runtime_root
+                self._native_validation_owner = validation_owner
+                self._native_validation_lease = validation_lease
+                self._native_validation_cancel_path = os.path.join(
+                    runtime_root,
+                    "cancelled",
+                )
                 cli_env, _ = install_native_validation_guard(
                     cli_env,
                     runtime_root=runtime_root,
@@ -1000,6 +1027,9 @@ class CodexAcpBackendSession(AcpBackendSession):
                 )
         self._worker_runtime_dir = None
         self._validation_guard_dir = None
+        self._native_validation_owner = None
+        self._native_validation_lease = None
+        self._native_validation_cancel_path = None
 
     def _absorb_cli_usage(self, usage: Any) -> None:
         """Roll a Codex CLI ``Usage`` object into our counters.

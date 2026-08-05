@@ -13,6 +13,7 @@ from oompah.models import Issue, LiveSession, RunningEntry
 from oompah.api_agent import _exec_run_command
 from oompah.orchestrator import Orchestrator
 from oompah.tool_liveness import ToolLivenessMonitor
+from oompah.validation_resource_lease import ValidationLeaseOwner
 
 
 class _LiveProcess:
@@ -30,6 +31,7 @@ def _running_entry(monitor=None) -> RunningEntry:
         title="tool liveness",
         description="Test command liveness without relying on a five-minute wait.",
         state="In Progress",
+        project_id="project",
     )
     session = LiveSession(
         session_id="acp-test",
@@ -47,6 +49,7 @@ def _running_entry(monitor=None) -> RunningEntry:
         session=session,
         retry_attempt=0,
         started_at=session.last_timestamp,
+        authority_generation="native-session",
     )
 
 
@@ -59,6 +62,27 @@ def test_live_bounded_command_protects_silent_session_from_generic_stall():
 
     assert protected is True
     assert reason is None
+
+
+def test_capacity_wait_protects_stall_without_consuming_command_deadline():
+    monitor = ToolLivenessMonitor()
+    invocation_id = monitor.start_waiting(tool_name="run_command")
+
+    protected, reason = Orchestrator._tool_stall_status(_running_entry(monitor))
+    waiting = monitor.snapshot()
+
+    assert protected is True
+    assert reason is None
+    assert waiting is not None
+    assert waiting.phase == "waiting_for_capacity"
+    assert waiting.deadline_exceeded is False
+
+    monitor.start_runtime(invocation_id, timeout_s=0)
+    monitor.attach_process(invocation_id, _LiveProcess())
+    protected, reason = Orchestrator._tool_stall_status(_running_entry(monitor))
+
+    assert protected is False
+    assert reason == "run_command command timed out after 0s"
 
 
 def test_exited_child_does_not_protect_silent_session():
@@ -158,6 +182,84 @@ def test_reconcile_keeps_live_silent_command_running_past_stall_threshold(tmp_pa
     asyncio.run(orch._reconcile())
 
     orch._terminate_running.assert_not_awaited()
+
+
+def test_reconcile_keeps_native_session_queued_for_validation_capacity(tmp_path):
+    orch = _orchestrator(tmp_path, stall_timeout_ms=1)
+    entry = _running_entry()
+    orch.state.running[entry.issue.id] = entry
+    orch._fetch_running_states = MagicMock(return_value={})
+    orch._terminate_running = AsyncMock()
+    held = orch.validation_resource_lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="other-project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    completed = threading.Event()
+
+    def wait_for_capacity() -> None:
+        with orch.validation_resource_lease.acquire(
+            ValidationLeaseOwner.worker(
+                project_id="project",
+                task_id=entry.identifier,
+                authority_generation="native-session",
+            )
+        ):
+            completed.set()
+
+    waiter = threading.Thread(target=wait_for_capacity)
+    waiter.start()
+    deadline = time.monotonic() + 3
+    while (
+        time.monotonic() < deadline
+        and orch.validation_resource_lease.status().waiter_count != 1
+    ):
+        time.sleep(0.01)
+
+    asyncio.run(orch._reconcile())
+
+    orch._terminate_running.assert_not_awaited()
+    held.release()
+    waiter.join(timeout=3)
+    assert completed.is_set() is True
+
+
+def test_stale_native_generation_does_not_protect_replacement_worker(tmp_path):
+    orch = _orchestrator(tmp_path, stall_timeout_ms=1)
+    entry = _running_entry()
+    entry.authority_generation = "replacement-generation"
+    stale = orch.validation_resource_lease.acquire(
+        ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id=entry.identifier,
+            authority_generation="old-generation",
+        )
+    )
+    try:
+        assert orch._validation_capacity_protects_stall(entry) is False
+    finally:
+        stale.release()
+
+
+def test_auditor_capacity_liveness_matches_audit_attempt_generation(tmp_path):
+    orch = _orchestrator(tmp_path, stall_timeout_ms=1)
+    entry = _running_entry()
+    entry.is_auditor = True
+    entry.audit_attempt_id = "audit-attempt"
+    entry.authority_generation = "worker-generation"
+    handle = orch.validation_resource_lease.acquire(
+        ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id=entry.identifier,
+            authority_generation="audit-attempt",
+        )
+    )
+    try:
+        assert orch._validation_capacity_protects_stall(entry) is True
+    finally:
+        handle.release()
 
 
 def test_reconcile_recovers_exited_silent_child(tmp_path):

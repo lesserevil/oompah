@@ -107,6 +107,89 @@ def test_exact_gate_reuses_compatible_successful_auditor_evidence(tmp_path):
     assert marker.exists() is False
 
 
+def test_waiting_exact_gate_does_not_deadlock_successful_auditor_evidence(
+    tmp_path,
+):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    marker = tmp_path / "executed"
+    command = f"touch {shlex.quote(str(marker))}"
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        poll_seconds=0.01,
+    )
+    auditor = lease.acquire(
+        ValidationLeaseOwner.auditor(
+            project_id="project",
+            task_id="audit",
+            authority_generation="attempt",
+        )
+    )
+    gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+        validation_lease=lease,
+    )
+    proof = AuditorQualityEvidenceProof(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        workspace_head_sha=head,
+        command=command,
+        configured_command=command,
+        evidence_fingerprint="fingerprint",
+        expected_evidence_fingerprint="fingerprint",
+        detached_workspace=True,
+    )
+    gate_results: list[QualityGateResult] = []
+    callback_results: list[bool] = []
+    gate_thread = threading.Thread(
+        target=lambda: gate_results.append(
+            gate.run(
+                repo_path=str(repo),
+                repo_identity="repo",
+                target_branch="main",
+                work_branch="work",
+                command=command,
+                expected_head_sha=head,
+            )
+        )
+    )
+    callback_thread = threading.Thread(
+        target=lambda: callback_results.append(
+            gate.record_compatible_auditor_pass(proof)
+        )
+    )
+
+    gate_thread.start()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and lease.status().waiter_count != 1:
+        time.sleep(0.01)
+    assert lease.status().waiter_count == 1
+    callback_thread.start()
+    callback_thread.join(timeout=1)
+    callback_completed_while_lease_held = not callback_thread.is_alive()
+    auditor.release()
+    callback_thread.join(timeout=3)
+    gate_thread.join(timeout=5)
+
+    assert callback_completed_while_lease_held is True
+    assert callback_results == [True]
+    assert gate_thread.is_alive() is False
+    assert gate_results and gate_results[0].passed
+    assert gate_results[0].cached is True
+    assert marker.exists() is False
+    assert lease.status().owner_count == 0
+    assert lease.status().waiter_count == 0
+
+
 @pytest.mark.parametrize(
     "change",
     [

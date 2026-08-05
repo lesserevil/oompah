@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -72,6 +73,9 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("make check-secrets", False),
         ("make --help", False),
         ("echo ready; make test", True),
+        ("echo ready\nmake test", True),
+        ("./ci/test.sh", True),
+        (".venv/bin/python -m pytest tests/test_one.py", True),
         ("make test && git status --short", True),
         ("pytest", True),
         ("uv run pytest -q", True),
@@ -108,6 +112,8 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("pytest tests/test_one.py::test_case", False),
         ("pytest -k exact_case", True),
         ("pytest tests/test_one.py -k exact_case", False),
+        ("pytest tests/test_one.py -n auto", True),
+        ("pytest tests/test_one.py --numprocesses=4", True),
         ("pytest --collect-only", True),
         ("pytest --collect-only tests/test_one.py", False),
         (
@@ -133,6 +139,30 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("cargo nextest run", True),
         ("cargo build", False),
         ("rg pytest tests", False),
+        ("/usr/bin/rg pytest tests", False),
+        ("./rg pytest tests", True),
+        ("/workspace/bin/rg pytest tests", True),
+        ("python ci/test.py", True),
+        ("python ci/test", True),
+        ("bash ci/test.sh", True),
+        ("printf 'make test\\n' | bash", True),
+        ("bash -s", True),
+        ("printf 'make test\\n' | bash -h", True),
+        ("python", True),
+        ("node --input-type=module -", True),
+        ("perl -", True),
+        ("ruby -", True),
+        ("python --version", False),
+        ("bash --version", False),
+        ("node --version", False),
+        ("env -S 'python -m pytest'", True),
+        ("env -S 'bash -c \"make test\"'", True),
+        ("env --split-string='python -m pytest'", True),
+        ("python -c \"__import__('pytest').main([])\"", True),
+        ("python -c \"__import__('subprocess').run(['make','test'])\"", True),
+        ("node -e \"require('child_process').execSync('npm test')\"", True),
+        ("perl -e 'system q(make test)'", True),
+        ("ruby -e 'system %q(make test)'", True),
         ("exec rg pytest tests", False),
         ("time git status --short", False),
         ("bash -ce 'echo pytest'", False),
@@ -250,7 +280,11 @@ def test_gate_and_auditor_never_overlap_and_wait_does_not_start_tool_timeout(tmp
     _wait_for(lambda: lease.status().waiter_count == 1)
 
     assert not marker.exists()
-    assert monitor.snapshot() is None
+    waiting = monitor.snapshot()
+    assert waiting is not None
+    assert waiting.phase == "waiting_for_capacity"
+    assert waiting.protects_from_stall is True
+    assert waiting.deadline_exceeded is False
     gate.release()
     worker.join(timeout=3)
 
@@ -258,6 +292,287 @@ def test_gate_and_auditor_never_overlap_and_wait_does_not_start_tool_timeout(tmp
     assert marker.exists()
     assert result and "exit_code: 0" in result[0]
     assert lease.status().owner_count == 0
+
+
+def test_heavy_command_observes_cancellation_after_capacity_acquisition(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    makefile = tmp_path / "Makefile"
+    started = tmp_path / "started"
+    makefile.write_text(
+        f"test:\n\t@touch {started}\n\t@sleep 30\n",
+        encoding="utf-8",
+    )
+    cancelled = threading.Event()
+    results: list[str] = []
+    worker = threading.Thread(
+        target=lambda: results.append(
+            _exec_run_command(
+                tmp_path,
+                {"command": "make test"},
+                timeout=60,
+                validation_lease=lease,
+                validation_owner=_audit_owner("p1", "audit"),
+                lease_cancelled=cancelled.is_set,
+            )
+        )
+    )
+    worker.start()
+    _wait_for(lambda: started.exists() and lease.status().owner_count == 1)
+
+    cancelled.set()
+    worker.join(timeout=3)
+
+    assert worker.is_alive() is False
+    assert results == [
+        "Error: validation authority withdrawn while command was running"
+    ]
+    assert lease.status().owner_count == 0
+
+
+def test_cancellation_between_acquire_and_popen_never_launches_command(
+    tmp_path,
+    monkeypatch,
+):
+    cancelled = threading.Event()
+    released: list[bool] = []
+
+    class FakeHandle:
+        pass_fds: tuple[int, ...] = ()
+
+        def release(self):
+            released.append(True)
+
+    class FakeLease:
+        def acquire(self, _owner, *, is_cancelled=None):
+            cancelled.set()
+            return FakeHandle()
+
+    def forbidden_popen(*_args, **_kwargs):
+        raise AssertionError("cancelled command reached Popen")
+
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", forbidden_popen)
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_lease=FakeLease(),
+        validation_owner=_audit_owner("p1", "audit"),
+        lease_cancelled=cancelled.is_set,
+    )
+
+    assert result == "Error: validation authority withdrawn before command launch"
+    assert released == [True]
+
+
+def test_release_metadata_failure_does_not_leak_flock_or_mask_result(
+    tmp_path,
+    monkeypatch,
+):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    handle = lease.acquire(_gate_owner("p1", "first"))
+    real_connect = lease._connect
+
+    def fail_connect():
+        raise sqlite3.OperationalError("transient release failure")
+
+    monkeypatch.setattr(lease, "_connect", fail_connect)
+    assert handle.release() is False
+    monkeypatch.setattr(lease, "_connect", real_connect)
+
+    with lease.acquire(
+        _gate_owner("p2", "replacement"),
+        wait_timeout_seconds=1,
+    ):
+        assert lease.status().owner_count == 1
+
+
+def test_release_preserves_owner_while_background_descendant_holds_flock(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    handle = lease.acquire(_gate_owner("p1", "shell"))
+    inherited_fd = handle.pass_fds[0]
+    launcher = (
+        "import os, subprocess, sys; "
+        "fd=int(sys.argv[1]); "
+        "subprocess.Popen(['sleep', '0.5'], pass_fds=(fd,)); "
+        "os._exit(0)"
+    )
+    shell = subprocess.Popen(
+        [sys.executable, "-c", launcher, str(inherited_fd)],
+        pass_fds=handle.pass_fds,
+        start_new_session=True,
+    )
+    handle.attach_process(shell, timeout_seconds=5)
+    assert shell.wait(timeout=2) == 0
+
+    assert handle.release() is False
+    assert lease.status().owner_count == 1
+
+    with lease.acquire(
+        _gate_owner("p2", "after-descendant"),
+        wait_timeout_seconds=2,
+    ):
+        assert lease.status().owner_count == 1
+
+
+def test_expired_detached_descendant_is_not_killed_via_stale_group_id(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    handle = lease.acquire(_gate_owner("p1", "shell"))
+    inherited_fd = handle.pass_fds[0]
+    pid_path = tmp_path / "descendant.pid"
+    launcher = (
+        "import os, pathlib, subprocess, sys; "
+        "fd=int(sys.argv[1]); "
+        "child=subprocess.Popen(['sleep', '0.3'], pass_fds=(fd,), start_new_session=True); "
+        "pathlib.Path(sys.argv[2]).write_text(str(child.pid)); "
+        "os._exit(0)"
+    )
+    leader = subprocess.Popen(
+        [sys.executable, "-c", launcher, str(inherited_fd), str(pid_path)],
+        pass_fds=handle.pass_fds,
+        start_new_session=True,
+    )
+    handle.attach_process(leader, timeout_seconds=0.05)
+    assert leader.wait(timeout=2) == 0
+    _wait_for(pid_path.exists)
+    assert handle.release() is False
+    time.sleep(0.06)
+
+    descendant_pid = int(pid_path.read_text(encoding="utf-8"))
+    # Once the recorded leader exits, neither its old PGID nor a locked slot
+    # proves ownership of a detached descendant. Capacity remains fenced until
+    # that descendant closes the inherited descriptor naturally.
+    assert Path(f"/proc/{descendant_pid}").exists()
+
+    with lease.acquire(
+        _gate_owner("p2", "after-expiry"),
+        wait_timeout_seconds=2,
+    ):
+        assert lease.status().owner_count == 1
+
+
+def test_expired_stale_child_identity_never_calls_killpg(tmp_path, monkeypatch):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    handle = lease.acquire(_gate_owner("p1", "stale-child"))
+    child = subprocess.Popen(["true"], start_new_session=True)
+    handle.attach_process(child, timeout_seconds=0.05)
+    assert child.wait(timeout=2) == 0
+    time.sleep(0.06)
+
+    monkeypatch.setattr(
+        "oompah.validation_resource_lease.os.killpg",
+        lambda *_args: pytest.fail("stale process group was signaled"),
+    )
+    assert lease.status().owner_count == 1
+    handle.release()
+
+
+def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = _audit_owner("p1", "audit")
+    handle = lease.acquire(owner)
+    process = subprocess.Popen(
+        ["sleep", "30"],
+        pass_fds=handle.pass_fds,
+        start_new_session=True,
+    )
+    handle.attach_process(process, timeout_seconds=60)
+
+    assert lease.cancel_owner(owner) == 1
+    assert process.wait(timeout=3) != 0
+    handle.release()
+    assert lease.status().owner_count == 0
+
+
+def test_cancel_owner_withdraws_matching_waiter_without_callback(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    held = lease.acquire(_gate_owner("p1", "gate"))
+    owner = _audit_owner("p1", "audit")
+    errors: list[str] = []
+
+    def wait() -> None:
+        try:
+            lease.acquire(owner)
+        except ValidationLeaseCancelled as exc:
+            errors.append(str(exc))
+
+    waiter = threading.Thread(target=wait)
+    waiter.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+
+    assert lease.cancel_owner(owner) == 1
+    waiter.join(timeout=3)
+
+    assert waiter.is_alive() is False
+    assert errors == ["validation authority withdrawn while waiting for capacity"]
+    held.release()
+
+
+def test_cancel_owner_durably_fences_acquire_to_attach_race(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = _audit_owner("p1", "attach-race")
+    handle = lease.acquire(owner)
+
+    assert lease.cancel_owner(owner) == 1
+    with pytest.raises(
+        ValidationLeaseCancelled,
+        match="withdrawn before process attachment",
+    ):
+        handle.attach_process(
+            types.SimpleNamespace(pid=os.getpid()),
+            timeout_seconds=5,
+        )
+    handle.release()
+
+    restarted = ValidationResourceLease(
+        tmp_path / "lease.sqlite3",
+        poll_seconds=0.01,
+    )
+    with pytest.raises(
+        ValidationLeaseCancelled,
+        match="withdrawn before capacity acquisition",
+    ):
+        restarted.acquire(owner)
+
+
+def test_cancel_pruning_never_removes_an_active_owner_tombstone(
+    tmp_path,
+    monkeypatch,
+):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = _audit_owner("p1", "active-cancel")
+    handle = lease.acquire(owner)
+    assert lease.cancel_owner(owner) == 1
+    monkeypatch.setattr(
+        "oompah.validation_resource_lease._CANCELLED_OWNER_RETENTION_SECONDS",
+        0,
+    )
+    monkeypatch.setattr(
+        "oompah.validation_resource_lease._CANCELLED_OWNER_LIMIT",
+        1,
+    )
+    for index in range(5):
+        lease.cancel_owner(_audit_owner("other", f"cancel-{index}"))
+
+    with pytest.raises(
+        ValidationLeaseCancelled,
+        match="withdrawn before process attachment",
+    ):
+        handle.attach_process(
+            types.SimpleNamespace(pid=os.getpid()),
+            timeout_seconds=5,
+        )
+    handle.release()
+
+
+def test_slot_probe_descriptors_are_not_ambiently_inheritable(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    available = lease._try_lock_slots()
+    try:
+        assert available
+        assert all(os.get_inheritable(fd) is False for fd in available.values())
+    finally:
+        lease._close_slot_locks(available.values())
 
 
 def test_five_file_worker_pytest_queues_behind_gate_at_worker_priority(

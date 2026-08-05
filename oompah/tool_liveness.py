@@ -31,18 +31,22 @@ class ToolLivenessSnapshot:
     last_heartbeat_monotonic: float
     process_alive: bool
     command_timeout_s: float
+    phase: str = "running"
 
     @property
     def deadline_exceeded(self) -> bool:
         """Whether the command-specific deadline has elapsed."""
 
-        return time.monotonic() >= self.deadline_monotonic
+        return self.phase == "running" and time.monotonic() >= self.deadline_monotonic
 
     @property
     def protects_from_stall(self) -> bool:
         """Whether generic no-event stall detection should defer."""
 
-        return self.process_alive and not self.deadline_exceeded
+        return (
+            self.phase == "waiting_for_capacity"
+            or (self.process_alive and not self.deadline_exceeded)
+        )
 
     @property
     def timeout_diagnostic(self) -> str:
@@ -63,6 +67,7 @@ class _ToolExecution:
     command_timeout_s: float
     process: Any = None
     last_heartbeat_monotonic: float = 0.0
+    phase: str = "running"
 
 
 class ToolLivenessMonitor:
@@ -101,6 +106,38 @@ class ToolLivenessMonitor:
             self._active[invocation_id] = execution
         return invocation_id
 
+    def start_waiting(self, *, tool_name: str) -> str:
+        """Register a capacity wait without starting the command timeout."""
+
+        now = time.monotonic()
+        invocation_id = uuid.uuid4().hex
+        with self._lock:
+            self._active[invocation_id] = _ToolExecution(
+                invocation_id=invocation_id,
+                tool_name=tool_name,
+                started_monotonic=now,
+                deadline_monotonic=float("inf"),
+                command_timeout_s=0.0,
+                last_heartbeat_monotonic=now,
+                phase="waiting_for_capacity",
+            )
+        return invocation_id
+
+    def start_runtime(self, invocation_id: str, *, timeout_s: float) -> None:
+        """Start the bounded command clock after capacity is acquired."""
+
+        timeout = max(float(timeout_s), 0.0)
+        now = time.monotonic()
+        with self._lock:
+            execution = self._active.get(invocation_id)
+            if execution is None:
+                return
+            execution.started_monotonic = now
+            execution.deadline_monotonic = now + timeout
+            execution.command_timeout_s = timeout
+            execution.last_heartbeat_monotonic = now
+            execution.phase = "running"
+
     def attach_process(self, invocation_id: str, process: Any) -> None:
         """Associate the subprocess with a previously registered call."""
 
@@ -135,7 +172,7 @@ class ToolLivenessMonitor:
         with self._lock:
             snapshots: list[ToolLivenessSnapshot] = []
             for execution in self._active.values():
-                process_alive = False
+                process_alive = execution.phase == "waiting_for_capacity"
                 process = execution.process
                 if process is not None:
                     try:
@@ -154,6 +191,7 @@ class ToolLivenessMonitor:
                         last_heartbeat_monotonic=execution.last_heartbeat_monotonic,
                         process_alive=process_alive,
                         command_timeout_s=execution.command_timeout_s,
+                        phase=execution.phase,
                     )
                 )
             return snapshots

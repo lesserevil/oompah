@@ -8,6 +8,7 @@ Uses only stdlib -- no external HTTP or SDK dependencies.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -820,6 +821,7 @@ def _exec_run_command(
             return process.communicate()
 
     validation_handle = None
+    invocation_id: str | None = None
     heavyweight_validation = is_heavyweight_validation_command(command)
     if require_validation_lease and heavyweight_validation and validation_owner is None:
         return (
@@ -832,29 +834,64 @@ def _exec_run_command(
                 "Error: heavyweight validation is unavailable because the "
                 "service validation lease is not configured"
             )
+        if tool_liveness is not None:
+            try:
+                invocation_id = tool_liveness.start_waiting(
+                    tool_name="run_command",
+                )
+            except Exception:
+                invocation_id = None
         try:
+            lease_kwargs: dict[str, Any] = {"is_cancelled": lease_cancelled}
+            if invocation_id is not None:
+                lease_kwargs["on_wait"] = lambda: tool_liveness.heartbeat(
+                    invocation_id
+                )
             validation_handle = validation_lease.acquire(
                 validation_owner,
-                is_cancelled=lease_cancelled,
+                **lease_kwargs,
             )
         except ValidationLeaseCancelled as exc:
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
             return f"Error: {exc}"
         except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
             return f"Error: unable to acquire heavyweight validation capacity: {exc}"
 
-    invocation_id: str | None = None
     if tool_liveness is not None:
         try:
-            invocation_id = tool_liveness.start(
-                tool_name="run_command",
-                timeout_s=timeout,
-            )
+            if invocation_id is None:
+                invocation_id = tool_liveness.start(
+                    tool_name="run_command",
+                    timeout_s=timeout,
+                )
+            else:
+                tool_liveness.start_runtime(invocation_id, timeout_s=timeout)
         except Exception:
             # Liveness is supervisory telemetry. It must never prevent the
             # command itself from running when an observer is unavailable.
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
             invocation_id = None
 
     try:
+        def _authority_cancelled() -> bool:
+            if lease_cancelled is None:
+                return False
+            try:
+                return bool(lease_cancelled())
+            except Exception:
+                return True
+
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
+        # Runtime begins after capacity acquisition, including process setup.
+        runtime_deadline = time.monotonic() + max(float(timeout), 0.0)
         popen_kwargs: dict[str, Any] = {
             "cwd": str(workspace),
             "stdout": subprocess.PIPE,
@@ -865,6 +902,8 @@ def _exec_run_command(
         }
         if validation_handle is not None and os.name == "posix":
             popen_kwargs["pass_fds"] = validation_handle.pass_fds
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
         process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
         if validation_handle is not None:
             try:
@@ -880,16 +919,27 @@ def _exec_run_command(
                 tool_liveness.attach_process(invocation_id, process)
             except Exception:
                 pass
-        try:
-            stdout, stderr = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            _terminate_process_tree(process)
-            return f"Error: command timed out after {timeout}s"
+        while True:
+            if _authority_cancelled():
+                _terminate_process_tree(process)
+                return "Error: validation authority withdrawn while command was running"
+            remaining = runtime_deadline - time.monotonic()
+            if remaining <= 0:
+                _terminate_process_tree(process)
+                return f"Error: command timed out after {timeout}s"
+            try:
+                stdout, stderr = process.communicate(timeout=min(remaining, 0.25))
+                break
+            except subprocess.TimeoutExpired:
+                if invocation_id is not None:
+                    with contextlib.suppress(Exception):
+                        tool_liveness.heartbeat(invocation_id)
 
         if (
             heavyweight_validation
             and process.returncode == 0
             and callable(successful_validation_handler)
+            and not _authority_cancelled()
         ):
             try:
                 successful_validation_handler(command, workspace)
