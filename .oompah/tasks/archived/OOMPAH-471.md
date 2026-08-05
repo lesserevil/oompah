@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-08-05T19:25:54.182898Z'
+updated_at: '2026-08-05T19:26:01.047480Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -116,8 +116,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-131e63acc190
-    applied: false
+    applied: true
     created_at: '2026-08-05T19:25:49.475838+00:00'
+    applied_at: '2026-08-05T19:25:58.439056+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -635,5 +636,26 @@ author: oompah
 created: 2026-08-05 19:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:25
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: a31985725c9240a0661b314bf627e7acc7f34ad8
+- commit_subject: OOMPAH-471: Collect stable evidence for Done completion audits
+- commit_ancestor_of_main: true
+- head_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
+- origin_main_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
+- added_paths: oompah/done_evidence_collector.py; tests/fixtures_git.py; tests/test_done_evidence_collector.py
+- added_lines_total: 1307
+- artifacts_still_present: true
+- post_merge_modifications: none
+- previous_state: Merged
+- requested_target: Archived
+- archive_reason: aged_merged_auto_archive_7d
 ---
 <!-- COMMENTS:END -->
