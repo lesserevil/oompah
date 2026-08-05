@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:35:29.398065Z'
+updated_at: '2026-08-05T00:36:40.437178Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ author: oompah
 created: 2026-08-05 00:35
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-05 00:36
+---
+Understanding: This task fixes a bug where accepted child branch identity is not preserved across repair dispatch. Root cause: when a direct-owner submits an epic child task on a plain branch (e.g., OOMPAH-814), the submission records task_branch=OOMPAH-814 in oompah.integration but leaves issue work_branch as null. On CI repair, workspace setup recomputes the canonical branch name (epic-OOMPAH-763--task-OOMPAH-814), which differs from the accepted branch (OOMPAH-814), causing a conflict with the registered worktree. Fix: persist the accepted branch identity at submission time and reuse it on repair/retry dispatch, never recomputing it. Starting with code exploration to find root cause.
 ---
 <!-- COMMENTS:END -->
