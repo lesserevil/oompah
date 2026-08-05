@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T13:02:10.377451Z'
+updated_at: '2026-08-05T13:02:16.107253Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -139,8 +139,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-9cb1cc039b05
-    applied: false
+    applied: true
     created_at: '2026-08-05T13:02:07.184332+00:00'
+    applied_at: '2026-08-05T13:02:14.803349+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -364,5 +365,23 @@ author: oompah
 created: 2026-08-05 12:49
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 13:02
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 22252cc0486e919a657d15e5367ce29476622ce3
+- remote_head_match: origin/epic-OOMPAH-763--task-OOMPAH-817 == HEAD
+- commits_on_branch: 8
+- focused_tests: 165 pass (recovery_object_transfer 16, owner_claim 20, submission_fencing 24, projects 105)
+- adjacent_tests: 141 pass (terminal_audit 47, workspace_recovery 3, task_cost_telemetry 49, stall_to_dispatch 26, delivery_plane_recovery 13, dashboard_terminal_audit 3)
+- key_helper: oompah/projects.py:_transfer_recovery_snapshot_objects (line 270) enforces exact full SHA, uses git fetch, verifies rev-parse resolves the same SHA in the authoritative repo
+- publish_transaction: oompah/projects.py:_publish_recovery_snapshot fences transfer -> exact-SHA verify -> update-ref -> re-verify; raises RecoveryPublicationError on any failure; pending ref retained; checkout never mutated
+- consumption_fence: immutable per-generation consumed-ref tombstone published before CAS-deleting authoritative ref; source-local pending ref removed first, authority last
+- orchestrator_recovery: _route_retryable_recovery_publication reopens task to Open and indexes pending context; _reconcile_pending_recovery_publications retries idempotently on schedule/startup
 ---
 <!-- COMMENTS:END -->
