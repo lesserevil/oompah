@@ -11,7 +11,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-08-05T01:42:34.089930Z'
+updated_at: '2026-08-05T01:43:07.862503Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
@@ -78,19 +78,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-540
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 612c5e2ae2c34dbe19551a6b83fb6857230fce1ab1bdb02dd969a1b2c1e9349c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3f75671c01da
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 612c5e2ae2c34dbe19551a6b83fb6857230fce1ab1bdb02dd969a1b2c1e9349c
+      created_at: '2026-08-05T01:43:05.314229+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T01:43:05.314229+00:00'
+      branch_key: OOMPAH-540
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T01:42:28.575495+00:00'
-  attempt_history: []
+    updated_at: '2026-08-05T01:43:05.314229+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-3f75671c01da
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 612c5e2ae2c34dbe19551a6b83fb6857230fce1ab1bdb02dd969a1b2c1e9349c
+    created_at: '2026-08-05T01:43:05.314229+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T01:43:05.314229+00:00'
+    branch_key: OOMPAH-540
 ---
 ## Summary
 
