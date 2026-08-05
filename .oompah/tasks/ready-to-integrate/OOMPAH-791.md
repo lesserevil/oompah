@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-05T16:30:35.727441Z'
+updated_at: '2026-08-05T23:58:12.777880Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -61,9 +61,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: a744be37d42047e25e6fc62a6a64878c187290e0
-  head_sha: 9e2ecc3ff8de2250009cbbc78e54f94ab0842a35
-  submitted_at: '2026-08-04T22:40:51.588852+00:00'
-  updated_at: '2026-08-04T22:40:51.588852+00:00'
+  head_sha: 43cd830ae312725d336299e0199618a99c923838
+  submitted_at: '2026-08-05T23:58:06.550927+00:00'
+  updated_at: '2026-08-05T23:58:06.550927+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -291,5 +291,15 @@ author: oompah
 created: 2026-08-05 00:32
 ---
 Restacked six implementation commits patch-equivalently onto independently accepted OOMPAH-813 head eb5d206f2. New exact pushed head a923f1fbe9aa14e8c188a9d36d643bb6404bfb59; range-diff shows all six commits '=' and branch is clean. The combined OOMPAH-781 top-of-stack suite after both restacks passes 617, 1 xfailed across epic/review/integration/workflow facts/jobs/submission fencing and terminal-audit lifecycle. Task remains claimed/In Progress and unsubmitted until the common root lineage (OOMPAH-814/807) stabilizes.
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Final independent review and repair completed on the current OOMPAH-768 lineage. The original six patches remain range-diff equivalent; exact pushed head 43cd830ae312725d336299e0199618a99c923838 adds fail-closed unavailable-target replay, cross-project containment rejection, enforce-mode target authority fencing, fully Git-safe shared epic branch naming, and project-scoped target-resolution alerts. Post-rebase verification: 362 focused workflow, epic, project, and integration tests passed; pycompile, diff check, and make check-secrets passed.
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Restacked and independently reviewed the seven-commit LandingFact epic workflow implementation onto the current OOMPAH-768 parent. Exact head 43cd830ae312725d336299e0199618a99c923838 is pushed, branch clean, focused tests and secret scan green.
 ---
 <!-- COMMENTS:END -->
