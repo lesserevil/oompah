@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T15:01:26.133758Z'
+updated_at: '2026-08-05T15:06:24.143213Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -346,5 +346,10 @@ author: oompah
 created: 2026-08-05 15:01
 ---
 Align terminal-audit recovery alerts with durable terminal outcomes and exact-fingerprint retry fencing; focused, adjacent, and full make test gates pass.
+---
+author: oompah
+created: 2026-08-05 15:06
+---
+Independent exact-head review rejected d5ee41a18 before integration. Blockers: active PENDING/IN_PROGRESS retry coalescing is not evidence-fingerprint fenced; production current-evidence refresh failures fall back to stale caller evidence; the required real alert -> authenticated owner retry -> fresh exact-fingerprint pending audit -> restart/sweep coalescing -> alert-clear path remains overmocked; and the branch retains trailing whitespace explicitly called out by prior review. Withdrawing this head and repairing the exact branch before resubmission.
 ---
 <!-- COMMENTS:END -->
