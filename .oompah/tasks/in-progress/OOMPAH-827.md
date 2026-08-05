@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T18:40:17.901270Z'
+updated_at: '2026-08-05T19:26:28.286266Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ created: 2026-08-05 18:40
 3. orchestrator.py:39706 (get_snapshot) - correctly checks is_auditor FIRST, then duplicate_preflight, then implementation
 
 Root cause: No centralized classifier. Fix approach: Create reusable classifier function in models.py, use it everywhere. Also need to add is_auditor, audit_id, audit_attempt_id, retiring fields to api_agent_activity response.
+---
+author: oompah
+created: 2026-08-05 19:26
+---
+**Implementation:** Added RunningEntry.classify_work_kind() method that returns authoritative work_kind with precedence: audit > duplicate_screening > implementation. Updated 3 locations to use it: (1) orchestrator.py get_snapshot uses method, (2) orchestrator.py AGENT_DISPATCHED event uses precedence logic, (3) server.py api_agent_activity uses method. Also added safe audit identity fields (is_auditor, audit_id, audit_attempt_id, retiring) to activity response. Created comprehensive test suite (19 tests) covering: direct classifier tests, state snapshot consistency, activity endpoint, precedence rules, and cross-surface consistency. All tests passing.
 ---
 <!-- COMMENTS:END -->
