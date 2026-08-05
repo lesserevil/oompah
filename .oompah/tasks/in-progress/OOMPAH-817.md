@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-817
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Persist standalone-clone recovery objects before publishing refs
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:09:25.293286Z'
+updated_at: '2026-08-05T01:10:55.394696Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fdbe7db9-0302-4afc-be86-ad15708ff4ae
+oompah.agent_run_id: 44de72d8-fd64-4e43-a12a-b121073ac819
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-817
 oompah.integration:
   version: 2
@@ -138,5 +138,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 6s
 - Log: OOMPAH-817__20260805T010831Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:10
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:07:45.902358Z'
+updated_at: '2026-08-05T01:10:58.020518Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b626fea1-3961-435b-b736-c9beeb209c35
+oompah.agent_run_id: bb8c3eae-8dbb-4dd4-ac42-30eb1b01fcf9
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9678325
@@ -241,7 +241,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:06:47.324510+00:00'
+  updated_at: '2026-08-05T01:10:52.314489+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -539,5 +539,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 2s
 - Log: OOMPAH-505__20260805T010706Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:10
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-05 01:10
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

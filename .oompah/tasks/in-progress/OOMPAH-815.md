@@ -8,10 +8,11 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T01:07:26.371376Z'
+updated_at: '2026-08-05T01:10:45.830007Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -67,13 +68,13 @@ oompah.integration:
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   updated_at: '2026-08-05T00:35:24.666752+00:00'
 oompah.task_costs:
-  total_input_tokens: 48036
-  total_output_tokens: 314
+  total_input_tokens: 48168
+  total_output_tokens: 5288
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 48036
-      output_tokens: 314
+      input_tokens: 48168
+      output_tokens: 5288
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -82,6 +83,12 @@ oompah.task_costs:
     output_tokens: 314
     cost_usd: 0.0
     recorded_at: '2026-08-05T00:34:07.322985+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 132
+    output_tokens: 4974
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:10:37.433216+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-815__20260805T003307Z
@@ -154,5 +161,15 @@ author: oompah
 created: 2026-08-05 01:07
 ---
 Acceptance detail for same-head resubmission: _persist_worker_submission currently returns early when the integration record is unchanged and status is Ready. Reconcile/backfill Issue.work_branch from the accepted non-working IntegrationRecord before that early return, or include branch projection agreement in the idempotency condition. Otherwise legacy null/stale work_branch rows remain vulnerable after an idempotent resubmit. Add exact regression for same task_branch/head with null and conflicting stale work_branch, proving accepted integration authority wins and the projection is repaired atomically.
+---
+author: oompah
+created: 2026-08-05 01:10
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 92
+- Tokens: 132 in / 5.0K out [5.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 35m 21s
+- Log: OOMPAH-815__20260805T003530Z.jsonl
 ---
 <!-- COMMENTS:END -->
