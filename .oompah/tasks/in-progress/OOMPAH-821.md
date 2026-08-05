@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:43:58.944483Z'
+updated_at: '2026-08-05T05:56:44.687982Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -146,5 +146,20 @@ Solution approach:
 3. Ensures alert/action parity: only emit recovery alert if retry will actually succeed
 
 Key insight: Retryability should be determined from the TERMINAL exhaustion outcome while preserving prior attempt history. The mixed history itself is not a barrier to retry if the terminal state is retryable.
+---
+author: oompah
+created: 2026-08-05 05:56
+---
+Implementation: Created canonical retry-eligibility functions that check only TERMINAL (final) attempt classification, not all attempts:
+
+1. is_audit_infrastructure_retryable(record): Returns True if terminal attempt is NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY
+2. is_audit_evidence_retryable(record): Returns True if terminal attempt is MISSING_EVIDENCE
+3. _terminal_attempt(record): Helper to get final attempt from a record
+
+Updated retry_failed_audit() to use these functions instead of all() check over attempts list. This fixes OOMPAH-745 regression where mixed attempt histories (e.g., FINALIZATION_FAILURE + terminal NO_AUDITOR) incorrectly blocked infrastructure retry.
+
+Key insight: Retryability should be determined from terminal exhaustion outcome only. Prior attempt history is preserved for audit trail but doesn't block retry.
+
+Added two comprehensive tests for mixed-attempt scenarios that now pass. All 134 terminal transition tests pass, all 58 terminal audit tests pass.
 ---
 <!-- COMMENTS:END -->
