@@ -469,6 +469,29 @@ def test_expired_final_attempt_becomes_exhausted(store, clock):
     assert claim(store) is None
 
 
+def test_exact_owner_can_quarantine_after_deadline_before_replacement_claim(
+    store, clock
+):
+    store.enqueue(spec(max_attempts=3))
+    running = claim(store)
+    clock.advance(31)
+
+    quarantined = store.quarantine_owned(
+        running.job_id,
+        running.lease_token,
+        category=WorkflowFailureCategory.TIMEOUT,
+        error="adapter did not return",
+    )
+
+    assert quarantined.state is WorkflowJobState.RUNNING
+    assert quarantined.phase == "quarantined"
+    assert quarantined.lease_expires_at is None
+    assert store.recover_expired() == 0
+    assert claim(store) is None
+    assert store.events(running.job_id)[-1].event_type == "quarantined"
+    store.integrity_check()
+
+
 def test_expired_recovery_is_bounded(store, clock):
     for index in range(3):
         store.enqueue(spec(f"key-{index}", task=f"T-{index}"))

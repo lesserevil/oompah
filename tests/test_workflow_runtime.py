@@ -10,7 +10,10 @@ import pytest
 from oompah.epic_workflow import EpicFactCollector, EpicWorkflowController
 from oompah.implementation_workflow import ImplementationWorkflowController
 from oompah.integration import IntegrationRecord
-from oompah.integration_workflow import IntegrationWorkflowController
+from oompah.integration_workflow import (
+    INTEGRATION_ACTIONS,
+    IntegrationWorkflowController,
+)
 from oompah.models import BlockerRef, Issue
 from oompah.review_workflow import ReviewWorkflowController
 from oompah.task_transition_service import TaskTransitionService, TransitionJournal
@@ -452,6 +455,102 @@ def test_factory_routes_same_action_to_exact_project(tmp_path):
         ("project-b", "project-b"),
     }
     runtime.close()
+    store.close()
+
+
+def test_factory_composes_generic_and_domain_handlers_for_every_project(tmp_path):
+    class Project:
+        def __init__(self, project_id):
+            self.id = project_id
+            self.repo_path = str(tmp_path)
+            self.default_branch = "main"
+
+    projects = [Project("project-a"), Project("project-b")]
+    trackers = {
+        project.id: NativeTracker(
+            [make_issue(f"TASK-{project.id[-1]}", project_id=project.id)]
+        )
+        for project in projects
+    }
+
+    class ProjectStore:
+        def list_all(self):
+            return projects
+
+    class Config:
+        workflow_engine_mode = "enforce"
+        workflow_runtime_decision_limit = 20
+        workflow_runtime_batch_size = 4
+
+    store = WorkflowJobStore(str(tmp_path / "composed-jobs.sqlite3"))
+    orchestrator = type(
+        "ComposedOrchestratorDouble",
+        (),
+        {
+            "project_store": ProjectStore(),
+            "config": Config(),
+            "workflow_job_store": store,
+            "_state_path": str(tmp_path / "composed-service-state.json"),
+            "_tracker_for_project": lambda self, project_id: trackers[project_id],
+            "workflow_action_handler_factory": lambda self, binding: {
+                action: CompleteHandler()
+                for action in RUNTIME_ACTIONS - INTEGRATION_ACTIONS
+            },
+            "workflow_integration_action_handler_factory": lambda self, binding: {
+                action: CompleteHandler() for action in INTEGRATION_ACTIONS
+            },
+        },
+    )()
+
+    runtime = WorkflowRuntime.from_orchestrator(orchestrator, state_dir=tmp_path)
+
+    assert set(runtime.worker.handlers) == RUNTIME_ACTIONS
+    assert all(
+        set(runtime._handler_coverage[action]) == {"project-a", "project-b"}
+        for action in RUNTIME_ACTIONS
+    )
+    runtime.close()
+    store.close()
+
+
+def test_factory_rejects_duplicate_action_ownership(tmp_path):
+    class Project:
+        id = "project-a"
+        repo_path = str(tmp_path)
+        default_branch = "main"
+
+    class ProjectStore:
+        def list_all(self):
+            return [Project()]
+
+    class Config:
+        workflow_engine_mode = "enforce"
+        workflow_runtime_decision_limit = 20
+        workflow_runtime_batch_size = 4
+
+    tracker = NativeTracker([make_issue("TASK-A", project_id="project-a")])
+    store = WorkflowJobStore(str(tmp_path / "duplicate-jobs.sqlite3"))
+    orchestrator = type(
+        "DuplicateOrchestratorDouble",
+        (),
+        {
+            "project_store": ProjectStore(),
+            "config": Config(),
+            "workflow_job_store": store,
+            "_state_path": str(tmp_path / "duplicate-service-state.json"),
+            "_tracker_for_project": lambda self, _project_id: tracker,
+            "workflow_action_handler_factory": lambda self, binding: {
+                action: CompleteHandler() for action in RUNTIME_ACTIONS
+            },
+            "workflow_integration_action_handler_factory": lambda self, binding: {
+                "integration_attempt": CompleteHandler()
+            },
+        },
+    )()
+
+    with pytest.raises(WorkflowRuntimeError, match="duplicate workflow action ownership"):
+        WorkflowRuntime.from_orchestrator(orchestrator, state_dir=tmp_path)
+
     store.close()
 
 

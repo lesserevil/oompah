@@ -4224,6 +4224,10 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and str(getattr(existing, "task_branch", "") or "").strip()
         == task_branch
     )
+    delivery_mode = (
+        "queue" if str(getattr(issue, "parent_id", "") or "").strip()
+        else "standalone"
+    )
     supplied_base_branch = str(body.get("base_branch") or "").strip()
     existing_base_branch = str(
         getattr(existing, "base_branch", "") or ""
@@ -4287,10 +4291,15 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         and existing.base_branch == base_branch
         and existing.base_sha == base_sha
     ):
-        return existing
+        return (
+            existing
+            if getattr(existing, "mode", None) == delivery_mode
+            else replace(existing, mode=delivery_mode)
+        )
     now = datetime.now(timezone.utc).isoformat()
     return IntegrationRecord(
         state="ready",
+        mode=delivery_mode,
         task_branch=task_branch,
         base_branch=base_branch,
         base_sha=base_sha,
@@ -4317,15 +4326,15 @@ async def _persist_worker_submission(
     of what path moved the task to ``In Progress``, ``Needs Human``, or
     ``Needs CI Fix`` between two same-head submissions.
 
-    Idempotency is scoped to a *duplicate accepted* generation: when the
-    integration record is unchanged **and** the canonical tracker status is
-    already ``Ready to Integrate``, no lifecycle or summary writes fire.  The
-    sole repair write permitted on that path is backfilling a null/stale
-    ``work_branch`` projection from the accepted record.  This preserves the
-    existing ``open_review`` / queue-owned properties while letting a same-head
-    recovery from ``In Progress`` / ``Needs Human`` / ``Needs CI Fix`` write
-    the ``Ready to Integrate`` status and a fresh summary comment so the 201
-    response is truthful. The queue rearm from OOMPAH-628 (in
+    Idempotency is scoped to a *duplicate accepted* generation: when the exact
+    branch/head is already accepted and the canonical tracker status is
+    ``Ready to Integrate``, no lifecycle or summary writes fire.  Canonical
+    metadata repairs (delivery mode and the mutable ``work_branch`` projection)
+    remain permitted on that path.  This preserves the existing ``open_review``
+    / queue-owned properties while letting a same-head recovery from ``In
+    Progress`` / ``Needs Human`` / ``Needs CI Fix`` write the ``Ready to
+    Integrate`` status and a fresh summary comment so the 201 response is
+    truthful. The queue rearm from OOMPAH-628 (in
     :func:`_enqueue_worker_submission`) handles the queue side of the same-head
     reflow and is not duplicated here.
     """
@@ -4333,17 +4342,16 @@ async def _persist_worker_submission(
     record = record or _submission_record(issue, body)
     existing = getattr(issue, "integration", None)
     canonical_status = canonicalize_status(getattr(issue, "state", None))
-    reuses_existing_record = (
+    reuses_existing_generation = (
         existing is not None
-        and record is existing
+        and existing.state in {"ready", "queued", "integrating"}
         and existing.head_sha == record.head_sha
         and existing.task_branch == record.task_branch
     )
-    if not reuses_existing_record:
-        # A fresh integration record is durable evidence for a new generation
-        # (new head, or a recovery from a state that dropped the ``ready``
-        # record). Same-head recovery reuses the existing record, so we skip
-        # this write to avoid an identical metadata rewrite.
+    if record is not existing:
+        # Persist new-generation evidence and canonical repairs (for example,
+        # a legacy accepted generation without the service-derived mode).
+        # Exact duplicate records retain object identity and skip this write.
         await _run_api_io(
             tracker.set_metadata_field,
             issue.identifier,
@@ -4363,7 +4371,7 @@ async def _persist_worker_submission(
             record.task_branch,
         )
         issue.work_branch = record.task_branch
-    if reuses_existing_record and canonical_status == READY_TO_INTEGRATE:
+    if reuses_existing_generation and canonical_status == READY_TO_INTEGRATE:
         # Duplicate accepted submit for the same generation: after repairing
         # its branch projection, no fresh summary/status/queue generation is
         # required.

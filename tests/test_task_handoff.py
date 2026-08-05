@@ -304,6 +304,45 @@ class TestTaskScopeDirectPath:
 
         return accept, orch
 
+    @pytest.mark.parametrize(
+        ("parent_id", "requested_mode", "expected_mode"),
+        [
+            (None, "queue", "standalone"),
+            ("EPIC-1", "standalone", "queue"),
+        ],
+    )
+    def test_submission_delivery_mode_is_derived_by_the_service(
+        self,
+        parent_id,
+        requested_mode,
+        expected_mode,
+    ):
+        from oompah.server import _submission_record
+
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id=parent_id,
+            work_branch="TASK-1",
+        )
+
+        record = _submission_record(
+            issue,
+            {
+                "summary": "Completed and tested",
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "mode": requested_mode,
+            },
+        )
+
+        assert record.mode == expected_mode
+
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -434,6 +473,7 @@ class TestTaskScopeDirectPath:
 
         assert result == "Submitted for integration: TASK-1"
         record = tracker.set_metadata_field.call_args.args[2]
+        assert record["mode"] == "standalone"
         assert record["task_branch"] == "epic-TASK-0--task-TASK-1"
         assert record["head_sha"] == "a" * 40
         tracker.update_issue.assert_called_once_with(
@@ -580,6 +620,12 @@ class TestTaskScopeDirectPath:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = issue
 
+        def persist_metadata(_identifier, key, value):
+            if key == "oompah.integration":
+                issue.integration = IntegrationRecord.from_dict(value)
+
+        tracker.set_metadata_field.side_effect = persist_metadata
+
         class Store:
             @staticmethod
             def epic_branch_name(_identifier):
@@ -630,11 +676,14 @@ class TestTaskScopeDirectPath:
 
         assert first == "Submitted for integration: OOMPAH-814"
         assert second == first
-        tracker.set_metadata_field.assert_called_once_with(
-            "OOMPAH-814",
-            "oompah.work_branch",
-            "OOMPAH-814",
-        )
+        assert tracker.set_metadata_field.call_args_list == [
+            call(
+                "OOMPAH-814",
+                "oompah.integration",
+                issue.integration.to_dict(),
+            ),
+            call("OOMPAH-814", "oompah.work_branch", "OOMPAH-814"),
+        ]
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
 
@@ -1107,6 +1156,7 @@ class TestTaskScopeDirectPath:
         assert entry.authority_revoked is True
         record = entry.accepted_submission_record
         assert record is not None
+        assert record.mode == "queue"
         assert record.task_branch == "TASK-1"
         assert record.head_sha == "a" * 40
         assert events.index("oompah.integration") < events.index(

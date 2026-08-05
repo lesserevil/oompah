@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
@@ -95,7 +95,11 @@ from oompah.integration_executor import (
     IntegrationExecutionResult,
     execute_integration,
 )
-from oompah.integration_queue import IntegrationQueueItem, IntegrationQueueStore
+from oompah.integration_queue import (
+    STANDALONE_RECLASSIFICATION_REASON,
+    IntegrationQueueItem,
+    IntegrationQueueStore,
+)
 from oompah.integration_projection import (
     IntegrationDependencyProjection,
     build_integration_dependency_projections,
@@ -1108,6 +1112,11 @@ class StandaloneDeliveryAuthority:
     # A fresh identity for each claim lets an operator reopen/reassign a task
     # without cancelling or accepting a replacement gate by accident.
     generation: str
+    # Optional durable-workflow lease fence.  Legacy maintenance callers leave
+    # this unset; enforce-mode delivery supplies both an exact generation and
+    # a currentness callback backed by WorkflowJobStore ownership.
+    workflow_generation: str | None = None
+    workflow_authority_check: Callable[[], bool] | None = None
     head_sha: str | None = None
     head_resolver: Any | None = None
     dependency_checked_monotonic: float = 0.0
@@ -1138,14 +1147,15 @@ class CrossLoopTaskLock:
         return self._lock.locked()
 
     @contextlib.contextmanager
-    def sync(self):
+    def sync(self, *, blocking: bool = True):
         """Acquire the same task mutex from a synchronous maintenance worker."""
 
-        self._lock.acquire()
+        acquired = self._lock.acquire(blocking=blocking)
         try:
-            yield self
+            yield self if acquired else None
         finally:
-            self._lock.release()
+            if acquired:
+                self._lock.release()
 
     async def __aenter__(self) -> CrossLoopTaskLock:
         await self.acquire()
@@ -1296,6 +1306,24 @@ class Orchestrator:
     _QUALITY_GATE_OUTCOME_LIMIT = 128
 
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
+
+    def workflow_integration_action_handler_factory(self, binding: Any) -> dict:
+        """Bind exact integration actions for one durable project runtime."""
+
+        from oompah.integration_workflow import build_integration_action_handlers
+
+        return build_integration_action_handlers(self, binding)
+
+    def schedule_workflow_integration_maintenance(self, binding: Any) -> Any:
+        """Materialize project-scoped history independently of live task facts."""
+
+        from oompah.integration_workflow import schedule_project_historical_replay
+
+        return schedule_project_historical_replay(
+            self,
+            self.workflow_job_store,
+            str(binding.project_id),
+        )
 
     def __init__(
         self,
@@ -11039,19 +11067,95 @@ class Orchestrator:
         submission reached the tracker but whose worker exited before review
         creation completed.
         """
-        for project in self.project_store.list_all():
+        self._reconcile_standalone_delivery_scope(
+            projects=self.project_store.list_all(),
+            task_scope=None,
+            expected_task_branch=None,
+            expected_head_sha=None,
+            workflow_generation=None,
+            workflow_authority_check=None,
+        )
+
+    def _reconcile_one_standalone_ready_to_integrate_task(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        expected_task_branch: str | None = None,
+        expected_head_sha: str | None = None,
+        workflow_generation: str | None = None,
+        workflow_authority_check: Callable[[], bool] | None = None,
+    ) -> None:
+        """Deliver one exact standalone generation without entering the sweep."""
+
+        project = self.project_store.get(str(project_id))
+        if project is None:
+            return
+        self._reconcile_standalone_delivery_scope(
+            projects=(project,),
+            task_scope=str(task_id),
+            expected_task_branch=str(expected_task_branch or "").strip() or None,
+            expected_head_sha=str(expected_head_sha or "").strip() or None,
+            workflow_generation=(
+                str(workflow_generation or "").strip() or None
+            ),
+            workflow_authority_check=workflow_authority_check,
+        )
+
+    def _reconcile_standalone_delivery_scope(
+        self,
+        *,
+        projects: Sequence[Any],
+        task_scope: str | None,
+        expected_task_branch: str | None,
+        expected_head_sha: str | None,
+        workflow_generation: str | None,
+        workflow_authority_check: Callable[[], bool] | None,
+    ) -> None:
+        """Shared delivery body over an explicitly supplied candidate scope."""
+
+        for project in projects:
             project_id = str(project.id)
             tracker = self._tracker_for_project(project_id)
             # Tracker status is the source of truth even when a task has
             # already left the Ready query.  Reopen/rejection callbacks and
             # dashboard edits can otherwise leave an old standalone claim,
             # its gate, and its stranded-delivery alert alive indefinitely.
-            self._revoke_inactive_standalone_delivery_authorities(
-                project_id,
-                tracker,
-            )
+            if task_scope is None:
+                self._revoke_inactive_standalone_delivery_authorities(
+                    project_id,
+                    tracker,
+                )
             try:
-                ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+                if task_scope is None:
+                    ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+                else:
+                    scoped_issue = tracker.fetch_issue_detail(str(task_scope))
+                    scoped_record = getattr(scoped_issue, "integration", None)
+                    scoped_branch = str(
+                        getattr(scoped_record, "task_branch", "") or ""
+                    ).strip()
+                    scoped_head = str(
+                        getattr(scoped_record, "head_sha", "") or ""
+                    ).strip()
+                    exact_scoped_generation = bool(
+                        scoped_issue is not None
+                        and (
+                            expected_task_branch is None
+                            or scoped_branch == expected_task_branch
+                        )
+                        and (
+                            expected_head_sha is None
+                            or scoped_head == expected_head_sha
+                        )
+                    )
+                    ready = (
+                        [scoped_issue]
+                        if exact_scoped_generation
+                        and canonicalize_status(scoped_issue.state)
+                        == READY_TO_INTEGRATE
+                        else []
+                    )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Could not scan Ready to Integrate submissions for %s: %s",
@@ -11138,7 +11242,21 @@ class Orchestrator:
                     )
                     continue
                 queue_item = queued_by_task.get(task_id)
-                if queue_item is None:
+                integration = getattr(issue, "integration", None)
+                reclassified_queue_history = bool(
+                    queue_item is not None
+                    and queue_item.state == "cancelled"
+                    and queue_item.last_error
+                    == STANDALONE_RECLASSIFICATION_REASON
+                    and not str(getattr(issue, "parent_id", "") or "").strip()
+                    and str(getattr(integration, "mode", "") or "").strip()
+                    == "standalone"
+                    and str(getattr(integration, "task_branch", "") or "").strip()
+                    == queue_item.task_branch
+                    and str(getattr(integration, "head_sha", "") or "").strip()
+                    == queue_item.head_sha
+                )
+                if queue_item is None or reclassified_queue_history:
                     self._clear_standalone_delivery_alert(
                         project_id,
                         task_id,
@@ -11179,11 +11297,11 @@ class Orchestrator:
             except Exception as exc:  # noqa: BLE001
                 provider_error = f"SCM provider setup failed: {exc}"
 
-            target_branch = str(project.default_branch or "").strip()
+            default_target_branch = str(project.default_branch or "").strip()
             # Provider and project configuration failures are shared by every
             # candidate.  Surface them without manufacturing claims for rows
             # that were never selected.
-            if provider is None or not repo_slug or not target_branch:
+            if provider is None or not repo_slug or not default_target_branch:
                 reason = (
                     provider_error
                     or (
@@ -11226,11 +11344,21 @@ class Orchestrator:
                     )
                     continue
 
+                # The durable delivery authority includes the task's explicit
+                # target branch.  Propagate that exact value through the gate,
+                # review lookup/adoption, capacity reservation, and create
+                # call instead of silently substituting the project default.
+                target_branch = str(
+                    issue.target_branch or default_target_branch
+                ).strip()
+
                 authority = self._claim_standalone_delivery_authority(
                     project,
                     issue,
                     dependency_revision=dependency_state.revision,
                     allows_parent=bool(str(issue.parent_id or "").strip()),
+                    workflow_generation=workflow_generation,
+                    workflow_authority_check=workflow_authority_check,
                 )
                 if authority is None:
                     continue
@@ -11537,6 +11665,17 @@ class Orchestrator:
                     review_capacity = self._project_review_capacity(project_id)
                 review_count, review_limit, at_capacity = review_capacity
                 if at_capacity:
+                    if self._has_exact_review_capacity_reservation(
+                        project_id=project_id,
+                        task_id=task_id,
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    ):
+                        # A concurrent sweep may have created or reserved this
+                        # exact task after our forge lookup.  That reservation
+                        # is already a durable delivery path, not evidence that
+                        # the same task is waiting behind project capacity.
+                        return
                     # Capacity is project-wide, so later candidates cannot
                     # make progress in this sweep.  Keep an informational,
                     # non-actionable wait state for the selected task rather
@@ -11609,6 +11748,17 @@ class Orchestrator:
                     target_branch=target_branch,
                 )
                 if reservation is None:
+                    if self._has_exact_review_capacity_reservation(
+                        project_id=project_id,
+                        task_id=task_id,
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    ):
+                        # The acquisition CAS returns no new ownership when a
+                        # sibling sweep already owns this exact delivery.  Do
+                        # not race its successful alert cleanup with a stale
+                        # capacity-wait write.
+                        return
                     review_count, review_limit, _ = review_capacity
                     # Capacity and an unavailable live listing are both
                     # retryable.  Neither means the submission is stranded,
@@ -11850,6 +12000,7 @@ class Orchestrator:
         return (
             str(getattr(integration, "version", "") or ""),
             str(getattr(integration, "state", "") or ""),
+            str(getattr(integration, "mode", "") or ""),
             str(getattr(integration, "task_branch", "") or ""),
             str(getattr(integration, "base_branch", "") or ""),
             str(getattr(integration, "base_sha", "") or ""),
@@ -12100,6 +12251,8 @@ class Orchestrator:
                 current_review = provider.find_pr_for_branch(repo_slug, work_branch)
             except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
                 return False, f"final open-review lookup failed: {exc}"
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False, "delivery authority changed during open-review lookup"
             if (
                 self._standalone_review_observation(current_review)
                 != self._standalone_review_observation(expected_review)
@@ -12125,6 +12278,11 @@ class Orchestrator:
                 )
             review_id = str(getattr(current_review, "id", "") or "").strip()
             if not getattr(current_review, "draft", False):
+                if not self._standalone_delivery_authorized(authority, tracker):
+                    return (
+                        False,
+                        "delivery authority changed before open-review capacity adoption",
+                    )
                 self._adopt_open_review_capacity(
                     project_id=authority.project_id,
                     task_id=authority.task_id,
@@ -12524,6 +12682,8 @@ class Orchestrator:
         expected_state: str = READY_TO_INTEGRATE,
         dependency_revision: tuple[str, ...] = (),
         allows_parent: bool = False,
+        workflow_generation: str | None = None,
+        workflow_authority_check: Callable[[], bool] | None = None,
     ) -> StandaloneDeliveryAuthority | None:
         """Claim the current standalone task revision for delivery work."""
 
@@ -12532,6 +12692,7 @@ class Orchestrator:
         branch = self._branch_for_issue(issue, project)
         target_branch = str(issue.target_branch or project.default_branch or "").strip()
         expected_state = canonicalize_status(expected_state)
+        durable_generation = str(workflow_generation or "").strip() or None
         if (
             not task_id
             or not project_id
@@ -12559,7 +12720,9 @@ class Orchestrator:
                 and existing.evidence_revision == revision
                 and existing.dependency_revision == dependency_revision
                 and existing.allows_parent == allows_parent
+                and existing.workflow_generation == durable_generation
             ):
+                existing.workflow_authority_check = workflow_authority_check
                 return existing
             if existing is not None:
                 existing.revoked = True
@@ -12575,6 +12738,8 @@ class Orchestrator:
                 dependency_revision=dependency_revision,
                 allows_parent=allows_parent,
                 generation=uuid.uuid4().hex,
+                workflow_generation=durable_generation,
+                workflow_authority_check=workflow_authority_check,
             )
             self._standalone_delivery_authorities[key] = authority
         if superseded_generation is not None:
@@ -12747,6 +12912,12 @@ class Orchestrator:
                 or self._standalone_delivery_authorities.get(key) is not authority
             ):
                 return False
+            if authority.workflow_authority_check is not None:
+                try:
+                    if not authority.workflow_authority_check():
+                        return False
+                except Exception:
+                    return False
             if tracker is None:
                 try:
                     tracker = self._tracker_for_project(authority.project_id)
@@ -12875,7 +13046,14 @@ class Orchestrator:
         with self._standalone_delivery_authority_lock:
             if not self._standalone_delivery_authorized(authority, tracker):
                 return False, None
-            return True, action()
+            result = action()
+            # A blocking forge adapter can return after the durable workflow
+            # lease was timed out or superseded.  Preserve the forge result for
+            # later idempotent adoption, but never let this late invocation
+            # proceed to capacity or tracker mutations.
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False, result
+            return True, result
 
     async def _request_standalone_merged_with_authority_inner(
         self,
@@ -13485,6 +13663,8 @@ class Orchestrator:
         return bool(
             canonicalize_status(issue.state) == READY_TO_INTEGRATE
             and record is not None
+            and str(getattr(issue, "parent_id", "") or "").strip()
+            == str(item.epic_id or "").strip()
             and str(record.task_branch or "").strip() == item.task_branch
             and (
                 not item.base_branch
@@ -13940,6 +14120,13 @@ class Orchestrator:
         *,
         expected_dependencies: tuple[str, ...] | None = None,
         expected_dependency_revision: tuple[str, ...] | None = None,
+        commit_allowed: Callable[[], bool] | None = None,
+        rebase_intent_prepare: Callable[[str], bool] | None = None,
+        rebase_intent_abort: Callable[[], bool] | None = None,
+        rebased_head_prepare: Callable[[str, str | None], bool] | None = None,
+        rebased_head_checkpoint: Callable[[str, str | None], bool] | None = None,
+        gate_generation: str | None = None,
+        retry_forced: bool | None = None,
     ) -> IntegrationExecutionResult:
         project = self.project_store.get(item.project_id)
         if project is None:
@@ -13963,7 +14150,19 @@ class Orchestrator:
                 base_branch=target_branch,
                 branch_name=item.task_branch,
                 prefer_remote_branch=True,
-                expected_head_sha=accepted_head,
+                # A prepared publication may have durable new-head authority
+                # while origin still names its exact predecessor.  Let the
+                # executor validate the local new head against both durable
+                # values; ordinary submissions retain ProjectStore's strict
+                # remote-head check.
+                expected_head_sha=(
+                    None
+                    if (
+                        item.rebased_publication_pending
+                        or item.rebase_intent_pending
+                    )
+                    else accepted_head
+                ),
             )
         except Exception as exc:  # noqa: BLE001
             return IntegrationExecutionResult(
@@ -13978,6 +14177,19 @@ class Orchestrator:
                 item.candidate_head_sha and item.candidate_base_sha
             ),
         )
+        authority_generation = gate_generation or (
+            f"integration:{item.project_id}:{item.task_id}:"
+            f"{item.head_sha}:{item.lease_owner or ''}"
+        )
+        durable_commit_allowed = (
+            commit_allowed
+            if commit_allowed is not None
+            else lambda: self._integration_task_still_ready(item)
+        )
+
+        def combined_commit_allowed() -> bool:
+            return bool(durable_commit_allowed() and is_current())
+
         return execute_integration(
             project_lock=self.project_store.project_write_lock(
                 item.project_id
@@ -13992,21 +14204,22 @@ class Orchestrator:
             repo_identity=project.repo_url or project.repo_path or project.id,
             access_token=getattr(project, "access_token", None),
             forge_kind=getattr(project, "forge_kind", "github"),
-            retry_forced=item.retry_forced,
-            gate_generation=(
-                f"integration:{item.project_id}:{item.task_id}:"
-                f"{accepted_head}:{item.lease_owner or ''}"
+            retry_forced=(
+                bool(retry_forced)
+                if retry_forced is not None
+                else bool(
+                    getattr(item, "claimed_retry_forced", False)
+                    or item.retry_forced
+                )
             ),
+            gate_generation=authority_generation,
             gate_owner=QualityGateOwner(
                 project_id=str(item.project_id),
                 task_id=str(item.task_id),
                 head_sha=accepted_head,
-                authority_generation=(
-                    f"integration:{item.project_id}:{item.task_id}:"
-                    f"{accepted_head}:{item.lease_owner or ''}"
-                ),
+                authority_generation=authority_generation,
             ),
-            commit_allowed=is_current,
+            commit_allowed=combined_commit_allowed,
             canonicalize_candidate=lambda candidate, base: (
                 self._canonicalize_integration_candidate(
                     item,
@@ -14016,7 +14229,53 @@ class Orchestrator:
                     expected_dependency_revision=expected_dependency_revision,
                 )
             ),
+            rebase_intent_prepare=rebase_intent_prepare,
+            rebase_intent_abort=rebase_intent_abort,
+            rebase_intent_pending=bool(item.rebase_intent_pending),
+            rebased_head_prepare=rebased_head_prepare,
+            rebased_head_checkpoint=rebased_head_checkpoint,
+            publication_pending=bool(item.rebased_publication_pending),
+            publication_predecessor_sha=item.rebased_from_head_sha,
+            publication_base_sha=item.base_sha,
+            gate_owner_factory=lambda head: QualityGateOwner(
+                project_id=str(item.project_id),
+                task_id=str(item.task_id),
+                head_sha=str(head or "").strip(),
+                authority_generation=authority_generation,
+            ),
         )
+
+    def _notify_integrated_task_peers(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        epic_id: str,
+        integrated_sha: str,
+    ) -> int:
+        """Publish idempotent coordination for one exact integration effect."""
+
+        notified = 0
+        peers = self.coordination_peers(project_id, task_id)
+        for peer in peers:
+            self.coordination_send(
+                project_id=project_id,
+                sender=task_id,
+                recipient=str(peer["identifier"]),
+                kind="dependency-integrated",
+                text=(
+                    f"{task_id} was integrated into {epic_id} at "
+                    f"{integrated_sha}. Rebase or reconcile your "
+                    "private branch before submission if needed."
+                ),
+                commit_sha=integrated_sha,
+                idempotency_key=(
+                    f"integrated:{integrated_sha}:{peer['identifier']}"
+                ),
+                system=True,
+            )
+            notified += 1
+        return notified
 
     def _route_integration_failure(
         self,
@@ -14491,64 +14750,193 @@ class Orchestrator:
     async def _stage_integrated_task_audit(
         self,
         item: IntegrationQueueItem,
-    ) -> None:
+        *,
+        expected_generation: str | None = None,
+        expected_task_branch: str | None = None,
+        expected_head_sha: str | None = None,
+        expected_integrated_sha: str | None = None,
+    ) -> bool:
+        """Stage one exact integrated generation, returning observability."""
+
         tracker = self._tracker_for_project(item.project_id)
-        issue = await asyncio.get_running_loop().run_in_executor(
+        observed_issue = await asyncio.get_running_loop().run_in_executor(
             self._tick_pool,
             tracker.fetch_issue_detail,
             item.task_id,
         )
-        if not self._is_authoritative_integrated_audit_detail(
-            issue,
-            item.project_id,
-            item.task_id,
-        ):
-            return
-        if canonicalize_status(issue.state) in {
-            IN_VALIDATION,
-            DONE,
-            MERGED,
-            ARCHIVED,
-        }:
-            integration = getattr(issue, "integration", None)
-            await asyncio.get_running_loop().run_in_executor(
-                self._tick_pool,
-                self._reconcile_integrated_audit_recovery_alert,
+        if observed_issue is None:
+            # A deleted historical tracker task has no terminal transition to
+            # recover.  Treat the durable queue receipt as fully consumed so a
+            # project cursor cannot be pinned forever by deleted history.
+            return True
+        issue_id = str(observed_issue.id or observed_issue.identifier)
+        async with self.issue_transition_lock(issue_id):
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                await asyncio.to_thread(invalidate)
+            issue = await asyncio.to_thread(
+                tracker.fetch_issue_detail,
+                item.task_id,
+            )
+            if issue is None:
+                return True
+            row = await asyncio.to_thread(
+                self.integration_queue.get,
                 item.project_id,
                 item.task_id,
-                DONE,
-                "terminal audit status could not be confirmed",
-                str(getattr(integration, "integrated_sha", None) or item.head_sha),
-                compute_issue_evidence_fingerprint(issue, item.project_id),
             )
-            return
-        record = getattr(issue, "integration", None)
-        if record is None or record.state != "integrated" or not record.integrated_sha:
-            return
-        fingerprint = compute_issue_evidence_fingerprint(issue, item.project_id)
-        transition = await self.request_terminal_transition(
-            current_issue=issue,
-            requested_target=TargetState.DONE,
-            trigger_identity=ContributorIdentity(
-                identity="oompah-integration",
-                source="service",
-            ),
-            project_id=item.project_id,
-            evidence_fingerprint=fingerprint,
-        )
+            branch = str(expected_task_branch or item.task_branch or "").strip()
+            head = str(expected_head_sha or item.head_sha or "").strip()
+            integrated = str(
+                expected_integrated_sha
+                or getattr(item, "integrated_sha", "")
+                or ""
+            ).strip()
+            # Fence the caller's exact durable generation before *any* recovery
+            # or terminal side effect.  In particular, a historical job for an
+            # older landing must not repair a replacement generation's
+            # queue-first tracker gap before discovering that it is stale.
+            if (
+                row is None
+                or row.state != "integrated"
+                or (
+                    expected_generation
+                    and row.authority_generation() != expected_generation
+                )
+                or row.task_branch != branch
+                or row.head_sha != head
+                or (
+                    integrated
+                    and str(row.integrated_sha or "").strip() != integrated
+                )
+            ):
+                return False
+            if not self._is_authoritative_integrated_audit_detail(
+                issue,
+                item.project_id,
+                item.task_id,
+            ):
+                return False
+            if canonicalize_status(issue.state) in {
+                IN_VALIDATION,
+                DONE,
+                MERGED,
+                ARCHIVED,
+            }:
+                record = getattr(issue, "integration", None)
+                fingerprint = compute_issue_evidence_fingerprint(
+                    issue, item.project_id
+                )
+                integrated_head = str(
+                    getattr(record, "integrated_sha", None)
+                    or row.integrated_sha
+                    or item.head_sha
+                )
+                await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    self._reconcile_integrated_audit_recovery_alert,
+                    item.project_id,
+                    item.task_id,
+                    DONE,
+                    "terminal audit status could not be confirmed",
+                    integrated_head,
+                    fingerprint,
+                )
+                return True
+            record = getattr(issue, "integration", None)
+            predecessor = str(
+                getattr(row, "rebased_from_head_sha", "") or ""
+            ).strip()
+            record_state = str(getattr(record, "state", "") or "").strip().lower()
+            record_head = str(getattr(record, "head_sha", "") or "").strip()
+            # Recover a crash after the queue-first legacy landing checkpoint.
+            # The exact leased queue row is the durable landing receipt; only
+            # the predecessor tracker generation (or an incomplete same-head
+            # integrated record) may be normalized from it.
+            queue_first_gap = bool(
+                row is not None
+                and row.state == "integrated"
+                and row.integrated_sha
+                and record is not None
+                and str(getattr(record, "task_branch", "") or "").strip()
+                == row.task_branch
+                and (
+                    (
+                        record_state == "ready"
+                        and record_head
+                        in {value for value in (predecessor, row.head_sha) if value}
+                    )
+                    or (
+                        record_state == "integrated"
+                        and record_head == row.head_sha
+                        and not str(getattr(record, "integrated_sha", "") or "").strip()
+                    )
+                )
+            )
+            if queue_first_gap:
+                await asyncio.to_thread(
+                    self._notify_integrated_task_peers,
+                    project_id=item.project_id,
+                    task_id=item.task_id,
+                    epic_id=row.epic_id,
+                    integrated_sha=str(row.integrated_sha),
+                )
+                await asyncio.to_thread(
+                    tracker.set_metadata_field,
+                    item.task_id,
+                    "oompah.integration",
+                    IntegrationRecord(
+                        state="integrated",
+                        task_branch=row.task_branch,
+                        base_branch=self.project_store.epic_branch_name(row.epic_id),
+                        base_sha=row.base_sha,
+                        head_sha=row.head_sha,
+                        integrated_sha=row.integrated_sha,
+                        attempts=row.attempts,
+                        submitted_at=(
+                            getattr(record, "submitted_at", None) or row.submitted_at
+                        ),
+                        updated_at=datetime.now(timezone.utc).isoformat(),
+                    ).to_dict(),
+                )
+                issue = await asyncio.to_thread(
+                    tracker.fetch_issue_detail,
+                    item.task_id,
+                )
+                if issue is None:
+                    return True
+                record = getattr(issue, "integration", None)
+            if (
+                record is None
+                or record.state != "integrated"
+                or str(record.task_branch or "").strip() != branch
+                or str(record.head_sha or "").strip() != head
+                or not str(record.integrated_sha or "").strip()
+                or (
+                    integrated
+                    and str(record.integrated_sha or "").strip() != integrated
+                )
+            ):
+                return False
+            fingerprint = compute_issue_evidence_fingerprint(issue, item.project_id)
+            transition = await self.request_terminal_transition(
+                current_issue=issue,
+                requested_target=TargetState.DONE,
+                trigger_identity=ContributorIdentity(
+                    identity="oompah-integration",
+                    source="service",
+                ),
+                project_id=item.project_id,
+                evidence_fingerprint=fingerprint,
+            )
         if not transition.success or not transition.status_staged:
             # A durable audit record is not sufficient to clear the warning:
             # the task must also have accepted the exact In Validation staging
-            # write.  In particular, an owner retry can commit its rearm intent
-            # while the tracker write remains unavailable.  Preserve that
-            # already-actionable retry instruction rather than replacing it
-            # with a generic override during periodic integrated replay.
-            source = (
-                f"terminal_audit_recovery:{item.project_id}:{item.task_id}"
-            )
+            # write. Preserve an already-actionable retry instruction when
+            # the status write remains unavailable.
+            source = f"terminal_audit_recovery:{item.project_id}:{item.task_id}"
             alert_exists = any(
-                alert.get("source") == source
-                for alert in self._alerts_snapshot()
+                alert.get("source") == source for alert in self._alerts_snapshot()
             )
             if transition.success and alert_exists:
                 logger.debug(
@@ -14556,7 +14944,7 @@ class Orchestrator:
                     "status is still unstaged; retaining the recovery alert.",
                     item.task_id,
                 )
-                return
+                return False
             failure_reason = transition.reason or (
                 "terminal audit is durable but In Validation status staging "
                 "was not confirmed"
@@ -14583,7 +14971,7 @@ class Orchestrator:
                     item.task_id,
                     failure_reason,
                 )
-            return
+            return False
 
         # Confirm the post-write task identity and status through the same
         # project-serialized reconciliation boundary used by terminal commits.
@@ -14613,6 +15001,7 @@ class Orchestrator:
                 item.task_id,
                 exc,
             )
+        return True
 
     def _detect_and_repair_integration_queue_staleness_block(
         self,
@@ -14623,6 +15012,8 @@ class Orchestrator:
         queue_items: list[IntegrationQueueItem],
         dependency_map: dict[str, tuple[str, ...]],
         satisfied: set[str],
+        expected_generation: str | None = None,
+        authority_check: Callable[[], bool] | None = None,
     ) -> bool:
         """Detect if queue is blocked by merged code unreachable from epic.
 
@@ -14630,6 +15021,16 @@ class Orchestrator:
         reachable from the epic branch, file a rebase task to incorporate them.
         Returns True if a repair was scheduled.
         """
+        def _authority_current() -> bool:
+            if authority_check is None:
+                return True
+            try:
+                return bool(authority_check())
+            except Exception:  # noqa: BLE001 - a revoked workflow fails closed
+                return False
+
+        if not _authority_current():
+            return False
         ready_items = [item for item in queue_items if item.state == "ready"]
         if not ready_items:
             return False
@@ -14721,6 +15122,8 @@ class Orchestrator:
                 )
             if refreshed.returncode != 0:
                 return False
+            if not _authority_current():
+                return False
 
             has_unreachable_terminal = False
             for dep_id in unsatisfied:
@@ -14806,8 +15209,21 @@ class Orchestrator:
 
             try:
                 tracker = self._tracker_for_project(project_id)
+                if not _authority_current():
+                    return False
+                if expected_generation:
+                    current = self.integration_queue.get(
+                        project_id, eligible_item.task_id
+                    )
+                    if (
+                        current is None
+                        or current.authority_generation() != expected_generation
+                    ):
+                        return False
                 allowed, reason = self._epic_synchronization_decision(epic, target_branch)
                 if not allowed:
+                    if not _authority_current():
+                        return False
                     current_labels = set(
                         str(label).strip().lower()
                         for label in (epic.labels or [])
@@ -14834,12 +15250,26 @@ class Orchestrator:
                     target_branch=target_branch,
                 )
                 if active_rebase is None:
+                    if not _authority_current():
+                        return False
+                    if expected_generation:
+                        current = self.integration_queue.get(
+                            project_id, eligible_item.task_id
+                        )
+                        if (
+                            current is None
+                            or current.authority_generation() != expected_generation
+                        ):
+                            return False
                     self._file_rebase_task(
                         tracker,
                         epic,
                         epic_branch,
                         target_branch,
                     )
+
+                if not _authority_current():
+                    return False
 
                 self._epic_rebase_filed_at[cooldown_key] = now
                 self._set_epic_rebase_state(
@@ -14942,6 +15372,124 @@ class Orchestrator:
             "deferred": deferred,
             "cursor": cursor,
             "error": error,
+        }
+
+    async def _replay_project_integrated_audit_batch(
+        self,
+        *,
+        project_id: str,
+        expected_cursor: str | None = None,
+        skip: set[tuple[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        """Serialize one project's durable historical cursor across workers."""
+
+        lock_key = f"integration-audit-project:{str(project_id or '').strip()}"
+        async with self.issue_transition_lock(lock_key):
+            return await self._replay_project_integrated_audit_batch_owned(
+                project_id=project_id,
+                expected_cursor=expected_cursor,
+                skip=skip,
+            )
+
+    async def _replay_project_integrated_audit_batch_owned(
+        self,
+        *,
+        project_id: str,
+        expected_cursor: str | None = None,
+        skip: set[tuple[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        """Replay one bounded historical slice for exactly one project.
+
+        Durable historical jobs use a synthetic project maintenance identity.
+        They must not borrow or terminal-stage a live task, scan another
+        project, or invoke the legacy all-project maintenance sweep.
+        """
+
+        normalized_project = str(project_id or "").strip()
+        if not normalized_project:
+            return {
+                "batch_size": 0,
+                "replayed": 0,
+                "deferred": False,
+                "cursor": None,
+                "error": "project_id is required",
+                "batch_completed": False,
+            }
+        cursor_name = f"integration_audit:{normalized_project}"
+        cursor = getattr(self, "_maintenance_cursors", {}).get(cursor_name)
+        normalized_expected = (
+            str(expected_cursor) if expected_cursor is not None else None
+        )
+        if cursor != normalized_expected:
+            return {
+                "batch_size": 0,
+                "replayed": 0,
+                "deferred": False,
+                "cursor": cursor,
+                "error": "historical audit cursor changed before replay",
+                "batch_completed": False,
+            }
+        batch_size = max(
+            int(getattr(self.config, "integration_audit_batch_size", 32)),
+            1,
+        )
+        candidates = await asyncio.to_thread(
+            self.integration_queue.items,
+            project_id=normalized_project,
+            states=("integrated",),
+            limit=batch_size + 1,
+            after=cursor,
+        )
+        integrated = candidates[:batch_size]
+        more_history = len(candidates) > batch_size
+        if not integrated:
+            return {
+                "batch_size": batch_size,
+                "replayed": 0,
+                "deferred": False,
+                "cursor": cursor,
+                "error": None,
+                "batch_completed": True,
+            }
+
+        replayed = 0
+        error: str | None = None
+        for item in integrated:
+            if skip is None or (item.project_id, item.task_id) not in skip:
+                try:
+                    staged = await self._stage_integrated_task_audit(
+                        item,
+                        expected_generation=item.authority_generation(),
+                        expected_task_branch=item.task_branch,
+                        expected_head_sha=item.head_sha,
+                        expected_integrated_sha=str(item.integrated_sha or ""),
+                    )
+                    if staged is False:
+                        raise RuntimeError(
+                            "exact integrated task generation is not yet "
+                            "terminally observable"
+                        )
+                except Exception as exc:  # noqa: BLE001 - retry exact failed row
+                    error = f"{type(exc).__name__}: {exc}"
+                    logger.warning(
+                        "Project terminal-audit replay deferred for %s:%s: %s",
+                        normalized_project,
+                        item.task_id,
+                        error,
+                    )
+                    break
+            replayed += 1
+            cursor = self.integration_queue.cursor_for(item)
+            self._set_maintenance_cursor(cursor_name, cursor)
+
+        deferred = bool(error) or more_history
+        return {
+            "batch_size": batch_size,
+            "replayed": replayed,
+            "deferred": deferred,
+            "cursor": cursor,
+            "error": error,
+            "batch_completed": error is None,
         }
 
     def _record_integration_queue_progress(
@@ -15832,59 +16380,103 @@ class Orchestrator:
                     dependency_heads[dependency.task_id] = str(
                         dependency.candidate_head_sha or dependency.head_sha
                     )
-            integrated_item = self._finalize_integration_success(
-                item,
-                result,
-                epic_id=epic_id,
-                lease_owner=lease_owner,
-                dependency_heads=dependency_heads,
-                expected_dependencies=claimed_dependencies,
-                expected_dependency_revision=claimed_dependency_revision,
+            lock_issue = issue_aliases.get(item.task_id)
+            lock_issue_id = str(
+                getattr(lock_issue, "id", "")
+                or getattr(lock_issue, "identifier", "")
+                or item.task_id
             )
-            if integrated_item is None:
-                self.integration_queue.fail(
-                    item.project_id,
-                    item.task_id,
-                    lease_owner=lease_owner,
-                    error=(
-                        "integration landed but durable authority changed "
-                        "before finalization"
-                    ),
-                    retryable=True,
-                )
-                logger.warning(
-                    "Integration for %s landed but its durable generation "
-                    "changed before finalization; leaving current authority "
-                    "untouched for landing recovery",
-                    item.task_id,
-                )
-                continue
-            try:
-                peers = self.coordination_peers(project_id, item.task_id)
-                for peer in peers:
-                    self.coordination_send(
-                        project_id=project_id,
-                        sender=item.task_id,
-                        recipient=str(peer["identifier"]),
-                        kind="dependency-integrated",
-                        text=(
-                            f"{item.task_id} was integrated into {epic_id} at "
-                            f"{result.integrated_sha}. Rebase or reconcile your "
-                            "private branch before submission if needed."
+
+            def _checkpoint_legacy_success() -> IntegrationQueueItem | None:
+                with self.issue_transition_lock(lock_issue_id).sync():
+                    canonical_item = replace(
+                        item,
+                        candidate_head_sha=str(
+                            result.rebased_task_sha or item.head_sha
                         ),
-                        commit_sha=result.integrated_sha,
-                        idempotency_key=(
-                            f"integrated:{result.integrated_sha}:"
-                            f"{peer['identifier']}"
+                        candidate_base_sha=str(
+                            result.expected_epic_sha
+                            or item.candidate_base_sha
+                            or item.base_sha
+                            or ""
                         ),
-                        system=True,
                     )
-            except Exception as exc:  # noqa: BLE001
-                logger.debug(
-                    "Integration coordination notice deferred for %s: %s",
+                    if not self._integration_dependency_authority(
+                        canonical_item,
+                        claimed_dependencies,
+                        claimed_dependency_revision,
+                    )():
+                        return None
+                    checkpoint = self.integration_queue.checkpoint_legacy_integration(
+                        project_id,
+                        item.task_id,
+                        lease_owner=lease_owner,
+                        expected_task_branch=item.task_branch,
+                        expected_head_sha=item.head_sha,
+                        rebased_head_sha=str(result.rebased_task_sha or item.head_sha),
+                        integrated_sha=str(result.integrated_sha or ""),
+                        base_sha=result.expected_epic_sha,
+                    )
+                    if checkpoint is None:
+                        return None
+
+                    def _persist_tracker(current: IntegrationQueueItem) -> bool:
+                        self._notify_integrated_task_peers(
+                            project_id=project_id,
+                            task_id=item.task_id,
+                            epic_id=epic_id,
+                            integrated_sha=str(current.integrated_sha or ""),
+                        )
+                        tracker.set_metadata_field(
+                            item.task_id,
+                            "oompah.integration",
+                            IntegrationRecord(
+                                state="integrated",
+                                task_branch=current.task_branch,
+                                base_branch=self.project_store.epic_branch_name(epic_id),
+                                base_sha=result.expected_epic_sha,
+                                head_sha=current.head_sha,
+                                integrated_sha=current.integrated_sha,
+                                attempts=current.attempts,
+                                submitted_at=current.submitted_at,
+                                updated_at=datetime.now(timezone.utc).isoformat(),
+                                dependency_heads=dependency_heads,
+                            ).to_dict(),
+                        )
+                        return True
+
+                    persisted = self.integration_queue.run_if_generation(
+                        project_id,
+                        item.task_id,
+                        expected_generation=checkpoint.authority_generation(),
+                        action=_persist_tracker,
+                    )
+                    return (
+                        self.integration_queue.get(project_id, item.task_id)
+                        if persisted
+                        else None
+                    )
+
+            try:
+                integrated_checkpoint = await loop.run_in_executor(
+                    self._tick_pool,
+                    _checkpoint_legacy_success,
+                )
+            except Exception as exc:  # noqa: BLE001 - durable replay owns recovery
+                logger.warning(
+                    "Integration tracker checkpoint deferred for %s: %s",
                     item.task_id,
                     exc,
                 )
+                continue
+            if integrated_checkpoint is None:
+                logger.warning(
+                    "Integration result for %s lost its exact queue lease before "
+                    "the durable queue-first tracker checkpoint",
+                    item.task_id,
+                )
+                continue
+            integrated_item = integrated_checkpoint
             await self._stage_integrated_task_audit(integrated_item)
             staged_integrated_keys.add(
                 (integrated_item.project_id, integrated_item.task_id)
@@ -18692,6 +19284,32 @@ class Orchestrator:
         n_open = self._count_open_reviews(project_id)
         limit = self._project_max_in_flight(project_id)
         return n_open, limit, n_open >= limit
+
+    def _has_exact_review_capacity_reservation(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        source_branch: str,
+        target_branch: str,
+    ) -> bool:
+        """Return whether another sweep already owns this exact delivery."""
+
+        try:
+            reservations = self.review_capacity_store.active(project_id)
+        except Exception as exc:  # noqa: BLE001 - capacity evidence fails closed
+            logger.warning(
+                "Could not inspect exact review capacity for %s: %s",
+                task_id,
+                exc,
+            )
+            return False
+        return any(
+            reservation.task_id == task_id
+            and reservation.source_branch == source_branch
+            and reservation.target_branch == target_branch
+            for reservation in reservations
+        )
 
     def _is_project_paused(self, project_id: str | None) -> bool:
         """Return True when the project has been individually paused.

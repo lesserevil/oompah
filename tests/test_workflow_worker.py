@@ -16,6 +16,7 @@ from oompah.workflow_jobs import (
     WorkflowJobSpec,
     WorkflowJobState,
     WorkflowJobStore,
+    WorkflowJobLeaseLost,
 )
 from oompah.workflow_worker import (
     DurableWorkflowWorker,
@@ -64,6 +65,7 @@ class ScriptedHandler:
         self.delay_operation: str | None = None
         self.delay_seconds = 0.0
         self.apply_error_after_effect: Exception | None = None
+        self.apply_context = None
         self.started: asyncio.Event | None = None
         self.release: asyncio.Event | None = None
 
@@ -76,6 +78,7 @@ class ScriptedHandler:
                 context.check_interrupted()
             elif self.delay_seconds:
                 await asyncio.sleep(self.delay_seconds)
+                context.check_interrupted()
 
     async def revalidate(self, context):
         self.revalidate_calls += 1
@@ -98,6 +101,7 @@ class ScriptedHandler:
 
     async def apply(self, context):
         self.apply_calls += 1
+        self.apply_context = context
         await self._delay("apply", context)
         self.external_applied = True
         if self.apply_error_after_effect is not None:
@@ -421,9 +425,7 @@ async def test_default_worker_does_not_claim_unregistered_action(store):
     # Workers claim their registered action set by default so one domain
     # cannot steal another domain's rows.  An explicitly requested unknown
     # action still fails closed rather than disappearing.
-    result = await worker(store, ScriptedHandler()).run_once(
-        actions=("unregistered",)
-    )
+    result = await worker(store, ScriptedHandler()).run_once()
 
     assert result.disposition is WorkflowRunDisposition.IDLE
     assert store.get(queued.job_id).state is WorkflowJobState.QUEUED
@@ -445,7 +447,6 @@ async def test_default_worker_reserves_terminal_audit_for_its_owner(store):
 @pytest.mark.asyncio
 async def test_explicit_unregistered_claim_remains_fail_closed(store):
     queued = store.enqueue(job_spec(action="unregistered"))
-
     result = await worker(store, ScriptedHandler()).run_once(
         actions=("unregistered",)
     )
@@ -455,11 +456,40 @@ async def test_explicit_unregistered_claim_remains_fail_closed(store):
 
 
 @pytest.mark.asyncio
-async def test_handler_timeout_is_bounded_and_retryable(store):
+async def test_handler_timeout_is_bounded_and_durably_quarantined(store):
     store.enqueue(job_spec())
     handler = ScriptedHandler()
     handler.delay_operation = "apply"
     handler.delay_seconds = 0.1
+
+    started = time.monotonic()
+    result = await worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+    ).run_once()
+    elapsed = time.monotonic() - started
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    failed = store.list_jobs()[0]
+    assert failed.state is WorkflowJobState.RUNNING
+    assert failed.phase == "quarantined"
+    assert failed.lease_expires_at is None
+    assert failed.failure_category is WorkflowFailureCategory.TIMEOUT
+    assert "apply exceeded" in failed.last_error
+    with pytest.raises(WorkflowJobLeaseLost):
+        handler.apply_context.check_interrupted()
+    assert handler.external_applied is False
+    assert elapsed < 0.08
+
+
+@pytest.mark.asyncio
+async def test_handler_can_extend_apply_bound_for_domain_safe_command(store):
+    store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.delay_operation = "apply"
+    handler.delay_seconds = 0.05
+    handler.operation_timeout_seconds = 0.2
 
     result = await worker(
         store,
@@ -467,10 +497,48 @@ async def test_handler_timeout_is_bounded_and_retryable(store):
         operation_timeout_seconds=0.01,
     ).run_once()
 
-    assert result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
-    failed = store.list_jobs()[0]
-    assert failed.failure_category is WorkflowFailureCategory.TIMEOUT
-    assert "apply exceeded" in failed.last_error
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_timed_out_thread_effect_returns_without_releasing_retry_authority(store):
+    store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    mutations = []
+
+    async def threaded_apply(context):
+        handler.apply_calls += 1
+        handler.apply_context = context
+
+        def late_effect():
+            time.sleep(0.08)
+            context.check_interrupted()
+            mutations.append("mutated")
+
+        await asyncio.to_thread(late_effect)
+        return EffectResult(receipt=handler.external_receipt)
+
+    handler.apply = threaded_apply
+    started = time.monotonic()
+
+    result = await worker(
+        store,
+        handler,
+        operation_timeout_seconds=0.01,
+    ).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.ACTION_REQUIRED
+    assert time.monotonic() - started < 0.07
+    quarantined = store.list_jobs()[0]
+    assert quarantined.state is WorkflowJobState.RUNNING
+    assert quarantined.phase == "quarantined"
+    assert quarantined.lease_expires_at is None
+    assert mutations == []
+    replacement = worker(store, ScriptedHandler())
+    assert (await replacement.run_once()).disposition is WorkflowRunDisposition.IDLE
+    await asyncio.sleep(0.1)
+    assert mutations == []
+    assert (await replacement.run_once()).disposition is WorkflowRunDisposition.IDLE
 
 
 @pytest.mark.asyncio
@@ -519,6 +587,32 @@ async def test_heartbeat_renews_lease_during_long_effect(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_heartbeat_transport_error_fails_closed_before_effect_commit(
+    store, monkeypatch
+):
+    queued = store.enqueue(job_spec())
+    handler = ScriptedHandler()
+    handler.delay_operation = "apply"
+    handler.delay_seconds = 0.05
+
+    def broken_renew(*_args, **_kwargs):
+        raise OSError("simulated SQLite transport failure")
+
+    monkeypatch.setattr(store, "renew", broken_renew)
+    result = await worker(
+        store,
+        handler,
+        lease_seconds=1,
+        heartbeat_seconds=0.01,
+        operation_timeout_seconds=1,
+    ).run_once()
+
+    assert result.disposition is WorkflowRunDisposition.LEASE_LOST
+    assert store.get(queued.job_id).state is WorkflowJobState.RUNNING
+    assert handler.external_applied is False
+
+
+@pytest.mark.asyncio
 async def test_interrupt_is_cooperative_and_persists_retry(store):
     queued = store.enqueue(job_spec())
     handler = ScriptedHandler()
@@ -559,7 +653,7 @@ async def test_graceful_drain_stops_claims_without_interrupting_active_work(stor
 
 
 @pytest.mark.asyncio
-async def test_cancelled_invocation_schedules_restart_safe_retry(store):
+async def test_cancelled_invocation_quarantines_late_effect_authority(store):
     queued = store.enqueue(job_spec())
     handler = ScriptedHandler()
     handler.delay_operation = "apply"
@@ -573,7 +667,10 @@ async def test_cancelled_invocation_schedules_restart_safe_retry(store):
     with pytest.raises(asyncio.CancelledError):
         await invocation
 
-    assert store.get(queued.job_id).state is WorkflowJobState.RETRY_WAIT
+    observed = store.get(queued.job_id)
+    assert observed.state is WorkflowJobState.RUNNING
+    assert observed.phase == "quarantined"
+    assert observed.lease_expires_at is None
 
 
 @pytest.mark.asyncio

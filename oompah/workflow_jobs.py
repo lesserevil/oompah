@@ -2683,6 +2683,85 @@ class WorkflowJobStore:
             raise WorkflowJobLeaseLost(f"workflow job lease is not active: {job_id}")
         return row
 
+    def owns_live_lease(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        """Check the exact durable token and expiry at a commit boundary."""
+
+        timestamp = float(self._clock() if now is None else now)
+        with self._lock:
+            try:
+                self._owned_row_locked(job_id, lease_token, now=timestamp)
+            except (WorkflowJobLeaseLost, WorkflowJobStoreError, ValueError):
+                return False
+        return True
+
+    def quarantine_owned(
+        self,
+        job_id: str,
+        lease_token: str,
+        *,
+        category: WorkflowFailureCategory | str,
+        error: str,
+        now: float | None = None,
+    ) -> WorkflowJob:
+        """Durably make a non-returning invocation non-reclaimable in-process.
+
+        The exact owner/token remain as crash-recovery evidence, while a NULL
+        expiry prevents ordinary expiry recovery from overlapping an adapter
+        thread which Python cannot terminate. Startup may recover the row only
+        after proving the recorded runtime owner is dead.
+        """
+
+        timestamp = float(self._clock() if now is None else now)
+        failure = WorkflowFailureCategory(category)
+        message = _required_text(error, "error")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._row_locked(_required_text(job_id, "job_id"))
+                if (
+                    str(row["state"]) != WorkflowJobState.RUNNING.value
+                    or str(row["lease_token"] or "")
+                    != _required_text(lease_token, "lease_token")
+                ):
+                    raise WorkflowJobLeaseLost(
+                        f"workflow job lease is no longer owned: {job_id}"
+                    )
+                self._conn.execute(
+                    """
+                    UPDATE workflow_jobs
+                       SET phase = 'quarantined', lease_expires_at = NULL,
+                           retry_at = NULL, failure_category = ?,
+                           last_error = ?, updated_at = ?
+                     WHERE job_id = ? AND state = ? AND lease_token = ?
+                    """,
+                    (
+                        failure.value,
+                        message,
+                        timestamp,
+                        job_id,
+                        WorkflowJobState.RUNNING.value,
+                        lease_token,
+                    ),
+                )
+                row = self._row_locked(job_id)
+                self._append_event_locked(
+                    row,
+                    "quarantined",
+                    payload={"failure_category": failure.value, "error": message},
+                    now=timestamp,
+                )
+                self._conn.commit()
+                return self._from_row(row)
+            except Exception:
+                self._conn.rollback()
+                raise
+
     def renew(
         self,
         job_id: str,
@@ -3191,7 +3270,14 @@ class WorkflowJobStore:
                     if (
                         not job.lease_owner
                         or not job.lease_token
-                        or job.lease_expires_at is None
+                        or (
+                            job.phase != "quarantined"
+                            and job.lease_expires_at is None
+                        )
+                        or (
+                            job.phase == "quarantined"
+                            and job.lease_expires_at is not None
+                        )
                     ):
                         raise WorkflowJobCorruptionError(
                             f"running workflow job lacks a complete lease: {job.job_id}"

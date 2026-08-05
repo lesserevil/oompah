@@ -209,6 +209,14 @@ class _ProjectRoutedHandler:
             )
         self.domain = domains.pop()
         self._project_enabled = dict(project_enabled or {})
+        timeouts = [
+            float(value)
+            for handler in handlers.values()
+            for value in (getattr(handler, "operation_timeout_seconds", None),)
+            if value is not None
+        ]
+        if timeouts:
+            self.operation_timeout_seconds = max(timeouts)
 
     def _handler(self, context: WorkflowJobContext) -> WorkflowActionHandler:
         enabled = self._project_enabled.get(context.job.project_id)
@@ -587,44 +595,104 @@ class WorkflowRuntime:
         registered_handlers = handlers
         handler_coverage: dict[str, set[str]] | None = None
         if registered_handlers is None:
-            registered_handlers = getattr(
+            static_handlers = getattr(
                 orchestrator, "workflow_action_handlers", None
             )
-        factory = getattr(orchestrator, "workflow_action_handler_factory", None)
-        if registered_handlers is None and callable(factory):
-            project_handlers: dict[str, dict[str, WorkflowActionHandler]] = {}
-            for binding in bindings.values():
-                produced = factory(binding)
-                if not isinstance(produced, Mapping):
-                    raise WorkflowRuntimeError(
-                        "workflow action handler factory must return a mapping"
-                    )
-                unknown = set(produced) - RUNTIME_ACTIONS
-                if unknown:
-                    raise WorkflowRuntimeError(
-                        "workflow action handler factory returned unknown actions: "
-                        + ", ".join(sorted(unknown))
-                    )
-                for action, handler in produced.items():
-                    project_handlers.setdefault(action, {})[
-                        binding.project_id
-                    ] = handler
-            registered_handlers = {
-                action: _ProjectRoutedHandler(
-                    action,
-                    routed,
-                    project_enabled={
-                        project_id: binding.dispatch_enabled
-                        for project_id, binding in bindings.items()
-                        if binding.dispatch_enabled is not None
-                    },
+            if static_handlers is not None and not isinstance(static_handlers, Mapping):
+                raise WorkflowRuntimeError(
+                    "workflow action handlers must be a mapping"
                 )
-                for action, routed in project_handlers.items()
-            }
-            handler_coverage = {
-                action: set(routed) for action, routed in project_handlers.items()
-            }
-        return cls(
+
+            # Domain factories are independent composition units.  Treating the
+            # generic factory as an alternative to a domain factory made the
+            # final OOMPAH-804 domain disappear as soon as any sibling domain
+            # registered itself.  Compose every advertised factory instead and
+            # make ownership collisions an initialization error.
+            factories: list[tuple[str, WorkflowRuntimeHandlerFactory]] = []
+            generic = getattr(orchestrator, "workflow_action_handler_factory", None)
+            if callable(generic):
+                factories.append(("generic", generic))
+            configured_factories = getattr(
+                orchestrator, "workflow_action_handler_factories", ()
+            )
+            if configured_factories:
+                if not isinstance(configured_factories, Sequence):
+                    raise WorkflowRuntimeError(
+                        "workflow action handler factories must be a sequence"
+                    )
+                for index, factory in enumerate(configured_factories):
+                    if not callable(factory):
+                        raise WorkflowRuntimeError(
+                            "workflow action handler factories must be callable"
+                        )
+                    factories.append((f"configured[{index}]", factory))
+            for domain in sorted(_DOMAIN_ACTIONS):
+                factory = getattr(
+                    orchestrator,
+                    f"workflow_{domain}_action_handler_factory",
+                    None,
+                )
+                if callable(factory):
+                    factories.append((domain, factory))
+
+            project_handlers: dict[str, dict[str, WorkflowActionHandler]] = {}
+            owners: dict[tuple[str, str], str] = {}
+            for action, handler in dict(static_handlers or {}).items():
+                if action not in RUNTIME_ACTIONS:
+                    raise WorkflowRuntimeError(
+                        "workflow action handlers contained unknown action: "
+                        f"{action}"
+                    )
+                for binding in bindings.values():
+                    project_handlers.setdefault(action, {})[binding.project_id] = handler
+                    owners[(binding.project_id, action)] = "static"
+
+            for binding in bindings.values():
+                for factory_name, factory in factories:
+                    produced = factory(binding)
+                    if not isinstance(produced, Mapping):
+                        raise WorkflowRuntimeError(
+                            f"workflow {factory_name} action handler factory "
+                            "must return a mapping"
+                        )
+                    unknown = set(produced) - RUNTIME_ACTIONS
+                    if unknown:
+                        raise WorkflowRuntimeError(
+                            f"workflow {factory_name} action handler factory "
+                            "returned unknown actions: "
+                            + ", ".join(sorted(unknown))
+                        )
+                    for action, handler in produced.items():
+                        identity = (binding.project_id, action)
+                        previous = owners.get(identity)
+                        if previous is not None:
+                            raise WorkflowRuntimeError(
+                                "duplicate workflow action ownership for "
+                                f"{binding.project_id}:{action}: "
+                                f"{previous}, {factory_name}"
+                            )
+                        owners[identity] = factory_name
+                        project_handlers.setdefault(action, {})[
+                            binding.project_id
+                        ] = handler
+
+            if project_handlers:
+                registered_handlers = {
+                    action: _ProjectRoutedHandler(
+                        action,
+                        routed,
+                        project_enabled={
+                            project_id: binding.dispatch_enabled
+                            for project_id, binding in bindings.items()
+                            if binding.dispatch_enabled is not None
+                        },
+                    )
+                    for action, routed in project_handlers.items()
+                }
+                handler_coverage = {
+                    action: set(routed) for action, routed in project_handlers.items()
+                }
+        runtime = cls(
             project_bindings=bindings,
             store=store,
             journals=journals,
@@ -640,6 +708,12 @@ class WorkflowRuntime:
             topology_source=topology_source,
             topology_change_handler=topology_change_handler,
         )
+        runtime._integration_maintenance_scheduler = getattr(
+            orchestrator,
+            "schedule_workflow_integration_maintenance",
+            None,
+        )
+        return runtime
 
     @property
     def enforce(self) -> bool:
@@ -903,6 +977,17 @@ class WorkflowRuntime:
                         result_value = {"decisions_seen": len(batch.tasks)}
                     self._remember(batch)
                     project_report["integration"] = result_value
+                    if self.enforce:
+                        maintenance = getattr(
+                            self,
+                            "_integration_maintenance_scheduler",
+                            None,
+                        )
+                        if callable(maintenance):
+                            history_job = maintenance(binding)
+                            project_report["integration_history_job"] = (
+                                history_job.job_id if history_job is not None else None
+                            )
                 if binding.epic_controller is not None:
                     if self.enforce:
                         batch, result = binding.epic_controller.reconcile(
