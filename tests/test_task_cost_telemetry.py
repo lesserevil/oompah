@@ -26,6 +26,7 @@ from oompah.agent import AgentSession
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile, Issue, LiveSession, ModelProvider, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import RecoveryPublicationError
 
 
 # ---------------------------------------------------------------------------
@@ -913,6 +914,53 @@ class TestTerminateRunningWritesCostRecord:
         assert entry.issue.id in orch.state.completed
         tracker.mark_needs_human.assert_called_once()
         assert "snapshot backend unavailable" in tracker.mark_needs_human.call_args.args[1]
+
+    def test_publication_interruption_reopens_without_needs_human(self, tmp_path):
+        """A retained checkpoint stays scheduler/direct-owner recoverable."""
+
+        orch, entry = self._make_orchestrator_with_running(tmp_path)
+        entry.issue.project_id = "project-1"
+        entry.workspace_path = str(tmp_path / "task-worktree")
+        context = {
+            "snapshot_head": "a" * 40,
+            "pending_ref": "refs/oompah/recovery-pending/test-001",
+            "recovery_ref": "refs/oompah/recovery/test-001",
+        }
+
+        class RecoveryStore:
+            def worktree_path_for(self, _project_id, _identifier):
+                return entry.workspace_path
+
+            def preserve_worktree_changes(self, *_args):
+                raise RecoveryPublicationError(
+                    "transfer interrupted",
+                    context=context,
+                )
+
+        current = _make_issue(
+            entry.identifier,
+            state="In Progress",
+            project_id="project-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = current
+        orch.project_store = RecoveryStore()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._notify_observers = MagicMock()
+
+        assert asyncio.run(
+            orch._terminate_running(entry.identifier, cleanup_workspace=True)
+        ) is True
+
+        assert entry.identifier not in orch.state.running
+        assert entry.issue.id not in orch.state.completed
+        tracker.update_issue.assert_called_once_with(entry.identifier, status="Open")
+        tracker.mark_needs_human.assert_not_called()
+        orch._post_comment.assert_called_once()
+        assert "retry publication" in orch._post_comment.call_args.args[1]
 
     def test_terminate_fires_cost_before_workspace_cleanup(self, tmp_path):
         """Cost record must be written before workspace is removed
