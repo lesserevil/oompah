@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T19:23:56.870105Z'
+updated_at: '2026-08-05T19:40:25.269385Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -323,5 +323,10 @@ author: oompah
 created: 2026-08-05 19:23
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 19:40
+---
+Understanding (attempt #3 continuation, deep profile): Reviewing the recovery-checkpoint changes and audit feedback. Prior work landed integration.gate_blocked, quarantined/unsafe audit routing, and the IntegrationQueueStore overlay skeleton. Outstanding blockers per audit comments #20/#30/#31/#32: (1) exact-head fence for _overlay_integration_queue (stale H1 rows must not suppress required attempts for H2); (2) retry_forced bypass for gate_blocked; (3) live_claim_precedes_history must be emitted from production facts and evaluated ahead of tracker action_required in _integration_decision; (4) production WorkflowFactCollector construction sites must pass IntegrationQueueStore; (5) generation-race and restart-convergence regressions. Plan: fence overlay by head_sha, emit retry_forced+live_claim_precedes_history in fact, reorder _integration_decision, wire orchestrator.py, add tests.
 ---
 <!-- COMMENTS:END -->
