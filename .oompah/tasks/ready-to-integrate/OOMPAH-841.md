@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-841
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:42:05.769111Z'
+updated_at: '2026-08-05T20:43:01.730096Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,16 +20,13 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: OOMPAH-841
   base_branch: epic-OOMPAH-763
   head_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
-  submitted_at: '2026-08-05T20:41:19.024936+00:00'
-  updated_at: '2026-08-05T20:41:57.592699+00:00'
-  last_error: task worktree head bb42de1e71f355a8f0eb2c4c0ddd958715b646e6 differs
-    from the published task head 58ffd477b19f370c7ed53a191e1a05580b016c85; refusing
-    to reset a preserved recovery snapshot
+  submitted_at: '2026-08-05T20:42:54.818726+00:00'
+  updated_at: '2026-08-05T20:42:54.818726+00:00'
 ---
 ## Summary
 
@@ -99,5 +96,10 @@ created: 2026-08-05 20:42
 Integration could not verify `OOMPAH-841`: task worktree head bb42de1e71f355a8f0eb2c4c0ddd958715b646e6 differs from the published task head 58ffd477b19f370c7ed53a191e1a05580b016c85; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-05 20:43
+---
+Canonical direct-claim worktree reconciled to the already reviewed and published head 58ffd477b; retry integration.
 ---
 <!-- COMMENTS:END -->
