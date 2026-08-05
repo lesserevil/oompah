@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:09:19.941835Z'
+updated_at: '2026-08-05T06:18:12.806852Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ author: oompah
 created: 2026-08-05 06:09
 ---
 Understanding: Confirmed the alert/action parity gap. The TerminalTransitionCoordinator.retry_failed_audit() was fixed to check only TERMINAL attempt classification using canonical is_audit_infrastructure_retryable() and is_audit_evidence_retryable() functions (lines 253-284 in terminal_transition_coordinator.py). However, _arm_integrated_audit_recovery_alert() in orchestrator.py (line 7818) hardcodes the recovery message to always suggest audit_retry_evidence_addendum, regardless of the actual failure type. When a mixed-attempt history (e.g., FINALIZATION_FAILURE + terminal NO_AUDITOR) reaches a no_auditor terminal state, the alert incorrectly advertises evidence recovery while infrastructure recovery is actually needed. The alert generation at orchestrator.py:459453 must consume the canonical retry-eligibility logic to emit the correct recovery action. Plan: (1) Extract terminal failure classification from transition failures, (2) Use canonical retry functions to determine valid recovery modes, (3) Update alert message to specify correct recovery action (evidence_addendum for MISSING_EVIDENCE, infrastructure for NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY), (4) Add comprehensive tests for alert/action parity.
+---
+author: oompah
+created: 2026-08-05 06:18
+---
+Resource coordination: OOMPAH-814's exact canonical full gate currently owns the heavyweight validation lane. Continue implementation and bounded/focused checks, but do not launch make test/test-serial or a broad multi-file pytest suite until the gate completes. OOMPAH-816 will enforce this automatically once deployed.
 ---
 <!-- COMMENTS:END -->
