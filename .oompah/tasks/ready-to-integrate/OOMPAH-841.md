@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-841
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:40:54.666517Z'
+updated_at: '2026-08-05T20:41:26.625994Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-841
+  head_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
+  submitted_at: '2026-08-05T20:41:19.024936+00:00'
+  updated_at: '2026-08-05T20:41:19.024936+00:00'
 ---
 ## Summary
 
@@ -75,5 +83,10 @@ author: oompah
 created: 2026-08-05 20:40
 ---
 Final post-repair verification passed on reviewed head 58ffd477b: terminal mutation scan passed, 254/254 focused tests passed in 27.91s, py_compile and git diff --check passed, and make check-secrets passed. Independent final review returned READY. The clean branch is pushed and up to date.
+---
+author: oompah
+created: 2026-08-05 20:41
+---
+Prevented native provider bootstrap processes from acquiring validation capacity, pinned trusted executable identities, and added exact safe recovery for legacy provider-root leases; 254 focused tests and all static/security checks passed.
 ---
 <!-- COMMENTS:END -->
