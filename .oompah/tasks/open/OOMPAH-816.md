@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:39:24.299020Z'
+updated_at: '2026-08-05T00:39:38.445584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: eedd2876-22b5-4ed4-a8c6-71ca05c452fe
 ---
 ## Summary
 
@@ -46,3 +47,11 @@ Live reproduction on 2026-08-05: while the exact OOMPAH-813 four-worker combined
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 00:39
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
