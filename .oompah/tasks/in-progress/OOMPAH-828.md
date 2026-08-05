@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:26:49.391362Z'
+updated_at: '2026-08-05T20:30:50.527280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,28 @@ Modified oompah/terminal_audit_enforcement.py \`_lifecycle_terminal_authorities\
 - Non-mutating: returns the record for the existing \`current_state == ARCHIVED and (passed or overrides)\` → outcome="not_needed" branch. No tracker.update_issue call is added.
 
 Added 10 tests covering the primary case, all failure cases from the acceptance criteria, and a live-shape 4-row (OOMPAH-452/453/455/456) restart-safe convergence test.
+---
+author: oompah
+created: 2026-08-05 20:30
+---
+## Verification
+
+Focused tests pass:
+- tests/test_terminal_audit_enforcement.py: **105 passed** (10 new + 95 existing)
+- tests/test_archived_audit_requests.py: 6 passed
+- tests/test_terminal_audit.py: 38 passed
+- tests/test_terminal_audit_metadata.py: 19 passed
+- tests/test_terminal_audit_scanner.py: 15 passed
+- tests/test_terminal_fingerprint_canonicalization.py: 10 passed
+- tests/test_done_merged_archived_lifecycle.py: 52 passed
+- tests/test_terminal_transition_coordinator.py: 187 passed
+- tests/test_epic_terminal_audit_contract.py: 20 passed, 1 xfailed
+- tests/test_terminal_override.py: 28 passed
+
+Total across neighboring suites: 323 passed, 1 xfailed. Zero regressions.
+
+Rebased cleanly onto origin/main which now contains OOMPAH-829's Done override equivalence work; the Archived-target block sits directly after the existing PASS filter in \`_lifecycle_terminal_authorities\` and is orthogonal to OOMPAH-829's recovered_equivalence logic (that branch runs only when passed==[] and overrides==[] and current_state==DONE).
+
+Head: a5545b61a; branch pushed as origin/OOMPAH-828.
 ---
 <!-- COMMENTS:END -->
