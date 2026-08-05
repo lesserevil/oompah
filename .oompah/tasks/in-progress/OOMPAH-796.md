@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:16:25.254336Z'
+updated_at: '2026-08-05T18:16:28.937464Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-05 18:16
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-05 18:16
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

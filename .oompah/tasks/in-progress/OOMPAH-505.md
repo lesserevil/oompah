@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T17:08:05.697473Z'
+updated_at: '2026-08-05T18:16:46.696855Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
