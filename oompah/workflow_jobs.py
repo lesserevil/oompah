@@ -2250,16 +2250,47 @@ class WorkflowJobStore:
             recovered += 1
         return recovered
 
-    def _recover_expired_locked(self, *, now: float, limit: int) -> int:
+    def _recover_expired_locked(
+        self,
+        *,
+        now: float,
+        limit: int,
+        project_id: str | None = None,
+        actions: Sequence[str] | None = None,
+        phases: Sequence[str] | None = None,
+    ) -> int:
+        clauses = [
+            "state = ?",
+            "lease_expires_at IS NOT NULL",
+            "lease_expires_at <= ?",
+            "NOT (action = 'terminal_audit' AND phase = 'finalizing')",
+        ]
+        values: list[object] = [WorkflowJobState.RUNNING.value, now]
+        if project_id is not None:
+            clauses.append("project_id = ?")
+            values.append(_required_text(project_id, "project_id"))
+        for column, raw_values in (("action", actions), ("phase", phases)):
+            if isinstance(raw_values, (str, bytes)):
+                raise TypeError(f"{column}s must be a sequence")
+            if raw_values is None:
+                continue
+            normalized = tuple(
+                sorted({_required_text(value, column) for value in raw_values})
+            )
+            if not normalized:
+                raise ValueError(f"{column}s cannot be empty")
+            clauses.append(
+                f"{column} IN ({','.join('?' for _ in normalized)})"
+            )
+            values.extend(normalized)
+        values.append(limit)
         rows = self._conn.execute(
-            """
+            f"""
             SELECT * FROM workflow_jobs
-             WHERE state = ? AND lease_expires_at IS NOT NULL
-               AND lease_expires_at <= ?
-               AND NOT (action = 'terminal_audit' AND phase = 'finalizing')
+             WHERE {' AND '.join(clauses)}
              ORDER BY lease_expires_at, enqueue_sequence LIMIT ?
             """,
-            (WorkflowJobState.RUNNING.value, now, limit),
+            values,
         ).fetchall()
         return self._recover_rows_locked(
             rows,
@@ -2269,14 +2300,26 @@ class WorkflowJobStore:
         )
 
     def recover_expired(
-        self, *, now: float | None = None, limit: int = DEFAULT_SCAN_LIMIT
+        self,
+        *,
+        project_id: str | None = None,
+        actions: Sequence[str] | None = None,
+        phases: Sequence[str] | None = None,
+        now: float | None = None,
+        limit: int = DEFAULT_SCAN_LIMIT,
     ) -> int:
         timestamp = float(self._clock() if now is None else now)
         bounded = _bounded_limit(limit)
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                recovered = self._recover_expired_locked(now=timestamp, limit=bounded)
+                recovered = self._recover_expired_locked(
+                    now=timestamp,
+                    limit=bounded,
+                    project_id=project_id,
+                    actions=actions,
+                    phases=phases,
+                )
                 self._conn.commit()
                 return recovered
             except Exception:
@@ -2290,6 +2333,7 @@ class WorkflowJobStore:
         phase: str | None = None,
         project_id: str | None = None,
         actions: Sequence[str] | None = None,
+        phases: Sequence[str] | None = None,
         now: float | None = None,
         limit: int = DEFAULT_SCAN_LIMIT,
     ) -> int:
@@ -2313,12 +2357,27 @@ class WorkflowJobStore:
             if normalized_actions
             else ""
         )
+        if isinstance(phases, (str, bytes)):
+            raise TypeError("phases must be a sequence of phase names")
+        normalized_phases = (
+            tuple(sorted({_required_text(value, "phase") for value in phases}))
+            if phases is not None
+            else ()
+        )
+        if phases is not None and not normalized_phases:
+            raise ValueError("phases cannot be empty")
+        phases_clause = (
+            f"AND phase IN ({','.join('?' for _ in normalized_phases)})"
+            if normalized_phases
+            else ""
+        )
         values: list[object] = [WorkflowJobState.RUNNING.value]
         if lease_owner is not None:
             values.append(_required_text(lease_owner, "lease_owner"))
         if project_id is not None:
             values.append(_required_text(project_id, "project_id"))
         values.extend(normalized_actions)
+        values.extend(normalized_phases)
         values.append(bounded)
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -2327,6 +2386,7 @@ class WorkflowJobStore:
                     f"""
                     SELECT * FROM workflow_jobs
                      WHERE state = ? {owner_clause} {project_clause} {action_clause}
+                       {phases_clause}
                        AND NOT (
                            action = 'terminal_audit' AND phase = 'finalizing'
                        )
@@ -2528,7 +2588,12 @@ class WorkflowJobStore:
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
-                self._recover_expired_locked(now=timestamp, limit=bounded_recovery)
+                self._recover_expired_locked(
+                    now=timestamp,
+                    limit=bounded_recovery,
+                    project_id=project_id,
+                    actions=actions,
+                )
                 selected = self._conn.execute(
                     f"""
                     SELECT candidate.* FROM workflow_jobs candidate

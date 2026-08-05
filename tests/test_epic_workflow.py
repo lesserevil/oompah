@@ -14,6 +14,7 @@ from oompah.epic_workflow import (
     EpicAction,
     EpicFactCollector,
     EpicWorkflowController,
+    EpicWorkflowHandler,
     epic_branch,
 )
 from oompah.models import Issue
@@ -32,6 +33,14 @@ from oompah.workflow_facts import (
     LandingState,
 )
 from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
+from oompah.workflow_worker import (
+    DurableWorkflowWorker,
+    EffectObservation,
+    EffectResult,
+    RevalidationResult,
+    VerificationResult,
+    WorkflowRunDisposition,
+)
 
 
 class Tracker:
@@ -160,6 +169,85 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
     assert all(
         job.state is WorkflowJobState.QUEUED for job in store.list_jobs(limit=10)
     )
+    store.close()
+
+
+def test_shadow_epic_evaluation_does_not_persist_landing_evidence(tmp_path):
+    make_git_fixture(tmp_path)
+    epic = issue("TOP", state=OPEN, issue_type="epic")
+    child = issue(
+        "LEAF", state=DONE, parent_id="TOP", work_branch="leaf"
+    )
+    tracker = Tracker([epic, child])
+    collector = EpicFactCollector(
+        project_id="project-1",
+        tracker=tracker,
+        repo_path=str(tmp_path),
+    )
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(collector=collector, store=store)
+
+    batch = controller.evaluate([epic], persist_evidence=False)
+
+    assert batch.tasks
+    assert store.landing_facts(project_id="project-1", task_id="TOP") == ()
+    assert store.list_jobs() == ()
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_epic_handler_executes_one_exact_task_scoped_effect(tmp_path):
+    calls: list[tuple[str, str]] = []
+
+    class Backend:
+        def revalidate(self, context):
+            calls.append(("revalidate", context.job.task_id))
+            return RevalidationResult(context.job.generation)
+
+        def inspect(self, context):
+            calls.append(("inspect", context.job.task_id))
+            return EffectObservation(False)
+
+        def apply(self, context):
+            calls.append(("apply", context.job.task_id))
+            return EffectResult({"task_id": context.job.task_id})
+
+        def verify(self, context, effect):
+            calls.append(("verify", str(effect.receipt["task_id"])))
+            return VerificationResult(True, effect.receipt)
+
+        def build_transition(self, context, verification):
+            calls.append(("transition", context.job.task_id))
+            return None
+
+    store = WorkflowJobStore(str(tmp_path / "epic-handler.sqlite3"))
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="EPIC-1",
+            generation="facts-1",
+            action="epic_readiness",
+            idempotency_key="EPIC-1:readiness:facts-1",
+        )
+    )
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={"epic_readiness": EpicWorkflowHandler(Backend())},
+        transition_services={},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    assert calls == [
+        ("revalidate", "EPIC-1"),
+        ("inspect", "EPIC-1"),
+        ("apply", "EPIC-1"),
+        ("verify", "EPIC-1"),
+        ("transition", "EPIC-1"),
+    ]
     store.close()
 
 
