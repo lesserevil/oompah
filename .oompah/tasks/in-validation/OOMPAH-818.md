@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:42:48.848518Z'
+updated_at: '2026-08-05T05:43:27.593205Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
@@ -179,18 +179,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-abac47881bad
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+      created_at: '2026-08-05T05:43:17.216459+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T05:43:17.216459+00:00'
+      branch_key: OOMPAH-818
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T05:42:38.136978+00:00'
+    updated_at: '2026-08-05T05:43:17.216459+00:00'
   - version: 1
     audit_id: audit-5655290fb5cc
     project_id: proj-14849f1b
@@ -221,6 +235,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-05T03:04:38.616891+00:00'
+    branch_key: OOMPAH-818
+  - version: 1
+    attempt_id: attempt-abac47881bad
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    created_at: '2026-08-05T05:43:17.216459+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T05:43:17.216459+00:00'
     branch_key: OOMPAH-818
 oompah.review_head: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
 ---
@@ -371,5 +398,15 @@ author: oompah
 created: 2026-08-05 05:42
 ---
 YOLO: merged PR #718.
+---
+author: oompah
+created: 2026-08-05 05:43
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 05:43
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
