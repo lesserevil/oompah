@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:45:53.471824Z'
+updated_at: '2026-08-05T00:53:39.005614Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -631,5 +631,22 @@ author: oompah
 created: 2026-08-05 00:45
 ---
 UNDERSTANDING: Task OOMPAH-526 requires documentation validation and cross-surface integration testing for the htpasswd authentication feature. Initial scan shows the epic OOMPAH-521 has been merged with dependencies (OOMPAH-522 through OOMPAH-525), and comprehensive documentation exists in docs/authentication.md (35KB), docs/cli-install.md, docs/operator-runbook.md, and docs/project-bootstrap.md. All unit tests pass (15387 passed). Need to: 1) Verify doc links and consistency across all docs, 2) Run smoke tests covering auth-off/auth-on, webhook delivery, MCP, CLI, 3) Check for credential leaks via make check-secrets, 4) Ensure no credential files in fixtures.
+---
+author: oompah
+created: 2026-08-05 00:53
+---
+DISCOVERY: All implementation work from OOMPAH-522 through OOMPAH-525 is complete and merged. Key deliverables verified:
+
+1) docs/authentication.md (35KB): Comprehensive guide covering setup, rotation, recovery, WebSocket/MCP/REST/Dashboard protection, webhook exemptions, troubleshooting
+2) docs/cli-install.md: CLI credential setup with precedence rules, netrc fallback, examples
+3) docs/operator-runbook.md: Links to auth guide, integration with bootstrap
+4) docs/project-bootstrap.md: Webhook configuration with auth considerations
+5) docs/scoped-task-cli-authentication.md: Worker token authentication model
+6) .env.example: Complete configuration reference with comments
+7) Implementation files: oompah/http_auth.py (secure reload, constant-time comparison), oompah/client_auth.py (precedence, netrc support)
+8) Test coverage: 133 auth-specific tests pass, 8 documentation contract tests pass
+9) Security: make check-secrets passes, no credential leaks in fixtures
+
+Status: Ready for final verification via smoke tests and gate runs.
 ---
 <!-- COMMENTS:END -->
