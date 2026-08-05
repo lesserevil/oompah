@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T16:31:08.682428Z'
+updated_at: '2026-08-05T22:42:26.746768Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ author: oompah
 created: 2026-08-05 15:06
 ---
 Independent exact-head review rejected d5ee41a18 before integration. Blockers: active PENDING/IN_PROGRESS retry coalescing is not evidence-fingerprint fenced; production current-evidence refresh failures fall back to stale caller evidence; the required real alert -> authenticated owner retry -> fresh exact-fingerprint pending audit -> restart/sweep coalescing -> alert-clear path remains overmocked; and the branch retains trailing whitespace explicitly called out by prior review. Withdrawing this head and repairing the exact branch before resubmission.
+---
+author: oompah
+created: 2026-08-05 22:42
+---
+Live repro on deployed main b98ebb40: OOMPAH-745 is Ready to Integrate with integration/integration_queue state=integrated at b08a12057, terminal_audit_summary phase=failed classification=no_auditor, 3 completed attempts, and no active audit. Recovery alert incorrectly instructs audit_retry_evidence_addendum. Owner retry without addendum () returns 409 'No matching exhausted audit can be retried for this task.' This exact mixed/completed-history task remains fail-closed and is the current lone UI alert. Preserve this as an acceptance case: select the retryable exhausted request/attempt identity truthfully, emit the correct owner action, and allow exact-head rearm without reopening implementation or fabricating missing-evidence addenda.
 ---
 <!-- COMMENTS:END -->
