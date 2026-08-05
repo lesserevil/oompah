@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T05:19:52.875440Z'
+updated_at: '2026-08-05T05:20:53.554870Z'
 work_branch: OOMPAH-820
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/717
@@ -124,6 +124,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T04:46:26.008377+00:00'
     branch_key: OOMPAH-820
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 192
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 192
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 192
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T05:20:50.840355+00:00'
 ---
 ## Summary
 
@@ -220,5 +236,15 @@ Safe evidence:
 - flaky_failure: tests/test_pr_body_and_review_metadata.py::TestBuildPrBody::test_non_github_tracker_uses_plain_link (5s pytest-timeout on sqlite3.executescript in IntegrationQueueStore.__init__; file not touched by OOMPAH-820)
 - terminal_mutation_scan: 8/8 allowlisted
 - focused_regressions_passed: test_oompah_818_old_merged_review_cannot_terminalize_new_submission, test_remote_head_must_match_accepted_submission_before_gate, test_resubmit_generation_change_after_review_lookup_fences_terminal_staging, test_two_loop_submit_wins_before_exact_review_metadata_or_audit, test_bridge_timeout_retains_task_ownership_until_inner_operation_exits, test_final_review_revalidation_rejects_state_change_before_metadata
+---
+author: oompah
+created: 2026-08-05 05:20
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 55, Tool calls: 37
+- Tokens: 6 in / 192 out [198 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34m 20s
+- Log: OOMPAH-820__20260805T044641Z.jsonl
 ---
 <!-- COMMENTS:END -->
