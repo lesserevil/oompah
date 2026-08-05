@@ -62,6 +62,293 @@ def _store_with_one_project(tmp_path):
     return store, repo
 
 
+def _submission_authority_store(tmp_path):
+    """Create a managed clone with published epic and plain child branches."""
+
+    origin = tmp_path / "origin.git"
+    source = tmp_path / "source"
+    managed = tmp_path / "managed"
+    subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+    subprocess.run(["git", "init", "-b", "main", str(source)], check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("main\n", encoding="utf-8")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "main"], cwd=source, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=source, check=True)
+    subprocess.run(["git", "push", "-u", "origin", "main"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+        cwd=origin,
+        check=True,
+    )
+
+    subprocess.run(["git", "checkout", "-b", "epic-OOMPAH-763"], cwd=source, check=True)
+    (source / "epic.txt").write_text("epic\n", encoding="utf-8")
+    subprocess.run(["git", "add", "epic.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "epic"], cwd=source, check=True)
+    epic_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "push", "-u", "origin", "epic-OOMPAH-763"],
+        cwd=source,
+        check=True,
+    )
+
+    subprocess.run(["git", "checkout", "-b", "OOMPAH-814"], cwd=source, check=True)
+    (source / "task.txt").write_text("task\n", encoding="utf-8")
+    subprocess.run(["git", "add", "task.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-m", "task"], cwd=source, check=True)
+    task_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "-u", "origin", "OOMPAH-814"], cwd=source, check=True)
+
+    subprocess.run(["git", "clone", str(origin), str(managed)], check=True)
+    store = _store(tmp_path)
+    project = Project(
+        id="proj-authority",
+        name="authority",
+        repo_url=str(origin),
+        repo_path=str(managed),
+        branch="main",
+        default_branch="main",
+    )
+    store._projects[project.id] = project
+    return store, source, managed, epic_sha, task_sha
+
+
+def test_submission_git_authority_proves_exact_plain_branch_and_parent_base(
+    tmp_path,
+):
+    store, _source, _managed, epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+
+    authority = store.verify_submission_git_authority(
+        "proj-authority",
+        task_branch="OOMPAH-814",
+        head_sha=task_sha,
+        base_branch="epic-OOMPAH-763",
+    )
+
+    assert authority.task_branch == "OOMPAH-814"
+    assert authority.head_sha == task_sha
+    assert authority.base_branch == "epic-OOMPAH-763"
+    assert authority.base_sha == epic_sha
+
+
+def test_submission_git_authority_rejects_remote_head_and_base_mismatch(tmp_path):
+    store, _source, _managed, _epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+
+    with pytest.raises(ProjectError, match="not submitted head"):
+        store.verify_submission_git_authority(
+            "proj-authority",
+            task_branch="OOMPAH-814",
+            head_sha="f" * 40,
+            base_branch="epic-OOMPAH-763",
+        )
+    with pytest.raises(ProjectError, match="not contained"):
+        store.verify_submission_git_authority(
+            "proj-authority",
+            task_branch="OOMPAH-814",
+            head_sha=task_sha,
+            base_branch="epic-OOMPAH-763",
+            base_sha=task_sha,
+        )
+
+
+def test_fresh_dispatch_ignores_stale_same_named_remote_branch(tmp_path):
+    store, _source, _managed, epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+
+    workspace = Path(
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+        )
+    )
+    actual = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    assert actual == epic_sha
+    assert actual != task_sha
+
+
+def test_accepted_remote_branch_materializes_exact_head_and_preserves_dirty_worktree(
+    tmp_path,
+):
+    store, _source, _managed, _epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+    store.verify_submission_git_authority(
+        "proj-authority",
+        task_branch="OOMPAH-814",
+        head_sha=task_sha,
+        base_branch="epic-OOMPAH-763",
+    )
+
+    workspace = Path(
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+            prefer_remote_branch=True,
+            expected_head_sha=task_sha,
+        )
+    )
+    assert subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip() == task_sha
+
+    dirty = workspace / "repair-notes.txt"
+    dirty.write_text("preserve me\n", encoding="utf-8")
+    reused = store.create_worktree(
+        "proj-authority",
+        "OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        branch_name="OOMPAH-814",
+        prefer_remote_branch=True,
+        expected_head_sha=task_sha,
+    )
+    assert reused == str(workspace)
+    assert dirty.read_text(encoding="utf-8") == "preserve me\n"
+
+
+def test_accepted_branch_refuses_same_branch_at_a_different_local_head(tmp_path):
+    store, _source, _managed, _epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+    workspace = Path(
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+            prefer_remote_branch=True,
+            expected_head_sha=task_sha,
+        )
+    )
+    (workspace / "late.txt").write_text("late\n", encoding="utf-8")
+    subprocess.run(["git", "add", "late.txt"], cwd=workspace, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test User",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-m",
+            "late local commit",
+        ],
+        cwd=workspace,
+        check=True,
+    )
+    late_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    with pytest.raises(ProjectError, match="not accepted head.*refusing to reset"):
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+            prefer_remote_branch=True,
+            expected_head_sha=task_sha,
+        )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip() == late_head
+
+
+def test_accepted_branch_repair_refuses_divergent_registered_worktree(tmp_path):
+    store, _source, _managed, _epic_sha, task_sha = _submission_authority_store(
+        tmp_path
+    )
+    store.verify_submission_git_authority(
+        "proj-authority",
+        task_branch="OOMPAH-814",
+        head_sha=task_sha,
+        base_branch="epic-OOMPAH-763",
+    )
+    workspace = Path(
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+            prefer_remote_branch=True,
+            expected_head_sha=task_sha,
+        )
+    )
+    subprocess.run(
+        ["git", "checkout", "-b", "operator-divergence"],
+        cwd=workspace,
+        check=True,
+    )
+
+    with pytest.raises(ProjectError, match="refusing to reset it"):
+        store.create_worktree(
+            "proj-authority",
+            "OOMPAH-814",
+            base_branch="epic-OOMPAH-763",
+            branch_name="OOMPAH-814",
+            prefer_remote_branch=True,
+            expected_head_sha=task_sha,
+        )
+
+    assert subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip() == "operator-divergence"
+
+
 class TestDetachedAuditWorktree:
     def test_creates_branchless_worktree_at_resolved_commit(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)

@@ -22,10 +22,61 @@ INTEGRATION_STATES = frozenset(
     }
 )
 
+# ``working`` describes an implementation checkout that has not submitted a
+# generation yet.  Every other record state names evidence that has crossed
+# the submission boundary and therefore owns its branch identity until a
+# later accepted submission replaces it.
+ACCEPTED_SUBMISSION_STATES = INTEGRATION_STATES - {"working"}
+
 
 def _optional_text(value: object) -> str | None:
     text = str(value or "").strip()
     return text or None
+
+
+def accepted_submission_branch(issue: object) -> str | None:
+    """Return the immutable branch named by accepted generation evidence.
+
+    ``Issue.work_branch`` is a tracker projection and can be missing or stale
+    after a crash or an older-server submission.  A non-working integration
+    record with both a branch and an exact head is the durable authority; a
+    partial record is deliberately ignored so unsubmitted work cannot capture
+    a branch merely by writing metadata.
+    """
+
+    existing = getattr(issue, "integration", None)
+    if existing is None:
+        return None
+    state = str(getattr(existing, "state", "") or "").strip().lower()
+    branch = _optional_text(getattr(existing, "task_branch", None))
+    head_sha = _optional_text(getattr(existing, "head_sha", None))
+    if state not in ACCEPTED_SUBMISSION_STATES or not branch or not head_sha:
+        return None
+    return branch
+
+
+def assigned_work_branch(issue: object) -> str | None:
+    """Return persisted branch authority for accepted or active work.
+
+    Accepted evidence wins over the mutable tracker projection.  A ``working``
+    record is also authoritative for restart of an already-allocated checkout,
+    but is never treated as an accepted submission by
+    :func:`accepted_submission_branch`.
+    """
+
+    accepted = accepted_submission_branch(issue)
+    if accepted:
+        return accepted
+    existing = getattr(issue, "integration", None)
+    if (
+        existing is not None
+        and str(getattr(existing, "state", "") or "").strip().lower()
+        == "working"
+    ):
+        branch = _optional_text(getattr(existing, "task_branch", None))
+        if branch:
+            return branch
+    return None
 
 
 def expected_submission_branch(issue: object) -> str:
@@ -37,6 +88,9 @@ def expected_submission_branch(issue: object) -> str:
     ProjectStore's default branch name.
     """
 
+    assigned = assigned_work_branch(issue)
+    if assigned:
+        return assigned
     for attribute in ("work_branch", "branch_name"):
         value = str(getattr(issue, attribute, "") or "").strip()
         if value:
@@ -491,15 +545,10 @@ def parse_integration_record(value: object) -> IntegrationRecord | None:
 def validate_task_branch_authority(issue: object, task_branch: str) -> None:
     """Reject submission evidence from a branch owned by another task."""
 
-    canonical_branch = _optional_text(
+    canonical_branch = assigned_work_branch(issue) or _optional_text(
         getattr(issue, "work_branch", None)
         or getattr(issue, "branch_name", None)
     )
-    if canonical_branch is None:
-        existing = getattr(issue, "integration", None)
-        canonical_branch = _optional_text(
-            getattr(existing, "task_branch", None)
-        )
     if canonical_branch is not None and task_branch != canonical_branch:
         raise ValueError(
             "task_branch does not match the task's canonical work branch"

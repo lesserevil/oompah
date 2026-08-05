@@ -6,6 +6,8 @@ import pytest
 
 from oompah.integration import (
     IntegrationRecord,
+    accepted_submission_branch,
+    assigned_work_branch,
     expected_submission_branch,
     parse_integration_record,
     validate_submission_branch,
@@ -79,3 +81,52 @@ def test_submission_branch_validation_uses_native_task_branch_fallback():
     assert validate_submission_branch(issue, "owner_repo_1234") == "owner_repo_1234"
     with pytest.raises(ValueError, match="expected work branch"):
         validate_submission_branch(issue, "main")
+
+
+def test_accepted_generation_branch_overrides_stale_tracker_projection():
+    issue = SimpleNamespace(
+        identifier="OOMPAH-814",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+        branch_name="epic-OOMPAH-763--task-OOMPAH-814",
+        integration=IntegrationRecord(
+            state="blocked",
+            task_branch="OOMPAH-814",
+            head_sha="a" * 40,
+        ),
+    )
+
+    assert accepted_submission_branch(issue) == "OOMPAH-814"
+    assert assigned_work_branch(issue) == "OOMPAH-814"
+    assert validate_submission_branch(issue, "OOMPAH-814") == "OOMPAH-814"
+    with pytest.raises(ValueError, match="expected work branch"):
+        validate_submission_branch(
+            issue,
+            "epic-OOMPAH-763--task-OOMPAH-814",
+        )
+
+
+def test_working_or_partial_record_cannot_claim_accepted_branch_authority():
+    working = SimpleNamespace(
+        identifier="TASK-1",
+        work_branch="stale-projection",
+        branch_name=None,
+        integration=IntegrationRecord(
+            state="working",
+            task_branch="epic-EPIC-1--task-TASK-1",
+        ),
+    )
+    partial = SimpleNamespace(
+        identifier="TASK-2",
+        work_branch="TASK-2",
+        branch_name=None,
+        integration=IntegrationRecord(
+            state="blocked",
+            task_branch="stale-branch",
+        ),
+    )
+
+    assert accepted_submission_branch(working) is None
+    assert assigned_work_branch(working) == "epic-EPIC-1--task-TASK-1"
+    assert expected_submission_branch(working) == "epic-EPIC-1--task-TASK-1"
+    assert accepted_submission_branch(partial) is None
+    assert expected_submission_branch(partial) == "TASK-2"

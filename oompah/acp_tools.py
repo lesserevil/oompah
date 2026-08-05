@@ -50,6 +50,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,7 @@ from oompah.authority_boundary import (
     check_shell_command,
 )
 from oompah.auditor import is_recoverable_auditor_command_denial
+from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
@@ -807,47 +809,111 @@ def _exec_oompah_task_command(
                     "Error: the pushed remote task branch does not match "
                     "the local HEAD"
                 )
+            if not re.fullmatch(r"[0-9a-f]{40,64}", head_sha):
+                return "Error: task submission requires a full committed HEAD"
             if evidence.get("worktree_clean") is not True:
                 return (
                     "Error: the worktree must be clean before task submission"
                 )
-            now = datetime.now(timezone.utc).isoformat()
-            record = IntegrationRecord(
-                state="ready",
-                task_branch=branch,
-                base_sha=(
-                    str(evidence.get("base_sha") or "").strip()
-                    or (
-                        str(getattr(existing, "base_sha", "") or "").strip()
-                        if existing is not None
-                        else ""
+            base_sha = (
+                str(evidence.get("base_sha") or "").strip().lower()
+                or (
+                    str(getattr(existing, "base_sha", "") or "").strip().lower()
+                    if existing is not None
+                    else ""
+                )
+                or None
+            )
+            base_branch = (
+                str(evidence.get("base_branch") or "").strip()
+                or (
+                    str(getattr(existing, "base_branch", "") or "").strip()
+                    if existing is not None
+                    else ""
+                )
+                or getattr(issue, "target_branch", None)
+            )
+            if base_sha and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
+                return "Error: task submission requires a full base commit"
+            verifier = (
+                getattr(project_store, "verify_submission_git_authority", None)
+                if getattr(
+                    type(project_store),
+                    "verify_submission_git_authority",
+                    None,
+                )
+                is not None
+                else None
+            )
+            if callable(verifier) and project_id:
+                parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+                if parent_id:
+                    try:
+                        base_branch = project_store.epic_branch_name(parent_id)
+                    except Exception as exc:  # noqa: BLE001
+                        return f"Error: could not resolve parent branch: {exc}"
+                try:
+                    authority = verifier(
+                        project_id,
+                        task_branch=branch,
+                        head_sha=head_sha,
+                        base_branch=base_branch,
+                        # Direct epic rebase helpers rewrite the branch that
+                        # contained their old base. Their dedicated completion
+                        # reconciliation validates that rewrite; this shared
+                        # verifier still proves exact remote branch=head.
+                        base_sha=(
+                            None
+                            if is_direct_epic_maintenance_issue(issue)
+                            else base_sha
+                        ),
                     )
-                    or None
-                ),
-                base_branch=(
-                    str(evidence.get("base_branch") or "").strip()
-                    or (
-                        str(getattr(existing, "base_branch", "") or "").strip()
-                        if existing is not None
-                        else ""
-                    )
-                    or getattr(issue, "target_branch", None)
-                ),
-                head_sha=head_sha,
-                submitted_at=now,
-                updated_at=now,
+                except Exception as exc:  # noqa: BLE001 - fail closed to worker
+                    return f"Error: submission Git authority rejected: {exc}"
+                branch = authority.task_branch
+                head_sha = authority.head_sha
+                base_branch = authority.base_branch or base_branch
+                base_sha = authority.base_sha or base_sha
+            reuses_existing_record = (
+                existing is not None
+                and existing.state in {"ready", "queued", "integrating"}
+                and existing.task_branch == branch
+                and existing.head_sha == head_sha
             )
-
-            task_tracker.set_metadata_field(
-                args.identifier,
-                "oompah.integration",
-                record.to_dict(),
-            )
-            task_tracker.update_issue(
-                args.identifier,
-                status=READY_TO_INTEGRATE,
-            )
-            if args.summary:
+            if reuses_existing_record:
+                record = existing
+            else:
+                now = datetime.now(timezone.utc).isoformat()
+                record = IntegrationRecord(
+                    state="ready",
+                    task_branch=branch,
+                    base_sha=base_sha,
+                    base_branch=base_branch,
+                    head_sha=head_sha,
+                    submitted_at=now,
+                    updated_at=now,
+                )
+                task_tracker.set_metadata_field(
+                    args.identifier,
+                    "oompah.integration",
+                    record.to_dict(),
+                )
+            if str(getattr(issue, "work_branch", "") or "").strip() != branch:
+                task_tracker.set_metadata_field(
+                    args.identifier,
+                    "oompah.work_branch",
+                    branch,
+                )
+                issue.work_branch = branch
+            already_ready = canonicalize_status(
+                getattr(issue, "state", None)
+            ) == READY_TO_INTEGRATE
+            if not already_ready:
+                task_tracker.update_issue(
+                    args.identifier,
+                    status=READY_TO_INTEGRATE,
+                )
+            if args.summary and not (reuses_existing_record and already_ready):
                 task_tracker.add_comment(
                     args.identifier,
                     args.summary,

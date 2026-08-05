@@ -97,6 +97,48 @@ def test_integrated_queue_item_waits_for_terminal_audit():
     assert satisfied == {"TASK-1", "native-task-uuid"}
 
 
+def test_integration_recovery_requests_the_exact_accepted_task_head(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.project_store.create_epic_worktree.return_value = "/wt/epic"
+    orchestrator.project_store.create_worktree.return_value = "/wt/task"
+    item = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id="OOMPAH-814",
+        task_branch="OOMPAH-814",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-08-05T00:00:00+00:00",
+        state="integrating",
+        attempts=1,
+        lease_owner="lease-1",
+        lease_expires_at=None,
+        updated_at="2026-08-05T00:01:00+00:00",
+    )
+
+    with patch(
+        "oompah.orchestrator.execute_integration",
+        return_value=IntegrationExecutionResult(
+            status="integrated",
+            message="integrated",
+            integrated_sha="c" * 40,
+        ),
+    ):
+        result = orchestrator._execute_integration_item(item)
+
+    assert result.integrated is True
+    orchestrator.project_store.create_worktree.assert_called_once_with(
+        project.id,
+        item.task_id,
+        base_branch="epic-EPIC-1",
+        branch_name="OOMPAH-814",
+        prefer_remote_branch=True,
+        expected_head_sha="a" * 40,
+    )
+
+
 def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     project.repo_path = str(tmp_path)
@@ -914,6 +956,124 @@ def test_parallel_workspace_persists_private_branch_and_integration_record(
     assert record["base_sha"] == "a" * 40
 
 
+@pytest.mark.parametrize(
+    "projected_branch",
+    [None, "epic-OOMPAH-763--task-OOMPAH-814"],
+)
+def test_parallel_repair_reuses_accepted_plain_branch_and_repairs_projection(
+    tmp_path,
+    projected_branch,
+):
+    """OOMPAH-814: repair/restart cannot recompute a different child branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator.project_store.prepare_epic_branch_for_private_dispatch.return_value = (
+        "/wt/epic",
+        "1" * 40,
+    )
+    orchestrator.project_store.create_worktree.return_value = "/wt/OOMPAH-814"
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    accepted = IntegrationRecord(
+        state="blocked",
+        task_branch="OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        base_sha="1" * 40,
+        head_sha="2" * 40,
+        last_error="exact full gate failed",
+    )
+    child = _make_issue(
+        identifier="OOMPAH-814",
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch=projected_branch,
+    )
+    child.integration = accepted
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+
+    with patch.object(orchestrator, "_tracker_for_issue", return_value=tracker):
+        workspace, shared_epic = orchestrator._create_workspace_for_issue(child)
+
+    assert workspace == "/wt/OOMPAH-814"
+    assert shared_epic is None
+    assert child.work_branch == "OOMPAH-814"
+    assert child.branch_name == "OOMPAH-814"
+    assert child.integration is accepted
+    # Workspace, terminal-audit/review, and retry consumers all resolve the
+    # same accepted-generation authority rather than the stale projection.
+    assert orchestrator._branch_for_issue(child, project) == "OOMPAH-814"
+    assert orchestrator._retry_issue_branch(child) == "OOMPAH-814"
+    orchestrator.project_store.epic_child_branch_name.assert_not_called()
+    orchestrator.project_store.create_worktree.assert_called_once_with(
+        project.id,
+        "OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        branch_name="OOMPAH-814",
+        prefer_remote_branch=True,
+        expected_head_sha="2" * 40,
+    )
+    assert len(tracker.set_metadata_field.call_args_list) == 1
+    assert tracker.set_metadata_field.call_args.args == (
+        "OOMPAH-814",
+        "oompah.work_branch",
+        "OOMPAH-814",
+    )
+
+
+def test_parallel_restart_reuses_working_accepted_branch_projection(tmp_path):
+    """A restart after repair allocation keeps the same checkout branch."""
+
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator.project_store.prepare_epic_branch_for_private_dispatch.return_value = (
+        "/wt/epic",
+        "1" * 40,
+    )
+    orchestrator.project_store.create_worktree.return_value = "/wt/OOMPAH-813"
+    epic = _make_issue(
+        identifier="OOMPAH-763",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    child = _make_issue(
+        identifier="OOMPAH-813",
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="Needs CI Fix",
+        work_branch="OOMPAH-813",
+    )
+    child.integration = IntegrationRecord(
+        state="working",
+        task_branch="OOMPAH-813",
+        base_branch="epic-OOMPAH-763",
+        base_sha="1" * 40,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+
+    with patch.object(orchestrator, "_tracker_for_issue", return_value=tracker):
+        orchestrator._create_workspace_for_issue(child)
+
+    orchestrator.project_store.epic_child_branch_name.assert_not_called()
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "branch_name"
+    ] == "OOMPAH-813"
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "prefer_remote_branch"
+    ] is True
+    assert orchestrator.project_store.create_worktree.call_args.kwargs[
+        "expected_head_sha"
+    ] is None
+
+
 def test_parallel_auditor_workspace_preserves_integrated_metadata(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     orchestrator = _make_orch(tmp_path, projects=[project])
@@ -962,6 +1122,8 @@ def test_parallel_auditor_workspace_preserves_integrated_metadata(tmp_path):
         child.identifier,
         base_branch="epic-EPIC-1",
         branch_name="epic-EPIC-1--task-TASK-1",
+        prefer_remote_branch=True,
+        expected_head_sha="b" * 40,
     )
     tracker.set_metadata_field.assert_not_called()
     assert child.integration.state == "integrated"

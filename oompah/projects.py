@@ -68,6 +68,16 @@ class EpicWorktreeReconciliation:
         return self.status in {"reconciled", "already_published"}
 
 
+@dataclass(frozen=True)
+class SubmissionGitAuthority:
+    """Remote Git facts proven before a submission mutates task state."""
+
+    task_branch: str
+    head_sha: str
+    base_branch: str | None = None
+    base_sha: str | None = None
+
+
 _WORKTREE_RECOVERY_VERSION = 1
 _WORKTREE_RECOVERY_MARKER = "oompah-recovery-json:"
 _RECOVERY_METADATA_LIMIT = 64 * 1024
@@ -5226,6 +5236,9 @@ class ProjectStore:
         issue_identifier: str,
         base_branch: str | None = None,
         branch_name: str | None = None,
+        *,
+        prefer_remote_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> str:
         """Create (or reuse) a git worktree for ``issue_identifier``.
 
@@ -5243,6 +5256,13 @@ class ProjectStore:
             a GitHub-safe name like ``oompah/myproject/gh-1234``), it is used
             verbatim instead of the sanitized ``issue_identifier``.  Defaults
             to ``_sanitize_identifier(issue_identifier)`` when ``None``.
+        prefer_remote_branch:
+            Restore a previously assigned branch from ``origin`` when no local
+            checkout exists. Fresh dispatch leaves this false so a stale
+            same-named remote ref cannot replace its hierarchy base.
+        expected_head_sha:
+            Exact accepted-generation head. Existing local work is never reset
+            to satisfy this value; divergence is rejected for repair.
         """
         # Acquire the per-project lock so concurrent dispatch and maintenance
         # operations for the same project are serialized through git.  The lock
@@ -5250,8 +5270,193 @@ class ProjectStore:
         # the lock across a tracker write + worktree create) do not deadlock.
         with self.project_write_lock(project_id):
             return self._create_worktree_locked(
-                project_id, issue_identifier, base_branch, branch_name
+                project_id,
+                issue_identifier,
+                base_branch,
+                branch_name,
+                prefer_remote_branch=prefer_remote_branch,
+                expected_head_sha=expected_head_sha,
             )
+
+    def verify_submission_git_authority(
+        self,
+        project_id: str,
+        *,
+        task_branch: str,
+        head_sha: str,
+        base_branch: str | None = None,
+        base_sha: str | None = None,
+    ) -> SubmissionGitAuthority:
+        """Prove exact remote publication and base ancestry for a submission.
+
+        This method intentionally performs no tracker, queue, or worktree
+        mutation.  It refreshes only remote-tracking refs in the managed clone
+        while holding the project Git lock, then fails closed unless
+        ``origin/<task_branch>`` still names ``head_sha``.  When a parent/base
+        branch is supplied, the recorded base must be contained in both the
+        submitted head and the refreshed parent branch.  Legacy direct-owner
+        submissions without a base SHA are upgraded to their exact merge base.
+        """
+
+        project = self._projects.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        branch = str(task_branch or "").strip()
+        head = str(head_sha or "").strip().lower()
+        parent_branch = str(base_branch or "").strip() or None
+        recorded_base = str(base_sha or "").strip().lower() or None
+        if not branch:
+            raise ProjectError("task_branch is required")
+        if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            raise ProjectError("head_sha must be a full hexadecimal git object id")
+        if recorded_base and not re.fullmatch(r"[0-9a-f]{40,64}", recorded_base):
+            raise ProjectError("base_sha must be a full hexadecimal git object id")
+
+        def _valid_branch(name: str) -> None:
+            checked = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{name}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if checked.returncode != 0:
+                raise ProjectError(f"invalid submission branch {name!r}")
+
+        def _remote_head(name: str) -> str:
+            result = self._run_network_git(
+                project,
+                ["git", "ls-remote", "--heads", "origin", f"refs/heads/{name}"],
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise ProjectError(
+                    f"could not verify origin/{name}: {result.stderr.strip()[:500]}"
+                )
+            matches = [
+                line.split()
+                for line in result.stdout.splitlines()
+                if len(line.split()) >= 2
+                and line.split()[1] == f"refs/heads/{name}"
+            ]
+            if len(matches) != 1:
+                raise ProjectError(f"origin/{name} is not published")
+            return matches[0][0].strip().lower()
+
+        def _fetch(name: str) -> str:
+            remote_ref = f"refs/remotes/origin/{name}"
+            result = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--quiet",
+                    "origin",
+                    f"+refs/heads/{name}:{remote_ref}",
+                ],
+                timeout=60,
+            )
+            if result.returncode != 0:
+                raise ProjectError(
+                    f"could not fetch origin/{name}: {result.stderr.strip()[:500]}"
+                )
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{remote_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if resolved.returncode != 0 or not resolved.stdout.strip():
+                raise ProjectError(f"origin/{name} does not resolve to a commit")
+            return resolved.stdout.strip().lower()
+
+        def _is_ancestor(ancestor: str, descendant: str) -> bool:
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            return result.returncode == 0
+
+        with self.project_write_lock(project_id):
+            _valid_branch(branch)
+            advertised_head = _remote_head(branch)
+            if advertised_head != head:
+                raise ProjectError(
+                    f"origin/{branch} is {advertised_head}, not submitted head {head}"
+                )
+            fetched_head = _fetch(branch)
+            # Re-read the remote after fetching.  A concurrent force-push must
+            # not leave the tracker accepting the now-stale fetched generation.
+            if fetched_head != head or _remote_head(branch) != head:
+                raise ProjectError(
+                    f"origin/{branch} moved while submission was being verified"
+                )
+
+            resolved_base = recorded_base
+            if parent_branch and parent_branch != branch:
+                _valid_branch(parent_branch)
+                parent_advertised = _remote_head(parent_branch)
+                parent_head = _fetch(parent_branch)
+                if (
+                    parent_head != parent_advertised
+                    or _remote_head(parent_branch) != parent_head
+                ):
+                    raise ProjectError(
+                        f"origin/{parent_branch} moved while submission was being verified"
+                    )
+                if resolved_base is None:
+                    merged = subprocess.run(
+                        ["git", "merge-base", head, parent_head],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                    resolved_base = (
+                        merged.stdout.strip().lower()
+                        if merged.returncode == 0
+                        else None
+                    )
+                    if not resolved_base:
+                        raise ProjectError(
+                            f"submitted head {head} has no common base with "
+                            f"origin/{parent_branch}"
+                        )
+                if not _is_ancestor(resolved_base, head):
+                    raise ProjectError(
+                        f"recorded base {resolved_base} is not an ancestor of "
+                        f"submitted head {head}"
+                    )
+                if not _is_ancestor(resolved_base, parent_head):
+                    raise ProjectError(
+                        f"recorded base {resolved_base} is not contained in "
+                        f"origin/{parent_branch}"
+                    )
+            elif resolved_base and not _is_ancestor(resolved_base, head):
+                raise ProjectError(
+                    f"recorded base {resolved_base} is not an ancestor of "
+                    f"submitted head {head}"
+                )
+
+        return SubmissionGitAuthority(
+            task_branch=branch,
+            head_sha=head,
+            base_branch=parent_branch,
+            base_sha=resolved_base,
+        )
 
     def _create_worktree_locked(
         self,
@@ -5259,6 +5464,9 @@ class ProjectStore:
         issue_identifier: str,
         base_branch: str | None = None,
         branch_name: str | None = None,
+        *,
+        prefer_remote_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> str:
         project = self._projects.get(project_id)
         if not project:
@@ -5277,6 +5485,7 @@ class ProjectStore:
                 branch_name,
                 project,
                 issue_identifier=issue_identifier,
+                expected_head_sha=expected_head_sha,
             )
             return wt_path
 
@@ -5298,7 +5507,62 @@ class ProjectStore:
         # contention (oompah-zlz_2-7iq) by either accepting partial success
         # (worktree dir created, only upstream-config write failed) or
         # retrying with exponential backoff.
-        base = f"origin/{base_branch or project.default_branch}"
+        # Recovery of an accepted submission may have only a published remote
+        # branch after restart/cleanup.  When explicitly requested and that
+        # exact remote-tracking ref is available, branch the replacement
+        # worktree from it rather than from the (possibly advanced) epic/default
+        # base. Fresh dispatches still derive from ``base_branch`` even if an
+        # obsolete same-named remote ref exists.
+        remote_task_ref = f"refs/remotes/origin/{branch_name}"
+        remote_task = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{remote_task_ref}^{{commit}}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        remote_task_sha = (
+            remote_task.stdout.strip().lower()
+            if remote_task.returncode == 0
+            else None
+        )
+        expected_head = str(expected_head_sha or "").strip().lower() or None
+        if expected_head and remote_task_sha != expected_head:
+            raise ProjectError(
+                f"origin/{branch_name} does not match accepted head "
+                f"{expected_head}"
+            )
+        local_task = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                f"refs/heads/{branch_name}^{{commit}}",
+            ],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        local_task_sha = (
+            local_task.stdout.strip().lower()
+            if local_task.returncode == 0
+            else None
+        )
+        if expected_head and local_task_sha and local_task_sha != expected_head:
+            raise ProjectError(
+                f"local branch {branch_name} is {local_task_sha}, not accepted "
+                f"head {expected_head}; refusing to reset it"
+            )
+        base = (
+            f"origin/{branch_name}"
+            if prefer_remote_branch and remote_task_sha
+            else f"origin/{base_branch or project.default_branch}"
+        )
         try:
             _git_worktree_add_with_recovery(
                 ["git", "worktree", "add", "-b", branch_name, wt_path, base],
@@ -5371,6 +5635,7 @@ class ProjectStore:
         project: Project,
         *,
         issue_identifier: str | None = None,
+        expected_head_sha: str | None = None,
     ) -> None:
         """Reuse an existing task worktree without discarding task-owned work."""
 
@@ -5428,6 +5693,20 @@ class ProjectStore:
                 f"{current_branch or ('active ' + str(operation.get('kind')) if operation else 'a detached HEAD')}, not expected branch "
                 f"{branch_name}; refusing to reset it"
             )
+
+        expected_head = str(expected_head_sha or "").strip().lower() or None
+        if expected_head:
+            current_head = _run(["git", "rev-parse", "HEAD"], timeout=10)
+            actual_head = (
+                current_head.stdout.strip().lower()
+                if current_head.returncode == 0
+                else ""
+            )
+            if actual_head != expected_head:
+                raise ProjectError(
+                    f"existing worktree {wt_path} is at {actual_head or 'unknown'}, "
+                    f"not accepted head {expected_head}; refusing to reset it"
+                )
 
         recovery_identifier = issue_identifier or branch_name
         # This check must happen before fetch/reset/clean.  A terminated worker

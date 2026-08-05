@@ -16,7 +16,7 @@ import threading
 import time
 import urllib.parse
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping
@@ -4148,8 +4148,8 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     head_sha = str(body.get("head_sha") or "").strip().lower() or None
     if head_sha is None:
         raise ValueError("head_sha is required for task submission")
-    if not re.fullmatch(r"[0-9a-f]{7,64}", head_sha):
-        raise ValueError("head_sha must be a hexadecimal git object id")
+    if not re.fullmatch(r"[0-9a-f]{40,64}", head_sha):
+        raise ValueError("head_sha must be a full hexadecimal git object id")
     remote_head_sha = (
         str(body.get("remote_head_sha") or "").strip().lower() or None
     )
@@ -4157,8 +4157,10 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         raise ValueError(
             "remote_head_sha is required; push the task branch before submission"
         )
-    if not re.fullmatch(r"[0-9a-f]{7,64}", remote_head_sha):
-        raise ValueError("remote_head_sha must be a hexadecimal git object id")
+    if not re.fullmatch(r"[0-9a-f]{40,64}", remote_head_sha):
+        raise ValueError(
+            "remote_head_sha must be a full hexadecimal git object id"
+        )
     if remote_head_sha != head_sha:
         raise ValueError(
             "the pushed remote task branch does not match the local HEAD"
@@ -4177,8 +4179,8 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         )
         or None
     )
-    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{7,64}", base_sha):
-        raise ValueError("base_sha must be a hexadecimal git object id")
+    if base_sha is not None and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
+        raise ValueError("base_sha must be a full hexadecimal git object id")
     raw_dependency_heads = body.get("dependency_heads")
     dependency_heads = (
         {
@@ -4241,8 +4243,9 @@ async def _persist_worker_submission(
 
     Idempotency is scoped to a *duplicate accepted* generation: when the
     integration record is unchanged **and** the canonical tracker status is
-    already ``Ready to Integrate``, no tracker writes fire (no duplicate
-    summary comment, status update, or metadata write). This preserves the
+    already ``Ready to Integrate``, no lifecycle or summary writes fire.  The
+    sole repair write permitted on that path is backfilling a null/stale
+    ``work_branch`` projection from the accepted record.  This preserves the
     existing ``open_review`` / queue-owned properties while letting a same-head
     recovery from ``In Progress`` / ``Needs Human`` / ``Needs CI Fix`` write
     the ``Ready to Integrate`` status and a fresh summary comment so the 201
@@ -4260,11 +4263,6 @@ async def _persist_worker_submission(
         and existing.head_sha == record.head_sha
         and existing.task_branch == record.task_branch
     )
-    if reuses_existing_record and canonical_status == READY_TO_INTEGRATE:
-        # Duplicate accepted submit for the same generation: nothing new to
-        # persist, no fresh summary to record, and the queue still owns the
-        # active row.
-        return existing
     if not reuses_existing_record:
         # A fresh integration record is durable evidence for a new generation
         # (new head, or a recovery from a state that dropped the ``ready``
@@ -4276,6 +4274,24 @@ async def _persist_worker_submission(
             "oompah.integration",
             record.to_dict(),
         )
+    projected_branch = str(getattr(issue, "work_branch", "") or "").strip()
+    branch_projection_matches = projected_branch == record.task_branch
+    if not branch_projection_matches:
+        # ``work_branch`` is the mutable tracker projection of immutable
+        # accepted-generation authority.  Persist it even for an otherwise
+        # idempotent same-head submission so older null/stale rows heal.
+        await _run_api_io(
+            tracker.set_metadata_field,
+            issue.identifier,
+            "oompah.work_branch",
+            record.task_branch,
+        )
+        issue.work_branch = record.task_branch
+    if reuses_existing_record and canonical_status == READY_TO_INTEGRATE:
+        # Duplicate accepted submit for the same generation: after repairing
+        # its branch projection, no fresh summary/status/queue generation is
+        # required.
+        return existing
     if canonical_status != READY_TO_INTEGRATE:
         # Same-head recovery from In Progress / Needs Human / Needs CI Fix
         # (and any other non-ready status) reconciles the canonical lifecycle
@@ -4296,6 +4312,64 @@ async def _persist_worker_submission(
         author="oompah",
     )
     return record
+
+
+async def _verify_submission_git_authority(
+    orch,
+    issue,
+    project_id: str,
+    record: IntegrationRecord,
+) -> IntegrationRecord:
+    """Verify remote branch/head and parent-base evidence before mutation."""
+
+    store = getattr(orch, "project_store", None)
+    verifier = (
+        getattr(store, "verify_submission_git_authority", None)
+        if getattr(type(store), "verify_submission_git_authority", None)
+        is not None
+        else None
+    )
+    if not callable(verifier):
+        # Legacy/custom project-store adapters predate managed Git authority.
+        # Their callers retain their existing validation contract.
+        return record
+
+    base_branch = str(record.base_branch or "").strip() or None
+    parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+    if parent_id and getattr(orch.config, "parallel_epic_children_enabled", False):
+        try:
+            base_branch = store.epic_branch_name(parent_id)
+        except Exception as exc:  # noqa: BLE001 - validation must fail closed
+            raise ValueError(
+                f"could not resolve parent branch for {issue.identifier}: {exc}"
+            ) from exc
+    verification_base_sha = record.base_sha
+    if is_direct_epic_maintenance_issue(issue):
+        # A direct rebase helper force-pushes the parent epic branch itself.
+        # Its pre-rebase base can intentionally disappear from the rewritten
+        # history, so the dedicated direct-maintenance reconciliation remains
+        # responsible for proving old/published/current evidence.  Exact
+        # remote branch=head publication is still verified here before it may
+        # mutate tracker state.
+        verification_base_sha = None
+    try:
+        authority = await _run_api_io(
+            verifier,
+            project_id,
+            task_branch=str(record.task_branch or ""),
+            head_sha=str(record.head_sha or ""),
+            base_branch=base_branch,
+            base_sha=verification_base_sha,
+        )
+    except (ProjectError, OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"submission Git authority rejected: {exc}") from exc
+    return replace(
+        record,
+        task_branch=authority.task_branch,
+        head_sha=authority.head_sha,
+        base_branch=authority.base_branch or record.base_branch,
+        base_sha=authority.base_sha or record.base_sha,
+    )
 
 
 @contextlib.asynccontextmanager
@@ -4494,10 +4568,29 @@ async def api_submit_issue(identifier: str, request: Request):
         # per-task lock is shared with the dispatcher's final In Progress
         # transition, so a callback selected before this request cannot write
         # stale lifecycle state after the accepted submission wins.
-        record = _submission_record(issue, body)
         direct_completion = None
         direct_failure_message: str | None = None
         async with _submission_authority_lock(orch, issue.id):
+            # Re-read and revalidate inside the same authority fence used by
+            # dispatch.  Two concurrent submissions may both have fetched an
+            # older projection before entering this block; only the current
+            # accepted generation is allowed to choose the branch.
+            fresh_issue = await _run_api_io(
+                tracker.fetch_issue_detail,
+                resolved_identifier,
+            )
+            if fresh_issue is None:
+                raise ValueError(
+                    f"Issue {resolved_identifier!r} disappeared during submission"
+                )
+            issue = fresh_issue
+            record = _submission_record(issue, body)
+            record = await _verify_submission_git_authority(
+                orch,
+                issue,
+                project_id,
+                record,
+            )
             cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
             if callable(cancel_retry):
                 cancel_retry(
@@ -5217,23 +5310,39 @@ async def api_task_handoff(request: Request):
         if action == "submit":
             try:
                 async def persist_submission() -> Any:
-                    record = _submission_record(issue, body)
                     async with _submission_authority_lock(orch, issue.id):
+                        fresh_issue = await _run_api_io(
+                            tracker.fetch_issue_detail,
+                            identifier,
+                        )
+                        if fresh_issue is None:
+                            raise ValueError(
+                                f"Issue {identifier!r} disappeared during submission"
+                            )
+                        record = _submission_record(fresh_issue, body)
+                        record = await _verify_submission_git_authority(
+                            orch,
+                            fresh_issue,
+                            project_id,
+                            record,
+                        )
                         cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
                         if callable(cancel_retry):
                             cancel_retry(
-                                issue_id=getattr(issue, "id", None),
+                                issue_id=getattr(fresh_issue, "id", None),
                                 identifier=identifier,
                                 project_id=project_id,
                                 reason="task submitted for integration",
                             )
-                        await _clear_submission_assignment(tracker, issue)
+                        await _clear_submission_assignment(tracker, fresh_issue)
                         record = await _persist_worker_submission(
-                            tracker, issue, body, record=record
+                            tracker, fresh_issue, body, record=record
                         )
-                        _enqueue_worker_submission(orch, project_id, issue, record)
+                        _enqueue_worker_submission(
+                            orch, project_id, fresh_issue, record
+                        )
                         _publish_submission_coordination(
-                            orch, project_id, issue, record, body
+                            orch, project_id, fresh_issue, record, body
                         )
                     return record
 

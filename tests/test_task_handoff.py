@@ -413,6 +413,256 @@ class TestTaskScopeDirectPath:
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
+    def test_direct_acp_submit_uses_accepted_branch_and_repairs_projection(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="Task",
+            parent_id="OOMPAH-763",
+            work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="OOMPAH-814",
+                head_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-OOMPAH-763"
+
+            @staticmethod
+            def verify_submission_git_authority(project_id, **kwargs):
+                assert project_id == "proj-a"
+                assert kwargs["task_branch"] == "OOMPAH-814"
+                return SubmissionGitAuthority(
+                    task_branch="OOMPAH-814",
+                    head_sha="a" * 40,
+                    base_branch="epic-OOMPAH-763",
+                    base_sha="b" * 40,
+                )
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "OOMPAH-814",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Repaired'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+            )
+
+        assert result == "Submitted for integration: OOMPAH-814"
+        assert tracker.set_metadata_field.call_args_list[0].args[1] == (
+            "oompah.integration"
+        )
+        assert tracker.set_metadata_field.call_args_list[1].args == (
+            "OOMPAH-814",
+            "oompah.work_branch",
+            "OOMPAH-814",
+        )
+        assert issue.work_branch == "OOMPAH-814"
+
+    def test_direct_acp_same_head_ready_retry_only_repairs_projection(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="Task",
+            state="Ready to Integrate",
+            parent_id="OOMPAH-763",
+            work_branch="stale-projection",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                base_branch="epic-OOMPAH-763",
+                base_sha="b" * 40,
+                head_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-OOMPAH-763"
+
+            @staticmethod
+            def verify_submission_git_authority(_project_id, **kwargs):
+                return SubmissionGitAuthority(
+                    task_branch=kwargs["task_branch"],
+                    head_sha=kwargs["head_sha"],
+                    base_branch=kwargs["base_branch"],
+                    base_sha=kwargs["base_sha"],
+                )
+
+        evidence = {
+            "task_branch": "OOMPAH-814",
+            "head_sha": "a" * 40,
+            "remote_head_sha": "a" * 40,
+            "worktree_clean": True,
+        }
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value=evidence,
+        ):
+            first = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Retry'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+            )
+            second = _exec_oompah_task_command(
+                "oompah task submit OOMPAH-814 --summary 'Retry again'",
+                tracker,
+                "proj-a",
+                task_identifier="OOMPAH-814",
+                project_store=Store(),
+                workspace_path=tmp_path,
+            )
+
+        assert first == "Submitted for integration: OOMPAH-814"
+        assert second == first
+        tracker.set_metadata_field.assert_called_once_with(
+            "OOMPAH-814",
+            "oompah.work_branch",
+            "OOMPAH-814",
+        )
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    def test_direct_acp_epic_rebase_omits_rewritten_base_from_verifier(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+        from oompah.integration import IntegrationRecord
+        from oompah.projects import SubmissionGitAuthority
+
+        issue = Issue(
+            id="DIRECT-TASK",
+            identifier="DIRECT-TASK",
+            title="Rebase epic-EPIC-PARENT onto main",
+            parent_id="EPIC-PARENT",
+            work_branch="epic-EPIC-PARENT",
+            integration=IntegrationRecord(
+                state="working",
+                task_branch="epic-EPIC-PARENT",
+                base_branch="epic-EPIC-PARENT",
+                base_sha="a" * 40,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        captured = {}
+
+        class Store:
+            @staticmethod
+            def epic_branch_name(_identifier):
+                return "epic-EPIC-PARENT"
+
+            @staticmethod
+            def verify_submission_git_authority(project_id, **kwargs):
+                captured.update(project_id=project_id, **kwargs)
+                return SubmissionGitAuthority(
+                    task_branch=kwargs["task_branch"],
+                    head_sha=kwargs["head_sha"],
+                    base_branch=kwargs["base_branch"],
+                    base_sha=None,
+                )
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "epic-EPIC-PARENT",
+                "head_sha": "b" * 40,
+                "remote_head_sha": "b" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit DIRECT-TASK --summary 'Rebased'",
+                tracker,
+                "proj-a",
+                task_identifier="DIRECT-TASK",
+                project_store=Store(),
+                workspace_path=tmp_path,
+            )
+
+        assert result == "Submitted for integration: DIRECT-TASK"
+        assert captured["task_branch"] == "epic-EPIC-PARENT"
+        assert captured["head_sha"] == "b" * 40
+        assert captured["base_branch"] == "epic-EPIC-PARENT"
+        assert captured["base_sha"] is None
+
+    def test_direct_acp_remote_authority_rejection_precedes_tracker_writes(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            work_branch="TASK-1",
+        )
+
+        class RejectingStore:
+            @staticmethod
+            def verify_submission_git_authority(_project_id, **_kwargs):
+                raise RuntimeError("origin/TASK-1 moved")
+
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                project_store=RejectingStore(),
+                workspace_path=tmp_path,
+            )
+
+        assert "submission Git authority rejected" in result
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
     def test_direct_acp_submission_survives_coordination_outage(
         self,
         tmp_path,
@@ -533,6 +783,84 @@ class TestTaskHandoffEndpoint:
             orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
             is False
         )
+
+    def test_scoped_submit_remote_rejection_precedes_tracker_mutation(self):
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            issue_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="issue-remote-reject",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.config.parallel_epic_children_enabled = False
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"submit"},
+        )
+        orch.state = SimpleNamespace(
+            running={
+                issue.id: SimpleNamespace(
+                    identifier=issue.identifier,
+                    issue=issue,
+                    task_handoff_token=token,
+                )
+            }
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with (
+                patch.object(
+                    server,
+                    "_verify_submission_git_authority",
+                    new=AsyncMock(side_effect=ValueError("origin moved")),
+                ),
+                TestClient(app, raise_server_exceptions=False) as client,
+            ):
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "submit",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "summary": "Done",
+                        "task_branch": "TASK-1",
+                        "head_sha": "a" * 40,
+                        "remote_head_sha": "a" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert response.status_code == 400
+        assert "origin moved" in response.text
+        orch._cancel_retry_for_issue.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
         from fastapi.testclient import TestClient

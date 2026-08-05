@@ -81,6 +81,8 @@ from oompah.integration import (
     CanonicalLandingEvidence,
     IntegrationRecord,
     _compute_evidence_fingerprint,
+    accepted_submission_branch,
+    assigned_work_branch,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
 )
@@ -4957,7 +4959,10 @@ class Orchestrator:
         cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
         if cleanup is not None:
             cleanup_kwargs = {
-                "branch_name": str(issue.work_branch or "").strip() or None,
+                "branch_name": str(
+                    assigned_work_branch(issue) or issue.work_branch or ""
+                ).strip()
+                or None,
                 "is_epic": _is_epic_issue(issue),
                 "issue_number": (
                     str(issue.issue_number).strip()
@@ -5877,6 +5882,7 @@ class Orchestrator:
         for issue in issues:
             issue_by_identifier[str(issue.identifier)] = issue
             for branch in (
+                assigned_work_branch(issue),
                 getattr(issue, "work_branch", None),
                 getattr(issue, "branch_name", None),
             ):
@@ -6596,7 +6602,11 @@ class Orchestrator:
     def _workflow_shadow_review(self, issue: Issue) -> ReviewRequest | None:
         project_id = str(issue.project_id or "legacy")
         branch = str(
-            issue.work_branch or issue.branch_name or issue.identifier or ""
+            assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or issue.identifier
+            or ""
         )
         return next(
             (
@@ -9978,7 +9988,11 @@ class Orchestrator:
         """
 
         return (
-            str(getattr(issue, "work_branch", "") or ""),
+            str(
+                assigned_work_branch(issue)
+                or getattr(issue, "work_branch", "")
+                or ""
+            ),
             str(getattr(issue, "branch_name", "") or ""),
             str(getattr(issue, "target_branch", "") or ""),
             str(getattr(issue, "review_number", "") or ""),
@@ -11632,6 +11646,8 @@ class Orchestrator:
                 item.task_id,
                 base_branch=self.project_store.epic_branch_name(item.epic_id),
                 branch_name=item.task_branch,
+                prefer_remote_branch=True,
+                expected_head_sha=item.head_sha,
             )
         except Exception as exc:  # noqa: BLE001
             return IntegrationExecutionResult(
@@ -17034,7 +17050,9 @@ class Orchestrator:
             # this parent branch; that reviewed transition is its evidence.
             return None
 
-        recorded_branch = (child.work_branch or "").strip()
+        recorded_branch = str(
+            assigned_work_branch(child) or child.work_branch or ""
+        ).strip()
         project = (
             self.project_store.get(epic.project_id)
             if (epic.project_id or "").strip()
@@ -17735,7 +17753,8 @@ class Orchestrator:
                 issue.identifier
             )
             explicit_branch = (
-                str(getattr(issue, "work_branch", "") or "").strip()
+                str(assigned_work_branch(issue) or "").strip()
+                or str(getattr(issue, "work_branch", "") or "").strip()
                 or str(getattr(issue, "branch_name", "") or "").strip()
             )
             work_branch = explicit_branch or default_epic_branch
@@ -17749,6 +17768,19 @@ class Orchestrator:
                     issue.identifier,
                 )
                 return _finish_workspace(wp, issue)
+            assigned_branch = assigned_work_branch(issue)
+            restore_kwargs = (
+                {
+                    "prefer_remote_branch": True,
+                    "expected_head_sha": (
+                        getattr(issue.integration, "head_sha", None)
+                        if accepted_submission_branch(issue)
+                        else None
+                    ),
+                }
+                if assigned_branch
+                else {}
+            )
             wp = self._authority_guarded_call(
                 authority_check,
                 self.project_store.create_worktree,
@@ -17756,6 +17788,7 @@ class Orchestrator:
                 issue.identifier,
                 base_branch=issue.target_branch,
                 branch_name=work_branch,
+                **restore_kwargs,
             )
             return _finish_workspace(wp, issue)
 
@@ -17764,12 +17797,29 @@ class Orchestrator:
             if self.config.parallel_epic_children_enabled:
                 _assert_authority()
                 epic_branch = self._epic_branch_for_issue(parent_epic)
-                private_branch = self.project_store.epic_child_branch_name(
-                    parent_epic.identifier,
-                    issue.identifier,
+                accepted_branch = accepted_submission_branch(issue)
+                assigned_branch = assigned_work_branch(issue)
+                private_branch = (
+                    assigned_branch
+                    or self.project_store.epic_child_branch_name(
+                        parent_epic.identifier,
+                        issue.identifier,
+                    )
                 )
                 issue.work_branch = private_branch
                 issue.branch_name = private_branch
+                restore_kwargs = (
+                    {
+                        "prefer_remote_branch": True,
+                        "expected_head_sha": (
+                            getattr(issue.integration, "head_sha", None)
+                            if accepted_branch
+                            else None
+                        ),
+                    }
+                    if assigned_branch
+                    else {}
+                )
                 # Integration and dispatch share this lock, so the epic head
                 # cannot move between synchronization and private branching.
                 with self.project_store.project_write_lock(issue.project_id):
@@ -17789,19 +17839,27 @@ class Orchestrator:
                                 "oompah.work_branch",
                                 private_branch,
                             )
-                            self._authority_guarded_call(
-                                authority_check,
-                                tracker.set_metadata_field,
-                                issue.identifier,
-                                "oompah.integration",
-                                IntegrationRecord(
+                            # Repair dispatch must not replace accepted
+                            # branch/head evidence with a mutable ``working``
+                            # record.  The repair submits a new generation on
+                            # the same branch; until then the prior accepted
+                            # record remains the restart/audit authority.
+                            if accepted_branch is None:
+                                working_record = IntegrationRecord(
                                     state="working",
                                     task_branch=private_branch,
                                     base_branch=epic_branch,
                                     base_sha=base_sha,
                                     updated_at=datetime.now(timezone.utc).isoformat(),
-                                ).to_dict(),
-                            )
+                                )
+                                self._authority_guarded_call(
+                                    authority_check,
+                                    tracker.set_metadata_field,
+                                    issue.identifier,
+                                    "oompah.integration",
+                                    working_record.to_dict(),
+                                )
+                                issue.integration = working_record
                         except Exception as exc:  # noqa: BLE001
                             raise ProjectError(
                                 f"Could not persist private branch for "
@@ -17814,6 +17872,7 @@ class Orchestrator:
                         issue.identifier,
                         base_branch=epic_branch,
                         branch_name=private_branch,
+                        **restore_kwargs,
                     )
                 return _finish_workspace(wp, None)
 
@@ -17873,7 +17932,8 @@ class Orchestrator:
         # unrelated worktree failures keep their existing error handling.
         parent_id = (issue.parent_id or "").strip()
         persisted_branch = (
-            str(getattr(issue, "work_branch", "") or "").strip()
+            str(assigned_work_branch(issue) or "").strip()
+            or str(getattr(issue, "work_branch", "") or "").strip()
             or str(getattr(issue, "branch_name", "") or "").strip()
         )
         if parent_id:
@@ -17910,8 +17970,17 @@ class Orchestrator:
         # Target Branch metadata to the issue before creating the worktree
         # so review reconciliation can resolve the task from a PR source
         # branch without guessing by task ID (TASK-461.3, AC#1 and AC#2).
-        work_branch: str | None = None
-        if issue.tracker_kind == "github_issues" and issue.issue_number and issue.project_id:
+        assigned_branch = assigned_work_branch(issue)
+        work_branch: str | None = assigned_branch
+        if work_branch:
+            issue.work_branch = work_branch
+            issue.branch_name = work_branch
+        if (
+            work_branch is None
+            and issue.tracker_kind == "github_issues"
+            and issue.issue_number
+            and issue.project_id
+        ):
             project_obj = self.project_store.get(issue.project_id)
             if project_obj is not None:
                 work_branch = github_work_branch_name(project_obj.name, issue.issue_number)
@@ -17939,6 +18008,18 @@ class Orchestrator:
                         _exc,
                     )
 
+        restore_kwargs = (
+            {
+                "prefer_remote_branch": True,
+                "expected_head_sha": (
+                    getattr(issue.integration, "head_sha", None)
+                    if accepted_submission_branch(issue)
+                    else None
+                ),
+            }
+            if assigned_branch
+            else {}
+        )
         wp = self._authority_guarded_call(
             authority_check,
             self.project_store.create_worktree,
@@ -17946,6 +18027,7 @@ class Orchestrator:
             issue.identifier,
             base_branch=issue.target_branch,
             branch_name=work_branch,
+            **restore_kwargs,
         )
         return _finish_workspace(wp, None)
 
@@ -18004,8 +18086,8 @@ class Orchestrator:
         if not immutable_revisions:
             for value in (
                 getattr(issue, "source_branch", None),
+                assigned_work_branch(issue),
                 getattr(issue, "work_branch", None),
-                getattr(integration, "task_branch", None),
                 getattr(issue, "branch_name", None),
             ):
                 branch = str(value or "").strip()
@@ -21698,6 +21780,9 @@ class Orchestrator:
         return entry.identifier
 
     def _branch_for_issue(self, issue: Issue, project: Any | None = None) -> str:
+        assigned_branch = assigned_work_branch(issue)
+        if assigned_branch:
+            return assigned_branch
         for value in (
             getattr(issue, "work_branch", None),
             getattr(issue, "branch_name", None),
@@ -22971,7 +23056,8 @@ class Orchestrator:
 
         default_branch = str(getattr(project, "default_branch", "") or "").strip()
         branch = str(
-            getattr(issue, "work_branch", None)
+            assigned_work_branch(issue)
+            or getattr(issue, "work_branch", None)
             or getattr(issue, "branch_name", None)
             or getattr(issue, "identifier", "")
         ).strip()
@@ -23766,6 +23852,7 @@ class Orchestrator:
         """Return the open review branch matching ``issue``, if any."""
         candidates: list[str] = []
         for value in (
+            assigned_work_branch(issue),
             getattr(issue, "work_branch", None),
             getattr(issue, "branch_name", None),
         ):
@@ -25611,7 +25698,10 @@ class Orchestrator:
                 f"{expected_target}"
             )
         expected_source = str(
-            issue.work_branch or issue.branch_name or ""
+            assigned_work_branch(issue)
+            or issue.work_branch
+            or issue.branch_name
+            or ""
         ).strip()
         if expected_source and str(review.source_branch or "").strip() != expected_source:
             return False, (
@@ -27523,7 +27613,9 @@ class Orchestrator:
             return {}
         index: dict[str, str] = {}
         for issue in issues:
-            branch = getattr(issue, "work_branch", None)
+            branch = assigned_work_branch(issue) or getattr(
+                issue, "work_branch", None
+            )
             if branch:
                 index[str(branch)] = issue.identifier
         return index
@@ -38417,7 +38509,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             str(failed_status or _state_key(issue.state)),
             str(attempt if attempt is not None else ""),
             str(assignment_id or ""),
-            str(work_branch or getattr(issue, "work_branch", None) or getattr(issue, "branch_name", None) or ""),
+            str(
+                work_branch
+                or assigned_work_branch(issue)
+                or getattr(issue, "work_branch", None)
+                or getattr(issue, "branch_name", None)
+                or ""
+            ),
             str(head_sha or self._retry_issue_head(issue) or ""),
             str(failed_updated_at or self._retry_issue_revision(issue) or ""),
         )
@@ -38440,7 +38538,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def _retry_issue_branch(issue: Issue) -> str:
         """Return the work branch used by retry authority checks."""
         return str(
-            getattr(issue, "work_branch", None)
+            assigned_work_branch(issue)
+            or getattr(issue, "work_branch", None)
             or getattr(issue, "branch_name", None)
             or ""
         ).strip()
