@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T06:45:56.138869Z'
+updated_at: '2026-08-05T07:06:20.406151Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Urgent standalone deployment bootstrap for systemic child OOMPAH-822. The curren
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 07:06
+---
+Implementation is complete and pushed for independent review at exact head 2f9984c6a03c1c5d846d7a6c1970fed1bd4b49a8 on origin/OOMPAH-823 (base origin/main 9ea2b552). The patch adds pending-first cursor selection, durable exponential due-at/backoff and bounded exhaustion/action-required state, operator-change retry epochs, one coalesced outcome checkpoint per batch with fail-closed pre-effect intent durability, earliest-due scheduler timing with a nonzero floor, and single-timer wakeup coalescing. Verification: 194 focused tests passed in the branch-local environment (terminal audit enforcement, config, and orchestrator state persistence), terminal mutation scan 8/8 passed, check-secrets passed, and diff checks are clean. Owner claim is intentionally retained and the task has not been submitted pending exact-head review/landing.
+---
+<!-- COMMENTS:END -->
