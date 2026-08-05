@@ -3168,6 +3168,56 @@ class ProjectStore:
             return relationship or "unknown"
 
         recovery_ref = _worktree_recovery_ref(issue_identifier)
+        pending_ref = _worktree_pending_recovery_ref(issue_identifier)
+        if wt_path and os.path.isdir(wt_path):
+            try:
+                pending = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{pending_ref}^{{commit}}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown"
+            pending_head = (
+                pending.stdout.strip().lower() if pending.returncode == 0 else ""
+            )
+            if pending_head and pending_head != snapshot:
+                return "changed"
+            if pending_head:
+                try:
+                    removed_pending = subprocess.run(
+                        ["git", "update-ref", "-d", pending_ref, snapshot],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
+                if removed_pending.returncode != 0:
+                    return "unknown"
+                pending_after = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{pending_ref}^{{commit}}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if pending_after.returncode == 0:
+                    return "changed"
+
+        # Delete the authoritative generation last. If pending cleanup fails,
+        # the authoritative ref remains discoverable and the retry is safely
+        # idempotent; no source-local copy can resurrect a reported-consumed
+        # generation after this exact CAS succeeds.
         consumed = subprocess.run(
             ["git", "update-ref", "-d", recovery_ref, snapshot],
             cwd=project.repo_path,
@@ -3180,33 +3230,6 @@ class ProjectStore:
         if consumed.returncode != 0:
             current = self._recovery_context_from_ref(project, issue_identifier)
             return "consumed" if current is None else "changed"
-
-        if wt_path and os.path.isdir(wt_path):
-            try:
-                subprocess.run(
-                    [
-                        "git",
-                        "update-ref",
-                        "-d",
-                        _worktree_pending_recovery_ref(issue_identifier),
-                        snapshot,
-                    ],
-                    cwd=wt_path,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=10,
-                    env=_recovery_git_env(),
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                logger.warning(
-                    "Could not remove consumed pending recovery ref project=%s "
-                    "issue=%s snapshot=%s",
-                    project.id,
-                    issue_identifier,
-                    snapshot,
-                    exc_info=True,
-                )
         logger.info(
             "Consumed incorporated worktree recovery project=%s issue=%s "
             "snapshot=%s accepted=%s",
