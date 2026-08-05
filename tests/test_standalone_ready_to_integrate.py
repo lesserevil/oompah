@@ -6,6 +6,7 @@ import asyncio
 import copy
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 from unittest import mock
@@ -353,6 +354,126 @@ def test_benign_tracker_timestamp_change_keeps_exact_head_authority(harness):
     )
 
 
+def test_workflow_timeout_fences_late_standalone_review_tracker_writes(harness):
+    """A late forge result is adoptable, but the expired job cannot publish it."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    accepted_head = "a" * 40
+    task = _issue("TASK-WORKFLOW-TIMEOUT", branch="feature/timeout")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+        submitted_at="2026-08-05T04:00:00+00:00",
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = accepted_head
+    provider.find_pr_for_branch.return_value = None
+    workflow_current = [True]
+
+    def create_after_timeout(*_args, **_kwargs):
+        workflow_current[0] = False
+        return _review(
+            task.work_branch or "",
+            review_id="720",
+            head_sha=accepted_head,
+        )
+
+    provider.create_review.side_effect = create_after_timeout
+
+    orch._reconcile_one_standalone_ready_to_integrate_task(
+        project.id,
+        task.identifier,
+        expected_task_branch=task.work_branch,
+        expected_head_sha=accepted_head,
+        workflow_generation="job-1:1:lease-1",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+
+    gate.assert_called_once()
+    provider.create_review.assert_called_once()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert authority.workflow_generation == "job-1:1:lease-1"
+    assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_standalone_authority_generation_includes_delivery_mode(harness):
+    orch, project, tracker, _provider, _detect, _gate = harness
+    accepted_head = "b" * 40
+    task = _issue("TASK-MODE-FENCE", branch="feature/mode-fence")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    authority = orch._claim_standalone_delivery_authority(project, task)
+    assert authority is not None
+    assert orch._standalone_delivery_authorized(authority, tracker)
+
+    task.integration = replace(task.integration, mode="queue")
+
+    assert not orch._standalone_delivery_authorized(authority, tracker)
+
+
+def test_open_review_adoption_rechecks_workflow_lease_before_capacity(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    accepted_head = "c" * 40
+    task = _issue("TASK-ADOPT-LEASE", branch="feature/adopt-lease")
+    task.integration = IntegrationRecord(
+        state="ready",
+        mode="standalone",
+        task_branch=task.work_branch,
+        head_sha=accepted_head,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    workflow_current = [True]
+    authority = orch._claim_standalone_delivery_authority(
+        project,
+        task,
+        workflow_generation="job-1:generation-1:lease-1",
+        workflow_authority_check=lambda: workflow_current[0],
+    )
+    assert authority is not None
+    assert orch._set_standalone_delivery_head(
+        authority,
+        task.work_branch or "",
+        accepted_head,
+        lambda: accepted_head,
+    )
+    exact_open = _review(
+        task.work_branch or "",
+        state="open",
+        review_id="721",
+        head_sha=accepted_head,
+    )
+
+    def return_after_lease_loss(*_args, **_kwargs):
+        workflow_current[0] = False
+        return exact_open
+
+    provider.find_pr_for_branch.side_effect = return_after_lease_loss
+    with mock.patch.object(orch, "_adopt_open_review_capacity") as adopt:
+        adopted, reason = orch._adopt_standalone_open_review_owned(
+            project,
+            tracker,
+            provider,
+            authority,
+            repo_slug="org/repo",
+            work_branch=task.work_branch or "",
+            target_branch=project.default_branch,
+            expected_review=exact_open,
+        )
+
+    assert not adopted
+    assert "during open-review lookup" in reason
+    adopt.assert_not_called()
+
+
 def test_legacy_quality_gate_facade_uses_generation_fallback(harness):
     """Older gate facades remain usable without broadening new gates."""
     orch, project, tracker, _provider, _detect, _gate = harness
@@ -432,6 +553,42 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
         description="Description for TASK-1",
     )
     tracker.update_issue.assert_called_once_with("TASK-1", status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
+def test_standalone_delivery_preserves_explicit_target_branch(harness):
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-RELEASE", branch="feature/release-fix")
+    task.target_branch = "release/next"
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(
+        "feature/release-fix",
+        review_id="release-101",
+        target_branch="release/next",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(
+        project,
+        task,
+        "feature/release-fix",
+        "release/next",
+    )
+    provider.create_review.assert_called_once_with(
+        "org/repo",
+        "TASK-RELEASE: Title for TASK-RELEASE",
+        "feature/release-fix",
+        target_branch="release/next",
+        description="Description for TASK-RELEASE",
+    )
+    assert mock.call(
+        "TASK-RELEASE",
+        "oompah.target_branch",
+        "release/next",
+    ) in tracker.set_metadata_field.call_args_list
+    tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
     assert not _delivery_alerts(orch)
 
 
@@ -664,8 +821,7 @@ def test_terminal_audit_satisfied_dependency_releases_one_gate(harness):
     gate.assert_called_once_with(project, task, "TASK-RELEASE", "trunk")
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
-    assert _delivery_alerts(orch)[0]["level"] == "info"
-    assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
+    assert not _delivery_alerts(orch)
 
 
 def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
@@ -973,6 +1129,31 @@ def test_later_sweep_stale_cache_cannot_create_second_review(harness):
     assert gate.call_count == 1
     assert _delivery_alerts(orch)[0]["level"] == "info"
     assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
+
+
+def test_exact_durable_review_slot_is_not_reported_as_capacity_wait(harness):
+    """A lagging forge lookup cannot overwrite same-task delivery success."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-EXACT-CAPACITY")
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    orch.review_capacity_store.adopt(
+        project_id=project.id,
+        task_id=task.identifier,
+        source_branch=task.work_branch or task.identifier,
+        target_branch=project.default_branch,
+        review_id="exact-601",
+        reservation_id="reservation-exact-601",
+    )
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    assert not _delivery_alerts(orch)
 
 
 def test_concurrent_ready_sweeps_share_one_durable_slot(harness):

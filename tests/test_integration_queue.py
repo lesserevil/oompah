@@ -1,6 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from oompah.integration_queue import IntegrationQueueStore
+from oompah.integration_queue import (
+    STANDALONE_RECLASSIFICATION_REASON,
+    IntegrationQueueStore,
+)
 
 
 def _enqueue(store, task, *, priority=1, submitted_at=None):
@@ -139,6 +142,130 @@ def test_expired_lease_recovers_after_restart(tmp_path):
     assert recovered.attempts == 2
 
 
+def test_task_scoped_recovery_requires_exact_expired_generation(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="legacy-owner",
+        dependency_map={"A": []},
+        satisfied=set(),
+        lease_seconds=5,
+        now=10,
+    )
+    assert claimed is not None
+
+    assert store.recover_task_generation(
+        "p1",
+        "A",
+        expected_generation=claimed.authority_generation(),
+        now=14,
+    ) is None
+    recovered = store.recover_task_generation(
+        "p1",
+        "A",
+        expected_generation=claimed.authority_generation(),
+        now=16,
+    )
+
+    assert recovered is not None
+    assert recovered.state == "ready"
+    assert recovered.lease_owner is None
+
+
+def test_workflow_finish_generation_fences_replacement_and_live_lease(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+    replacement = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha="replacement-head",
+        explicit_retry=True,
+    )
+
+    assert store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        state="integrated",
+    ) is None
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="legacy-owner",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=claimed.authority_generation(),
+        state="integrated",
+    ) is None
+    assert store.get("p1", "A").head_sha == replacement.head_sha
+
+
+def test_workflow_finish_generation_is_one_exact_idempotency_checkpoint(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+
+    finished = store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        state="blocked",
+        error="ci_failure:failed exact combined-tree gate",
+    )
+
+    assert finished is not None
+    assert finished.state == "blocked"
+    assert finished.attempts == 1
+    assert store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        state="blocked",
+    ) is None
+    assert store.get("p1", "A") == finished
+
+
+def test_workflow_finish_consumes_durable_retry_without_legacy_claim(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    blocked = store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        state="blocked",
+        error="ci_failure:first attempt",
+    )
+    assert blocked is not None
+    retried = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=blocked.task_branch,
+        head_sha=blocked.head_sha,
+        explicit_retry=True,
+        preserve_attempts=True,
+    )
+    assert retried.retry_forced
+
+    integrated = store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=retried.authority_generation(),
+        state="integrated",
+    )
+
+    assert integrated is not None
+    assert not integrated.retry_forced
+
+
 def test_integrated_history_scan_is_bounded_and_resumes_after_restart(tmp_path):
     path = tmp_path / "queue.sqlite3"
     store = IntegrationQueueStore(str(path))
@@ -166,6 +293,154 @@ def test_integrated_history_scan_is_bounded_and_resumes_after_restart(tmp_path):
     assert [item.task_id for item in resumed] == ["HIST-2", "HIST-3"]
     assert reopened.get("p1", "HIST-2") == resumed[0]
     reopened.close()
+
+
+def test_legacy_integration_checkpoint_is_queue_first_and_exact(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="legacy-owner",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+
+    checkpoint = store.checkpoint_legacy_integration(
+        "p1",
+        "A",
+        lease_owner="legacy-owner",
+        expected_task_branch=queued.task_branch,
+        expected_head_sha=queued.head_sha,
+        rebased_head_sha="rebased-head",
+        integrated_sha="landed-head",
+        base_sha="epic-base",
+    )
+
+    assert checkpoint is not None
+    assert checkpoint.state == "integrated"
+    assert checkpoint.head_sha == "rebased-head"
+    assert checkpoint.rebased_from_head_sha == queued.head_sha
+    assert checkpoint.integrated_sha == "landed-head"
+    assert checkpoint.history_sequence > 0
+    assert store.checkpoint_legacy_integration(
+        "p1",
+        "A",
+        lease_owner="legacy-owner",
+        expected_task_branch=queued.task_branch,
+        expected_head_sha=queued.head_sha,
+        rebased_head_sha="different-head",
+        integrated_sha="different-landing",
+    ) is None
+
+
+def test_tracker_first_checkpoint_normalization_rejects_replaced_generation(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+    replacement = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha="replacement-submission",
+    )
+
+    assert store.normalize_legacy_tracker_checkpoint(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        task_branch=original.task_branch,
+        head_sha="rebased-head",
+        integrated_sha="landed-head",
+    ) is None
+
+    normalized = store.normalize_legacy_tracker_checkpoint(
+        "p1",
+        "A",
+        expected_generation=replacement.authority_generation(),
+        task_branch=replacement.task_branch,
+        head_sha="rebased-head",
+        integrated_sha="landed-head",
+    )
+    assert normalized is not None
+    assert normalized.state == "integrated"
+    assert normalized.rebased_from_head_sha == replacement.head_sha
+    assert normalized.head_sha == "rebased-head"
+    assert normalized.integrated_sha == "landed-head"
+    assert normalized.history_sequence > 0
+
+
+def test_history_sequence_never_reuses_cursor_after_rearm_and_restart(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    queued = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="first-worker",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.complete("p1", "A", lease_owner="first-worker")
+    first = store.get("p1", "A")
+    first_cursor = store.cursor_for(first)
+    rearmed = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=queued.task_branch,
+        head_sha=queued.head_sha,
+        explicit_retry=True,
+        rearm_integrated=True,
+    )
+    assert rearmed.history_sequence == 0
+    store.close()
+
+    reopened = IntegrationQueueStore(str(path))
+    claimed = reopened.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="second-worker",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert reopened.complete("p1", "A", lease_owner="second-worker")
+    second = reopened.get("p1", "A")
+
+    assert second.history_sequence > first.history_sequence
+    assert reopened.items(states=("integrated",), after=first_cursor) == [second]
+
+
+def test_tracker_normalization_moves_repaired_landing_after_old_cursor(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="legacy-worker",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.complete("p1", "A", lease_owner="legacy-worker")
+    legacy = store.get("p1", "A")
+    legacy_cursor = store.cursor_for(legacy)
+
+    normalized = store.normalize_legacy_tracker_checkpoint(
+        "p1",
+        "A",
+        expected_generation=legacy.authority_generation(),
+        task_branch=queued.task_branch,
+        head_sha="rebased-head",
+        integrated_sha="landed-head",
+    )
+
+    assert normalized is not None
+    assert normalized.history_sequence > legacy.history_sequence
+    assert store.items(states=("integrated",), after=legacy_cursor) == [normalized]
 
 
 def test_concurrent_claimers_only_receive_one_lease(tmp_path):
@@ -692,6 +967,8 @@ def test_retry_forced_cleared_when_claimed(tmp_path):
     )
     assert claimed_again is not None
     assert claimed_again.retry_forced is False
+    assert claimed_again.claimed_retry_forced is True
+    assert store.get("p1", "A").claimed_retry_forced is False
 
 
 def test_new_head_on_explicit_retry_row_clears_retry_forced(tmp_path):
@@ -737,6 +1014,56 @@ def test_new_head_on_explicit_retry_row_clears_retry_forced(tmp_path):
     assert new_head.retry_forced is False  # Flag is cleared for new submissions
 
 
+def test_durable_workflow_consumes_forced_retry_once_across_restart(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    original = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="CI failed",
+        retryable=False,
+    )
+    retried = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+    )
+
+    consumed, forced = store.consume_retry_generation(
+        "p1",
+        "A",
+        expected_generation=retried.authority_generation(),
+    )
+
+    assert consumed is not None
+    assert forced is True
+    assert consumed.retry_forced is False
+    store.close()
+    restarted = IntegrationQueueStore(str(path))
+    durable = restarted.get("p1", "A")
+    assert durable is not None
+    second, forced_again = restarted.consume_retry_generation(
+        "p1",
+        "A",
+        expected_generation=durable.authority_generation(),
+    )
+    assert second == durable
+    assert forced_again is False
+
+
 def test_authority_generation_survives_restart_and_changes_with_row(tmp_path):
     path = tmp_path / "queue.sqlite3"
     store = IntegrationQueueStore(str(path))
@@ -778,6 +1105,206 @@ def test_run_if_generation_rejects_row_changed_before_action(tmp_path):
     )
     assert calls == []
     assert store.get("p1", "A") == replacement
+
+
+def test_workflow_rebase_checkpoint_advances_exact_unleased_generation(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    blocked = store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        state="blocked",
+        error="ci_failure:cached failure",
+    )
+    assert blocked is not None
+    retried = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=queued.task_branch,
+        head_sha=queued.head_sha,
+        explicit_retry=True,
+        preserve_attempts=True,
+    )
+    assert retried.retry_forced
+
+    advanced = store.advance_task_generation(
+        "p1",
+        "A",
+        expected_generation=retried.authority_generation(),
+        head_sha="feedbeef",
+        base_sha="base-new",
+    )
+
+    assert advanced is not None
+    assert advanced.state == "ready"
+    assert advanced.head_sha == "feedbeef"
+    assert advanced.base_sha == "base-new"
+    assert advanced.rebased_from_head_sha == queued.head_sha
+    assert advanced.rebased_publication_pending is True
+    assert advanced.retry_forced == retried.retry_forced
+    assert advanced.attempts == retried.attempts
+    assert store.finish_task_generation(
+        "p1",
+        "A",
+        expected_generation=advanced.authority_generation(),
+        state="blocked",
+        error="ci_failure:not yet published",
+    ) is None
+    published = store.complete_task_publication(
+        "p1",
+        "A",
+        expected_generation=advanced.authority_generation(),
+        head_sha=advanced.head_sha,
+    )
+    assert published is not None
+    assert published.rebased_publication_pending is False
+
+
+def test_rebase_intent_is_durable_before_publication_and_survives_restart(tmp_path):
+    path = tmp_path / "integration.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    queued = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch="task-A",
+        head_sha="a" * 40,
+    )
+
+    intent = store.prepare_task_rebase(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        base_sha="b" * 40,
+    )
+
+    assert intent is not None
+    assert intent.head_sha == queued.head_sha
+    assert intent.rebased_from_head_sha == queued.head_sha
+    assert intent.rebase_intent_pending is True
+    assert intent.rebased_publication_pending is False
+    store.close()
+
+    restarted = IntegrationQueueStore(str(path))
+    recovered = restarted.get("p1", "A")
+    assert recovered == intent
+    prepared = restarted.prepare_task_publication(
+        "p1",
+        "A",
+        expected_generation=recovered.authority_generation(),
+        head_sha="c" * 40,
+        base_sha="b" * 40,
+    )
+    assert prepared is not None
+    assert prepared.rebase_intent_pending is False
+    assert prepared.rebased_publication_pending is True
+    assert prepared.rebased_from_head_sha == queued.head_sha
+
+
+def test_exact_queue_identity_rehomes_same_head_to_current_parent(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    original = store.enqueue(
+        project_id="p1",
+        epic_id="E-OLD",
+        task_id="A",
+        task_branch="task-A",
+        head_sha="a" * 40,
+    )
+
+    replacement = store.replace_task_identity(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        epic_id="E-NEW",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+    )
+
+    assert replacement is not None
+    assert replacement.epic_id == "E-NEW"
+    assert replacement.authority_generation() != original.authority_generation()
+    assert store.replace_task_identity(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        epic_id="E-THIRD",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+    ) is None
+
+
+def test_exact_queue_generation_retires_durably_for_standalone_reclassification(
+    tmp_path,
+):
+    path = tmp_path / "integration.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    original = store.enqueue(
+        project_id="p1",
+        epic_id="E-OLD",
+        task_id="A",
+        task_branch="task-A",
+        head_sha="a" * 40,
+    )
+    callback_rows = []
+
+    retired = store.retire_task_generation(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        reason=STANDALONE_RECLASSIFICATION_REASON,
+        action=lambda row: callback_rows.append(row) or True,
+    )
+
+    assert callback_rows == [original]
+    assert retired is not None
+    assert retired.state == "cancelled"
+    assert retired.last_error == STANDALONE_RECLASSIFICATION_REASON
+    assert store.retire_task_generation(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        reason=STANDALONE_RECLASSIFICATION_REASON,
+    ) is None
+    store.close()
+
+    restarted = IntegrationQueueStore(str(path))
+    assert restarted.get("p1", "A") == retired
+
+
+def test_workflow_rebase_checkpoint_fences_replacement_and_live_lease(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    replacement = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=queued.task_branch,
+        head_sha="new-user-head",
+    )
+
+    assert store.advance_task_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        head_sha="late-workflow-head",
+    ) is None
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="legacy-owner",
+        dependency_map={"A": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.advance_task_generation(
+        "p1",
+        "A",
+        expected_generation=claimed.authority_generation(),
+        head_sha="late-workflow-head",
+    ) is None
+    assert store.get("p1", "A").head_sha == replacement.head_sha
 
 
 def test_run_if_generation_executes_inside_exact_row_fence(tmp_path):

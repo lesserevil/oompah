@@ -17,6 +17,7 @@ from oompah.integration import (
 def test_integration_record_round_trips_all_supported_evidence():
     record = IntegrationRecord(
         state="ready",
+        mode="queue",
         task_branch="oompah/task/ABC-2",
         base_branch="epic-ABC-1",
         base_sha="a" * 40,
@@ -30,6 +31,11 @@ def test_integration_record_round_trips_all_supported_evidence():
     assert IntegrationRecord.from_dict(record.to_dict()) == record
 
 
+def test_integration_record_rejects_unknown_delivery_mode():
+    with pytest.raises(ValueError, match="unsupported integration mode"):
+        IntegrationRecord(state="ready", mode="caller-selected")
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -38,6 +44,7 @@ def test_integration_record_round_trips_all_supported_evidence():
         {},
         {"version": 999, "state": "ready"},
         {"version": 1, "state": "unknown"},
+        {"version": 2, "state": "ready", "mode": "unknown"},
         {"version": 1, "state": "ready", "attempts": -1},
         {"version": "nope", "state": "ready"},
     ],

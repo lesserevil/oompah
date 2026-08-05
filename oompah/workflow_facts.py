@@ -559,6 +559,8 @@ class WorkflowFacts:
 
 def _git_error_code(stderr: str) -> str:
     text = stderr.lower()
+    if "timed out" in text:
+        return "git_observation_timed_out"
     if "not a git repository" in text or "repository unavailable" in text:
         return "git_repository_unavailable"
     if "permission denied" in text:
@@ -575,10 +577,12 @@ class GitLandingCollector:
         *,
         project_id: str,
         clock: Callable[[], datetime] | None = None,
+        command_timeout_seconds: float = 30.0,
     ) -> None:
         self.repo_path = Path(repo_path).resolve()
         self.project_id = _required_text(project_id, "project_id")
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self.command_timeout_seconds = max(float(command_timeout_seconds), 0.1)
 
     def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
         command = ["git", *args]
@@ -589,6 +593,14 @@ class GitLandingCollector:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=self.command_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(
+                command,
+                124,
+                stdout="",
+                stderr="git observation timed out",
             )
         except OSError as exc:
             return subprocess.CompletedProcess(
@@ -821,22 +833,40 @@ def _integration_value(issue: Issue) -> Any:
     if integration is None:
         return None
     if hasattr(integration, "to_dict"):
-        return integration.to_dict()
-    if isinstance(integration, Mapping):
-        return dict(integration)
-    return {
-        key: getattr(integration, key, None)
-        for key in (
-            "version",
-            "state",
-            "attempts",
-            "task_branch",
-            "base_branch",
-            "head_sha",
-            "base_sha",
-            "submitted_at",
+        value = integration.to_dict()
+    elif isinstance(integration, Mapping):
+        value = dict(integration)
+    else:
+        value = {
+            key: getattr(integration, key, None)
+            for key in (
+                "version",
+                "state",
+                "attempts",
+                "task_branch",
+                "base_branch",
+                "head_sha",
+                "base_sha",
+                "submitted_at",
+            )
+        }
+    # Delivery mode is service authority, not caller-controlled tracker text.
+    # Accepted children always use the ordered epic queue.  Top-level records
+    # carry their server-selected mode durably; legacy records default to
+    # standalone delivery.  A synthetic mapping cannot opt itself into queue
+    # delivery because only the typed service record exposes ``mode`` here.
+    parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+    carried_mode = str(getattr(integration, "mode", "") or "").strip().lower()
+    value["mode"] = (
+        "queue"
+        if parent_id
+        else (
+            carried_mode
+            if carried_mode in {"queue", "standalone"}
+            else "standalone"
         )
-    }
+    )
+    return value
 
 
 def _task_value(issue: Issue) -> dict[str, Any]:

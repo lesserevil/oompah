@@ -391,6 +391,23 @@ def test_git_observation_failure_becomes_unknown_fact(tmp_path):
     assert fact.error_code == "git_repository_unavailable"
 
 
+def test_git_observation_timeout_becomes_bounded_unknown_fact(tmp_path, monkeypatch):
+    def timed_out(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(["git", "rev-parse"], 0.1)
+
+    monkeypatch.setattr(subprocess, "run", timed_out)
+
+    fact = GitLandingCollector(
+        tmp_path,
+        project_id="project-1",
+        clock=lambda: NOW,
+        command_timeout_seconds=0.1,
+    ).collect(LandingRequest("task", "main"))
+
+    assert fact.state is LandingState.UNKNOWN
+    assert fact.error_code == "git_observation_timed_out"
+
+
 def test_workflow_facts_rejects_cross_project_landing():
     landing = LandingFact(
         "task",

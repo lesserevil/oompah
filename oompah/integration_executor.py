@@ -171,6 +171,100 @@ def _dirty_worktree(repo_path: str) -> str | None:
     return "\n".join(dirty) if dirty else None
 
 
+def _is_ancestor(repo_path: str, ancestor: str, descendant: str) -> bool:
+    """Return whether a clean local head is provably stale, never divergent."""
+
+    if not ancestor or not descendant:
+        return False
+    result = _git(
+        repo_path,
+        "merge-base",
+        "--is-ancestor",
+        ancestor,
+        descendant,
+        timeout=15,
+    )
+    return result.returncode == 0
+
+
+def _is_exact_rebase_result(
+    repo_path: str,
+    *,
+    predecessor: str,
+    base: str,
+    candidate: str,
+) -> bool:
+    """Prove that ``candidate`` is the complete rebase of ``predecessor``.
+
+    The durable intent proves that the executor was allowed to start changing
+    the private worktree; it does not make an arbitrary clean local commit safe
+    to publish.  Require the candidate to contain the recorded new base and use
+    Git's stable patch-id comparison in both directions so no predecessor patch
+    disappeared and no unrelated patch appeared during the crash gap.
+    """
+
+    if not all((predecessor, base, candidate)) or not _is_ancestor(
+        repo_path, base, candidate
+    ):
+        return False
+    # No rewrite occurred.  The candidate is the exact accepted commit, so its
+    # merge topology and any resolution-only tree delta are already durable
+    # submission evidence rather than an unproven crash-gap mutation.
+    if candidate == predecessor:
+        return True
+    merge_base_result = _git(
+        repo_path,
+        "merge-base",
+        predecessor,
+        base,
+        timeout=15,
+    )
+    merge_base = merge_base_result.stdout.strip()
+    if merge_base_result.returncode != 0 or not merge_base:
+        return False
+    # ``git cherry`` deliberately ignores merge commits.  Without checking both
+    # ranges, either the submitted history or the clean crash-gap candidate can
+    # carry a merge-resolution-only tree delta while both directional patch-id
+    # checks still report equivalence.  Default ``git rebase`` does not preserve
+    # merge topology, so fail closed and let the executor replay the accepted
+    # remote generation instead of adopting an incompletely proven local head.
+    for revision_range in (
+        f"{merge_base}..{predecessor}",
+        f"{base}..{candidate}",
+    ):
+        merges = _git(
+            repo_path,
+            "rev-list",
+            "--min-parents=2",
+            revision_range,
+            timeout=15,
+        )
+        if merges.returncode != 0 or merges.stdout.strip():
+            return False
+    original = _git(
+        repo_path,
+        "cherry",
+        candidate,
+        predecessor,
+        merge_base,
+        timeout=30,
+    )
+    replacement = _git(
+        repo_path,
+        "cherry",
+        predecessor,
+        candidate,
+        base,
+        timeout=30,
+    )
+    if original.returncode != 0 or replacement.returncode != 0:
+        return False
+    return all(
+        not line or line.startswith("-")
+        for line in (*original.stdout.splitlines(), *replacement.stdout.splitlines())
+    )
+
+
 @_with_project_credentials
 def execute_integration(
     *,
@@ -185,8 +279,17 @@ def execute_integration(
     repo_identity: str,
     retry_forced: bool = False,
     commit_allowed: Callable[[], bool] | None = None,
+    rebase_intent_prepare: Callable[[str], bool] | None = None,
+    rebase_intent_abort: Callable[[], bool] | None = None,
+    rebase_intent_pending: bool = False,
+    rebased_head_prepare: Callable[[str, str | None], bool] | None = None,
+    rebased_head_checkpoint: Callable[[str, str | None], bool] | None = None,
+    publication_pending: bool = False,
+    publication_predecessor_sha: str | None = None,
+    publication_base_sha: str | None = None,
     gate_generation: str | None = None,
     gate_owner: QualityGateOwner | None = None,
+    gate_owner_factory: Callable[[str], QualityGateOwner] | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -222,6 +325,14 @@ def execute_integration(
             if authority_failure is not None:
                 return authority_failure
             current_task_branch = _current_branch(task_worktree)
+            if current_task_branch != task_branch and rebase_intent_pending:
+                # A process can exit while Git still has the executor-owned
+                # rebase operation open.  The intent was durable before that
+                # mutation, so aborting it is safe; unowned operations retain
+                # the ordinary fail-closed worktree behavior below.
+                _git(task_worktree, "rebase", "--abort")
+                _git(task_worktree, "checkout", task_branch)
+                current_task_branch = _current_branch(task_worktree)
             if current_task_branch != task_branch:
                 return IntegrationExecutionResult(
                     status="wrong_worktree",
@@ -257,7 +368,22 @@ def execute_integration(
                     status="missing_head",
                     message=f"remote task branch {task_branch} does not exist",
                 )
-            if remote_task_sha != submitted_head_sha:
+            predecessor = str(publication_predecessor_sha or "").strip()
+            resuming_publication = bool(
+                publication_pending and predecessor and submitted_head_sha
+            )
+            resuming_rebase_intent = bool(
+                rebase_intent_pending
+                and predecessor
+                and submitted_head_sha
+                and predecessor == submitted_head_sha
+            )
+            allowed_remote_heads = (
+                {submitted_head_sha, predecessor}
+                if resuming_publication
+                else {submitted_head_sha}
+            )
+            if remote_task_sha not in allowed_remote_heads:
                 return IntegrationExecutionResult(
                     status="stale_head",
                     message=(
@@ -266,10 +392,24 @@ def execute_integration(
                     ),
                     rebased_task_sha=remote_task_sha,
                 )
+            current_task_head = _sha(task_worktree, "HEAD")
+            expected_task_worktree_head = (
+                current_task_head
+                if resuming_rebase_intent
+                else submitted_head_sha
+                if resuming_publication
+                else remote_task_sha
+            )
+            if not expected_task_worktree_head:
+                return IntegrationExecutionResult(
+                    status="worktree_recovery",
+                    message="executor-owned task worktree head is unavailable",
+                    rebased_task_sha=remote_task_sha,
+                )
             try:
                 generated_helpers = generated_worktree_helpers_in_revision(
                     task_worktree,
-                    remote_task_sha,
+                    expected_task_worktree_head,
                 )
             except ProjectError as exc:
                 return IntegrationExecutionResult(
@@ -295,10 +435,9 @@ def execute_integration(
                         "again. The shared epic worktree was not mutated."
                     ),
                     expected_epic_sha=expected_epic_sha,
-                    rebased_task_sha=remote_task_sha,
+                    rebased_task_sha=expected_task_worktree_head,
                 )
-            current_task_head = _sha(task_worktree, "HEAD")
-            if current_task_head != remote_task_sha:
+            if current_task_head != expected_task_worktree_head:
                 return IntegrationExecutionResult(
                     status="worktree_recovery",
                     message=(
@@ -323,67 +462,344 @@ def execute_integration(
                         ),
                         expected_epic_sha=expected_epic_sha,
                     )
-            expected_epic_sha = _sha(epic_worktree, f"origin/{epic_branch}")
-            if expected_epic_sha is None:
+            observed_epic_sha = _sha(epic_worktree, f"origin/{epic_branch}")
+            if observed_epic_sha is None:
                 return IntegrationExecutionResult(
                     status="missing_epic",
                     message=f"remote epic branch {epic_branch} does not exist",
                 )
-            current_epic_head = _sha(epic_worktree, "HEAD")
-            if current_epic_head != expected_epic_sha:
-                return IntegrationExecutionResult(
-                    status="worktree_recovery",
-                    message=(
-                        "epic worktree head "
-                        f"{current_epic_head or 'unknown'} differs from the "
-                        f"published epic head {expected_epic_sha}; refusing "
-                        "to reset a preserved recovery snapshot"
-                    ),
-                    expected_epic_sha=expected_epic_sha,
-                )
-            checkout = _git(task_worktree, "checkout", task_branch)
-            if checkout.returncode != 0:
-                return IntegrationExecutionResult(
-                    status="error",
-                    message=checkout.stderr.strip()[:1000],
-                    expected_epic_sha=expected_epic_sha,
-                )
-            reset_task = _git(
-                task_worktree,
-                "reset",
-                "--hard",
-                f"origin/{task_branch}",
+            expected_epic_sha = (
+                str(publication_base_sha or "").strip()
+                if resuming_publication or resuming_rebase_intent
+                else observed_epic_sha
             )
-            if reset_task.returncode != 0:
-                return IntegrationExecutionResult(
-                    status="error",
-                    message=reset_task.stderr.strip()[:1000],
-                    expected_epic_sha=expected_epic_sha,
+            current_epic_head = _sha(epic_worktree, "HEAD")
+            expected_epic_worktree_head = (
+                expected_epic_sha
+                if resuming_publication or resuming_rebase_intent
+                else observed_epic_sha
+            )
+            if current_epic_head != expected_epic_worktree_head:
+                # A prepared private head is safe to publish independently of
+                # the shared epic ref.  An intervening integration may have
+                # advanced both the remote and this clean shared worktree
+                # while the old-head -> prepared-head intent was durable.  In
+                # that exact case finish the private publication below, then
+                # return ``epic_head_race`` so the next generation rebases it
+                # onto the new epic.  Any third/divergent local head remains
+                # preserved as recovery evidence.
+                if (
+                    (resuming_publication or resuming_rebase_intent)
+                    and observed_epic_sha != expected_epic_sha
+                    and current_epic_head == observed_epic_sha
+                ):
+                    pass
+                elif (
+                    not resuming_publication
+                    and current_epic_head is not None
+                    and _is_ancestor(
+                        epic_worktree, current_epic_head, observed_epic_sha
+                    )
+                ):
+                    refreshed = _git(
+                        epic_worktree,
+                        "reset",
+                        "--hard",
+                        observed_epic_sha,
+                    )
+                    if refreshed.returncode != 0:
+                        return IntegrationExecutionResult(
+                            status="error",
+                            message=(
+                                "clean stale epic worktree could not be refreshed: "
+                                + refreshed.stderr.strip()[:1000]
+                            ),
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    current_epic_head = _sha(epic_worktree, "HEAD")
+                if (
+                    current_epic_head == expected_epic_worktree_head
+                    or (
+                        (resuming_publication or resuming_rebase_intent)
+                        and observed_epic_sha != expected_epic_sha
+                        and current_epic_head == observed_epic_sha
+                    )
+                ):
+                    pass
+                else:
+                    return IntegrationExecutionResult(
+                        status="worktree_recovery",
+                        message=(
+                            "epic worktree head "
+                            f"{current_epic_head or 'unknown'} differs from the "
+                            "executor-owned integration base "
+                            f"{expected_epic_worktree_head}; refusing "
+                            "to reset divergent recovery evidence"
+                        ),
+                        expected_epic_sha=expected_epic_sha,
+                    )
+            if resuming_publication:
+                # A publication intent proves which private ref rewrite this
+                # executor prepared; it does not, by itself, prove that an
+                # older service version preserved every submitted change.
+                # Re-run the same complete-history proof used by fresh and
+                # pre-publication-intent rewrites before finishing a crash-gap
+                # publication.  This is especially important for submitted
+                # merge commits, whose resolution-only tree delta is invisible
+                # to ``git cherry`` unless the merge ranges are rejected.
+                if not _is_exact_rebase_result(
+                    task_worktree,
+                    predecessor=predecessor,
+                    base=expected_epic_sha,
+                    candidate=submitted_head_sha,
+                ):
+                    return IntegrationExecutionResult(
+                        status="needs_rebase",
+                        message=(
+                            "prepared task publication could not prove that the "
+                            "rewritten head preserves every accepted submission "
+                            "change; rebase the private branch explicitly and "
+                            "submit the resulting exact head"
+                        ),
+                        expected_epic_sha=expected_epic_sha,
+                        rebased_task_sha=submitted_head_sha,
+                    )
+                rebased_sha = submitted_head_sha
+            else:
+                authority_failure = _authority_failure("before task rebase")
+                if authority_failure is not None:
+                    return authority_failure
+                if not resuming_rebase_intent and rebase_intent_prepare is not None:
+                    try:
+                        intent_prepared = rebase_intent_prepare(expected_epic_sha)
+                    except Exception as exc:
+                        return IntegrationExecutionResult(
+                            status="authority_unavailable",
+                            message=f"could not prepare task rebase intent: {exc}",
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    if not intent_prepared:
+                        return IntegrationExecutionResult(
+                            status="stale_head",
+                            message="task rebase lost durable authority before mutation",
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    rebase_intent_pending = True
+                    predecessor = submitted_head_sha
+                adopt_rebased_intent = bool(
+                    resuming_rebase_intent
+                    and current_task_head != submitted_head_sha
+                    and _is_exact_rebase_result(
+                        task_worktree,
+                        predecessor=submitted_head_sha,
+                        base=expected_epic_sha,
+                        candidate=current_task_head or "",
+                    )
                 )
-            rebased = _git(task_worktree, "rebase", expected_epic_sha, timeout=600)
-            if rebased.returncode != 0:
-                _git(task_worktree, "rebase", "--abort")
-                return IntegrationExecutionResult(
-                    status="conflict",
-                    message=(
-                        "Rebase onto the latest epic head conflicted: "
-                        + rebased.stderr.strip()[-2000:]
-                    ),
-                    expected_epic_sha=expected_epic_sha,
+                if adopt_rebased_intent:
+                    # The durable intent predates the local ref mutation.  A
+                    # clean surviving patch-equivalent head is therefore the
+                    # exact executor-owned rebase result, not unsubmitted work.
+                    rebased_sha = current_task_head
+                else:
+                    checkout = _git(task_worktree, "checkout", task_branch)
+                    if checkout.returncode != 0:
+                        return IntegrationExecutionResult(
+                            status="error",
+                            message=checkout.stderr.strip()[:1000],
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    reset_task = _git(
+                        task_worktree,
+                        "reset",
+                        "--hard",
+                        f"origin/{task_branch}",
+                    )
+                    if reset_task.returncode != 0:
+                        return IntegrationExecutionResult(
+                            status="error",
+                            message=reset_task.stderr.strip()[:1000],
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    rebased = _git(
+                        task_worktree, "rebase", expected_epic_sha, timeout=600
+                    )
+                    if rebased.returncode != 0:
+                        _git(task_worktree, "rebase", "--abort")
+                        if rebase_intent_abort is not None:
+                            try:
+                                aborted = rebase_intent_abort()
+                            except Exception as exc:
+                                return IntegrationExecutionResult(
+                                    status="authority_unavailable",
+                                    message=f"could not abort task rebase intent: {exc}",
+                                    expected_epic_sha=expected_epic_sha,
+                                )
+                            if not aborted:
+                                return IntegrationExecutionResult(
+                                    status="stale_head",
+                                    message="task rebase intent changed during rollback",
+                                    expected_epic_sha=expected_epic_sha,
+                                )
+                        return IntegrationExecutionResult(
+                            status="conflict",
+                            message=(
+                                "Rebase onto the latest epic head conflicted: "
+                                + rebased.stderr.strip()[-2000:]
+                            ),
+                            expected_epic_sha=expected_epic_sha,
+                        )
+                    rebased_sha = _sha(task_worktree, "HEAD")
+                if rebased_sha is None:
+                    return IntegrationExecutionResult(
+                        status="error",
+                        message="could not resolve rebased task head",
+                        expected_epic_sha=expected_epic_sha,
+                    )
+                if not _is_exact_rebase_result(
+                    task_worktree,
+                    predecessor=submitted_head_sha,
+                    base=expected_epic_sha,
+                    candidate=rebased_sha,
+                ):
+                    rolled_back = _git(
+                        task_worktree,
+                        "reset",
+                        "--hard",
+                        f"origin/{task_branch}",
+                    )
+                    if rolled_back.returncode != 0:
+                        return IntegrationExecutionResult(
+                            status="worktree_recovery",
+                            message=(
+                                "rebased task head could not be proven to preserve "
+                                "the complete accepted submission and the private "
+                                "worktree could not be restored: "
+                                + rolled_back.stderr.strip()[:1000]
+                            ),
+                            expected_epic_sha=expected_epic_sha,
+                            rebased_task_sha=rebased_sha,
+                        )
+                    if rebase_intent_abort is not None:
+                        try:
+                            aborted = rebase_intent_abort()
+                        except Exception as exc:
+                            return IntegrationExecutionResult(
+                                status="authority_unavailable",
+                                message=(
+                                    "could not clear unproven task rebase intent: "
+                                    f"{exc}"
+                                ),
+                                expected_epic_sha=expected_epic_sha,
+                                rebased_task_sha=rebased_sha,
+                            )
+                        if not aborted:
+                            return IntegrationExecutionResult(
+                                status="stale_head",
+                                message=(
+                                    "unproven task rebase lost durable authority "
+                                    "during rollback"
+                                ),
+                                expected_epic_sha=expected_epic_sha,
+                                rebased_task_sha=rebased_sha,
+                            )
+                    return IntegrationExecutionResult(
+                        status="needs_rebase",
+                        message=(
+                            "automatic rebase could not prove that the rewritten "
+                            "head preserves every accepted submission change; "
+                            "rebase the private branch explicitly and submit the "
+                            "resulting exact head"
+                        ),
+                        expected_epic_sha=expected_epic_sha,
+                        rebased_task_sha=rebased_sha,
+                    )
+                if rebased_head_prepare is not None:
+                    try:
+                        prepared = rebased_head_prepare(
+                            rebased_sha,
+                            expected_epic_sha,
+                        )
+                    except Exception as exc:
+                        # The callback can fail after its queue CAS but before
+                        # its tracker checkpoint.  Preserve the clean local
+                        # candidate and durable rebase intent: the next exact
+                        # generation can inspect the stores and finish either
+                        # the intent or the already-prepared publication.  A
+                        # rollback here could strand a prepared candidate that
+                        # no longer exists in the private worktree.
+                        return IntegrationExecutionResult(
+                            status="authority_unavailable",
+                            message=f"could not prepare rebased task head: {exc}",
+                            expected_epic_sha=expected_epic_sha,
+                            rebased_task_sha=rebased_sha,
+                        )
+                    if not prepared:
+                        rolled_back = _git(
+                            task_worktree,
+                            "reset",
+                            "--hard",
+                            f"origin/{task_branch}",
+                        )
+                        if rolled_back.returncode != 0:
+                            return IntegrationExecutionResult(
+                                status="worktree_recovery",
+                                message=(
+                                    "rebased task head lost publication authority "
+                                    "and the executor-owned rebase could not be "
+                                    f"rolled back: {rolled_back.stderr.strip()[:1000]}"
+                                ),
+                                expected_epic_sha=expected_epic_sha,
+                                rebased_task_sha=rebased_sha,
+                            )
+                        if rebase_intent_abort is not None:
+                            try:
+                                aborted = rebase_intent_abort()
+                            except Exception as exc:
+                                return IntegrationExecutionResult(
+                                    status="authority_unavailable",
+                                    message=(
+                                        "could not clear refused task rebase intent: "
+                                        f"{exc}"
+                                    ),
+                                    expected_epic_sha=expected_epic_sha,
+                                    rebased_task_sha=rebased_sha,
+                                )
+                            if not aborted:
+                                return IntegrationExecutionResult(
+                                    status="stale_head",
+                                    message=(
+                                        "refused task rebase lost durable authority "
+                                        "during rollback"
+                                    ),
+                                    expected_epic_sha=expected_epic_sha,
+                                    rebased_task_sha=rebased_sha,
+                                )
+                        return IntegrationExecutionResult(
+                            status="stale_head",
+                            message=(
+                                "rebased task head lost durable publication "
+                                "authority before push"
+                            ),
+                            expected_epic_sha=expected_epic_sha,
+                            rebased_task_sha=rebased_sha,
+                        )
+            authority_failure = _authority_failure("immediately before task push")
+            if authority_failure is not None:
+                return authority_failure
+            task_push_predecessor = (
+                predecessor if resuming_publication else submitted_head_sha
+            )
+            pushed_task = (
+                _git(
+                    task_worktree,
+                    "push",
+                    f"--force-with-lease=refs/heads/{task_branch}:{task_push_predecessor}",
+                    "origin",
+                    f"HEAD:refs/heads/{task_branch}",
                 )
-            rebased_sha = _sha(task_worktree, "HEAD")
-            if rebased_sha is None:
-                return IntegrationExecutionResult(
-                    status="error",
-                    message="could not resolve rebased task head",
-                    expected_epic_sha=expected_epic_sha,
-                )
-            pushed_task = _git(
-                task_worktree,
-                "push",
-                f"--force-with-lease=refs/heads/{task_branch}:{submitted_head_sha}",
-                "origin",
-                f"HEAD:refs/heads/{task_branch}",
+                if remote_task_sha != rebased_sha
+                else subprocess.CompletedProcess([], 0, stdout="", stderr="")
             )
             if pushed_task.returncode != 0:
                 message, auth_status = _git_failure_message(
@@ -395,6 +811,42 @@ def execute_integration(
                         message
                         if auth_status
                         else "task branch changed while rebasing: " + message
+                    ),
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                )
+            if rebased_head_checkpoint is not None:
+                try:
+                    checkpointed = rebased_head_checkpoint(
+                        rebased_sha,
+                        expected_epic_sha,
+                    )
+                except Exception as exc:  # fail closed across durable stores
+                    return IntegrationExecutionResult(
+                        status="authority_unavailable",
+                        message=f"could not checkpoint rebased task head: {exc}",
+                        expected_epic_sha=expected_epic_sha,
+                        rebased_task_sha=rebased_sha,
+                    )
+                if not checkpointed:
+                    return IntegrationExecutionResult(
+                        status="stale_head",
+                        message=(
+                            "rebased task head lost durable integration authority "
+                            "before quality validation"
+                        ),
+                        expected_epic_sha=expected_epic_sha,
+                        rebased_task_sha=rebased_sha,
+                    )
+            if (
+                (resuming_publication or resuming_rebase_intent)
+                and observed_epic_sha != expected_epic_sha
+            ):
+                return IntegrationExecutionResult(
+                    status="epic_head_race",
+                    message=(
+                        f"epic head advanced from {expected_epic_sha} "
+                        f"to {observed_epic_sha}; retrying on the new head"
                     ),
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,
@@ -416,7 +868,11 @@ def execute_integration(
         retry_forced=retry_forced,
         expected_head_sha=rebased_sha,
         generation=gate_generation,
-        owner=gate_owner,
+        owner=(
+            gate_owner_factory(rebased_sha)
+            if gate_owner_factory is not None and rebased_sha is not None
+            else gate_owner
+        ),
         is_current=commit_allowed,
     )
     if not quality.passed:
@@ -468,6 +924,34 @@ def execute_integration(
                     rebased_task_sha=rebased_sha,
                     quality=quality,
                 )
+            # The rebased private commit may have been created and pushed from a
+            # different worktree after this epic checkout's earlier fetch.  Fetch
+            # the exact task ref into the epic repository both to verify the
+            # remote head and to make its object available for the ff-only merge.
+            fetched_task = _git(epic_worktree, "fetch", "origin", task_branch)
+            if fetched_task.returncode != 0:
+                message, auth_status = _git_failure_message(
+                    "task branch verification fetch", fetched_task
+                )
+                return IntegrationExecutionResult(
+                    status=auth_status or "error",
+                    message=message,
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
+            current_task_remote = _sha(epic_worktree, f"origin/{task_branch}")
+            if current_task_remote != rebased_sha:
+                return IntegrationExecutionResult(
+                    status="task_push_race",
+                    message=(
+                        f"task head changed after validation from {rebased_sha} "
+                        f"to {current_task_remote}; refusing the stale result"
+                    ),
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
             current_remote = _sha(epic_worktree, f"origin/{epic_branch}")
             if current_remote != expected_epic_sha:
                 return IntegrationExecutionResult(
@@ -505,6 +989,9 @@ def execute_integration(
                     rebased_task_sha=rebased_sha,
                     quality=quality,
                 )
+            authority_failure = _authority_failure("immediately before epic reset")
+            if authority_failure is not None:
+                return authority_failure
             checkout = _git(epic_worktree, "checkout", epic_branch)
             if checkout.returncode != 0:
                 return IntegrationExecutionResult(
@@ -528,6 +1015,9 @@ def execute_integration(
                     rebased_task_sha=rebased_sha,
                     quality=quality,
                 )
+            authority_failure = _authority_failure("immediately before epic merge")
+            if authority_failure is not None:
+                return authority_failure
             merge = _git(epic_worktree, "merge", "--ff-only", rebased_sha or "")
             if merge.returncode != 0:
                 _git(epic_worktree, "reset", "--hard", f"origin/{epic_branch}")
@@ -539,6 +1029,10 @@ def execute_integration(
                     quality=quality,
                 )
             integrated_sha = _sha(epic_worktree, "HEAD")
+            authority_failure = _authority_failure("immediately before epic push")
+            if authority_failure is not None:
+                _git(epic_worktree, "reset", "--hard", f"origin/{epic_branch}")
+                return authority_failure
             pushed_epic = _git(
                 epic_worktree,
                 "push",

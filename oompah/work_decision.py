@@ -103,7 +103,6 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "intake.awaiting_decision",
         "integration.active",
         "integration.dependencies_blocked",
-        "integration.live_claim_precedes_history",
         "integration.landing_proven",
         "integration.landing_unproven",
         "integration.queued",
@@ -1048,16 +1047,6 @@ def _integration_decision(
             actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
             alert=AlertSeverity.WARNING,
         )
-    if bool(value.get("live_claim_precedes_history")):
-        return _decision(
-            task,
-            facts,
-            disposition=TaskDisposition.OWNED,
-            reason_code="integration.live_claim_precedes_history",
-            owner=WorkflowOwner.INTEGRATOR,
-            actions=(PermittedAction.CLAIM_INTEGRATION,),
-            durable_jobs=("historical_audit_replay_batch", "integration_attempt"),
-        )
     if value.get("state") == "integrated":
         expected_revision = str(
             value.get("integrated_sha") or value.get("head_sha") or ""
@@ -1100,7 +1089,10 @@ def _integration_decision(
             alert=AlertSeverity.INFO,
             durable_jobs=("integration_landing_refresh",),
         )
-    if value.get("mode") == "standalone" and value.get("state") == "ready":
+    mode = str(value.get("mode") or "").strip().lower()
+    state = str(value.get("state") or "").strip().lower()
+    has_parent = bool(str(task.parent_id or "").strip())
+    if mode == "standalone" and state == "ready" and not has_parent:
         return _decision(
             task,
             facts,
@@ -1110,7 +1102,7 @@ def _integration_decision(
             actions=(PermittedAction.CLAIM_INTEGRATION,),
             durable_jobs=("standalone_delivery",),
         )
-    if value.get("state") in {"integrating", "active"}:
+    if state in {"integrating", "active"}:
         if _valid_lease(value, now):
             return _decision(
                 task,
@@ -1130,19 +1122,36 @@ def _integration_decision(
             alert=AlertSeverity.INFO,
             durable_jobs=("integration_recovery",),
         )
+    if state in {"ready", "queued"} and (
+        mode in {"", "queue"} or has_parent
+    ):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.RETRY_SCHEDULED,
+            reason_code=(
+                "integration.retry_scheduled"
+                if value.get("retry_at")
+                else "integration.queued"
+            ),
+            owner=WorkflowOwner.INTEGRATOR,
+            actions=(PermittedAction.CLAIM_INTEGRATION,),
+            alert=(
+                AlertSeverity.INFO if value.get("retry_at") else AlertSeverity.NONE
+            ),
+            durable_jobs=("integration_attempt",),
+        )
+    # A known but unclassified record is not integration-attempt authority.
+    # Reconcile its production mode/queue evidence before any Git mutation.
     return _decision(
         task,
         facts,
         disposition=TaskDisposition.RETRY_SCHEDULED,
-        reason_code=(
-            "integration.retry_scheduled"
-            if value.get("retry_at")
-            else "integration.queued"
-        ),
+        reason_code="integration.retry_scheduled",
         owner=WorkflowOwner.INTEGRATOR,
         actions=(PermittedAction.CLAIM_INTEGRATION,),
-        alert=AlertSeverity.INFO if value.get("retry_at") else AlertSeverity.NONE,
-        durable_jobs=("integration_attempt",),
+        alert=AlertSeverity.INFO,
+        durable_jobs=("integration_recovery",),
     )
 
 

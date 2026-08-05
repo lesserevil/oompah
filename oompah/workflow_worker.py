@@ -155,18 +155,35 @@ class WorkflowJobContext:
     job: WorkflowJob
     _lease_lost: asyncio.Event
     _interrupted: asyncio.Event
+    _lease_validator: Callable[[], bool] | None = None
 
     @property
     def idempotency_key(self) -> str:
         return self.job.idempotency_key
 
     def check_interrupted(self) -> None:
+        if self._lease_validator is not None:
+            try:
+                lease_is_live = bool(self._lease_validator())
+            except Exception:
+                # A lease read is an authority boundary, not an availability
+                # hint.  If SQLite (or an adapter around it) cannot prove the
+                # exact token is still current, fail closed before another
+                # external-effect or persistence boundary.
+                lease_is_live = False
+            if not lease_is_live:
+                self._lease_lost.set()
         if self._lease_lost.is_set():
             raise WorkflowJobLeaseLost(
                 f"workflow job lease was lost: {self.job.job_id}"
             )
         if self._interrupted.is_set():
             raise WorkflowActionInterrupted()
+
+    def fence_external_effects(self) -> None:
+        """Withdraw late-effect authority before abandoning an invocation."""
+
+        self._lease_lost.set()
 
 
 class WorkflowActionHandler(Protocol):
@@ -274,6 +291,7 @@ class DurableWorkflowWorker:
         self._accepting = True
         self._interrupted = asyncio.Event()
         self._active: set[asyncio.Task[Any]] = set()
+        self._quarantined_calls: set[asyncio.Future[Any]] = set()
 
     @property
     def accepting(self) -> bool:
@@ -315,13 +333,51 @@ class DurableWorkflowWorker:
         if inspect.isawaitable(result):
             await result
 
-    async def _bounded(self, operation: str, call: Awaitable[Any]) -> Any:
+    async def _bounded(
+        self,
+        operation: str,
+        call: Awaitable[Any],
+        *,
+        timeout_seconds: float | None = None,
+        timeout_fence: Callable[[], None] | None = None,
+    ) -> Any:
+        timeout = (
+            self.operation_timeout_seconds
+            if timeout_seconds is None
+            else float(timeout_seconds)
+        )
+        task = asyncio.ensure_future(call)
         try:
-            return await asyncio.wait_for(call, self.operation_timeout_seconds)
-        except TimeoutError as exc:
-            raise WorkflowActionTimedOut(
-                operation, self.operation_timeout_seconds
-            ) from exc
+            done, _pending = await asyncio.wait({task}, timeout=timeout)
+            if done:
+                return await task
+            if timeout_fence is not None:
+                timeout_fence()
+            # Cancelling a to_thread awaiter cannot terminate its underlying
+            # thread. Detach the now-authority-fenced awaiter and let the caller
+            # durably quarantine the exact lease rather than blocking forever.
+            self._detach_quarantined_call(task)
+            raise WorkflowActionTimedOut(operation, timeout)
+        except asyncio.CancelledError:
+            if timeout_fence is not None:
+                timeout_fence()
+            self._detach_quarantined_call(task)
+            raise
+
+    def _detach_quarantined_call(self, task: asyncio.Future[Any]) -> None:
+        self._quarantined_calls.add(task)
+
+        def _consume(completed: asyncio.Future[Any]) -> None:
+            self._quarantined_calls.discard(completed)
+            if completed.cancelled():
+                return
+            try:
+                completed.exception()
+            except BaseException:
+                pass
+
+        task.add_done_callback(_consume)
+        task.cancel()
 
     async def _checkpoint(
         self,
@@ -358,7 +414,9 @@ class DurableWorkflowWorker:
                     context.job.lease_token,
                     lease_seconds=self.lease_seconds,
                 )
-            except WorkflowJobLeaseLost:
+            except asyncio.CancelledError:
+                raise
+            except Exception:
                 context._lease_lost.set()
                 return
 
@@ -428,10 +486,53 @@ class DurableWorkflowWorker:
             job.attempts,
         )
 
+    async def _quarantine(
+        self,
+        context: WorkflowJobContext,
+        failure: WorkflowActionError,
+    ) -> WorkflowRunResult:
+        """Persist a finite terminal path without releasing late-effect authority."""
+
+        context.fence_external_effects()
+        try:
+            job = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.store.quarantine_owned,
+                    context.job.job_id,
+                    str(context.job.lease_token or ""),
+                    category=failure.category,
+                    error=str(failure),
+                ),
+                timeout=min(max(self.operation_timeout_seconds, 0.1), 5.0),
+            )
+        except Exception as exc:  # store boundary is itself hard-bounded above
+            return WorkflowRunResult(
+                WorkflowRunDisposition.LEASE_LOST,
+                context.job.job_id,
+                WorkflowJobState.RUNNING,
+                f"late-effect authority fenced; quarantine unavailable: {type(exc).__name__}",
+                context.job.attempts,
+            )
+        return WorkflowRunResult(
+            WorkflowRunDisposition.ACTION_REQUIRED,
+            job.job_id,
+            job.state,
+            str(failure),
+            job.attempts,
+        )
+
     async def _execute_claimed(self, job: WorkflowJob) -> WorkflowRunResult:
         handler = self.handlers.get(job.action)
         lease_lost = asyncio.Event()
-        context = WorkflowJobContext(job, lease_lost, self._interrupted)
+        context = WorkflowJobContext(
+            job,
+            lease_lost,
+            self._interrupted,
+            lambda: self.store.owns_live_lease(
+                context.job.job_id,
+                str(context.job.lease_token or ""),
+            ),
+        )
         heartbeat_stop = asyncio.Event()
         heartbeat = asyncio.create_task(self._heartbeat(context, heartbeat_stop))
         try:
@@ -510,7 +611,17 @@ class DurableWorkflowWorker:
                             "effect_observed": False,
                         },
                     )
-                    effect = await self._bounded("apply", handler.apply(context))
+                    handler_timeout = getattr(
+                        handler,
+                        "operation_timeout_seconds",
+                        self.operation_timeout_seconds,
+                    )
+                    effect = await self._bounded(
+                        "apply",
+                        handler.apply(context),
+                        timeout_seconds=handler_timeout,
+                        timeout_fence=context.fence_external_effects,
+                    )
                     if not isinstance(effect, EffectResult):
                         raise WorkflowActionError(
                             "handler returned an invalid effect result",
@@ -686,16 +797,19 @@ class DurableWorkflowWorker:
                 superseded.attempts,
             )
         except WorkflowActionError as exc:
+            if isinstance(exc, WorkflowActionTimedOut):
+                return await self._quarantine(context, exc)
             return await self._fail(context, exc)
         except asyncio.CancelledError:
+            context.fence_external_effects()
             try:
                 await asyncio.shield(
-                    self._fail(
+                    self._quarantine(
                         context,
                         WorkflowActionError(
                             "workflow invocation was cancelled",
                             category=WorkflowFailureCategory.ABANDONED,
-                            retryable=True,
+                            retryable=False,
                         ),
                     )
                 )
@@ -712,7 +826,11 @@ class DurableWorkflowWorker:
             )
         finally:
             heartbeat_stop.set()
-            await heartbeat
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
 
     async def run_once(
         self,

@@ -401,6 +401,67 @@ def test_stale_queue_files_one_authorized_epic_rebase(
     )
 
 
+def test_stale_queue_repair_stops_when_workflow_authority_expires_after_fetch(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Merged",
+    )
+    queued = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._resolve_epic_target_branch = MagicMock(return_value="main")
+    orchestrator._file_rebase_task = MagicMock()
+    orchestrator._set_epic_rebase_state = MagicMock()
+    authority = {"current": True}
+
+    def fetch_then_expire(*_args, **_kwargs):
+        authority["current"] = False
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    orchestrator._run_project_network_git = fetch_then_expire
+
+    repaired = orchestrator._detect_and_repair_integration_queue_staleness_block(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        issues=[epic, upstream],
+        queue_items=[queued],
+        dependency_map={"TASK-2": ("TASK-1",)},
+        satisfied=set(),
+        authority_check=lambda: authority["current"],
+    )
+
+    assert repaired is False
+    tracker.update_issue.assert_not_called()
+    orchestrator._file_rebase_task.assert_not_called()
+    orchestrator._set_epic_rebase_state.assert_not_called()
+
+
 def test_stale_queue_reuses_active_rebase_and_obeys_cooldown(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     project.repo_path = str(tmp_path)

@@ -7,7 +7,7 @@ from unittest import mock
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
-from oompah.integration_executor import execute_integration
+from oompah.integration_executor import _is_exact_rebase_result, execute_integration
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
@@ -89,6 +89,126 @@ def _repo(tmp_path):
         _git(repo, "config", "user.name", "Test")
         _git(repo, "config", "user.email", "test@example.com")
     return remote, epic, task, task_head
+
+
+def test_exact_rebase_proof_rejects_merge_only_tree_delta(tmp_path):
+    _remote, _epic, task, predecessor = _repo(tmp_path)
+    base = _git(task, "rev-parse", f"{predecessor}^")
+    (task / "merge-only.txt").write_text("unrelated merge resolution\n")
+    _git(task, "add", "merge-only.txt")
+    candidate_tree = _git(task, "write-tree")
+    candidate = _git(
+        task,
+        "commit-tree",
+        candidate_tree,
+        "-p",
+        predecessor,
+        "-p",
+        base,
+        "-m",
+        "merge-only tree delta",
+    )
+
+    assert not _is_exact_rebase_result(
+        str(task),
+        predecessor=predecessor,
+        base=base,
+        candidate=candidate,
+    )
+
+
+def test_exact_rebase_proof_rejects_submitted_merge_resolution_loss(tmp_path):
+    _remote, _epic, task, task_commit = _repo(tmp_path)
+    common_base = _git(task, "rev-parse", f"{task_commit}^")
+
+    _git(task, "checkout", "-b", "submitted-side", task_commit)
+    (task / "side.txt").write_text("submitted side patch\n", encoding="utf-8")
+    _git(task, "add", "side.txt")
+    _git(task, "commit", "-m", "submitted side patch")
+    side_commit = _git(task, "rev-parse", "HEAD")
+
+    _git(task, "checkout", "epic-E-1--task-T-1")
+    _git(task, "merge", "--no-ff", "--no-commit", side_commit)
+    (task / "merge-resolution.txt").write_text(
+        "resolution-only submitted work\n",
+        encoding="utf-8",
+    )
+    _git(task, "add", "merge-resolution.txt")
+    _git(task, "commit", "-m", "submitted merge with resolution-only work")
+    predecessor = _git(task, "rev-parse", "HEAD")
+
+    _git(task, "checkout", "-b", "new-parent", common_base)
+    (task / "parent.txt").write_text("new parent\n", encoding="utf-8")
+    _git(task, "add", "parent.txt")
+    _git(task, "commit", "-m", "new parent")
+    base = _git(task, "rev-parse", "HEAD")
+
+    _git(task, "checkout", "-b", "incomplete-candidate", base)
+    _git(task, "cherry-pick", task_commit)
+    _git(task, "cherry-pick", side_commit)
+    candidate = _git(task, "rev-parse", "HEAD")
+    assert not (task / "merge-resolution.txt").exists()
+
+    assert not _is_exact_rebase_result(
+        str(task),
+        predecessor=predecessor,
+        base=base,
+        candidate=candidate,
+    )
+
+
+def test_executor_refuses_rebase_that_drops_submitted_merge_resolution(tmp_path):
+    remote, epic, task, task_commit = _repo(tmp_path)
+    seed = tmp_path / "seed"
+
+    _git(seed, "checkout", "epic-E-1--task-T-1")
+    _git(seed, "checkout", "-b", "submitted-side")
+    (seed / "side.txt").write_text("submitted side patch\n", encoding="utf-8")
+    _git(seed, "add", "side.txt")
+    _git(seed, "commit", "-m", "submitted side patch")
+    side_commit = _git(seed, "rev-parse", "HEAD")
+    _git(seed, "checkout", "epic-E-1--task-T-1")
+    _git(seed, "merge", "--no-ff", "--no-commit", side_commit)
+    (seed / "merge-resolution.txt").write_text(
+        "resolution-only submitted work\n",
+        encoding="utf-8",
+    )
+    _git(seed, "add", "merge-resolution.txt")
+    _git(seed, "commit", "-m", "submitted merge with resolution-only work")
+    submitted = _git(seed, "rev-parse", "HEAD")
+    _git(seed, "push", "origin", "epic-E-1--task-T-1")
+    _git(task, "fetch", "origin")
+    _git(task, "reset", "--hard", submitted)
+
+    _git(seed, "checkout", "epic-E-1")
+    (seed / "advanced-base.txt").write_text("new epic base\n", encoding="utf-8")
+    _git(seed, "add", "advanced-base.txt")
+    _git(seed, "commit", "-m", "advance epic base")
+    _git(seed, "push", "origin", "epic-E-1")
+
+    aborted = []
+    gate = mock.MagicMock()
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=submitted,
+        quality_gate=gate,
+        quality_command="true",
+        repo_identity=str(remote),
+        rebase_intent_prepare=lambda _base: True,
+        rebase_intent_abort=lambda: aborted.append(True) or True,
+    )
+
+    assert result.status == "needs_rebase"
+    assert "preserves every accepted submission change" in result.message
+    assert aborted == [True]
+    assert _git(task, "rev-parse", "HEAD") == submitted
+    assert _git(task, "rev-parse", "origin/epic-E-1--task-T-1") == submitted
+    assert _git(epic, "rev-parse", "HEAD") != task_commit
+    gate.run.assert_not_called()
 
 
 def _lease_authority_harness(tmp_path, *, remote, task_branch, task_head):
@@ -221,6 +341,7 @@ def test_executor_reports_reset_error_not_successful_checkout_stderr(tmp_path):
         (str(task), "origin/epic-E-1--task-T-1"): task_head,
         (str(task), "HEAD"): task_head,
         (str(epic), "origin/epic-E-1"): "b" * 40,
+        (str(epic), "origin/epic-E-1--task-T-1"): task_head,
         (str(epic), "HEAD"): "b" * 40,
     }
     with (
@@ -268,6 +389,7 @@ def test_executor_reports_merge_error_not_successful_checkout_stderr(tmp_path):
         (str(task), "origin/epic-E-1--task-T-1"): task_head,
         (str(task), "HEAD"): task_head,
         (str(epic), "origin/epic-E-1"): "b" * 40,
+        (str(epic), "origin/epic-E-1--task-T-1"): task_head,
         (str(epic), "HEAD"): "b" * 40,
         (str(task), "HEAD"): task_head,
     }
@@ -311,6 +433,7 @@ def test_executor_reports_merge_error_not_successful_checkout_stderr(tmp_path):
 def test_executor_keeps_genuine_epic_compare_and_swap_race_retryable(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
     seed = tmp_path / "seed"
+    checkpoints = []
 
     class RacingGate:
         def run(self, **kwargs):
@@ -335,10 +458,38 @@ def test_executor_keeps_genuine_epic_compare_and_swap_race_retryable(tmp_path):
         quality_gate=RacingGate(),
         quality_command="true",
         repo_identity=str(remote),
+        rebased_head_checkpoint=lambda head, base: (
+            checkpoints.append((head, base)) or True
+        ),
     )
 
     assert result.status == "epic_head_race"
     assert "advanced" in result.message
+    assert checkpoints == [(result.rebased_task_sha, result.expected_epic_sha)]
+
+    class PassingGate:
+        def run(self, **kwargs):
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    retried = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=result.rebased_task_sha,
+        quality_gate=PassingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+        rebased_head_checkpoint=lambda _head, _base: True,
+    )
+
+    assert retried.status == "integrated", retried.message
+    assert _git(epic, "rev-parse", "HEAD") == retried.integrated_sha
 
 
 def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
@@ -358,6 +509,42 @@ def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
     assert result.status == "ci_failure"
     assert result.rebased_task_sha
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
+
+
+def test_executor_rejects_private_branch_advance_after_quality_gate(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    original_epic = _git(epic, "rev-parse", "origin/epic-E-1")
+
+    class TaskRacingGate:
+        def run(self, **kwargs):
+            _git(seed, "fetch", "origin", "epic-E-1--task-T-1")
+            _git(seed, "checkout", "epic-E-1--task-T-1")
+            _git(seed, "reset", "--hard", "origin/epic-E-1--task-T-1")
+            _git(seed, "commit", "--allow-empty", "-m", "advance task during gate")
+            _git(seed, "push", "origin", "epic-E-1--task-T-1")
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=TaskRacingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+        rebased_head_checkpoint=lambda _head, _base: True,
+    )
+
+    assert result.status == "task_push_race"
+    assert "changed after validation" in result.message
+    assert _git(epic, "rev-parse", "origin/epic-E-1") == original_epic
 
 
 def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
@@ -462,6 +649,309 @@ def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
     assert result.status == "cancelled"
     assert "before epic commit" in result.message
     assert _git(epic, "rev-parse", "origin/epic-E-1") == original_epic_head
+
+
+def test_executor_rechecks_authority_immediately_before_task_push(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    calls = 0
+
+    def commit_allowed():
+        nonlocal calls
+        calls += 1
+        return calls < 3
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=mock.MagicMock(),
+        quality_command="true",
+        repo_identity=str(remote),
+        commit_allowed=commit_allowed,
+    )
+
+    assert result.status == "cancelled"
+    assert "immediately before task push" in result.message
+    assert _git(
+        task,
+        "rev-parse",
+        "origin/epic-E-1--task-T-1",
+    ) == task_head
+
+
+def test_executor_rolls_back_owned_rebase_when_publication_prepare_is_refused(
+    tmp_path,
+):
+    remote, epic, task, task_head = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    _git(seed, "checkout", "epic-E-1")
+    (seed / "parent.txt").write_text("new parent\n", encoding="utf-8")
+    _git(seed, "add", "parent.txt")
+    _git(seed, "commit", "-m", "advance parent")
+    _git(seed, "push", "origin", "epic-E-1")
+    _git(epic, "fetch", "origin", "epic-E-1")
+    _git(epic, "reset", "--hard", "origin/epic-E-1")
+
+    aborted = []
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=mock.MagicMock(),
+        quality_command="true",
+        repo_identity=str(remote),
+        rebase_intent_prepare=lambda _base: True,
+        rebase_intent_abort=lambda: aborted.append(True) or True,
+        rebased_head_prepare=lambda _head, _base: False,
+    )
+
+    assert result.status == "stale_head"
+    assert aborted == [True]
+    assert _git(task, "rev-parse", "HEAD") == task_head
+    assert _git(
+        task,
+        "rev-parse",
+        "origin/epic-E-1--task-T-1",
+    ) == task_head
+
+
+def test_executor_finishes_prepared_publication_after_local_and_remote_epic_advance(
+    tmp_path,
+):
+    remote, epic, task, predecessor = _repo(tmp_path)
+    seed = tmp_path / "seed"
+
+    _git(seed, "checkout", "epic-E-1")
+    (seed / "prepared-base.txt").write_text("prepared base\n", encoding="utf-8")
+    _git(seed, "add", "prepared-base.txt")
+    _git(seed, "commit", "-m", "advance parent before prepared rebase")
+    _git(seed, "push", "origin", "epic-E-1")
+    _git(epic, "fetch", "origin", "epic-E-1")
+    _git(epic, "reset", "--hard", "origin/epic-E-1")
+    prepared_base = _git(epic, "rev-parse", "HEAD")
+
+    _git(task, "fetch", "origin", "epic-E-1")
+    _git(task, "rebase", prepared_base)
+    prepared_head = _git(task, "rev-parse", "HEAD")
+    assert prepared_head != predecessor
+
+    (seed / "race.txt").write_text("parent advanced\n", encoding="utf-8")
+    _git(seed, "add", "race.txt")
+    _git(seed, "commit", "-m", "advance parent during publication gap")
+    _git(seed, "push", "origin", "epic-E-1")
+    _git(epic, "fetch", "origin", "epic-E-1")
+    _git(epic, "reset", "--hard", "origin/epic-E-1")
+
+    checkpoints = []
+    gate = mock.MagicMock()
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=prepared_head,
+        quality_gate=gate,
+        quality_command="true",
+        repo_identity=str(remote),
+        publication_pending=True,
+        publication_predecessor_sha=predecessor,
+        publication_base_sha=prepared_base,
+        rebased_head_checkpoint=lambda head, base: (
+            checkpoints.append((head, base)) or True
+        ),
+    )
+
+    assert result.status == "epic_head_race"
+    assert checkpoints == [(prepared_head, prepared_base)]
+    assert _git(
+        task,
+        "rev-parse",
+        "origin/epic-E-1--task-T-1",
+    ) == prepared_head
+    gate.run.assert_not_called()
+
+
+def test_executor_restart_refuses_unproven_merge_publication(tmp_path):
+    remote, epic, task, predecessor = _repo(tmp_path)
+    prepared_base = _git(epic, "rev-parse", "HEAD")
+
+    (task / "merge-only.txt").write_text(
+        "unproven merge resolution\n",
+        encoding="utf-8",
+    )
+    _git(task, "add", "merge-only.txt")
+    candidate_tree = _git(task, "write-tree")
+    prepared_head = _git(
+        task,
+        "commit-tree",
+        candidate_tree,
+        "-p",
+        predecessor,
+        "-p",
+        prepared_base,
+        "-m",
+        "unproven prepared merge publication",
+    )
+    _git(task, "reset", "--hard", prepared_head)
+
+    gate = mock.MagicMock()
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=prepared_head,
+        quality_gate=gate,
+        quality_command="true",
+        repo_identity=str(remote),
+        publication_pending=True,
+        publication_predecessor_sha=predecessor,
+        publication_base_sha=prepared_base,
+        rebased_head_checkpoint=lambda _head, _base: True,
+    )
+
+    assert result.status == "needs_rebase"
+    assert "prepared task publication" in result.message
+    assert _git(
+        task,
+        "rev-parse",
+        "origin/epic-E-1--task-T-1",
+    ) == predecessor
+    gate.run.assert_not_called()
+
+
+def test_executor_restart_adopts_exact_rebase_after_prepublication_crash(tmp_path):
+    remote, epic, task, predecessor = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    _git(seed, "checkout", "epic-E-1")
+    (seed / "parent.txt").write_text("new parent\n", encoding="utf-8")
+    _git(seed, "add", "parent.txt")
+    _git(seed, "commit", "-m", "advance parent before rebase")
+    _git(seed, "push", "origin", "epic-E-1")
+    _git(epic, "fetch", "origin", "epic-E-1")
+    _git(epic, "reset", "--hard", "origin/epic-E-1")
+    prepared_base = _git(epic, "rev-parse", "HEAD")
+    prepare_observations = []
+    first_gate = mock.MagicMock()
+
+    def prepare_intent(base_sha):
+        prepare_observations.append((base_sha, _git(task, "rev-parse", "HEAD")))
+        return True
+
+    first = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=predecessor,
+        quality_gate=first_gate,
+        quality_command="true",
+        repo_identity=str(remote),
+        rebase_intent_prepare=prepare_intent,
+        rebased_head_prepare=lambda _head, _base: (_ for _ in ()).throw(
+            RuntimeError("simulated tracker failure during publication prepare")
+        ),
+    )
+
+    local_rebased = _git(task, "rev-parse", "HEAD")
+    assert first.status == "authority_unavailable"
+    assert prepare_observations == [(prepared_base, predecessor)]
+    assert local_rebased != predecessor
+    assert _git(task, "rev-parse", "origin/epic-E-1--task-T-1") == predecessor
+    first_gate.run.assert_not_called()
+
+    prepared = []
+
+    class PassingGate:
+        def run(self, **kwargs):
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    restarted = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=predecessor,
+        quality_gate=PassingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+        rebase_intent_pending=True,
+        publication_predecessor_sha=predecessor,
+        publication_base_sha=prepared_base,
+        rebased_head_prepare=lambda head, base: (
+            prepared.append((head, base)) or True
+        ),
+        rebased_head_checkpoint=lambda _head, _base: True,
+    )
+
+    assert restarted.status == "integrated", restarted.message
+    assert prepared == [(local_rebased, prepared_base)]
+    assert restarted.rebased_task_sha == local_rebased
+    assert _git(task, "rev-parse", "origin/epic-E-1--task-T-1") == local_rebased
+
+
+def test_executor_restart_rolls_back_unproven_rebase_intent_head(tmp_path):
+    remote, epic, task, predecessor = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    _git(seed, "checkout", "epic-E-1")
+    (seed / "parent.txt").write_text("new parent\n", encoding="utf-8")
+    _git(seed, "add", "parent.txt")
+    _git(seed, "commit", "-m", "advance parent before recovery")
+    _git(seed, "push", "origin", "epic-E-1")
+    _git(epic, "fetch", "origin", "epic-E-1")
+    _git(epic, "reset", "--hard", "origin/epic-E-1")
+    prepared_base = _git(epic, "rev-parse", "HEAD")
+
+    _git(task, "fetch", "origin", "epic-E-1")
+    _git(task, "reset", "--hard", prepared_base)
+    (task / "foreign.txt").write_text("not the submitted patch\n", encoding="utf-8")
+    _git(task, "add", "foreign.txt")
+    _git(task, "commit", "-m", "unproven local mutation")
+    unproven_head = _git(task, "rev-parse", "HEAD")
+
+    class PassingGate:
+        def run(self, **kwargs):
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=predecessor,
+        quality_gate=PassingGate(),
+        quality_command="true",
+        repo_identity=str(remote),
+        rebase_intent_pending=True,
+        publication_predecessor_sha=predecessor,
+        publication_base_sha=prepared_base,
+        rebased_head_prepare=lambda _head, _base: True,
+        rebased_head_checkpoint=lambda _head, _base: True,
+    )
+
+    assert result.status == "integrated"
+    assert result.rebased_task_sha != unproven_head
+    assert not (task / "foreign.txt").exists()
+    assert (task / "task.txt").read_text(encoding="utf-8") == "task\n"
 
 
 def test_expired_lease_discards_stale_gate_pass_before_epic_commit(tmp_path):

@@ -172,6 +172,170 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
         _close(orchestrator)
 
 
+def test_queue_first_legacy_checkpoint_repairs_tracker_before_terminal_stage(tmp_path):
+    issue = _issue(integration_state="ready")
+    predecessor = issue.integration.head_sha
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    queued = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=predecessor,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="legacy-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    checkpoint = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="legacy-worker",
+        expected_task_branch=queued.task_branch,
+        expected_head_sha=predecessor,
+        rebased_head_sha="b" * 40,
+        integrated_sha="c" * 40,
+        base_sha="d" * 40,
+    )
+    assert checkpoint is not None
+    order = []
+
+    def persist_metadata(_identifier, _field, value):
+        order.append("tracker")
+        issue.integration = IntegrationRecord.from_dict(value)
+
+    tracker.set_metadata_field.side_effect = persist_metadata
+    orchestrator._notify_integrated_task_peers = mock.MagicMock(
+        side_effect=lambda **_kwargs: order.append("peers")
+    )
+    orchestrator.request_terminal_transition = mock.AsyncMock(
+        return_value=TransitionResult(success=True)
+    )
+    try:
+        staged = asyncio.run(
+            orchestrator._stage_integrated_task_audit(
+                checkpoint,
+                expected_generation=checkpoint.authority_generation(),
+                expected_task_branch=checkpoint.task_branch,
+                expected_head_sha=checkpoint.head_sha,
+                expected_integrated_sha=checkpoint.integrated_sha,
+            )
+        )
+
+        assert staged is True
+        assert order[:2] == ["peers", "tracker"]
+        assert issue.integration.state == "integrated"
+        assert issue.integration.head_sha == "b" * 40
+        assert issue.integration.integrated_sha == "c" * 40
+        assert orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        ) == checkpoint
+    finally:
+        _close(orchestrator)
+
+
+def test_stale_audit_generation_cannot_repair_replacement_queue_first_gap(tmp_path):
+    issue = _issue(integration_state="ready")
+    branch = issue.integration.task_branch
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+
+    original = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=branch,
+        head_sha="a" * 40,
+    )
+    original_claim = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="original-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert original_claim is not None
+    generation_a = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="original-worker",
+        expected_task_branch=original.task_branch,
+        expected_head_sha=original.head_sha,
+        rebased_head_sha="b" * 40,
+        integrated_sha="c" * 40,
+        base_sha="d" * 40,
+    )
+    assert generation_a is not None
+
+    replacement = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=branch,
+        head_sha="e" * 40,
+    )
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=branch,
+        head_sha=replacement.head_sha,
+    )
+    replacement_claim = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="replacement-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert replacement_claim is not None
+    generation_b = orchestrator.integration_queue.checkpoint_legacy_integration(
+        project.id,
+        issue.identifier,
+        lease_owner="replacement-worker",
+        expected_task_branch=replacement.task_branch,
+        expected_head_sha=replacement.head_sha,
+        rebased_head_sha="f" * 40,
+        integrated_sha="1" * 40,
+        base_sha="2" * 40,
+    )
+    assert generation_b is not None
+    assert generation_b.authority_generation() != generation_a.authority_generation()
+
+    orchestrator._notify_integrated_task_peers = mock.MagicMock()
+    orchestrator._clear_integrated_audit_recovery_alert = mock.MagicMock()
+    orchestrator.request_terminal_transition = mock.AsyncMock()
+    tracker.set_metadata_field.reset_mock()
+    orchestrator.project_store.remove_worktree.reset_mock()
+    try:
+        staged = asyncio.run(
+            orchestrator._stage_integrated_task_audit(
+                generation_a,
+                expected_generation=generation_a.authority_generation(),
+                expected_task_branch=generation_a.task_branch,
+                expected_head_sha=generation_a.head_sha,
+                expected_integrated_sha=generation_a.integrated_sha,
+            )
+        )
+
+        assert staged is False
+        assert orchestrator.integration_queue.get(
+            project.id, issue.identifier
+        ) == generation_b
+        assert issue.integration.state == "ready"
+        assert issue.integration.head_sha == replacement.head_sha
+        orchestrator._notify_integrated_task_peers.assert_not_called()
+        tracker.set_metadata_field.assert_not_called()
+        orchestrator.request_terminal_transition.assert_not_awaited()
+        orchestrator.project_store.remove_worktree.assert_not_called()
+        orchestrator._clear_integrated_audit_recovery_alert.assert_not_called()
+    finally:
+        _close(orchestrator)
+
+
 def test_integrated_audit_replay_is_bounded_and_resumes_after_restart(tmp_path):
     issue = _issue()
     orchestrator, project, _tracker = _make_harness(tmp_path, issue)
@@ -227,6 +391,102 @@ def test_integrated_audit_replay_is_bounded_and_resumes_after_restart(tmp_path):
         assert restarted._maintenance_cursors.get("integration_audit") is None
     finally:
         _close(restarted)
+
+
+def test_durable_historical_replay_is_bounded_to_exact_project(tmp_path):
+    issue = _issue()
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    for project_id, task_id, head in (
+        (project.id, "HIST-OURS", "a" * 40),
+        ("proj-2", "HIST-THEIRS", "b" * 40),
+    ):
+        orchestrator.integration_queue.enqueue(
+            project_id=project_id,
+            epic_id="EPIC-1",
+            task_id=task_id,
+            task_branch=f"branch-{task_id}",
+            head_sha=head,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project_id,
+            epic_id="EPIC-1",
+            lease_owner=f"worker-{task_id}",
+            dependency_map={task_id: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project_id,
+            task_id,
+            lease_owner=f"worker-{task_id}",
+        )
+    staged = mock.AsyncMock()
+    orchestrator._stage_integrated_task_audit = staged
+    try:
+        receipt = asyncio.run(
+            orchestrator._replay_project_integrated_audit_batch(
+                project_id=project.id,
+            )
+        )
+
+        assert receipt["batch_completed"] is True
+        assert receipt["replayed"] == 1
+        assert [call.args[0].task_id for call in staged.await_args_list] == [
+            "HIST-OURS"
+        ]
+        kwargs = staged.await_args_list[0].kwargs
+        ours = orchestrator.integration_queue.get(project.id, "HIST-OURS")
+        assert kwargs["expected_generation"] == ours.authority_generation()
+        assert kwargs["expected_task_branch"] == ours.task_branch
+        assert kwargs["expected_head_sha"] == ours.head_sha
+        assert orchestrator._maintenance_cursors.get(
+            f"integration_audit:{project.id}"
+        ) == orchestrator.integration_queue.cursor_for(ours)
+    finally:
+        _close(orchestrator)
+
+
+def test_durable_historical_replay_does_not_advance_past_unobservable_row(
+    tmp_path,
+):
+    issue = _issue()
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    task_id = "HIST-STALLED"
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=task_id,
+        task_branch="branch-HIST-STALLED",
+        head_sha="a" * 40,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        lease_owner="history-worker",
+        dependency_map={task_id: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        task_id,
+        lease_owner="history-worker",
+    )
+    orchestrator._stage_integrated_task_audit = mock.AsyncMock(return_value=False)
+    cursor_name = f"integration_audit:{project.id}"
+    try:
+        receipt = asyncio.run(
+            orchestrator._replay_project_integrated_audit_batch(
+                project_id=project.id,
+            )
+        )
+
+        assert receipt["batch_completed"] is False
+        assert receipt["replayed"] == 0
+        assert receipt["error"]
+        assert orchestrator._maintenance_cursors.get(cursor_name) is None
+    finally:
+        _close(orchestrator)
 
 
 @pytest.mark.timeout(30)
