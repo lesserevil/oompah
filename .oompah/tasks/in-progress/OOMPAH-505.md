@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:24:21.477176Z'
+updated_at: '2026-08-05T01:24:46.472395Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -601,5 +601,10 @@ author: oompah
 created: 2026-08-05 01:24
 ---
 Discovery: the current task branch is clean and exactly tracks origin/epic-OOMPAH-502--task-OOMPAH-505 at e1b0f4846; the remote epic branch now exists and both point at the current main head. The OOMPAH-505 commits (59a06459f, 5cf99179e, ab00e7cf3) are already ancestors of this head. Relevant API/backend contracts are in oompah/server.py and oompah/acp_backends/{base,claude,codex}.py, with regression coverage in tests/test_{acp_backends,providers,providers_ui,providers_role_matrix,acp_agent,orchestrator_handlers}. No missing auth/input-boundary defect is evident yet; I am running the focused suites now.
+---
+author: oompah
+created: 2026-08-05 01:24
+---
+Implementation: no code patch is warranted in this recovery pass. The already-landed implementation cleanly separates catalog discovery from manual ACP selection, validates providers through the backend registry, preserves empty-model SDK fallback, and carries explicit role models through ACP dispatch. The current branch also contains the live-tier correction to Claude haiku/sonnet/opus plus Codex gpt-5.6-luna/terra/sol, reflecting the verified Claude CLI behavior; no provider IDs or credentials are embedded in production defaults.
 ---
 <!-- COMMENTS:END -->
