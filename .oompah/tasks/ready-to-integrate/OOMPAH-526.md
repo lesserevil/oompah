@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T01:01:32.627267Z'
+updated_at: '2026-08-05T01:02:45.801977Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -23,13 +23,13 @@ merged_at: null
 oompah.agent_run_id: 72bf11a9-1eed-43b8-85a0-e4fe6b836138
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-526
 oompah.task_costs:
-  total_input_tokens: 1118193
-  total_output_tokens: 21056
+  total_input_tokens: 1118611
+  total_output_tokens: 31226
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1118091
-      output_tokens: 21044
+      input_tokens: 1118509
+      output_tokens: 31214
       cost_usd: 0.0
     unknown:
       input_tokens: 102
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 248
     cost_usd: 0.0
     recorded_at: '2026-08-05T00:33:13.487972+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 418
+    output_tokens: 10170
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:02:30.601400+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -249,7 +255,7 @@ oompah.integration:
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   submitted_at: '2026-08-05T01:01:14.993399+00:00'
-  updated_at: '2026-08-05T01:01:14.993399+00:00'
+  updated_at: '2026-08-05T01:02:42.574528+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-526__20260805T003230Z
@@ -260,6 +266,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-521--task-OOMPAH-526
     source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
     completed_at: '2026-08-05T00:33:13.539888+00:00'
+  - run_id: OOMPAH-526__20260805T003514Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: oompah_tests
+    source_branch: epic-OOMPAH-521--task-OOMPAH-526
+    source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+    completed_at: '2026-08-05T01:02:30.615078+00:00'
 ---
 ## Summary
 
@@ -707,5 +721,20 @@ Deliverables:
 - Full test suite: 15387 PASS
 
 The authentication feature is production-ready with comprehensive documentation covering setup, rotation, recovery, troubleshooting, and all client surfaces.
+---
+author: oompah
+created: 2026-08-05 01:02
+---
+Agent completed successfully in 1655s (10588 tokens)
+---
+author: oompah
+created: 2026-08-05 01:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 129, Tool calls: 51
+- Tokens: 418 in / 10.2K out [10.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 35s
+- Log: OOMPAH-526__20260805T003514Z.jsonl
 ---
 <!-- COMMENTS:END -->
