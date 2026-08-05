@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-536
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Route implementation away from completed duplicate preflight focus
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-08-05T00:42:54.807093Z'
+updated_at: '2026-08-05T00:54:24.114587Z'
 work_branch: OOMPAH-536
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/570
@@ -22,6 +22,30 @@ oompah.work_branch: OOMPAH-536
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-65d850e36bf3: '2026-08-05T00:54:20.586894+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-536
+    target_state: Archived
+    evidence_fingerprint: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
+    audit_ids:
+    - audit-41803391d996
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:54:20.586905+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-536
+    audit_id: audit-41803391d996
+    attempt_id: attempt-65d850e36bf3
+    target_state: Archived
+    evidence_fingerprint: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
+    status: Archived
+    audit_ids:
+    - audit-41803391d996
+    applied: false
+    created_at: '2026-08-05T00:54:20.586920+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -29,7 +53,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-536
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -38,7 +62,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-65d850e36bf3
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -48,13 +72,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T00:42:32.038883+00:00'
       branch_key: OOMPAH-536
+      verdict: pass
+      completed_at: '2026-08-05T00:54:20.586747+00:00'
+      ended_at: '2026-08-05T00:54:20.586747+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T00:41:21.197322+00:00'
-    updated_at: '2026-08-05T00:42:32.038883+00:00'
+    updated_at: '2026-08-05T00:54:20.586747+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-65d850e36bf3
