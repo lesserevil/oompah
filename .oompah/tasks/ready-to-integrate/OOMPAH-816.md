@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T06:32:15.505092Z'
+updated_at: '2026-08-05T08:50:49.811195Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -45,16 +45,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: eb00bf05-76d8-4991-8cb3-a53c8784bca9
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-816
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
-  updated_at: '2026-08-05T00:43:34.229499+00:00'
+  head_sha: 373259a41dcb92c069be02c07f0b13605bd82670
+  submitted_at: '2026-08-05T08:50:40.821603+00:00'
+  updated_at: '2026-08-05T08:50:40.821603+00:00'
 oompah.task_costs:
   total_input_tokens: 47030
   total_output_tokens: 474
@@ -181,5 +183,15 @@ author: oompah
 created: 2026-08-05 06:32
 ---
 Independent exact-head review rejected 990a9856 as unsafe. Blocking defects: evidence key-lock/validation-lease inversion deadlocks a queued gate against a successful auditor callback; queued waits have no stall-protection liveness; cancellation is ignored after acquisition and native sessions can escape backend termination; multiline/opaque/native bypasses remain fail-open; transient release persistence can leak a fence and wedge capacity; native runtime deadline starts at guard installation rather than post-acquire; launcher imports through untrusted ambient PYTHONPATH; and descendant-held flock state can falsely report free capacity. I am repairing these on the claimed branch with deterministic regressions before any submission.
+---
+author: oompah
+created: 2026-08-05 08:50
+---
+Rebased the fully repaired validation-arbitration stack onto the exact OOMPAH-822 systemic parent and pushed clean head 373259a41dcb92c069be02c07f0b13605bd82670. The complete focused lease/quality-gate/native-wrapper/Codex/config/liveness/API matrix passes 586/586; make terminal-audit-scan passes 8/8; make check-secrets and git diff --check pass. The rebase was conflict-free and preserved the independently reviewed logical diff.
+---
+author: oompah
+created: 2026-08-05 08:50
+---
+Serialize heavyweight validation with a process-safe, restart-safe, fail-closed lease shared across exact gates, auditors, workers, and native commands; focused matrix 586/586 plus required scans pass at 373259a41.
 ---
 <!-- COMMENTS:END -->
