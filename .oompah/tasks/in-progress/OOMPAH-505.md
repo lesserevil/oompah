@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:18:16.090358Z'
+updated_at: '2026-08-05T18:23:40.741733Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1350,5 +1350,10 @@ author: oompah
 created: 2026-08-05 18:18
 ---
 Discovery: the current clean head is e1b0f4846, with origin/epic-OOMPAH-502--task-OOMPAH-505 at the same commit and origin/epic-OOMPAH-502 present at b53bdbc77. Relevant implementation is in oompah/acp_backends/{base,claude,codex}.py, oompah/server.py, oompah/roles.py, oompah/orchestrator.py, and oompah/templates/providers.html; focused regression coverage is present across ACP backends, provider/API/UI, roles, ACP handoff, and orchestrator routing.
+---
+author: oompah
+created: 2026-08-05 18:23
+---
+Verification: 623 focused tests passed with OOMPAH_AGENT_LOG_DIR set to a private temporary directory; the default sandbox log path alone caused the known 7-case read-only failure. make check-secrets passed with only the existing null-byte scanner warning. Source remains clean.
 ---
 <!-- COMMENTS:END -->
