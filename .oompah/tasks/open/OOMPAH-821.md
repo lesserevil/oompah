@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:23:37.072475Z'
+updated_at: '2026-08-05T06:25:12.068107Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -291,5 +291,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 22s
 - Log: OOMPAH-821__20260805T060426Z.jsonl
+---
+author: oompah
+created: 2026-08-05 06:25
+---
+Exact-head review of submitted cb1006c54 rejects this head as acceptance-incomplete. The delta from rejected bdbe4ba2 changes only orchestrator alert selection/tests; terminal_transition_coordinator.py is unchanged, so retry_failed_audit can still scan backward past a newer same-fingerprint PASS to an older retryable failure, and infrastructure retry remains unfenced from the current evidence fingerprint. The required integrated reflow -> truthful live alert/action -> owner retry -> fresh pending audit -> task-scoped alert clear, restart/sweep coalescing, and classification matrix are also still absent. Do not resubmit until those coordinator invariants and end-to-end alert lifecycle regressions pass; bounded focused tests only while OOMPAH-814 owns the gate lane.
 ---
 <!-- COMMENTS:END -->
