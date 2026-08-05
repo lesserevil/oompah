@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-817
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Persist standalone-clone recovery objects before publishing refs
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:04:50.363142Z'
+updated_at: '2026-08-05T01:06:08.275260Z'
 work_branch: null
 target_branch: null
 review_url: null
