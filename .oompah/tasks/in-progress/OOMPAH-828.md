@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:30:50.527280Z'
+updated_at: '2026-08-05T20:31:04.218585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,17 @@ Total across neighboring suites: 323 passed, 1 xfailed. Zero regressions.
 Rebased cleanly onto origin/main which now contains OOMPAH-829's Done override equivalence work; the Archived-target block sits directly after the existing PASS filter in \`_lifecycle_terminal_authorities\` and is orthogonal to OOMPAH-829's recovered_equivalence logic (that branch runs only when passed==[] and overrides==[] and current_state==DONE).
 
 Head: a5545b61a; branch pushed as origin/OOMPAH-828.
+---
+author: oompah
+created: 2026-08-05 20:31
+---
+## Completion
+
+Delivered: exact-join Archived-lifecycle finality at head a5545b61a.
+
+- oompah/terminal_audit_enforcement.py: adds target-aware Archived branch in \`_lifecycle_terminal_authorities\`. Accepts a completed PASS Archived record when joined to an applied Archived result intent via exact project/task/audit/attempt/target/fingerprint match. Fails closed on quarantine, unapplied intent, retired/superseded intent, missing ids, cross-target/task/project mismatch, or fingerprint mismatch. Never generalizes disposition fingerprints to Done/Merged writes.
+- tests/test_terminal_audit_enforcement.py: adds 10 tests covering the primary case, the four live-shape rows (OOMPAH-452/453/455/456) converging to not_needed with restart safety, and every rejection case from the acceptance criteria.
+
+Effect on OOMPAH-452/453/455/456 lifecycle rows: outcome becomes not_needed, no tracker.update_issue call, no rearm on restart, lifecycle errors/action_required clear once redeployed.
 ---
 <!-- COMMENTS:END -->

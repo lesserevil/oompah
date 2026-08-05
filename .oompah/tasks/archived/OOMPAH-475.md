@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-08-05T20:30:45.290986Z'
+updated_at: '2026-08-05T20:31:02.958835Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -48,8 +48,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: d528662d-497a-499c-bf68-436d4f63f13d
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 47617889
-  total_output_tokens: 176774
+  total_input_tokens: 47617909
+  total_output_tokens: 181236
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -65,8 +65,8 @@ oompah.task_costs:
       output_tokens: 873
       cost_usd: 0.0
     unknown:
-      input_tokens: 58
-      output_tokens: 1594
+      input_tokens: 78
+      output_tokens: 6056
       cost_usd: 0.0
   runs:
   - profile: default
@@ -207,6 +207,12 @@ oompah.task_costs:
     output_tokens: 1594
     cost_usd: 0.0
     recorded_at: '2026-08-05T20:25:43.226370+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 20
+    output_tokens: 4462
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:31:00.134283+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -1607,5 +1613,15 @@ Safe evidence:
 - test_file: tests/test_auditor_dispatch.py — 15 tests, all PASS
 - design_doc: plans/independent-auditor-dispatch.md — Status: Implemented (OOMPAH-475)
 - operator_doc: docs/auditor-dispatch-operations.md present and committed
+---
+author: oompah
+created: 2026-08-05 20:31
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 48, Tool calls: 25
+- Tokens: 20 in / 4.5K out [4.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 59s
+- Log: OOMPAH-475__20260805T202613Z.jsonl
 ---
 <!-- COMMENTS:END -->
