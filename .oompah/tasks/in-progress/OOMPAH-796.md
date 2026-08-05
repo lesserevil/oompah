@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:36:09.701973Z'
+updated_at: '2026-08-05T18:42:35.323158Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -273,5 +273,10 @@ author: oompah
 created: 2026-08-05 18:36
 ---
 Discovery: Identified exact repair points for all three audit blockers. (1) In _integration_decision (work_decision.py:769ff), when state==blocked and no retry_forced flag, the code falls through to the final case and schedules integration_attempt—fix: add blocked-gate detection before the fallthrough that routes to ACTION_REQUIRED with reason_code integration.gate_blocked. (2) WorkflowFactCollector.collect() reads only issue.integration from tracker; no overlay from IntegrationQueueStore—fix: add optional integration_queue_store parameter and overlay queue state/lease before constructing integration FactObservation. (3) _validation_decision has no check for quarantined/unsafe audit metadata; it falls through to validation.queued RETRY_SCHEDULED—fix: add quarantined check before the phase check, routing to ACTION_REQUIRED. Generation-race test: controller reconcile is already idempotent by generation fence; need explicit concurrent-generation regression test.
+---
+author: oompah
+created: 2026-08-05 18:42
+---
+Coordinator review of the in-flight repair found one exact-generation requirement to cover before commit: WorkflowFactCollector._overlay_integration_queue currently overlays integrating/blocked solely by project+task. Fence the durable row to the issue/tracker exact head (and relevant generation/lease authority) so a stale blocked or integrating row for H1 cannot block or suppress the required attempt for newer H2. Add the generation-race regression requested in comment #20. Also ensure production construction actually supplies IntegrationQueueStore, and complete the queued/running revisionless terminal-disposition path.
 ---
 <!-- COMMENTS:END -->
