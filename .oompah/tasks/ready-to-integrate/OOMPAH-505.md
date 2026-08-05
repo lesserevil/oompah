@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:14:23.123331Z'
+updated_at: '2026-08-05T05:14:44.839564Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 8b7e679c-bd68-49a8-a6b2-fc380fb7457b
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9679519
-  total_output_tokens: 39498
+  total_input_tokens: 9680101
+  total_output_tokens: 39667
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 51365
-      output_tokens: 5480
+      input_tokens: 51947
+      output_tokens: 5649
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 155
     cost_usd: 0.0
     recorded_at: '2026-08-05T02:07:47.911840+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 582
+    output_tokens: 169
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T05:14:42.179913+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -996,5 +1002,15 @@ author: oompah
 created: 2026-08-05 05:14
 ---
 Explicit Claude and Codex model tiers implementation complete, verified, and ready for production deployment. Backend descriptors (Claude, Codex) expose supports_manual_model_selection() independent of catalog discovery. UI supports manual model entry with SDK-default fallback and re-render on async descriptor updates. Role store validates and persists explicit role candidates with priority/round-robin strategies. API endpoints return and accept multi-candidate configurations with backward compatibility. All dispatch tests confirm explicit models propagate through subscription sessions: focus_explicit_model_wins, focus_model_role_wins_over_profile. 15,387 tests passing (1,458 OOMPAH-505-related), secrets scan clean. After deployment, configure role tiers: fast=Claude/fable+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol with existing round-robin, credentials, provider health, project whitelist preserved.
+---
+author: oompah
+created: 2026-08-05 05:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 35
+- Tokens: 582 in / 169 out [751 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 46s
+- Log: OOMPAH-505__20260805T044713Z.jsonl
 ---
 <!-- COMMENTS:END -->
