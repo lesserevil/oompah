@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:14:28.067783Z'
+updated_at: '2026-08-05T18:16:25.254336Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1e438b28-a341-4eef-a29b-93fca1634730
+oompah.agent_run_id: d1e1ae15-c39e-428a-a47e-446793dcf4d3
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
@@ -57,7 +57,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T17:00:07.854053+00:00'
+  updated_at: '2026-08-05T18:16:22.645873+00:00'
 oompah.task_costs:
   total_input_tokens: 46596
   total_output_tokens: 599
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-08-05 18:14
 ---
 Agent stalled 1 time(s) (4464s (434 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-05 18:16
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
