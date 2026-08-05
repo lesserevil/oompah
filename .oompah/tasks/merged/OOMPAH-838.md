@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T18:38:43.694119Z'
+updated_at: '2026-08-05T18:38:49.984220Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
@@ -77,8 +77,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-e856e8a1a478
-    applied: false
+    applied: true
     created_at: '2026-08-05T18:38:39.915774+00:00'
+    applied_at: '2026-08-05T18:38:48.369068+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -296,5 +297,30 @@ author: oompah
 created: 2026-08-05 18:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 18:38
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
+- merge_commit: b53bdbc77c7a50d332a97096ebc85d7923280854
+- pr: PR #722
+- changed_files: oompah/integration_queue.py, oompah/orchestrator.py, tests/test_integration_queue.py, tests/test_integration_executor.py
+- claim_fence: single BEGIN IMMEDIATE contains lease-recovery UPDATE, ready-select, atomic claim UPDATE that sets state='integrating' AND retry_forced=0, and re-read; claimed_retry_forced=True set on returned dataclass only when pre-claim row.retry_forced was 1
+- durable_flag_state_after_claim: integrating row retry_forced=0 (asserted by test_retry_forced_is_returned_once_and_consumed_by_claim and test_retry_forced_does_not_repeat_after_lease_recovery)
+- orchestrator_call_site: oompah/orchestrator.py:11059 retry_forced=item.claimed_retry_forced -> execute_integration -> quality_gate.run(retry_forced=...)
+- cache_bypass_site: oompah/quality_gate.py:1571 if retry_forced and cached_status in {failed,timed_out,error}: return None (miss)
+- regression_test: test_claimed_explicit_retry_bypasses_cached_gate_failure (OOMPAH-523) exercises full gate+queue+executor path and asserts result.integrated and result.quality.cached is False
+- crash_recovery_test: test_retry_forced_does_not_repeat_after_lease_recovery: after recover_expired, second claim exposes claimed_retry_forced=False
+- new_head_test: test_new_head_on_explicit_retry_row_clears_retry_forced: normal new-head enqueue clears retry_forced
+- exact_generation_fence_test: test_claim_returns_exact_generation_when_another_connection_cancels: claim UPDATE + SELECT + COMMIT run inside same BEGIN IMMEDIATE so returned head/lease matches claim
+- authority_generation_excludes_ephemeral: claimed_retry_forced excluded from to_dict via {key: getattr(self,key) for key in self.__dataclass_fields__ if key != 'claimed_retry_forced'}
+- prior_full_gate_result: make test: 15660 passed, 7 skipped, 1 xfailed, 55 warnings in 622.19s
+- terminal_mutation_scan: 8 identified, 8 explicitly allowlisted (pass)
+- prior_audit_verdict: audit passed on this exact head in earlier attempt
 ---
 <!-- COMMENTS:END -->
