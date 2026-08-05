@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-829
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Migrate legacy equivalent Done-override fingerprints for structural maintenance
   tasks
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T18:25:33.732552Z'
+updated_at: '2026-08-05T18:29:33.145028Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3f9f6276-7026-48e1-aecb-1525456b35a5
+oompah.agent_run_id: d3fabe44-0203-4ac9-96ea-01f088528f3a
 oompah.task_costs:
   total_input_tokens: 48324
   total_output_tokens: 274
