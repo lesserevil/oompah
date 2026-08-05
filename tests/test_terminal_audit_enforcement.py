@@ -3801,3 +3801,638 @@ class TestAuditBacklogRecovery:
         # All passes recover the same audit exactly once
         assert enforcer_1.pending_audits[0].audit_id == enforcer_2.pending_audits[0].audit_id
         assert enforcer_2.pending_audits[0].audit_id == enforcer_3.pending_audits[0].audit_id
+
+
+# ---------------------------------------------------------------------------
+# OOMPAH-828: Treat applied Archived audit results as final lifecycle no-ops.
+# ---------------------------------------------------------------------------
+
+
+def _archived_disposition_record(
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+    attempt_id: str,
+    disposition_reason: str,
+) -> tuple[TerminalAuditRecord, object]:
+    """Build a completed PASS Archived audit whose fingerprint is disposition-based.
+
+    This matches the production ``request_archived_audit`` shape where the
+    evidence fingerprint intentionally binds the disposition text, not the
+    canonical issue evidence.  ``_lifecycle_terminal_authorities`` therefore
+    cannot join it to ``compute_issue_evidence_fingerprint(issue)``.
+    """
+
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text=disposition_reason,
+        project_id=project_id,
+        task_id=task_id,
+    )
+    record = TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id=attempt_id,
+                target_state=TargetState.ARCHIVED,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    return record, fingerprint
+
+
+def _applied_archived_intent(
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+    attempt_id: str,
+    fingerprint,
+    *,
+    applied: bool = True,
+) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "task_id": task_id,
+        "audit_id": audit_id,
+        "attempt_id": attempt_id,
+        "target_state": TargetState.ARCHIVED.value,
+        "evidence_fingerprint": fingerprint.digest,
+        "status": "Archived",
+        "audit_ids": [audit_id],
+        "applied": applied,
+    }
+
+
+def _archived_lifecycle_state(
+    identifiers: list[tuple[str, str]],
+    started: datetime,
+) -> dict[str, object]:
+    """Return a v1 lifecycle ledger with rows already carrying an Archived conflict."""
+
+    return _v1_exhausted_lifecycle_state(identifiers, started)
+
+
+def test_archived_disposition_pass_with_applied_intent_is_no_op(tmp_path):
+    """Applied Archived intent + PASS Archived audit = ``not_needed`` no-op."""
+
+    issue = _issue("ARCHIVED-A", "Archived", "evidence-a", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-arch-a",
+        "attempt-arch-a",
+        "cancelled per operator request",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-arch-a",
+        "attempt-arch-a",
+        fingerprint,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert result["status"] == "complete"
+    assert result["processed"] == 1
+    assert result["reconciled"] == 0
+    assert result["action_required"] is False
+    assert tracker.status_updates == []
+
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["outcome"] == "not_needed"
+    assert row["classifier_version"] == LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION
+
+
+def test_archived_disposition_pass_without_intent_is_rejected(tmp_path):
+    """A PASS Archived record without an applied intent stays fail-closed."""
+
+    issue = _issue("ARCHIVED-NO-INTENT", "Archived", "evidence-b", "project-a")
+    tracker = _Tracker([issue])
+    record, _ = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-no-intent",
+        "attempt-no-intent",
+        "auto-archival",
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row.get("outcome") != "not_needed"
+    assert row.get("last_error") == "lifecycle_metadata_not_finalized"
+
+
+def test_archived_disposition_pass_with_unapplied_intent_is_rejected(tmp_path):
+    """An unapplied Archived intent does not grant lifecycle finality."""
+
+    issue = _issue("ARCHIVED-UNAPPLIED", "Archived", "evidence-c", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-unapplied",
+        "attempt-unapplied",
+        "still pending apply",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-unapplied",
+        "attempt-unapplied",
+        fingerprint,
+        applied=False,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row.get("outcome") != "not_needed"
+
+
+def test_archived_intent_mismatched_audit_is_rejected(tmp_path):
+    """An applied intent for a different audit id does not authorize this row."""
+
+    issue = _issue("ARCHIVED-MISMATCH-AUDIT", "Archived", "evidence-d", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-real",
+        "attempt-real",
+        "archived",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-other",
+        "attempt-real",
+        fingerprint,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row.get("outcome") != "not_needed"
+
+
+def test_archived_intent_wrong_target_state_is_rejected(tmp_path):
+    """An intent for a non-Archived target does not authorize an Archived row."""
+
+    issue = _issue("ARCHIVED-WRONG-TARGET", "Archived", "evidence-e", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-wrong-target",
+        "attempt-wrong-target",
+        "archived",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-wrong-target",
+        "attempt-wrong-target",
+        fingerprint,
+    )
+    intent["target_state"] = TargetState.DONE.value
+    intent["status"] = "Done"
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row.get("outcome") != "not_needed"
+
+
+def test_archived_intent_mismatched_task_is_rejected(tmp_path):
+    """An applied intent for a different task does not authorize this row."""
+
+    issue = _issue("ARCHIVED-WRONG-TASK", "Archived", "evidence-f", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-cross-task",
+        "attempt-cross-task",
+        "archived",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        "SOMEONE-ELSE",
+        "audit-cross-task",
+        "attempt-cross-task",
+        fingerprint,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row.get("outcome") != "not_needed"
+
+
+def test_archived_authority_ignored_when_current_state_is_not_archived(tmp_path):
+    """A disposition-fingerprinted PASS is never accepted for non-Archived rows."""
+
+    issue = _issue("ARCHIVED-NOT-YET", "Merged", "evidence-g", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-arch-notyet",
+        "attempt-arch-notyet",
+        "queued archival",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-arch-notyet",
+        "attempt-arch-notyet",
+        fingerprint,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    # Since the tracker is still Merged, the Merged/Done reconciliation path
+    # runs.  The disposition-fingerprinted Archived record must NOT be used to
+    # authorize a Done/Merged write.
+    assert tracker.status_updates == []
+
+
+def test_archived_quarantined_metadata_stays_rejected(tmp_path):
+    """A quarantined metadata document blocks lifecycle finality even for Archived."""
+
+    from oompah.terminal_audit_metadata import MetadataQuarantine
+
+    issue = _issue("ARCHIVED-QUAR", "Archived", "evidence-h", "project-a")
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-quar",
+        "attempt-quar",
+        "archived quarantined",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-quar",
+        "attempt-quar",
+        fingerprint,
+    )
+    quarantine = MetadataQuarantine(
+        fingerprint="a" * 64,
+        reason="corrupted",
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+            quarantine=quarantine,
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert tracker.status_updates == []
+
+
+def test_four_live_archived_rows_converge_once_with_zero_tracker_writes(tmp_path):
+    """OOMPAH-452/453/455/456-shaped rows all converge to ``not_needed``."""
+
+    identifiers = ["OOMPAH-452", "OOMPAH-453", "OOMPAH-455", "OOMPAH-456"]
+    issues = [
+        _issue(identifier, "Archived", f"evidence-{identifier}", "project-a")
+        for identifier in identifiers
+    ]
+    tracker = _Tracker(list(issues))
+    for issue in issues:
+        record, fingerprint = _archived_disposition_record(
+            "project-a",
+            issue.identifier,
+            f"audit-{issue.identifier}",
+            f"attempt-{issue.identifier}",
+            "archived per lifecycle policy",
+        )
+        intent = _applied_archived_intent(
+            "project-a",
+            issue.identifier,
+            f"audit-{issue.identifier}",
+            f"attempt-{issue.identifier}",
+            fingerprint,
+        )
+        tracker.metadata[issue.identifier] = {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[record],
+                unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+            ).to_dict()
+        }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", identifier) for identifier in identifiers],
+                started,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=10, max_attempts=1, now=started
+    )
+    assert result["status"] == "complete"
+    assert result["processed"] == len(identifiers)
+    assert result["action_required"] is False
+    assert tracker.status_updates == []
+    rows = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"]
+    assert {row["task_id"] for row in rows} == set(identifiers)
+    assert all(row["outcome"] == "not_needed" for row in rows)
+
+    # Restart-safe: a second pass observes the completed rows and produces no
+    # new tracker mutations or rearmed retries.
+    restarted = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    repeat = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        batch_size=10,
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+    assert repeat["status"] == "complete"
+    assert tracker.status_updates == []
+
+
+def test_archived_authority_does_not_promote_done_writes(tmp_path):
+    """A disposition-fingerprinted Archived PASS never authorizes a Done write."""
+
+    issue = _issue("DONE-CANDIDATE", "Merged", "evidence-i", "project-a")
+    issue.parent_id = "EPIC-DONE-CAND"
+    tracker = _Tracker([issue])
+    record, fingerprint = _archived_disposition_record(
+        "project-a",
+        issue.identifier,
+        "audit-arch-noswap",
+        "attempt-arch-noswap",
+        "queued archive but Done pending",
+    )
+    intent = _applied_archived_intent(
+        "project-a",
+        issue.identifier,
+        "audit-arch-noswap",
+        "attempt-arch-noswap",
+        fingerprint,
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _archived_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    # The tracker was still Merged, and the only authority in metadata is a
+    # disposition-fingerprinted Archived PASS.  No Done status write is made.
+    assert tracker.status_updates == []

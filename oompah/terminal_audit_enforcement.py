@@ -2042,6 +2042,102 @@ class TerminalAuditEnforcement:
                 for attempt in record.attempts
             )
         ]
+
+        # OOMPAH-828: Archived-target rows may hold PASS records whose
+        # evidence_fingerprint is the mandatory disposition fingerprint from
+        # ``request_archived_audit`` (compute_evidence_fingerprint on the
+        # archival reason).  That domain intentionally cannot equal
+        # ``compute_issue_evidence_fingerprint(issue)``, so the general
+        # fingerprint join above never accepts a disposition-based Archived
+        # PASS.  Since the tracker status was already applied when the result
+        # intent was persisted with ``applied=true``, treat that joined
+        # (audit_id, attempt_id, target_state, evidence_fingerprint) triple as
+        # sufficient lifecycle finality — but only for Archived, never Done
+        # or Merged, and only when the metadata is not quarantined.  All
+        # matching remains project/task/audit/attempt/target/fingerprint exact
+        # so incomplete, failed, mismatched, retired, and unapplied evidence
+        # continue to fail closed.
+        if target_state == TargetState.ARCHIVED and not document.is_quarantined:
+            raw_intents = document.unknown_fields.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            applied_archived_intents: dict[tuple[str, str], Mapping[str, Any]] = {}
+            if isinstance(raw_intents, list):
+                for raw in raw_intents:
+                    if not isinstance(raw, Mapping) or raw.get("applied") is not True:
+                        continue
+                    if raw.get("project_id") != project_id:
+                        continue
+                    if raw.get("task_id") not in aliases:
+                        continue
+                    if raw.get("target_state") != TargetState.ARCHIVED.value:
+                        continue
+                    # A retired or superseded intent is not evidence of
+                    # current authority even when applied=true.
+                    if any(
+                        bool(raw.get(key))
+                        for key in (
+                            "retired_at",
+                            "retired_reason",
+                            "retired_by_reconciliation",
+                            "retired_by_override",
+                            "retired_by_lifecycle",
+                            "lifecycle_retired",
+                            "superseded",
+                            "superseded_at",
+                            "superseded_by",
+                        )
+                    ):
+                        continue
+                    audit_id = raw.get("audit_id")
+                    attempt_id = raw.get("attempt_id")
+                    if (
+                        not isinstance(audit_id, str)
+                        or not isinstance(attempt_id, str)
+                        or not audit_id
+                        or not attempt_id
+                    ):
+                        continue
+                    applied_archived_intents[(audit_id, attempt_id)] = raw
+
+            if applied_archived_intents:
+                already = {record.audit_id for record in passed}
+                for record in document.pending_chain:
+                    if record.audit_id in already:
+                        continue
+                    if record.project_id != project_id:
+                        continue
+                    if record.task_id not in aliases:
+                        continue
+                    if record.target_state != target_state:
+                        continue
+                    if record.request_state != RequestState.COMPLETED:
+                        continue
+                    for attempt in record.attempts:
+                        if attempt.verdict != Verdict.PASS:
+                            continue
+                        if attempt.target_state != target_state:
+                            continue
+                        key = (record.audit_id, attempt.attempt_id)
+                        intent = applied_archived_intents.get(key)
+                        if intent is None:
+                            continue
+                        # Fingerprint linkage: intent.evidence_fingerprint must
+                        # equal the record + attempt fingerprint digest.  This
+                        # is the disposition fingerprint domain and never a
+                        # cross-target authorization.
+                        record_digest = record.evidence_fingerprint.digest
+                        attempt_digest = attempt.evidence_fingerprint.digest
+                        if record_digest != attempt_digest:
+                            continue
+                        intent_fp = intent.get("evidence_fingerprint")
+                        if isinstance(intent_fp, Mapping):
+                            intent_digest = intent_fp.get("digest")
+                        else:
+                            intent_digest = intent_fp
+                        if intent_digest != record_digest:
+                            continue
+                        passed.append(record)
+                        break
+
         overrides: list[OverrideRecord] = []
         raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
         for raw in raw_overrides if isinstance(raw_overrides, list) else []:
