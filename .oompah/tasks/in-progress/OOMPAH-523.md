@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:28:01.988229Z'
+updated_at: '2026-08-05T04:28:34.651057Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -782,5 +782,10 @@ author: oompah
 created: 2026-08-05 04:28
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 04:28
+---
+Understanding: I will verify the recovered OOMPAH-522 Basic-auth integration on this branch, audit ASGI HTTP/WebSocket coverage and exact exemptions, then add or repair focused tests and implementation as needed. I will preserve disabled behavior and forge-specific webhook validation, run project tooling, commit, push, and submit the task.
 ---
 <!-- COMMENTS:END -->
