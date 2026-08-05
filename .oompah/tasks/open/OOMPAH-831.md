@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T18:31:03.773305Z'
+updated_at: '2026-08-05T18:31:15.672016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 2fdfd633-6e83-4332-ab14-1dd8aae6b221
 ---
 ## Summary
 
