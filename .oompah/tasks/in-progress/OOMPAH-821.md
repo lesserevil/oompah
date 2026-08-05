@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:05:54.614306Z'
+updated_at: '2026-08-05T06:09:19.941835Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-08-05 06:05
 ---
 Additional exact-head review blockers for the replacement implementation: (1) successful-audit finality is not preserved across history: retry_failed_audit scans backward until any eligible old failure and can skip a newer same-fingerprint PASS; the PASS-only test misses [old exhausted NO_AUDITOR, newer PASS]. (2) infrastructure rearm is not current-fingerprint fenced: fingerprint refresh/comparison runs only for evidence_addendum and the server infra path supplies none, so an alternate/currently changed fingerprint can rearm old evidence. (3) required end-to-end integrated reflow -> truthful alert/action -> owner retry -> fresh pending audit -> live task-scoped alert clear, all terminal classification parity, and restart/sweep coalescing coverage are absent. Also remove trailing whitespace in the prior tests and update the stale all-attempts docstring. Preserve owner auth, coalescing, evidence-addendum restriction, and successful finality.
+---
+author: oompah
+created: 2026-08-05 06:09
+---
+Understanding: Confirmed the alert/action parity gap. The TerminalTransitionCoordinator.retry_failed_audit() was fixed to check only TERMINAL attempt classification using canonical is_audit_infrastructure_retryable() and is_audit_evidence_retryable() functions (lines 253-284 in terminal_transition_coordinator.py). However, _arm_integrated_audit_recovery_alert() in orchestrator.py (line 7818) hardcodes the recovery message to always suggest audit_retry_evidence_addendum, regardless of the actual failure type. When a mixed-attempt history (e.g., FINALIZATION_FAILURE + terminal NO_AUDITOR) reaches a no_auditor terminal state, the alert incorrectly advertises evidence recovery while infrastructure recovery is actually needed. The alert generation at orchestrator.py:459453 must consume the canonical retry-eligibility logic to emit the correct recovery action. Plan: (1) Extract terminal failure classification from transition failures, (2) Use canonical retry functions to determine valid recovery modes, (3) Update alert message to specify correct recovery action (evidence_addendum for MISSING_EVIDENCE, infrastructure for NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY), (4) Add comprehensive tests for alert/action parity.
 ---
 <!-- COMMENTS:END -->
