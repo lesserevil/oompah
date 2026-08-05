@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-468
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Persist worker and epic contributor provider-model provenance
 parent: OOMPAH-458
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T13:06:08.315289Z'
-updated_at: '2026-07-29T17:51:52.488624Z'
+updated_at: '2026-08-05T18:22:13.720051Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -44,6 +44,28 @@ oompah.task_costs:
     output_tokens: 59953
     cost_usd: 0.0
     recorded_at: '2026-07-28T21:50:10.826688+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9e89faef62bc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-468
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 666452d6f4e47bc56d4a393024a4f4ae899fce1cd93ac2a52e89e068e93e255c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:22:04.507708+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -283,5 +305,10 @@ author: oompah
 created: 2026-07-28 22:03
 ---
 Implemented and pushed work_contributors persistence for successful API, ACP, and CLI workers, including unknown-model handling, retry/restart-safe accumulation, redacted records, and revision-filtered nested epic contributor collection. Focused tests pass; full make test was blocked by the environment uv DBus error.
+---
+author: oompah
+created: 2026-08-05 18:22
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
