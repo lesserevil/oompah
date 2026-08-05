@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-08-05T00:21:18.017927Z'
+updated_at: '2026-08-05T00:21:41.220190Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -154,18 +154,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-521
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 4064f1def222c29d08a7a51f584cdd185a90755d6d415a48ec48861efc74ed48
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6547eedb6c98
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4064f1def222c29d08a7a51f584cdd185a90755d6d415a48ec48861efc74ed48
+      created_at: '2026-08-05T00:21:33.909339+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T00:21:33.909339+00:00'
+      branch_key: epic-OOMPAH-521
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:43:59.803331+00:00'
+    updated_at: '2026-08-05T00:21:33.909339+00:00'
   - version: 1
     audit_id: audit-01046260fd67
     project_id: proj-14849f1b
@@ -229,6 +243,19 @@ oompah.terminal_audit:
     started_at: '2026-08-05T00:02:44.447322+00:00'
     branch_key: epic-OOMPAH-521
     candidate_rotation_count: 2
+  - version: 1
+    attempt_id: attempt-6547eedb6c98
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4064f1def222c29d08a7a51f584cdd185a90755d6d415a48ec48861efc74ed48
+    created_at: '2026-08-05T00:21:33.909339+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T00:21:33.909339+00:00'
+    branch_key: epic-OOMPAH-521
 ---
 ## Summary
 
@@ -396,5 +423,10 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 18m 20s
 - Log: OOMPAH-521__20260805T000318Z.jsonl
+---
+author: oompah
+created: 2026-08-05 00:21
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
