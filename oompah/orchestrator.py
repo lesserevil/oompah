@@ -239,6 +239,7 @@ from oompah.auth_health import (
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
+    auditor_target_contract,
     is_recoverable_auditor_command_denial,
     pending_auditor_target,
 )
@@ -268,10 +269,12 @@ from oompah.prompt import (
     render_prompt,
 )
 from oompah.quality_gate import (
+    AuditorQualityEvidenceProof,
     BranchQualityGate,
     QualityGateOwner,
     QualityGateResult,
 )
+from oompah.validation_resource_lease import ValidationResourceLease
 from oompah.repo_map_prompt import build_repo_map_context
 from oompah.projects import (
     ProjectError,
@@ -1277,9 +1280,17 @@ class Orchestrator:
         self._candidate_selector = CandidateSelector(
             path=os.path.join(_state_dir, "role_usage.json")
         )
+        self.validation_resource_lease = ValidationResourceLease(
+            os.path.join(_state_dir, "validation_resources.sqlite3"),
+            capacity=getattr(config, "heavyweight_validation_capacity", 1),
+            aging_seconds=getattr(
+                config, "heavyweight_validation_aging_seconds", 30
+            ),
+        )
         self._branch_quality_gate = BranchQualityGate(
             os.path.join(_state_dir, "quality_gates.json"),
             timeout_seconds=config.quality_gate_timeout_seconds,
+            validation_lease=self.validation_resource_lease,
             **(
                 {"safety_head": config.quality_gate_safety_head}
                 if config.quality_gate_safety_head
@@ -15197,6 +15208,106 @@ class Orchestrator:
             if isinstance(raw, str) and raw.strip():
                 return raw.strip()
         return ""
+
+    def record_auditor_quality_evidence(
+        self,
+        *,
+        audit_target: object,
+        workspace_path: str | os.PathLike[str],
+        command: str,
+    ) -> bool:
+        """Reuse a successful auditor gate only for the exact submitted head.
+
+        The detached workspace, current tracker fingerprint, configured full
+        command, authoritative branch head, and all normal cache-key fields
+        must agree. Any uncertainty simply leaves the ordinary exact gate to
+        execute later.
+        """
+
+        try:
+            target = auditor_target_contract(audit_target)
+            project = self.project_store.get(target.project_id)
+            if project is None:
+                return False
+            configured_command = self._quality_gate_command(project)
+            if not configured_command or str(command).strip() != configured_command:
+                return False
+            tracker = self._tracker_for_project(target.project_id)
+            issue = tracker.fetch_issue_detail(target.task_id)
+            if issue is None:
+                return False
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                issue,
+                target.project_id,
+            ).digest
+            if current_fingerprint != target.evidence_fingerprint:
+                return False
+
+            integration = getattr(issue, "integration", None)
+            if (
+                str(getattr(integration, "state", "") or "").casefold()
+                == "integrated"
+            ):
+                return False
+            head_sha = str(
+                getattr(integration, "head_sha", "")
+                or getattr(issue, "source_sha", "")
+                or ""
+            ).strip().lower()
+            work_branch = str(
+                getattr(integration, "task_branch", "")
+                or getattr(issue, "source_branch", "")
+                or getattr(issue, "work_branch", "")
+                or getattr(issue, "branch_name", "")
+                or ""
+            ).strip()
+            target_branch = str(
+                getattr(integration, "base_branch", "")
+                or getattr(issue, "target_branch", "")
+                or project.default_branch
+                or ""
+            ).strip()
+            workspace_head = self._worktree_head(str(workspace_path)).lower()
+            branch_head = self._quality_gate_branch_head(project, work_branch).lower()
+            if not head_sha or branch_head != head_sha:
+                return False
+            detached = subprocess.run(
+                ["git", "symbolic-ref", "-q", "HEAD"],
+                cwd=str(workspace_path),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            ).returncode != 0
+            clean = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=str(workspace_path),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if clean.returncode != 0 or clean.stdout.strip():
+                return False
+            return self._branch_quality_gate.record_compatible_auditor_pass(
+                AuditorQualityEvidenceProof(
+                    repo_identity=(
+                        project.repo_url or project.repo_path or str(project.id)
+                    ),
+                    target_branch=target_branch,
+                    work_branch=work_branch,
+                    head_sha=head_sha,
+                    workspace_head_sha=workspace_head,
+                    command=str(command).strip(),
+                    configured_command=configured_command,
+                    evidence_fingerprint=target.evidence_fingerprint,
+                    expected_evidence_fingerprint=current_fingerprint,
+                    detached_workspace=detached,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - reuse must fail closed
+            logger.debug("Auditor quality evidence was not reusable: %s", exc)
+            return False
 
     @staticmethod
     def _worktree_head(path: str) -> str:
@@ -32639,6 +32750,7 @@ class Orchestrator:
 
             api_tool_liveness = ToolLivenessMonitor()
             api_policy_denial_handler = None
+            api_validation_success_handler = None
             if focus.name.lower() == AUDITOR_FOCUS_NAME:
 
                 def api_policy_denial_handler(denial: str) -> None:
@@ -32647,6 +32759,20 @@ class Orchestrator:
                         run_id,
                         denial,
                     )
+
+                if audit_target is not None:
+
+                    def api_validation_success_handler(
+                        command: str,
+                        command_workspace: Path,
+                        *,
+                        _target=audit_target,
+                    ) -> bool:
+                        return self.record_auditor_quality_evidence(
+                            audit_target=_target,
+                            workspace_path=command_workspace,
+                            command=command,
+                        )
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -32707,6 +32833,8 @@ class Orchestrator:
                 ),
                 tool_liveness=api_tool_liveness,
                 policy_denial_handler=api_policy_denial_handler,
+                validation_lease=self.validation_resource_lease,
+                successful_validation_handler=api_validation_success_handler,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -33537,6 +33665,15 @@ class Orchestrator:
                     self.state.running[issue.id].session.tool_liveness
                     if issue.id in self.state.running
                     and self.state.running[issue.id].session
+                    else None
+                ),
+                validation_authority_generation=(
+                    (
+                        self.state.running[issue.id].audit_attempt_id
+                        if self.state.running[issue.id].is_auditor
+                        else self.state.running[issue.id].authority_generation
+                    )
+                    if issue.id in self.state.running
                     else None
                 ),
                 focus=focus,
@@ -38293,6 +38430,55 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # silent worker alive until the full agent deadline.
         return False, None
 
+    def _validation_capacity_protects_stall(self, entry: RunningEntry) -> bool:
+        """Return whether *entry* owns or is queued for validation capacity.
+
+        Native CLI commands run below the SDK's tool monitor, so the durable
+        lease is their authoritative liveness source. Matching is scoped to
+        the managed project, task, and exact active authority generation. A
+        detached descendant may intentionally retain an older generation's
+        kernel fence, so project/task matching alone is not current liveness.
+        """
+
+        issue = entry.issue
+        if issue is None:
+            return False
+        project_id = str(issue.project_id or "").strip()
+        task_ids = {
+            str(issue.id or "").strip(),
+            str(issue.identifier or "").strip(),
+            str(entry.identifier or "").strip(),
+        }
+        task_ids.discard("")
+        if not project_id or not task_ids:
+            return False
+        authority_generation = str(
+            (
+                entry.audit_attempt_id
+                if entry.is_auditor
+                else entry.authority_generation
+            )
+            or ""
+        ).strip()
+        if not authority_generation:
+            return False
+        try:
+            snapshot = self.validation_resource_lease.status()
+        except Exception as exc:  # pragma: no cover - defensive observer path
+            logger.debug(
+                "Validation capacity snapshot failed for %s: %s",
+                entry.identifier,
+                exc,
+            )
+            return False
+        return any(
+            str(record.get("project_id") or "") == project_id
+            and str(record.get("task_id") or "") in task_ids
+            and str(record.get("authority_generation") or "")
+            == authority_generation
+            for record in (*snapshot.owners, *snapshot.waiters)
+        )
+
     async def _reconcile_retry_authority(self) -> None:
         """Withdraw retries whose tracker authority changed before due time."""
         with self._retry_authority_lock:
@@ -38365,9 +38551,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 await self._terminate_running(issue_id, cleanup_workspace=False)
                 continue
             protected_by_tool, tool_timeout_reason = self._tool_stall_status(entry)
-            if protected_by_tool:
+            protected_by_capacity = self._validation_capacity_protects_stall(entry)
+            if protected_by_tool or protected_by_capacity:
                 logger.debug(
                     "Deferring generic stall detection for live bounded tool "
+                    "or validation-capacity activity "
                     "issue_id=%s issue_identifier=%s",
                     issue_id,
                     entry.identifier,
@@ -39402,6 +39590,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         totals = self.state.agent_totals
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         quality_gate_state = self._quality_gate_state_snapshot()
+        validation_resource_state = self.validation_resource_lease.status().to_dict()
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -39524,11 +39713,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # rest of orchestrator telemetry.
             "terminal_audit": terminal_audit_metrics,
             "quality_gates": quality_gate_state,
+            "validation_resources": validation_resource_state,
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
                 "quality_gates": quality_gate_state,
+                "validation_resources": validation_resource_state,
             },
             "auth_health": auth_health_snapshot(),
             "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),

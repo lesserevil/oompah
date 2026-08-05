@@ -23,6 +23,9 @@ from oompah.orchestrator import Orchestrator
 from oompah.roles import RoleStore
 
 
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
+
 # ---------------------------------------------------------------------------
 # Helpers (mirrored from test_orchestrator_handlers.py)
 # ---------------------------------------------------------------------------
@@ -67,7 +70,29 @@ def _make_orchestrator(tmp_path):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    # These tests exercise tick timing and logging, not maintenance or shared
+    # integration.  Letting those fire-and-forget lanes run their production
+    # filesystem scans leaves custom-executor work behind after asyncio.run()
+    # closes its loop and can consume the five-second timeout of later xdist
+    # tests on a busy gate host.
+    orch.config.parallel_epic_children_enabled = False
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
+    orch._run_step5b_maintenance = MagicMock()
+    orch._run_step5c_epic_maintenance = MagicMock()
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_tick_telemetry_orchestrators():
+    """Keep helper-owned executor threads inside their creating test."""
+
+    yield
+    orchestrators = list(_TEST_ORCHESTRATORS)
+    _TEST_ORCHESTRATORS.clear()
+    for orch in orchestrators:
+        orch._tick_pool.shutdown(wait=True, cancel_futures=False)
 
 
 def _stub_dispatch_needed(orch) -> None:

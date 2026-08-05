@@ -599,6 +599,17 @@ class TestGetSnapshotIncludesAlert:
     def test_orchestrator_metrics_has_last_tick_finished_at(self, tmp_path):
         """orchestrator_metrics.last_tick.finished_at is the heartbeat field operators read."""
         orch = _make_orchestrator(tmp_path)
+        # This assertion exercises tick telemetry, not lifecycle recovery,
+        # shared integration, or maintenance.  Those lanes otherwise submit
+        # real work to the orchestrator's private executor and can outlive the
+        # ``asyncio.run()`` loop below.  Under the full xdist gate that leaked
+        # work has made this five-second test time out while pytest is building
+        # its report, which xdist then misreports as a crashed worker.
+        orch.config.parallel_epic_children_enabled = False
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock()
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
@@ -608,8 +619,11 @@ class TestGetSnapshotIncludesAlert:
         orch._maybe_heal_repos = MagicMock()
         orch._notify_observers = MagicMock()
 
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+        try:
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                asyncio.run(orch._tick())
+        finally:
+            orch._tick_pool.shutdown(wait=True, cancel_futures=False)
 
         snapshot = orch.get_snapshot()
         last_tick = snapshot["orchestrator_metrics"]["last_tick"]

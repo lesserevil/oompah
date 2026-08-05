@@ -8,6 +8,7 @@ Uses only stdlib -- no external HTTP or SDK dependencies.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -16,6 +17,7 @@ import re
 import signal
 import secrets
 import ssl
+import sqlite3
 import subprocess
 import threading
 import time
@@ -40,6 +42,14 @@ from oompah.auditor import (
     submit_auditor_result,
 )
 from oompah.provider_health import openai_chat_completions_url
+from oompah.validation_resource_lease import (
+    ValidationLeaseCancelled,
+    ValidationLeaseError,
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+    is_heavyweight_validation_command,
+    managed_agent_validation_owner,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -763,6 +773,11 @@ def _exec_run_command(
     env_overrides: dict[str, str] | None = None,
     tool_liveness: Any = None,
     output_store: CommandOutputStore | None = None,
+    validation_lease: ValidationResourceLease | None = None,
+    validation_owner: ValidationLeaseOwner | None = None,
+    lease_cancelled: Callable[[], bool] | None = None,
+    require_validation_lease: bool = False,
+    successful_validation_handler: Callable[[str, Path], object] | None = None,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -805,38 +820,134 @@ def _exec_run_command(
                 process.kill()
             return process.communicate()
 
+    validation_handle = None
     invocation_id: str | None = None
+    heavyweight_validation = is_heavyweight_validation_command(command)
+    if require_validation_lease and heavyweight_validation and validation_owner is None:
+        return (
+            "Error: heavyweight validation is unavailable because trusted "
+            "managed-agent ownership metadata is incomplete"
+        )
+    if validation_owner is not None and heavyweight_validation:
+        if validation_lease is None:
+            return (
+                "Error: heavyweight validation is unavailable because the "
+                "service validation lease is not configured"
+            )
+        if tool_liveness is not None:
+            try:
+                invocation_id = tool_liveness.start_waiting(
+                    tool_name="run_command",
+                )
+            except Exception:
+                invocation_id = None
+        try:
+            lease_kwargs: dict[str, Any] = {"is_cancelled": lease_cancelled}
+            if invocation_id is not None:
+                lease_kwargs["on_wait"] = lambda: tool_liveness.heartbeat(
+                    invocation_id
+                )
+            validation_handle = validation_lease.acquire(
+                validation_owner,
+                **lease_kwargs,
+            )
+        except ValidationLeaseCancelled as exc:
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
+            return f"Error: {exc}"
+        except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
+            return f"Error: unable to acquire heavyweight validation capacity: {exc}"
+
     if tool_liveness is not None:
         try:
-            invocation_id = tool_liveness.start(
-                tool_name="run_command",
-                timeout_s=timeout,
-            )
+            if invocation_id is None:
+                invocation_id = tool_liveness.start(
+                    tool_name="run_command",
+                    timeout_s=timeout,
+                )
+            else:
+                tool_liveness.start_runtime(invocation_id, timeout_s=timeout)
         except Exception:
             # Liveness is supervisory telemetry. It must never prevent the
             # command itself from running when an observer is unavailable.
+            if invocation_id is not None:
+                with contextlib.suppress(Exception):
+                    tool_liveness.complete(invocation_id)
             invocation_id = None
 
     try:
-        process = subprocess.Popen(
-            ["bash", "-lc", command],
-            cwd=str(workspace),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-            start_new_session=(os.name == "posix"),
-        )
+        def _authority_cancelled() -> bool:
+            if lease_cancelled is None:
+                return False
+            try:
+                return bool(lease_cancelled())
+            except Exception:
+                return True
+
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
+        # Runtime begins after capacity acquisition, including process setup.
+        runtime_deadline = time.monotonic() + max(float(timeout), 0.0)
+        popen_kwargs: dict[str, Any] = {
+            "cwd": str(workspace),
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": env,
+            "start_new_session": os.name == "posix",
+        }
+        if validation_handle is not None and os.name == "posix":
+            popen_kwargs["pass_fds"] = validation_handle.pass_fds
+        if _authority_cancelled():
+            return "Error: validation authority withdrawn before command launch"
+        process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
+        if validation_handle is not None:
+            try:
+                validation_handle.attach_process(
+                    process,
+                    timeout_seconds=timeout,
+                )
+            except ValidationLeaseError:
+                _terminate_process_tree(process)
+                raise
         if invocation_id is not None:
             try:
                 tool_liveness.attach_process(invocation_id, process)
             except Exception:
                 pass
-        try:
-            stdout, stderr = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            _terminate_process_tree(process)
-            return f"Error: command timed out after {timeout}s"
+        while True:
+            if _authority_cancelled():
+                _terminate_process_tree(process)
+                return "Error: validation authority withdrawn while command was running"
+            remaining = runtime_deadline - time.monotonic()
+            if remaining <= 0:
+                _terminate_process_tree(process)
+                return f"Error: command timed out after {timeout}s"
+            try:
+                stdout, stderr = process.communicate(timeout=min(remaining, 0.25))
+                break
+            except subprocess.TimeoutExpired:
+                if invocation_id is not None:
+                    with contextlib.suppress(Exception):
+                        tool_liveness.heartbeat(invocation_id)
+
+        if (
+            heavyweight_validation
+            and process.returncode == 0
+            and callable(successful_validation_handler)
+            and not _authority_cancelled()
+        ):
+            try:
+                successful_validation_handler(command, workspace)
+            except Exception as exc:  # noqa: BLE001 - evidence is an optimization
+                logger.warning(
+                    "Unable to record auditor validation evidence: %s",
+                    exc,
+                )
 
         parts: list[str] = []
         if stdout:
@@ -876,6 +987,8 @@ def _exec_run_command(
                 tool_liveness.complete(invocation_id)
             except Exception:
                 pass
+        if validation_handle is not None:
+            validation_handle.release()
 
 
 def _exec_read_command_output(
@@ -1037,6 +1150,9 @@ def _execute_tool(
     tool_liveness: Any = None,
     policy_denial_handler: Any = None,
     command_output_store: CommandOutputStore | None = None,
+    validation_lease: ValidationResourceLease | None = None,
+    lease_cancelled: Callable[[], bool] | None = None,
+    successful_validation_handler: Callable[[str, Path], object] | None = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1133,6 +1249,25 @@ def _execute_tool(
                 command_kwargs["tool_liveness"] = tool_liveness
             if command_output_store is not None:
                 command_kwargs["output_store"] = command_output_store
+            validation_owner = managed_agent_validation_owner(
+                action_policy,
+                audit_target,
+                project_id=project_id,
+                task_id=task_identifier,
+            )
+            if validation_owner is not None:
+                command_kwargs["validation_owner"] = validation_owner
+                command_kwargs["validation_lease"] = validation_lease
+                command_kwargs["lease_cancelled"] = lease_cancelled
+            if (
+                validation_lease is not None
+                or getattr(action_policy, "auditor_session", False) is True
+            ):
+                command_kwargs["require_validation_lease"] = True
+            if successful_validation_handler is not None:
+                command_kwargs["successful_validation_handler"] = (
+                    successful_validation_handler
+                )
             return handler(workspace, args, **command_kwargs)
         return handler(workspace, args)
     except ValueError as exc:
@@ -1444,6 +1579,8 @@ class ApiAgentSession:
         audit_result_handler: Any = None,
         tool_liveness: Any = None,
         policy_denial_handler: Any = None,
+        validation_lease: ValidationResourceLease | None = None,
+        successful_validation_handler: Callable[[str, Path], object] | None = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1503,6 +1640,8 @@ class ApiAgentSession:
         self.audit_result_handler = audit_result_handler
         self.tool_liveness = tool_liveness
         self.policy_denial_handler = policy_denial_handler
+        self.validation_lease = validation_lease
+        self.successful_validation_handler = successful_validation_handler
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -1908,6 +2047,9 @@ class ApiAgentSession:
                             self.tool_liveness,
                             self.policy_denial_handler,
                             self.command_output_store,
+                            self.validation_lease,
+                            is_cancelled,
+                            self.successful_validation_handler,
                         )
 
                     tool_failed = result_str.startswith("Error")

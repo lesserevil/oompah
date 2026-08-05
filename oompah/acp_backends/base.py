@@ -154,6 +154,9 @@ class AcpBackendOptions:
     # intentionally opaque so every ACP backend can share the same liveness
     # contract without importing orchestrator state.
     tool_liveness: Any = None
+    # Exact server-generated identity for this run's native validation lane.
+    # It lets stall supervision reject an older generation of the same task.
+    validation_authority_generation: str | None = None
 
 
 @runtime_checkable

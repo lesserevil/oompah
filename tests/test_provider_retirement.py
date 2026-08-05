@@ -224,39 +224,48 @@ def test_revoked_run_stays_visible_until_provider_process_exits(tmp_path) -> Non
 def test_surviving_process_keeps_agent_and_audit_metrics_visible(tmp_path) -> None:
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
-        entry = _entry(state=IN_VALIDATION, auditor=True)
-        entry.workspace_path = str(tmp_path)
-        entry.managed_processes = {
-            12345: ProcessIdentity(12345, 99, 12345, 12345, str(tmp_path))
-        }
-        orch.state.running[entry.issue.id] = entry
-        orch.state.claimed.add(entry.issue.id)
-        orch._schedule_running_termination = MagicMock()
+        try:
+            entry = _entry(state=IN_VALIDATION, auditor=True)
+            entry.workspace_path = str(tmp_path)
+            entry.managed_processes = {
+                12345: ProcessIdentity(12345, 99, 12345, 12345, str(tmp_path))
+            }
+            orch.state.running[entry.issue.id] = entry
+            orch.state.claimed.add(entry.issue.id)
+            orch._schedule_running_termination = MagicMock()
 
-        with (
-            patch(
-                "oompah.orchestrator.capture_workspace_processes",
-                return_value={},
-            ),
-            patch(
-                "oompah.orchestrator.terminate_captured_processes",
-                return_value={12345},
-            ),
-        ):
-            await orch._on_worker_exit(
-                entry.issue.id,
-                "normal",
-                None,
-                run_id=entry.run_id,
-            )
+            with (
+                patch(
+                    "oompah.orchestrator.capture_workspace_processes",
+                    return_value={},
+                ),
+                patch(
+                    "oompah.orchestrator.terminate_captured_processes",
+                    return_value={12345},
+                ),
+            ):
+                await orch._on_worker_exit(
+                    entry.issue.id,
+                    "normal",
+                    None,
+                    run_id=entry.run_id,
+                )
 
-        snapshot = orch.get_snapshot()
-        assert orch.state.running[entry.issue.id] is entry
-        assert entry.issue.id in orch.state.claimed
-        assert snapshot["running"][0]["retiring"] is True
-        assert snapshot["running"][0]["managed_process_count"] == 1
-        assert snapshot["terminal_audit"]["running"] == 1
-        orch._schedule_running_termination.assert_called_once()
+            snapshot = orch.get_snapshot()
+            rows = {
+                row["issue_id"]: row
+                for row in snapshot["running"]
+            }
+            assert orch.state.running[entry.issue.id] is entry
+            assert entry.issue.id in orch.state.claimed
+            assert rows[entry.issue.id]["retiring"] is True
+            assert rows[entry.issue.id]["managed_process_count"] == 1
+            assert snapshot["terminal_audit"]["running"] == 1
+            orch._schedule_running_termination.assert_called_once()
+        finally:
+            await orch._drain_background_work()
+            orch.integration_queue.close()
+            orch.coordination_store.close()
 
     asyncio.run(scenario())
 

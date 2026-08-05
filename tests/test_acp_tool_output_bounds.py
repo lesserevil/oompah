@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from types import SimpleNamespace
 
 from oompah.api_agent import (
     CommandOutputStore,
@@ -14,6 +15,7 @@ from oompah.api_agent import (
 )
 from oompah.auditor import AuditorTargetContract
 from oompah.authority_boundary import auditor_policy
+from oompah.validation_resource_lease import ValidationResourceLease
 
 
 def test_large_read_file_is_chunked_before_provider_transport(tmp_path) -> None:
@@ -150,6 +152,12 @@ def test_claude_auditor_can_page_search_and_submit_after_large_command(
     catalog = build_tool_catalog(
         str(tmp_path),
         auditor=True,
+        coordination_service=SimpleNamespace(
+            validation_resource_lease=ValidationResourceLease(
+                tmp_path / "validation-resource.sqlite3",
+                poll_seconds=0.01,
+            )
+        ),
         action_policy=auditor_policy(
             task_identifier=target.task_id,
             project_id=target.project_id,
