@@ -7,12 +7,10 @@ title: Route implementation away from completed duplicate preflight focus
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:test
+labels: []
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-08-05T00:41:31.004773Z'
+updated_at: '2026-08-05T00:42:54.807093Z'
 work_branch: OOMPAH-536
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/570
@@ -31,19 +29,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-536
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-65d850e36bf3
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
+      created_at: '2026-08-05T00:42:32.038883+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T00:42:32.038883+00:00'
+      branch_key: OOMPAH-536
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T00:41:21.197322+00:00'
-  attempt_history: []
+    updated_at: '2026-08-05T00:42:32.038883+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-65d850e36bf3
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
+    created_at: '2026-08-05T00:42:32.038883+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T00:42:32.038883+00:00'
+    branch_key: OOMPAH-536
 ---
 ## Summary
 
@@ -81,5 +106,15 @@ author: oompah
 created: 2026-08-05 00:41
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-05 00:42
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 00:42
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
