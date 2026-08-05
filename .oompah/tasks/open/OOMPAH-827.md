@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: In Progress
+status: Open
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T19:53:02.329643Z'
+updated_at: '2026-08-05T22:26:59.400258Z'
 work_branch: null
 target_branch: null
 review_url: null

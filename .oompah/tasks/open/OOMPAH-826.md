@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T19:52:04.420836Z'
+updated_at: '2026-08-05T22:26:57.324176Z'
 work_branch: null
 target_branch: null
 review_url: null

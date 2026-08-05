@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T18:58:10.211888Z'
+updated_at: '2026-08-05T22:27:05.021240Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
