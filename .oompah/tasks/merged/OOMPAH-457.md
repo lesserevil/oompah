@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-05T00:38:59.276952Z'
+updated_at: '2026-08-05T00:39:17.487415Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -398,13 +398,13 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-457
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 54
-  total_output_tokens: 6440
+  total_input_tokens: 78
+  total_output_tokens: 12212
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 54
-      output_tokens: 6440
+      input_tokens: 78
+      output_tokens: 12212
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -419,6 +419,12 @@ oompah.task_costs:
     output_tokens: 660
     cost_usd: 0.0
     recorded_at: '2026-08-05T00:30:44.600953+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 24
+    output_tokens: 5772
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T00:39:14.187479+00:00'
 ---
 ## Summary
 
@@ -681,5 +687,15 @@ Safe evidence:
 - test_terminal_override: 28 passed
 - total_focused_tests: 268 passed
 - implementation_files_on_main: terminal_audit.py terminal_audit_enforcement.py terminal_audit_metadata.py terminal_transition_coordinator.py
+---
+author: oompah
+created: 2026-08-05 00:39
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 39, Tool calls: 25
+- Tokens: 24 in / 5.8K out [5.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 50s
+- Log: OOMPAH-457__20260805T003139Z.jsonl
 ---
 <!-- COMMENTS:END -->
