@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T20:14:49.864640Z'
+updated_at: '2026-08-05T20:15:25.207476Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 48371
-  total_output_tokens: 9909
+  total_input_tokens: 48392
+  total_output_tokens: 15125
   total_cost_usd: 0.0
   by_model:
     opus:
@@ -54,8 +54,8 @@ oompah.task_costs:
       output_tokens: 274
       cost_usd: 0.0
     unknown:
-      input_tokens: 47
-      output_tokens: 9635
+      input_tokens: 68
+      output_tokens: 14851
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -76,6 +76,12 @@ oompah.task_costs:
     output_tokens: 1045
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:53:47.863670+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 21
+    output_tokens: 5216
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:15:22.317743+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-829__20260805T181841Z
@@ -469,5 +475,15 @@ Safe evidence:
 - migration_version: LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION=1
 - focused_tests: fingerprint=10 enforcement=95 audit=38 lifecycle_override_fingerprint_filter=716 all_pass
 - acceptance_scenarios: OOMPAH-660 ab401↔62954 repairs once and is idempotent; OOMPAH-662 control no marker; 12 fail-closed drift; SCM outage closed; post-write recovery; cross-project isolation
+---
+author: oompah
+created: 2026-08-05 20:15
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 41, Tool calls: 23
+- Tokens: 21 in / 5.2K out [5.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 45s
+- Log: OOMPAH-829__20260805T195450Z.jsonl
 ---
 <!-- COMMENTS:END -->
