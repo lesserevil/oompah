@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-549
 type: feature
-status: In Validation
+status: Archived
 priority: 0
 title: Expose finish-order lifecycle in UI, prompts, and operator documentation
 parent: OOMPAH-545
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-08-05T19:55:10.581068Z'
+updated_at: '2026-08-05T20:04:05.697859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,6 +22,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7faa086401d7: '2026-08-05T20:04:01.897511+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-549
+    target_state: Archived
+    evidence_fingerprint: 2d174d37b36a1c846032b84f31ef09c7cc49582906ac48b611e22dd02deb81e2
+    audit_ids:
+    - audit-29b01ffeb6ea
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T20:04:01.897523+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-549
+    audit_id: audit-29b01ffeb6ea
+    attempt_id: attempt-7faa086401d7
+    target_state: Archived
+    evidence_fingerprint: 2d174d37b36a1c846032b84f31ef09c7cc49582906ac48b611e22dd02deb81e2
+    status: Archived
+    audit_ids:
+    - audit-29b01ffeb6ea
+    applied: false
+    created_at: '2026-08-05T20:04:01.897539+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -29,7 +53,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-549
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -38,7 +62,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7faa086401d7
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -48,13 +72,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T19:54:57.300095+00:00'
       branch_key: OOMPAH-549
+      verdict: pass
+      completed_at: '2026-08-05T20:04:01.897344+00:00'
+      ended_at: '2026-08-05T20:04:01.897344+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T19:24:38.403019+00:00'
-    updated_at: '2026-08-05T19:54:57.300095+00:00'
+    updated_at: '2026-08-05T20:04:01.897344+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7faa086401d7
