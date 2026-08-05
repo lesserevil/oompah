@@ -203,6 +203,111 @@ def _recovery_git_env() -> dict[str, str]:
     return env
 
 
+def _transfer_recovery_snapshot_objects(
+    snapshot_sha: str,
+    worktree_path: str,
+    authoritative_repo_path: str,
+) -> bool:
+    """Transfer snapshot objects from worktree to authoritative repo.
+
+    This ensures recovery snapshot objects created in a separate worktree or
+    clone are made durable in the authoritative repository before the recovery
+    ref is published. This handles both linked worktrees (which may share the
+    object database with git/objects) and standalone clones (which have their
+    own separate object database).
+
+    Parameters
+    ----------
+    snapshot_sha:
+        The commit SHA to transfer (and all its transitive dependencies).
+    worktree_path:
+        Path to the worktree where the snapshot was created.
+    authoritative_repo_path:
+        Path to the authoritative repository where the ref will be published.
+
+    Returns
+    -------
+    bool
+        True if the object was successfully transferred and is readable from
+        the authoritative repo; False if the snapshot_sha already existed in
+        the authoritative repo (redundant transfer).
+
+    Raises
+    ------
+    ProjectError
+        If the object transfer fails or the object is not readable after
+        transfer.
+    """
+
+    if not snapshot_sha or not worktree_path or not authoritative_repo_path:
+        raise ProjectError(
+            "transfer_recovery_snapshot_objects: missing required parameters"
+        )
+
+    # First check if the object already exists in the authoritative repo
+    check_existing = subprocess.run(
+        ["git", "cat-file", "-e", snapshot_sha],
+        cwd=authoritative_repo_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+        env=_recovery_git_env(),
+    )
+    if check_existing.returncode == 0:
+        # Object already exists in authoritative repo
+        return False
+
+    # Object doesn't exist, transfer it from the worktree using fetch-pack +
+    # upload-pack to copy all transitive dependencies
+    try:
+        # Use git fetch-pack to transfer objects. We fetch into the
+        # authoritative repo from the worktree's git repository.
+        fetch_result = subprocess.run(
+            [
+                "git",
+                "fetch-pack",
+                "--no-progress",
+                worktree_path,
+                snapshot_sha,
+            ],
+            cwd=authoritative_repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            env=_recovery_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProjectError(
+            f"could not transfer recovery snapshot objects for {snapshot_sha}: {exc}"
+        ) from exc
+
+    if fetch_result.returncode != 0:
+        raise ProjectError(
+            f"could not transfer recovery snapshot objects for {snapshot_sha}: "
+            f"{fetch_result.stderr.strip()[:500]}"
+        )
+
+    # Verify the object is now readable in the authoritative repo
+    verify_result = subprocess.run(
+        ["git", "cat-file", "-e", snapshot_sha],
+        cwd=authoritative_repo_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+        env=_recovery_git_env(),
+    )
+    if verify_result.returncode != 0:
+        raise ProjectError(
+            f"recovery snapshot object {snapshot_sha} transferred but not readable "
+            f"in authoritative repository"
+        )
+
+    return True
+
+
 def _worktree_git_dir(wt_path: str) -> str | None:
     """Resolve the per-worktree Git directory without invoking a prompt."""
 
@@ -3157,6 +3262,26 @@ class ProjectStore:
                 f"recovery snapshot commit has no resolvable head for {issue_identifier}"
             )
         context["snapshot_head"] = snapshot_head
+
+        # Transfer snapshot objects from worktree to authoritative repo BEFORE
+        # publishing the recovery ref. This ensures the object is durable and
+        # readable from the recovery authority (project.repo_path) regardless of
+        # whether the worktree has its own separate object database (linked
+        # worktree or standalone clone).
+        try:
+            _transfer_recovery_snapshot_objects(
+                snapshot_head,
+                wt_path,
+                project.repo_path,
+            )
+        except ProjectError as exc:
+            logger.error(
+                "recovery snapshot object transfer failed issue=%s sha=%s error=%s",
+                issue_identifier,
+                snapshot_head,
+                str(exc)[:500],
+            )
+            raise
 
         try:
             updated_ref = subprocess.run(
