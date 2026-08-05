@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:47:58.675310Z'
+updated_at: '2026-08-05T05:48:22.322296Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -275,12 +275,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 8d24fb7b411af40bb02292236368c727ecfdb0d0
-  updated_at: '2026-08-05T05:35:22.767815+00:00'
+  head_sha: 8d24fb7b411af40bb02292236368c727ecfdb0d0
+  submitted_at: '2026-08-05T05:48:17.617689+00:00'
+  updated_at: '2026-08-05T05:48:17.617689+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -965,5 +967,10 @@ Verification: Focused auth test suite passed: 178 tests in test_http_auth.py, te
 ✓ Authorization header redacted throughout
 ✓ Disabled deployments preserve current behavior exactly
 ✓ Startup wiring of credentials working correctly
+---
+author: oompah
+created: 2026-08-05 05:48
+---
+OOMPAH-523: Enforce Basic authentication across HTTP and WebSocket surfaces - Complete. ASGI middleware enforces Basic auth at the outermost boundary protecting dashboard, static assets, APIs, OpenAPI, and WebSocket surfaces. WebSocket auth is validated before accept() ensuring unauthenticated connections never register. Exact exemptions for GET /healthz (minimal health only), POST /api/v1/webhooks/github, and POST /api/v1/webhooks/gitlab preserve forge signature/token validation. Authorization headers are redacted throughout. 178 focused auth tests pass; disabled deployments retain current behavior exactly.
 ---
 <!-- COMMENTS:END -->
