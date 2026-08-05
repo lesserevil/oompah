@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T21:23:02.237865Z'
+updated_at: '2026-08-05T21:23:15.282945Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
@@ -70,8 +70,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9cca355f-357c-4f01-a103-1685fae57231
 oompah.task_costs:
-  total_input_tokens: 1071
-  total_output_tokens: 43853
+  total_input_tokens: 1085
+  total_output_tokens: 47569
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -83,8 +83,8 @@ oompah.task_costs:
       output_tokens: 41068
       cost_usd: 0.0
     unknown:
-      input_tokens: 3
-      output_tokens: 191
+      input_tokens: 17
+      output_tokens: 3907
       cost_usd: 0.0
   runs:
   - profile: default
@@ -111,6 +111,12 @@ oompah.task_costs:
     output_tokens: 191
     cost_usd: 0.0
     recorded_at: '2026-08-05T21:20:08.532506+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 14
+    output_tokens: 3716
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T21:23:12.383331+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-828__20260805T181810Z
@@ -190,8 +196,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-e2b51629d2e5
-    applied: false
+    applied: true
     created_at: '2026-08-05T21:22:58.580543+00:00'
+    applied_at: '2026-08-05T21:23:07.095738+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -536,5 +543,31 @@ author: oompah
 created: 2026-08-05 21:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 21:23
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: a5545b61a8db17a99655f81dfdafa7f5741c243c
+- merged_to_main: yes, PR #724
+- test_enforcement: 105 passed
+- test_neighboring: 193 passed (archived_audit_requests + done_merged_archived_lifecycle + terminal_transition_coordinator)
+- test_terminal_and_override: 66 passed
+- new_tests: 10 in test_terminal_audit_enforcement.py
+- branch_gate: make test passed in 632.9s (previous run)
+---
+author: oompah
+created: 2026-08-05 21:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 31, Tool calls: 17
+- Tokens: 14 in / 3.7K out [3.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 51s
+- Log: OOMPAH-828__20260805T212032Z.jsonl
 ---
 <!-- COMMENTS:END -->
