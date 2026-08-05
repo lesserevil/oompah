@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T15:56:19.710293Z'
+updated_at: '2026-08-05T15:59:13.777255Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-08-05 15:56
 ---
 Additional live worker reproduction (not only auditors): OOMPAH-523 run OOMPAH-523__20260805T141858Z requested approved `make test 2>&1 | tail -50` at 15:18:28, waited fairly for the validation lease, acquired it after OOMPAH-815 exact gate, ran PID 2028835/pytest 2029072, and released the lane around 15:54:03. No ACP tool_result was ever appended. In the same boundary the stall supervisor used 5,726s accumulated no-event age, terminated the otherwise healthy Sonnet worker, and escalated it to deep. Extend OOMPAH-810 acceptance to implementation-worker ACP run_command as well as terminal auditors: child exit/result_pending must suppress the generic stall decision until exactly one bounded result is delivered or a precise delivery timeout is persisted.
+---
+author: oompah
+created: 2026-08-05 15:59
+---
+Graph correction: removed the OOMPAH-768 hard-start. OOMPAH-523 proves this common ACP result-delivery race affects implementation workers required to complete 768, so keeping the repair behind 768 is circular operationally even though the tracker graph is acyclic. The transport/result_pending fix can coordinate with OOMPAH-781 durable replay without depending on the whole domain epic landing first.
 ---
 <!-- COMMENTS:END -->
