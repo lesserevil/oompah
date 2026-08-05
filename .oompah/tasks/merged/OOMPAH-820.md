@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T05:23:52.292414Z'
+updated_at: '2026-08-05T05:23:58.056358Z'
 work_branch: OOMPAH-820
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/717
@@ -76,8 +76,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-f6f065e8d0df
-    applied: false
+    applied: true
     created_at: '2026-08-05T05:23:48.900353+00:00'
+    applied_at: '2026-08-05T05:23:56.779155+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -307,5 +308,21 @@ author: oompah
 created: 2026-08-05 05:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 05:23
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- reviewed_head: f3b9f9bc5dad4cae876f081b45a6cece2eb72341
+- main_merge_commit: 8d24fb7b411af40bb02292236368c727ecfdb0d0
+- pr_number: 717
+- merge_ancestor_check: f3b9f9bc5 is ancestor of origin/main
+- focused_regressions: 6 passed in 3.56s
+- diff_stat: 10 files changed, 2753 insertions(+), 278 deletions(-)
+- prior_full_gate: 15428 passed, 7 skipped, 1 xfailed, 1 flaky failed (unrelated file) in 522.62s
 ---
 <!-- COMMENTS:END -->
