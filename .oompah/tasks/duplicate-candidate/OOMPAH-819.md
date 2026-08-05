@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-819
 type: bug
-status: Open
+status: Duplicate Candidate
 priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T04:52:53.574517Z'
+updated_at: '2026-08-05T04:54:12.129764Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -23,14 +23,22 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 6ace6d18079d04a236343266e1745edd4beb5c3ae6ad187f5e609d94a3ad5cc8
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
-  matched_identifiers: []
-  evidence: ''
-  claim_id: 1225b5df-7d21-41ea-99c8-bdb5d461d0bb
-  claim_owner: 4d963552-8ec1-4f4b-8986-7bc16090635b
-  claimed_at: '2026-08-05T04:52:15.649413+00:00'
-  claim_expires_at: '2026-08-05T05:22:15.649413+00:00'
+  verdict: duplicate_candidate
+  checked_at: '2026-08-05T04:54:02.168878+00:00'
+  matched_identifiers:
+  - OOMPAH-820
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: duplicate_candidate\n\
+    Matches: OOMPAH-820\nEvidence: OOMPAH-820 is active and explicitly implements\
+    \ the same exact-head review-generation fence, including the OOMPAH-818 regression\
+    \ and required concurrency/restart protections.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: duplicate_candidate  \nMatches: OOMPAH-820 \
+    \ \n\nEvidence: OOMPAH-820 is active and explicitly implements the same exact-head\
+    \ review-generation fence, including the OOMPAH-818 regression and required concurrency/restart\
+    \ protections."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -46,6 +54,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-768
   base_sha: eb5d206f2fc040698808130b2629a997c3c9b953
   updated_at: '2026-08-05T04:52:47.563755+00:00'
+oompah.task_costs:
+  total_input_tokens: 47589
+  total_output_tokens: 254
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 47589
+      output_tokens: 254
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 47589
+    output_tokens: 254
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T04:54:02.158626+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-819__20260805T045317Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-768--task-OOMPAH-819
+    source_sha: eb5d206f2fc040698808130b2629a997c3c9b953
+    completed_at: '2026-08-05T04:54:02.205638+00:00'
 ---
 ## Summary
 
@@ -92,5 +126,15 @@ author: oompah
 created: 2026-08-05 04:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 04:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 47.6K in / 254 out [47.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-819__20260805T045317Z.jsonl
 ---
 <!-- COMMENTS:END -->
