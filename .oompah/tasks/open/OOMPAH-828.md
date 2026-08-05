@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-828
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Treat applied Archived audit results as final lifecycle no-ops
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T13:24:20.492002Z'
+updated_at: '2026-08-05T13:24:33.231221Z'
 work_branch: null
 target_branch: null
 review_url: null

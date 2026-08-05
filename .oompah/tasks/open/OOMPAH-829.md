@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-829
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Migrate legacy equivalent Done-override fingerprints for structural maintenance
   tasks
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T13:24:24.014858Z'
+updated_at: '2026-08-05T13:24:36.362569Z'
 work_branch: null
 target_branch: null
 review_url: null
