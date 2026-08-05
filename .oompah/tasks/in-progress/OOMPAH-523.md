@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T14:18:29.823915Z'
+updated_at: '2026-08-05T14:18:55.348964Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -287,57 +287,12 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 2
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
-  base_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
-  head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
-  submitted_at: '2026-08-05T06:19:42.751016+00:00'
-  updated_at: '2026-08-05T06:21:37.040124+00:00'
-  last_error: "Combined-tree quality gate failed: D tests/test_bench_server.py::TestPercentile::test_identical_values\
-    \ \ntests/test_bench_server.py::TestRouteResult::test_empty_result \n[gw3] [ \
-    \ 9%] PASSED tests/test_bench_server.py::TestRouteResult::test_empty_result \n\
-    tests/test_bench_server.py::TestRouteResult::test_count \n[gw3] [  9%] PASSED\
-    \ tests/test_bench_server.py::TestRouteResult::test_count \ntests/test_bench_server.py::TestRouteResult::test_mean\
-    \ \n[gw3] [  9%] PASSED tests/test_bench_server.py::TestRouteResult::test_mean\
-    \ \ntests/test_bench_server.py::TestRouteResult::test_p50_delegates_to_percentile\
-    \ \n[gw3] [  9%] PASSED tests/test_bench_server.py::TestRouteResult::test_p50_delegates_to_percentile\
-    \ \ntests/test_bench_server.py::TestRouteResult::test_p99_high_latency \n[gw3]\
-    \ [  9%] PASSED tests/test_bench_server.py::TestRouteResult::test_p99_high_latency\
-    \ \ntests/test_bench_server.py::TestRouteResult::test_to_dict_keys \n[gw3] [ \
-    \ 9%] PASSED tests/test_bench_server.py::TestRouteResult::test_to_dict_keys \n\
-    tests/test_bench_server.py::TestRouteResult::test_to_dict_values_rounded \n[gw3]\
-    \ [  9%] PASSED tests/test_bench_server.py::TestRouteResult::test_to_dict_values_rounded\
-    \ \ntests/test_bench_server.py::TestRouteResult::test_error_count_tracked \n[gw3]\
-    \ [  9%] PASSED tests/test_bench_server.py::TestRouteResult::test_error_count_tracked\
-    \ \ntests/test_bench_server.py::TestArgParser::test_defaults \n[gw3] [  9%] PASSED\
-    \ tests/test_bench_server.py::TestArgParser::test_defaults \ntests/test_bench_server.py::TestArgParser::test_custom_url\
-    \ \n[gw3] [  9%] PASSED tests/test_bench_server.py::TestArgParser::test_custom_url\
-    \ \ntests/test_bench_server.py::TestArgParser::test_short_flags \n[gw3] [  9%]\
-    \ PASSED tests/test_bench_server.py::TestArgParser::test_short_flags \ntests/test_bench_server.py::TestArgParser::test_json_flag\
-    \ \n[gw3] [  9%] PASSED tests/test_bench_server.py::TestArgParser::test_json_flag\
-    \ \ntests/test_bench_server.py::TestArgParser::test_missing_required_defaults\
-    \ \n[gw3] [  9%] PASSED tests/test_bench_server.py::TestArgParser::test_missing_required_defaults\
-    \ \ntests/test_bench_server.py::TestRoutes::test_routes_is_list_of_tuples \n[gw3]\
-    \ [  9%] PASSED tests/test_bench_server.py::TestRoutes::test_routes_is_list_of_tuples\
-    \ \ntests/test_bench_server.py::TestRoutes::test_favicon_is_first_route \n[gw3]\
-    \ [  9%] PASSED tests/test_bench_server.py::TestRoutes::test_favicon_is_first_route\
-    \ \ntests/test_bench_server.py::TestRoutes::test_all_paths_start_with_slash \n\
-    [gw3] [  9%] PASSED tests/test_bench_server.py::TestRoutes::test_all_paths_start_with_slash\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_explicit_zero_cost_returns_true\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_explicit_zero_cost_returns_true\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_paid_model_returns_false\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_paid_model_returns_false\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_missing_from_model_costs_returns_false\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_missing_from_model_costs_returns_false\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_empty_string_model_returns_false\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_empty_string_model_returns_false\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_input_nonzero_returns_false\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_input_nonzero_returns_false\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_nonzero_returns_false\
-    \ \n[gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_nonzero_returns_false\
-    \ \ntests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_free_model_returns_truthy_model_name "
+  base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
+  updated_at: '2026-08-05T14:18:49.420499+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1233,5 +1188,15 @@ tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_
 [gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_nonzero_returns_false 
 tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_free_model_returns_truthy_model_name 
 ```
+---
+author: oompah
+created: 2026-08-05 14:18
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-05 14:18
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

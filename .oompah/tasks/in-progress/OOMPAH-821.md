@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T09:32:32.380002Z'
+updated_at: '2026-08-05T14:19:02.637912Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bffee147-af98-4524-bc20-3c2a67aceb8b
+oompah.agent_run_id: d66550fa-95f2-4f1d-a19e-6b5ce71bcdf8
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2

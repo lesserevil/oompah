@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T00:02:01.485244Z'
+updated_at: '2026-08-05T14:18:59.298524Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a4884efc-7acb-465b-9568-22430c7d1458
+oompah.agent_run_id: 3742bafd-564c-44b5-9dd0-8193112b22e2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-807
 oompah.integration:
   version: 2
@@ -242,5 +242,10 @@ author: oompah
 created: 2026-08-04 23:58
 ---
 Coordination correction: the server had begun a repair worker just before the direct claim, but OOMPAH-814 was not yet landed so an exact rebase could not succeed. The OOMPAH-814 edge is now hard-start (implementation truly requires its landed head), and the direct claim is released. Once 814 is Done, the server may naturally dispatch this rebase/resubmission; claim directly only if that handoff then fails.
+---
+author: oompah
+created: 2026-08-05 14:18
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
