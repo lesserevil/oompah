@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T02:07:46.928611Z'
+updated_at: '2026-08-05T02:08:56.701148Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -103,6 +103,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/716
 oompah.review_number: '716'
 oompah.work_branch: OOMPAH-818
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1fa98e0837dc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b2e72bc0edbdd052300d08a0113d201fc45c715729cf7094832ff5627073e5a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-05T02:08:44.848271+00:00'
+  - version: 1
+    audit_id: audit-e11e517bde76
+    project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b2e72bc0edbdd052300d08a0113d201fc45c715729cf7094832ff5627073e5a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-05T02:08:44.848271+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -192,5 +231,15 @@ author: oompah
 created: 2026-08-05 02:00
 ---
 Branch quality gate passed for `f361f5dfe831ff336f961aa27b7d0598cb1f45a0` using `make test` in 439.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 02:08
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 02:08
+---
+YOLO: merged PR #716.
 ---
 <!-- COMMENTS:END -->
