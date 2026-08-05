@@ -188,6 +188,18 @@ class StalledTaskDecision:
         watchdog_run_id:    Monotonic run counter for correlation.
         already_actioned:   True if the watchdog already acted on this task in
                             a prior run and nothing has changed since.
+        evidence_head:      The exact accepted-head SHA the evidence refers
+                            to.  Recorded so a race between the authoritative
+                            gate and the watchdog cannot report a decision on
+                            a stale head without leaving a durable trace.
+        evidence_result:    The authoritative combined-tree gate verdict
+                            observed for that head (``passed``, ``failed``,
+                            ``needs_rebase``, ``interrupted``, etc.).  Empty
+                            when no authoritative outcome was consulted.
+        evidence_generation: Compare-and-set generation captured with the
+                            authoritative evidence.  A gate completion or
+                            integration-row transition that changes this
+                            token invalidates the classification.
     """
 
     task_id: str
@@ -199,6 +211,9 @@ class StalledTaskDecision:
     comment_posted: bool = False
     watchdog_run_id: int = 0
     already_actioned: bool = False
+    evidence_head: str = ""
+    evidence_result: str = ""
+    evidence_generation: str = ""
 
 
 @dataclass(frozen=True)
@@ -212,11 +227,15 @@ class WatchdogEvidence:
     false.  In particular, a provider exception is represented explicitly in
     ``provider`` instead of being inferred from an empty review list.
 
-    ``integration`` carries the current internal integration record for the
-    task (``oompah.integration`` metadata).  This is authoritative internal
-    gate authority: when the integration record shows ``state='blocked'`` at
-    a specific head, the watchdog must not override that gate verdict on the
-    strength of generic forge CI signals alone.  See OOMPAH-806.
+    ``gate`` carries the latest authoritative combined-tree quality-gate
+    outcome (head, status, generation, verdict).  It dominates the softer
+    ``ci`` signal so a newer failing result cannot be overridden by an older
+    focused/passing SCM check.  ``integration`` exposes the tracker's
+    integration record (accepted head, task branch, integration state,
+    authority generation) so the classifier can require exact accepted-head
+    and branch identity before recommending an automatic reopen.  A blocked
+    integration record remains authoritative over generic forge CI unless a
+    newer branch head or stronger terminal evidence supersedes it.
     """
 
     review: Any | None = None
@@ -225,6 +244,7 @@ class WatchdogEvidence:
     ci: Any | None = None
     provider: Any | None = None
     issue: Any | None = None
+    gate: Any | None = None
     integration: Any | None = None
     errors: tuple[str, ...] = ()
 
@@ -290,6 +310,9 @@ class WatchdogAuditResult:
                     "evidence": d.evidence[:200],
                     "comment_posted": d.comment_posted,
                     "already_actioned": d.already_actioned,
+                    "evidence_head": d.evidence_head,
+                    "evidence_result": d.evidence_result,
+                    "evidence_generation": d.evidence_generation,
                 }
                 for d in self.decisions
             ],
@@ -537,23 +560,31 @@ def _normalise_watchdog_evidence(evidence: Any) -> WatchdogEvidence:
             )
             if key in mapping
         }
+    gate = mapping.get("gate") or mapping.get("quality_gate")
+    if gate is None:
+        gate = {
+            key: mapping[key]
+            for key in (
+                "gate_status", "gate_head_sha", "gate_verdict",
+                "gate_generation", "gate_owner", "gate_completed_at",
+            )
+            if key in mapping
+        } or None
     integration = (
         mapping.get("integration")
         or mapping.get("oompah.integration")
         or mapping.get("integration_record")
     )
     if integration is None:
-        # Fall back to a shallow snapshot when tests supply flat fields.
         integration = {
             key: mapping[key]
             for key in (
-                "integration_state", "integration_head_sha",
-                "integration_task_branch", "integration_updated_at",
-                "integration_last_error",
+                "accepted_head_sha", "integration_head_sha", "integration_state",
+                "task_branch", "integration_task_branch", "authority_generation",
+                "integrated_sha", "integration_updated_at", "integration_last_error",
             )
             if key in mapping
-        }
-        integration = integration or None
+        } or None
     return WatchdogEvidence(
         review=review,
         branch=branch,
@@ -561,11 +592,30 @@ def _normalise_watchdog_evidence(evidence: Any) -> WatchdogEvidence:
         ci=mapping.get("ci") or mapping.get("ci_status"),
         provider=provider,
         issue=mapping.get("issue") or mapping.get("tracker"),
+        gate=gate,
         integration=integration,
         errors=tuple(
             str(error) for error in (mapping.get("errors") or ()) if str(error)
         ),
     )
+
+
+def _normalise_head(value: Any) -> str:
+    """Return a lowercase hex SHA fragment, or empty string."""
+    text = str(value or "").strip().lower()
+    return text if text else ""
+
+
+_PASSING_STATUSES: frozenset[str] = frozenset(
+    {"passed", "pass", "green", "success", "successful", "not_configured"}
+)
+_FAILING_STATUSES: frozenset[str] = frozenset(
+    {
+        "failed", "fail", "failure", "red", "error", "errored",
+        "ci_failure", "needs_rebase", "timed_out", "timeout", "interrupted",
+        "infrastructure_error",
+    }
+)
 
 
 def _evidence_signals(evidence: Any) -> dict[str, Any]:
@@ -577,6 +627,7 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
     ci = _as_mapping(envelope.ci)
     provider = _as_mapping(envelope.provider)
     issue = _as_mapping(envelope.issue)
+    gate = _as_mapping(envelope.gate)
     integration = _as_mapping(envelope.integration)
 
     if isinstance(envelope.ci, str):
@@ -645,28 +696,76 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
         _first_value(branch, provider, keys=("scm_state", "resolution", "state"))
     )
 
+    # Exact-head evidence: the accepted head the tracker considers current,
+    # the branch head the SCM reports, and the head the authoritative
+    # combined-tree quality gate was actually run against.  Comparing these
+    # three catches the OOMPAH-814 regression where a passing focused/SCM
+    # signal was reported after the authoritative gate had already failed
+    # on the exact same accepted head.
+    accepted_head_sha = _normalise_head(
+        _first_value(
+            integration,
+            issue,
+            gate,
+            keys=(
+                "accepted_head_sha", "head_sha", "submitted_head_sha",
+                "integration_head_sha", "rebased_head_sha",
+            ),
+        )
+    )
+    branch_head_sha = _normalise_head(
+        _first_value(
+            branch,
+            review,
+            issue,
+            keys=(
+                "head_sha", "branch_head_sha", "branch_head", "review_head",
+                "sha", "commit",
+            ),
+        )
+    )
+    gate_head_sha = _normalise_head(
+        _first_value(gate, keys=("head_sha", "expected_head_sha", "gate_head_sha"))
+    )
+    gate_status = _string_signal(
+        _first_value(gate, keys=("status", "gate_status", "verdict", "result"))
+    )
+    gate_verdict = _string_signal(
+        _first_value(gate, keys=("verdict", "gate_verdict"))
+    )
+    gate_generation = str(
+        _first_value(
+            gate,
+            integration,
+            keys=(
+                "generation", "gate_generation", "authority_generation",
+                "cas_generation",
+            ),
+        )
+        or ""
+    ).strip()
     integration_state = _string_signal(
         _first_value(integration, keys=("state", "integration_state"))
     )
-    integration_head_raw = _first_value(
-        integration,
-        keys=("head_sha", "integration_head_sha", "rebased_head_sha"),
-    )
-    integration_head_sha = (
-        str(integration_head_raw).strip().lower() if integration_head_raw else ""
-    )
-    integration_task_branch = _first_value(
-        integration,
-        keys=("task_branch", "integration_task_branch", "branch"),
-    )
-    branch_head_raw = _first_value(
-        branch,
-        review,
-        issue,
-        keys=("head_sha", "branch_head", "review_head", "commit"),
-    )
-    branch_head_sha = (
-        str(branch_head_raw).strip().lower() if branch_head_raw else ""
+    integration_task_branch = str(
+        _first_value(
+            integration,
+            issue,
+            keys=(
+                "task_branch", "integration_task_branch", "work_branch",
+                "branch_name", "branch",
+            ),
+        )
+        or ""
+    ).strip()
+    integration_head_sha = _normalise_head(
+        _first_value(
+            integration,
+            keys=(
+                "head_sha", "accepted_head_sha", "integration_head_sha",
+                "rebased_head_sha",
+            ),
+        )
     )
     integration_last_error = _first_value(
         integration,
@@ -691,18 +790,21 @@ def _evidence_signals(evidence: Any) -> dict[str, Any]:
         "scm_state": scm_state,
         "errors": envelope.errors,
         "review": review,
+        "accepted_head_sha": accepted_head_sha,
+        "branch_head_sha": branch_head_sha,
+        "gate_head_sha": gate_head_sha,
+        "gate_status": gate_status,
+        "gate_verdict": gate_verdict,
+        "gate_generation": gate_generation,
         "integration_state": integration_state,
         "integration_head_sha": integration_head_sha,
-        "integration_task_branch": (
-            str(integration_task_branch).strip() if integration_task_branch else ""
-        ),
+        "integration_task_branch": integration_task_branch,
         "integration_last_error": (
             str(integration_last_error).strip() if integration_last_error else ""
         ),
         "integration_updated_at": (
             str(integration_updated_at).strip() if integration_updated_at else ""
         ),
-        "branch_head_sha": branch_head_sha,
     }
 
 
@@ -757,6 +859,13 @@ def _blocked_gate_authority_decision(
     branch_head_sha = signals.get("branch_head_sha") or ""
     if integration_state != "blocked" or not integration_head_sha:
         return None
+    gate_head_sha = signals.get("gate_head_sha") or ""
+    gate_status = signals.get("gate_status") or ""
+    if gate_head_sha == integration_head_sha and gate_status in _PASSING_STATUSES:
+        # A newer authoritative pass for the exact accepted head supersedes
+        # the older blocked tracker projection.  The positive path below
+        # records that exact result and generation in the reopen decision.
+        return None
     # A newer pushed head is authoritative repair evidence.  Treat identical
     # heads or unknown branch heads as still-blocked to keep the internal
     # gate authoritative.
@@ -792,21 +901,53 @@ def _current_evidence_decision(
 ) -> StalledTaskDecision | None:
     """Return a decision from authoritative current evidence, if decisive.
 
-    An internal integration record in ``blocked`` state at the current head
-    is the authoritative internal gate verdict and outranks generic forge CI.
-    A watchdog reopen against that verdict would discard authoritative repair
-    evidence and cancel the corresponding integration generation — see
-    OOMPAH-793/OOMPAH-806.  For NEEDS_CI_FIX and NEEDS_REBASE we therefore
-    refuse to act while the blocked internal record is still current.  Only a
-    newer pushed branch head, an explicit same-generation retry, or authoritative
-    repair evidence (merged/audit-verdict pass) may override the block; those
-    signals are handled by the merge/audit branches below and by resubmission,
-    not by this classifier.
+    Ordering here is important.  The authoritative combined-tree gate result
+    for the exact accepted head dominates every softer signal: a newer
+    failing result must never be overridden by an older focused or SCM CI
+    verdict.  For :data:`NEEDS_CI_FIX` and :data:`NEEDS_REBASE` we also
+    require the current branch head to differ from the failing accepted head
+    (positive evidence that a repair was pushed) before treating a passing
+    SCM signal as safe.  When no exact gate outcome exists, merged/audited/on-
+    target evidence may supersede a blocked tracker integration record, but
+    that blocked record still dominates generic CI at the same or unknown head.
     """
     if evidence is None:
         return None
     signals = _evidence_signals(evidence)
     details: list[str] = []
+    canonical = canonicalize_status(stalled_status)
+
+    accepted_head = signals["accepted_head_sha"]
+    branch_head = signals["branch_head_sha"]
+    gate_head = signals["gate_head_sha"]
+    gate_status = signals["gate_status"]
+    gate_generation = signals["gate_generation"]
+
+    # Authoritative gate result at the exact accepted head dominates before
+    # any softer merge/audit/branch signal has a chance to reopen a task.
+    if canonical in {NEEDS_CI_FIX, NEEDS_REBASE} and gate_head and gate_status:
+        matches_accepted = (not accepted_head) or gate_head == accepted_head
+        branch_has_not_advanced = not branch_head or branch_head == accepted_head
+        if (
+            matches_accepted
+            and gate_status in _FAILING_STATUSES
+            and branch_has_not_advanced
+        ):
+            return StalledTaskDecision(
+                task_id, project_id, stalled_status,
+                "insufficient_evidence", "none",
+                (
+                    f"authoritative combined-tree gate at exact accepted head "
+                    f"{gate_head[:12]} is {gate_status}; a newer failing "
+                    "result dominates older focused/SCM passing evidence and "
+                    "the task must remain in "
+                    f"{canonical} for repair."
+                ),
+                watchdog_run_id=run_id,
+                evidence_head=gate_head,
+                evidence_result=gate_status,
+                evidence_generation=gate_generation,
+            )
 
     if signals["merged"]:
         review_id = signals["review"].get("id") or signals["review"].get("number")
@@ -818,18 +959,27 @@ def _current_evidence_decision(
         return StalledTaskDecision(
             task_id, project_id, stalled_status, "actionable", "reopen", detail,
             watchdog_run_id=run_id,
+            evidence_head=accepted_head or branch_head,
+            evidence_result="merged",
+            evidence_generation=gate_generation,
         )
     if signals["audit_verdict"] in {"pass", "passed", "success", "successful"}:
         return StalledTaskDecision(
             task_id, project_id, stalled_status, "actionable", "reopen",
             "current terminal-audit evidence passed; the stalled handoff is superseded.",
             watchdog_run_id=run_id,
+            evidence_head=accepted_head or branch_head,
+            evidence_result="audit_passed",
+            evidence_generation=gate_generation,
         )
     if signals["branch_on_target"] is True:
         return StalledTaskDecision(
             task_id, project_id, stalled_status, "actionable", "reopen",
             "current branch evidence shows the implementation head is on the canonical target.",
             watchdog_run_id=run_id,
+            evidence_head=accepted_head or branch_head,
+            evidence_result="on_canonical_target",
+            evidence_generation=gate_generation,
         )
 
     technical_failures = {
@@ -859,9 +1009,11 @@ def _current_evidence_decision(
             "Current technical evidence requires machine/operator repair; "
             + "; ".join(details),
             watchdog_run_id=run_id,
+            evidence_head=accepted_head or branch_head,
+            evidence_result="technical_blocker",
+            evidence_generation=gate_generation,
         )
 
-    canonical = canonicalize_status(stalled_status)
     block_decision = _blocked_gate_authority_decision(
         task_id,
         stalled_status,
@@ -871,23 +1023,115 @@ def _current_evidence_decision(
     )
     if block_decision is not None:
         return block_decision
-    if canonical == NEEDS_CI_FIX and signals["ci_status"] in {
-        "passed", "pass", "green", "success", "successful"
-    }:
-        return StalledTaskDecision(
-            task_id, project_id, stalled_status, "actionable", "reopen",
-            "current CI evidence is passing; safe to reopen the stalled task.",
-            watchdog_run_id=run_id,
-        )
-    if canonical == NEEDS_REBASE and (
-        signals["ci_status"] in {"passed", "pass", "green", "success", "successful"}
-        or (signals["branch_exists"] is True and signals["scm_state"] in {"clean", "resolved"})
-    ):
-        return StalledTaskDecision(
-            task_id, project_id, stalled_status, "actionable", "reopen",
-            "current SCM evidence shows the stalled branch/rebase condition is resolved.",
-            watchdog_run_id=run_id,
-        )
+    if canonical == NEEDS_CI_FIX:
+        # Positive path: an authoritative gate at the exact accepted head
+        # has already passed.  Reopen and record the exact evidence.
+        if (
+            gate_head
+            and gate_status in _PASSING_STATUSES
+            and (not accepted_head or gate_head == accepted_head)
+        ):
+            return StalledTaskDecision(
+                task_id, project_id, stalled_status, "actionable", "reopen",
+                (
+                    f"authoritative combined-tree gate passed at exact "
+                    f"accepted head {gate_head[:12]}; safe to reopen the "
+                    "stalled task."
+                ),
+                watchdog_run_id=run_id,
+                evidence_head=gate_head,
+                evidence_result=gate_status,
+                evidence_generation=gate_generation,
+            )
+        # Compatibility path: no authoritative gate outcome is available.
+        # A passing SCM/CI signal alone can only be trusted when it applies
+        # to an exact head that is distinct from the failing accepted head
+        # (positive evidence that a repair was actually pushed).  Refusing
+        # to reopen without that evidence is the OOMPAH-818 fence.
+        if signals["ci_status"] in _PASSING_STATUSES:
+            if accepted_head and branch_head:
+                if branch_head == accepted_head:
+                    return StalledTaskDecision(
+                        task_id, project_id, stalled_status,
+                        "insufficient_evidence", "none",
+                        (
+                            "SCM CI reports passing at the same accepted head "
+                            f"{accepted_head[:12]} that failed the combined-tree "
+                            "gate.  No repair has been pushed, so the stalled "
+                            "task must remain in Needs CI Fix until the "
+                            "accepted head advances and the exact-head gate "
+                            "reruns."
+                        ),
+                        watchdog_run_id=run_id,
+                        evidence_head=accepted_head,
+                        evidence_result="ci_status_stale_at_accepted_head",
+                        evidence_generation=gate_generation,
+                    )
+                return StalledTaskDecision(
+                    task_id, project_id, stalled_status, "actionable", "reopen",
+                    (
+                        f"current CI evidence is passing at branch head "
+                        f"{branch_head[:12]} (repair advanced past accepted "
+                        f"head {accepted_head[:12]}); safe to reopen."
+                    ),
+                    watchdog_run_id=run_id,
+                    evidence_head=branch_head,
+                    evidence_result="ci_passing_at_advanced_head",
+                    evidence_generation=gate_generation,
+                )
+            # No accepted-head evidence at all: legacy compatibility.
+            return StalledTaskDecision(
+                task_id, project_id, stalled_status, "actionable", "reopen",
+                "current CI evidence is passing; safe to reopen the stalled task.",
+                watchdog_run_id=run_id,
+                evidence_head=branch_head or accepted_head,
+                evidence_result="ci_passing",
+                evidence_generation=gate_generation,
+            )
+    if canonical == NEEDS_REBASE:
+        if (
+            gate_head
+            and gate_status in _PASSING_STATUSES
+            and (not accepted_head or gate_head == accepted_head)
+        ):
+            return StalledTaskDecision(
+                task_id, project_id, stalled_status, "actionable", "reopen",
+                (
+                    f"authoritative combined-tree gate passed at exact "
+                    f"accepted head {gate_head[:12]}; safe to reopen the "
+                    "stalled rebase task."
+                ),
+                watchdog_run_id=run_id,
+                evidence_head=gate_head,
+                evidence_result=gate_status,
+                evidence_generation=gate_generation,
+            )
+        if (
+            signals["ci_status"] in _PASSING_STATUSES
+            or (signals["branch_exists"] is True and signals["scm_state"] in {"clean", "resolved"})
+        ):
+            if accepted_head and branch_head and branch_head == accepted_head:
+                return StalledTaskDecision(
+                    task_id, project_id, stalled_status,
+                    "insufficient_evidence", "none",
+                    (
+                        "SCM CI/branch signal is at the same accepted head "
+                        f"{accepted_head[:12]} that failed the combined-tree "
+                        "gate.  No rebase/repair has been pushed."
+                    ),
+                    watchdog_run_id=run_id,
+                    evidence_head=accepted_head,
+                    evidence_result="ci_status_stale_at_accepted_head",
+                    evidence_generation=gate_generation,
+                )
+            return StalledTaskDecision(
+                task_id, project_id, stalled_status, "actionable", "reopen",
+                "current SCM evidence shows the stalled branch/rebase condition is resolved.",
+                watchdog_run_id=run_id,
+                evidence_head=branch_head or accepted_head,
+                evidence_result="rebase_resolved",
+                evidence_generation=gate_generation,
+            )
     return None
 
 
@@ -1019,6 +1263,20 @@ def classify_stalled_task(
         project_id=project_id,
         run_id=run_id,
     )
+    fallback_signals = (
+        _evidence_signals(supplied_evidence)
+        if supplied_evidence is not None
+        else {}
+    )
+    fallback_head = str(
+        fallback_signals.get("branch_head_sha")
+        or fallback_signals.get("accepted_head_sha")
+        or fallback_signals.get("gate_head_sha")
+        or ""
+    ).strip()
+    fallback_generation = str(
+        fallback_signals.get("gate_generation") or ""
+    ).strip()
 
     # ---- Idempotency check -----------------------------------------------
     last_wc = _last_watchdog_comment(ordered)
@@ -1152,6 +1410,9 @@ def classify_stalled_task(
                         "safe to reopen for dispatch."
                     ),
                     watchdog_run_id=run_id,
+                    evidence_head=fallback_head,
+                    evidence_result="comment_ci_passing",
+                    evidence_generation=fallback_generation,
                 )
         return StalledTaskDecision(
             task_id=task_id,
@@ -1193,6 +1454,9 @@ def classify_stalled_task(
                         "safe to reopen."
                     ),
                     watchdog_run_id=run_id,
+                    evidence_head=fallback_head,
+                    evidence_result="comment_rebase_resolved",
+                    evidence_generation=fallback_generation,
                 )
         return StalledTaskDecision(
             task_id=task_id,
@@ -1246,7 +1510,13 @@ def classify_stalled_task(
 
 
 def build_watchdog_comment(decision: StalledTaskDecision) -> str:
-    """Return the oompah-authored comment to post when taking an action."""
+    """Return the oompah-authored comment to post when taking an action.
+
+    The exact-head SHA, authoritative result, and compare-and-set generation
+    are surfaced so an operator (and any downstream event consumer) can tell
+    at a glance which authoritative result the watchdog acted on.  A blank
+    field is elided rather than rendered as ``none``.
+    """
     lines = [
         f"{WATCHDOG_COMMENT_MARKER} Stalled-task watchdog audit (run #{decision.watchdog_run_id})",
         "",
@@ -1254,10 +1524,18 @@ def build_watchdog_comment(decision: StalledTaskDecision) -> str:
         f"**Classification:** `{decision.classification}`",
         f"**Action:** `{decision.action}`",
         f"**Evidence:** {decision.evidence}",
+    ]
+    if decision.evidence_head:
+        lines.append(f"**Evidence head:** `{decision.evidence_head}`")
+    if decision.evidence_result:
+        lines.append(f"**Evidence result:** `{decision.evidence_result}`")
+    if decision.evidence_generation:
+        lines.append(f"**Evidence generation:** `{decision.evidence_generation}`")
+    lines.extend([
         "",
         "*This comment is posted automatically by the oompah stalled-task watchdog. "
         "No human action required unless the classification above is incorrect.*",
-    ]
+    ])
     return "\n".join(lines)
 
 
@@ -1321,6 +1599,7 @@ def run_watchdog_audit(
         [str | None, Any, Any, StalledTaskDecision, str], bool
     ]
     | None = None,
+    reopen_executor: Callable[..., bool] | None = None,
 ) -> WatchdogAuditResult:
     """Run a full stalled-task watchdog audit across all projects.
 
@@ -1343,6 +1622,11 @@ def run_watchdog_audit(
             decision, requested_status)`` and returns whether a generation-
             fenced transition committed.  The audit fails closed when no
             boundary is supplied; it never writes tracker status directly.
+        reopen_executor: Optional authoritative callback for a reopen. It
+            receives ``(project_id, issue, tracker, decision, comment_body)``
+            and must perform the final evidence CAS, comment, and status write
+            as one fenced action. ``False`` means authority changed and the
+            action was safely skipped.
 
     Returns:
         A :class:`WatchdogAuditResult` with full audit telemetry.
@@ -1470,6 +1754,43 @@ def run_watchdog_audit(
                     msg = f"Failed to post watchdog comment on {identifier}: {exc}"
                     logger.warning(msg)
                     result.errors.append(msg)
+
+            if decision.action == "reopen" and reopen_executor is not None:
+                try:
+                    executed = bool(
+                        reopen_executor(
+                            project_id,
+                            issue,
+                            tracker,
+                            decision,
+                            comment_body,
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail closed per task
+                    msg = (
+                        f"Failed authoritative watchdog reopen for {identifier}: "
+                        f"{exc}"
+                    )
+                    logger.warning(msg)
+                    result.errors.append(msg)
+                    continue
+                if executed:
+                    logger.info(
+                        "Watchdog authoritatively reopened %s (project=%s) — %s",
+                        identifier,
+                        project_id,
+                        decision.evidence,
+                    )
+                    result.actions_taken += 1
+                else:
+                    logger.info(
+                        "Watchdog skipped stale reopen for %s (project=%s): "
+                        "evidence generation changed before action",
+                        identifier,
+                        project_id,
+                    )
+                    result.actions_skipped += 1
+                continue
 
             # A rejected reopen must not leave an "already actioned" marker
             # that suppresses a later valid generation.  TaskTransitionService

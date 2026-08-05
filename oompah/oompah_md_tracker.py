@@ -980,6 +980,7 @@ class OompahMarkdownTracker:
                 "target_branch",
                 "review_url",
                 "review_number",
+                "review_head",
                 "merged_at",
             }
             # Review reconciliation calls this method on every poll.  A

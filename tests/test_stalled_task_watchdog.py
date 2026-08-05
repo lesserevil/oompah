@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 import os
@@ -43,6 +44,8 @@ from oompah.stalled_task_watchdog import (
     classify_stalled_task,
     is_stalled_status,
     run_watchdog_audit as _run_watchdog_audit_without_transition,
+    _evidence_signals,
+    _tracker_issue_evidence,
 )
 from oompah.integration import IntegrationRecord
 from oompah.task_transition_service import (
@@ -485,6 +488,51 @@ class TestRunWatchdogAuditSafeReopen:
 
         assert result.actions_taken == 0
         assert any("no task transition service" in error for error in result.errors)
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    def test_authoritative_executor_precedes_transition_fallback(self):
+        issue = _make_issue("T-100", NEEDS_HUMAN)
+        tracker = _make_tracker(
+            [issue],
+            {"T-100": [_comment("oompah", "Implementation completed and pushed.")]},
+        )
+        executor = MagicMock(return_value=True)
+        transitioner = MagicMock(return_value=True)
+
+        result = _run_watchdog_audit_without_transition(
+            [(None, tracker)],
+            run_id=100,
+            reopen_executor=executor,
+            status_transitioner=transitioner,
+        )
+
+        assert result.actions_taken == 1
+        executor.assert_called_once()
+        transitioner.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    def test_stale_authoritative_executor_leaves_no_sentinel_or_fallback_write(self):
+        issue = _make_issue("T-101", NEEDS_HUMAN)
+        tracker = _make_tracker(
+            [issue],
+            {"T-101": [_comment("oompah", "Implementation completed and pushed.")]},
+        )
+        executor = MagicMock(return_value=False)
+        transitioner = MagicMock(return_value=True)
+
+        result = _run_watchdog_audit_without_transition(
+            [(None, tracker)],
+            run_id=101,
+            reopen_executor=executor,
+            status_transitioner=transitioner,
+        )
+
+        assert result.actions_taken == 0
+        assert result.actions_skipped == 1
+        executor.assert_called_once()
+        transitioner.assert_not_called()
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
 
@@ -1185,6 +1233,79 @@ class TestInternalGateAuthorityPrecedence:
         assert decision.classification == "actionable"
         assert decision.action == "reopen"
 
+    def test_exact_failing_gate_dominates_merged_review(self):
+        """A current exact-head failure outranks softer merged-review evidence."""
+        head = "a" * 40
+        decision = classify_stalled_task(
+            "T-806-6b",
+            NEEDS_CI_FIX,
+            [],
+            current_evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": head,
+                    "task_branch": "T-806-6b",
+                },
+                "gate": {
+                    "head_sha": head,
+                    "status": "failed",
+                    "generation": "integration-queue-v1:current",
+                },
+                "branch": {"head_sha": head},
+                "review": {"state": "merged"},
+            },
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_head == head
+        assert decision.evidence_result == "failed"
+
+    def test_tracker_metadata_integration_wins_and_gate_fields_survive(self):
+        stale_head = "a" * 40
+        current_head = "b" * 40
+        issue = Issue(
+            id="T-806-metadata",
+            identifier="T-806-metadata",
+            title="metadata authority",
+            state=NEEDS_CI_FIX,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="stale-branch",
+                head_sha=stale_head,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            "oompah.integration": {
+                "state": "blocked",
+                "head_sha": current_head,
+                "task_branch": "current-branch",
+                "last_error": "exact combined-tree failure",
+                "updated_at": "2026-08-05T00:00:00+00:00",
+            }
+        }
+
+        tracker_evidence = _tracker_issue_evidence(tracker, issue)
+        signals = _evidence_signals(
+            {
+                **tracker_evidence.__dict__,
+                "gate": {
+                    "head_sha": current_head,
+                    "status": "failed",
+                    "generation": "integration-queue-v1:metadata",
+                },
+            }
+        )
+
+        assert signals["accepted_head_sha"] == current_head
+        assert signals["integration_head_sha"] == current_head
+        assert signals["integration_task_branch"] == "current-branch"
+        assert signals["integration_last_error"] == "exact combined-tree failure"
+        assert signals["integration_updated_at"] == "2026-08-05T00:00:00+00:00"
+        assert signals["gate_head_sha"] == current_head
+        assert signals["gate_status"] == "failed"
+        assert signals["gate_generation"] == "integration-queue-v1:metadata"
+
     def test_audit_verdict_pass_still_overrides_blocked_record(self):
         decision = classify_stalled_task(
             "T-806-7",
@@ -1429,6 +1550,1222 @@ class TestInternalGateAuthorityPrecedence:
             orch.workflow_job_store.close()
             orch._tick_pool.shutdown(wait=True, cancel_futures=True)
             orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
+# ---------------------------------------------------------------------------
+# OOMPAH-818: Fence stalled-task reopen against exact failing gate evidence
+# ---------------------------------------------------------------------------
+
+
+_OOMPAH_814_HEAD = "254b131c713bece56500a72408f796c46bfee8d0"
+_REPAIR_HEAD = "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f"
+
+
+def _blocked_gate_row(orch):
+    orch.integration_queue.enqueue(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        task_id="OOMPAH-814",
+        task_branch="OOMPAH-814",
+        head_sha=_OOMPAH_814_HEAD,
+    )
+    claimed = orch.integration_queue.claim_next(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        lease_owner="gate-owner",
+        dependency_map={"OOMPAH-814": ("dependency",)},
+        satisfied={"dependency"},
+    )
+    assert claimed is not None
+    assert orch.integration_queue.fail(
+        "project-1",
+        "OOMPAH-814",
+        lease_owner="gate-owner",
+        error="Combined-tree quality gate failed: 2 failures",
+    )
+    return orch.integration_queue.get("project-1", "OOMPAH-814")
+
+
+def _oompah_814_issue(*, state=NEEDS_CI_FIX):
+    from oompah.integration import IntegrationRecord
+
+    return Issue(
+        id="OOMPAH-814",
+        identifier="OOMPAH-814",
+        title="stalled",
+        state=state,
+        work_branch="OOMPAH-814",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="OOMPAH-814",
+            head_sha=_OOMPAH_814_HEAD,
+        ),
+    )
+
+
+def _oompah_814_evidence(
+    *,
+    ci_status: str = "passed",
+    integration_state: str = "blocked",
+    gate_status: str | None = "failed",
+    gate_head: str = _OOMPAH_814_HEAD,
+    branch_head: str | None = None,
+    accepted_head: str | None = None,
+    generation: str = "gen-authoritative-42",
+) -> dict:
+    """Build the deterministic OOMPAH-814-shaped evidence envelope."""
+    ev: dict = {
+        "integration": {
+            "state": integration_state,
+            "head_sha": accepted_head or _OOMPAH_814_HEAD,
+            "task_branch": "OOMPAH-814",
+        },
+        "branch": {
+            "branch": "OOMPAH-814",
+            "canonical_ref": "main",
+            "head_sha": branch_head or _OOMPAH_814_HEAD,
+        },
+        "ci": {"status": ci_status},
+    }
+    if gate_status is not None:
+        ev["gate"] = {
+            "head_sha": gate_head,
+            "status": gate_status,
+            "generation": generation,
+        }
+    return ev
+
+
+class TestGateFailureFencesWatchdogReopen:
+    """OOMPAH-818 acceptance: the OOMPAH-814 sequence cannot report passing."""
+
+    def test_authoritative_gate_failure_dominates_passing_ci(self):
+        """Gate failed at exact accepted head → watchdog must not reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=_oompah_814_evidence(),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+        assert decision.evidence_result in {"failed", "fail", "failure"}
+        assert decision.evidence_generation == "gen-authoritative-42"
+        assert "dominates" in decision.evidence.lower()
+
+    @pytest.mark.parametrize(
+        ("stalled_status", "comment", "expected_result"),
+        [
+            (
+                NEEDS_CI_FIX,
+                "All checks passed on the branch.",
+                "comment_ci_passing",
+            ),
+            (
+                NEEDS_REBASE,
+                "Conflict resolved — branch is clean.",
+                "comment_rebase_resolved",
+            ),
+        ],
+    )
+    def test_comment_fallback_preserves_queue_authority(
+        self,
+        stalled_status,
+        comment,
+        expected_result,
+    ):
+        generation = "integration-queue-v1:blocked-row-generation"
+
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            stalled_status,
+            [_comment("oompah", comment)],
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=generation,
+            ),
+            run_id=23,
+        )
+
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+        assert decision.evidence_generation == generation
+        assert decision.evidence_result == expected_result
+
+    def test_blocked_row_comment_fallback_rejects_branch_rollback(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = classify_stalled_task(
+            issue.identifier,
+            issue.state,
+            [_comment("oompah", "All checks passed on the branch.")],
+            project_id="project-1",
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=(
+                    f"integration-queue-v1:{blocked.authority_generation()}"
+                ),
+            ),
+            run_id=24,
+        )
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_OOMPAH_814_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_missing_generation_cannot_bypass_current_blocked_row(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        assert _blocked_gate_row(orch) is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        stale_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="legacy comment fallback lost queue authority",
+        )
+
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            stale_decision,
+            build_watchdog_comment(stale_decision),
+        )
+
+        assert executed is False
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_missing_generation_remains_compatible_when_queue_row_is_absent(
+        self,
+        tmp_path,
+    ):
+        orch = _make_orchestrator(tmp_path)
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: setattr(issue, "state", status)
+        )
+        legacy_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="legacy comment fallback without queue authority",
+        )
+
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            legacy_decision,
+            build_watchdog_comment(legacy_decision),
+        )
+
+        assert executed is True
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
+
+    def test_restart_keeps_missing_generation_fenced_by_blocked_row(self, tmp_path):
+        first = _make_orchestrator(tmp_path)
+        assert _blocked_gate_row(first) is not None
+        first.integration_queue.close()
+        restarted = _make_orchestrator(tmp_path)
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        stale_decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=issue.state,
+            classification="actionable",
+            action="reopen",
+            evidence="reconstructed fallback without generation",
+        )
+
+        executed = restarted._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            stale_decision,
+            build_watchdog_comment(stale_decision),
+        )
+
+        assert executed is False
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_duplicate_comment_fallback_reopens_only_once(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = _oompah_814_issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = lambda _identifier: issue
+
+        def update_issue(_identifier, *, status):
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+        decision = classify_stalled_task(
+            issue.identifier,
+            issue.state,
+            [_comment("oompah", "All checks passed on the branch.")],
+            project_id="project-1",
+            evidence=_oompah_814_evidence(
+                ci_status="pending",
+                branch_head=_REPAIR_HEAD,
+                generation=(
+                    f"integration-queue-v1:{blocked.authority_generation()}"
+                ),
+            ),
+            run_id=25,
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            first = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+            duplicate = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert first is True
+        assert duplicate is False
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
+
+    def test_durable_gate_evidence_survives_orchestrator_restart(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        first = _make_orchestrator(tmp_path, projects=[project])
+        blocked = _blocked_gate_row(first)
+        assert blocked is not None
+        first.integration_queue.close()
+
+        restarted = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+
+        restarted_row = restarted.integration_queue.get("project-1", "OOMPAH-814")
+        assert restarted_row is not None
+        assert restarted._retire_inactive_integration_rows(
+            "project-1",
+            [issue],
+            [restarted_row],
+        ) == 0
+
+        snapshot = restarted._collect_stalled_watchdog_gate_snapshot(
+            "project-1",
+            issue,
+        )
+
+        assert snapshot["status"] == "failed"
+        assert snapshot["head_sha"] == _OOMPAH_814_HEAD
+        assert snapshot["generation"].startswith("integration-queue-v1:")
+
+    def test_action_time_queue_cas_rejects_concurrent_gate_transition(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        orch.integration_queue.enqueue(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            task_id="OOMPAH-814",
+            task_branch="OOMPAH-814",
+            head_sha=_REPAIR_HEAD,
+        )
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            decision,
+            build_watchdog_comment(decision),
+        )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_action_time_queue_cas_applies_unchanged_generation(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        effects: list[str] = []
+
+        def update_issue(_identifier, *, status):
+            effects.append("transition")
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+        tracker.add_comment.side_effect = lambda *_a, **_k: effects.append("comment")
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+        )
+
+        assert executed is True
+        assert effects == ["transition", "comment"]
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
+
+    def test_action_time_queue_cas_rejects_missing_tracker_integration(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=None,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("task_branch", "head_sha"),
+        [
+            (None, _OOMPAH_814_HEAD),
+            ("OOMPAH-814", None),
+        ],
+    )
+    def test_action_time_queue_cas_rejects_incomplete_tracker_integration(
+        self,
+        tmp_path,
+        task_branch,
+        head_sha,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch=task_branch,
+                head_sha=head_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_action_time_queue_cas_rejects_branch_rollback_to_failed_head(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_OOMPAH_814_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tracker_generation_change_waiting_on_shared_authority_fails_closed(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        replacement = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="new generation",
+            state="Ready to Integrate",
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_REPAIR_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        authority = orch.issue_transition_lock(issue.id)
+        await authority.acquire()
+        try:
+            reopen = asyncio.create_task(
+                orch._execute_stalled_watchdog_reopen_under_authority(
+                    "project-1",
+                    issue,
+                    tracker,
+                    decision,
+                    build_watchdog_comment(decision),
+                )
+            )
+            await asyncio.sleep(0)
+            tracker.fetch_issue_detail.assert_not_called()
+            tracker.fetch_issue_detail.return_value = replacement
+        finally:
+            authority.release()
+
+        executed = await reopen
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tracker_generation_change_during_action_waits_for_authority(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        fetch_entered = threading.Event()
+        release_fetch = threading.Event()
+        order: list[str] = []
+
+        def fetch_current(_identifier):
+            fetch_entered.set()
+            assert release_fetch.wait(timeout=3)
+            return issue
+
+        tracker.fetch_issue_detail.side_effect = fetch_current
+        def update_issue(_identifier, *, status):
+            order.append("watchdog-open")
+            issue.state = status
+
+        tracker.update_issue.side_effect = update_issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            reopen = asyncio.create_task(
+                orch._execute_stalled_watchdog_reopen_under_authority(
+                    "project-1",
+                    issue,
+                    tracker,
+                    decision,
+                    build_watchdog_comment(decision),
+                )
+            )
+            assert await asyncio.to_thread(fetch_entered.wait, 3)
+
+            async def replace_tracker_generation():
+                async with orch.issue_transition_lock(issue.id):
+                    order.append("replacement-generation")
+
+            replacement = asyncio.create_task(replace_tracker_generation())
+            await asyncio.sleep(0)
+            assert "replacement-generation" not in order
+            release_fetch.set()
+            executed = await reopen
+            await replacement
+
+        assert executed is True
+        assert order == ["watchdog-open", "replacement-generation"]
+
+    def test_gate_failure_immediately_before_watchdog_classification(self):
+        """Gate completes with failures → next watchdog tick must not reopen."""
+        # Simulate the exact interleaving reported in the incident: gate
+        # completed with 2 failures, task moved to Needs CI Fix; the next
+        # watchdog run must see the failing exact-head result and refuse.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [
+                _comment(
+                    "oompah",
+                    "Combined-tree quality gate failed: 2 test failures.",
+                ),
+            ],
+            evidence=_oompah_814_evidence(),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_failure_during_watchdog_classification(self):
+        """Older pass evidence + newer fail → newer fail dominates."""
+        # Older passing SCM CI check is still visible, but a newer
+        # authoritative gate result at the same accepted head is failing.
+        # The newer failing result must dominate.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [_comment("ci-bot", "CI checks are green on this branch.")],
+            evidence=_oompah_814_evidence(
+                ci_status="passed",
+                gate_status="failed",
+            ),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.evidence_result in {"failed", "fail", "failure"}
+
+    def test_pass_on_different_head_does_not_reopen_needs_ci_fix(self):
+        """A passing gate on a stale head must not reopen the current head."""
+        # Gate reports a passing result but at a DIFFERENT head from the
+        # accepted head.  This must not become an actionable reopen.
+        stale_pass_head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "gate": {
+                    "head_sha": stale_pass_head,
+                    "status": "passed",
+                    "generation": "gen-stale",
+                },
+                "ci": {"status": "passed"},
+            },
+            run_id=22,
+        )
+        # The gate result is on a different head, so the primary dominance
+        # fence does not fire.  But the integration-state fence catches the
+        # regression: branch head still equals accepted head, so no repair
+        # has been pushed and we must not reopen.
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_pass_at_exact_accepted_head_reopens_with_evidence(self):
+        """A newer passing gate on the exact accepted head is safe to reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "ready",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "gate": {
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "status": "passed",
+                    "generation": "gen-passed-777",
+                },
+            },
+            run_id=22,
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+        assert decision.evidence_result == "passed"
+        assert decision.evidence_generation == "gen-passed-777"
+
+    def test_exact_gate_pass_supersedes_stale_blocked_projection(self):
+        """An exact authoritative pass is stronger than an older blocked row."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "gate": {
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "status": "passed",
+                    "generation": "gen-repaired-blocked-projection",
+                },
+            },
+            run_id=24,
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+        assert decision.evidence_result == "passed"
+        assert decision.evidence_generation == "gen-repaired-blocked-projection"
+
+    def test_pass_on_advanced_head_after_repair_can_reopen(self):
+        """A repair push moves the branch past accepted head → safe to reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "ready",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _REPAIR_HEAD},
+                "ci": {"status": "passed"},
+            },
+            run_id=23,
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+
+    def test_ci_passing_at_same_accepted_head_is_stale(self):
+        """SCM CI passing at unchanged accepted head is stale evidence."""
+        # This is the concrete OOMPAH-814 shape: the SCM (focused) CI shows
+        # passing, but the branch head is unchanged from the accepted head
+        # that the combined-tree gate failed on.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "ci": {"status": "passed"},
+            },
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_duplicate_watchdog_runs_stay_idempotent(self):
+        """Two consecutive runs against the same failing gate stay idempotent."""
+        evidence = _oompah_814_evidence()
+        first = classify_stalled_task(
+            "OOMPAH-814", NEEDS_CI_FIX, [], evidence=evidence, run_id=22
+        )
+        assert first.classification == "insufficient_evidence"
+        # Sentinel from first run is now in the comments — but the watchdog
+        # never actually acted (action="none"), so it does not post a
+        # sentinel and a second run must also refuse.
+        second = classify_stalled_task(
+            "OOMPAH-814", NEEDS_CI_FIX, [], evidence=evidence, run_id=23
+        )
+        assert second.classification == "insufficient_evidence"
+        assert second.action == "none"
+        # Same authoritative evidence surfaced in both decisions.
+        assert first.evidence_head == second.evidence_head == _OOMPAH_814_HEAD
+        assert first.evidence_generation == second.evidence_generation
+
+    def test_restart_reconciliation_still_dominates(self):
+        """After a service restart the persisted evidence still dominates."""
+        # A prior watchdog sentinel exists.  In a naive rerun the idempotency
+        # check would skip the task; but if a caller supplies fresh
+        # authoritative evidence the failing exact-head result must still
+        # dominate any softer reopen path.
+        prior_decision = StalledTaskDecision(
+            task_id="OOMPAH-814",
+            project_id=None,
+            stalled_status=NEEDS_CI_FIX,
+            classification="insufficient_evidence",
+            action="none",
+            evidence="stale evidence",
+        )
+        comments = [{"author": "oompah", "body": build_watchdog_comment(prior_decision)}]
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            comments,
+            evidence=_oompah_814_evidence(),
+            run_id=24,
+        )
+        # Either the idempotency short-circuit fires (already_actioned) or
+        # the fence re-runs and re-issues the same insufficient_evidence
+        # verdict.  Neither can produce an actionable reopen.
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_needs_rebase_gate_failure_dominates(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_REBASE,
+            [],
+            evidence=_oompah_814_evidence(gate_status="needs_rebase"),
+            run_id=25,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_result == "needs_rebase"
+
+    def test_needs_rebase_ci_stale_at_accepted_head(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_REBASE,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD, "scm_state": "clean"},
+                "ci": {"status": "passed"},
+            },
+            run_id=25,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_result_exposed_in_watchdog_comment(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=_oompah_814_evidence(),
+            run_id=42,
+        )
+        body = build_watchdog_comment(decision)
+        assert _OOMPAH_814_HEAD in body
+        assert "Evidence head" in body
+        assert "Evidence result" in body
+        assert "Evidence generation" in body
+        assert "gen-authoritative-42" in body
+
+    def test_structured_event_exposes_gate_result(self):
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: _oompah_814_evidence(),
+        )
+        assert result.tasks_insufficient_evidence == 1
+        assert result.actions_taken == 0
+        snapshot = result.to_dict()
+        assert snapshot["decisions"]
+        decision = snapshot["decisions"][0]
+        assert decision["evidence_head"] == _OOMPAH_814_HEAD
+        assert decision["evidence_result"] in {"failed", "fail", "failure"}
+        assert decision["evidence_generation"] == "gen-authoritative-42"
+
+    def test_watchdog_audit_does_not_reopen_or_cancel_integration(self):
+        """OOMPAH-818 acceptance: OOMPAH-814 sequence cannot reopen."""
+        # This mirrors the exact sequence in the incident report — the task
+        # is Needs CI Fix, integration record shows the failing accepted
+        # head, and a passing focused/SCM CI check is visible.  The
+        # watchdog must not reopen and must not cause the integration row
+        # to be cancelled downstream.
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: _oompah_814_evidence(),
+        )
+        assert result.actions_taken == 0
+        assert result.tasks_actionable == 0
+        # No status change → no downstream integration-row cancellation.
+        tracker.update_issue.assert_not_called()
+
+    def test_older_pass_and_newer_fail_from_evidence_provider(self):
+        """Deterministic interleaving: repeated audit with newer failing evidence."""
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        # First tick: only the older passing signal is available (gate not
+        # yet complete).  Because integration record is blocked at the
+        # accepted head and no advance has happened, the fence still holds.
+        older_evidence = {
+            "integration": {
+                "state": "blocked",
+                "head_sha": _OOMPAH_814_HEAD,
+                "task_branch": "OOMPAH-814",
+            },
+            "branch": {"head_sha": _OOMPAH_814_HEAD},
+            "ci": {"status": "passed"},
+        }
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        first = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: older_evidence,
+        )
+        assert first.actions_taken == 0
+        # Second tick: the authoritative failing gate is now visible.  The
+        # decision remains insufficient_evidence and now records the exact
+        # failing head/result/generation for observability.
+        tracker.reset_mock()
+        # Ensure fetch_issues_by_states still returns the same issue.
+        tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_comments.side_effect = lambda iid: []
+        second = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=23,
+            evidence_provider=lambda *_a: _oompah_814_evidence(
+                ci_status="passed",
+                gate_status="failed",
+            ),
+        )
+        assert second.actions_taken == 0
+        decisions = second.decisions
+        assert decisions and decisions[0].evidence_head == _OOMPAH_814_HEAD
+
+    def test_orchestrator_evidence_carries_gate_and_integration(self, tmp_path):
+        """The orchestrator collects integration record and gate outcome."""
+        # Import here so the shared fixtures/helpers above stay stable.
+        from oompah.integration import IntegrationRecord
+
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+        )
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch="OOMPAH-814",
+            base_branch="epic-e",
+            head_sha=_OOMPAH_814_HEAD,
+            attempts=1,
+            last_error="Combined-tree quality gate failed",
+        )
+        orch.integration_queue.enqueue(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            task_id="OOMPAH-814",
+            task_branch="OOMPAH-814",
+            head_sha=_OOMPAH_814_HEAD,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            lease_owner="gate-owner",
+            dependency_map={"OOMPAH-814": ("dependency",)},
+            satisfied={"dependency"},
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            "project-1",
+            "OOMPAH-814",
+            lease_owner="gate-owner",
+            error="Combined-tree quality gate failed: 2 failures",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {}
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = None
+        provider.find_pr_for_branch.return_value = None
+        provider.get_branch_head_sha.return_value = _OOMPAH_814_HEAD
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+        assert evidence["integration"]["head_sha"] == _OOMPAH_814_HEAD
+        assert evidence["integration"]["state"] == "ready"
+        assert evidence["gate"]["head_sha"] == _OOMPAH_814_HEAD
+        assert evidence["gate"]["status"] == "failed"
+        assert evidence["gate"]["queue_state"] == "blocked"
+        assert evidence["gate"]["generation"].startswith("integration-queue-v1:")
+
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=evidence,
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
 
 
 # ---------------------------------------------------------------------------

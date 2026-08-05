@@ -341,6 +341,7 @@ from oompah.ipc import OrchestratorIPC, get_ipc
 
 _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
 _DUPLICATE_PREFLIGHT_MAX_RETRIES = 3
+_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS = 10.0
 _DUPLICATE_PREFLIGHT_VERDICT_RE = re.compile(
     r"(?im)^\s*duplicate preflight verdict:\s*"
     r"(no_duplicate|duplicate_candidate|inconclusive)\s*$"
@@ -1071,6 +1072,47 @@ class StandaloneDeliveryAuthority:
     revoked: bool = False
 
 
+class CrossLoopTaskLock:
+    """Cancellation-safe async facade over one cross-thread task mutex.
+
+    The API server, dispatch loop, webhook workers, and maintenance workers may
+    each own a different event loop.  ``asyncio.Lock`` cannot serialize those
+    loops.  A non-blocking poll of ``threading.Lock`` keeps loop threads free,
+    remains cancellation-safe, and provides one process-wide task boundary.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+
+    async def acquire(self) -> bool:
+        while not self._lock.acquire(blocking=False):
+            await asyncio.sleep(0.01)
+        return True
+
+    def release(self) -> None:
+        self._lock.release()
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+    @contextlib.contextmanager
+    def sync(self):
+        """Acquire the same task mutex from a synchronous maintenance worker."""
+
+        self._lock.acquire()
+        try:
+            yield self
+        finally:
+            self._lock.release()
+
+    async def __aenter__(self) -> CrossLoopTaskLock:
+        await self.acquire()
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        self.release()
+
+
 @dataclass(frozen=True)
 class StandaloneFinishDependencyState:
     """Effective finish-order state observed for a direct delivery task."""
@@ -1355,7 +1397,8 @@ class Orchestrator:
         # staging for one task.  The terminal path installs its in-memory fence
         # before waiting for this lock, so a slow dispatch setup cannot starve
         # an audit request, while the tracker writes themselves cannot cross.
-        self._issue_transition_locks: dict[str, asyncio.Lock] = {}
+        self._issue_transition_locks: dict[str, CrossLoopTaskLock] = {}
+        self._issue_transition_locks_guard = threading.Lock()
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -3922,10 +3965,243 @@ class Orchestrator:
             evidence_fingerprint=evidence_fingerprint,
         )
 
-    def issue_transition_lock(self, issue_id: str) -> asyncio.Lock:
-        """Return the event-loop lock for dispatch/audit ownership of a task."""
+    def issue_transition_lock(self, issue_id: str) -> CrossLoopTaskLock:
+        """Return the cross-thread/cross-loop ownership lock for one task."""
 
-        return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
+        key = str(issue_id)
+        with self._issue_transition_locks_guard:
+            return self._issue_transition_locks.setdefault(
+                key,
+                CrossLoopTaskLock(),
+            )
+
+    async def request_terminal_transition_owned(
+        self,
+        **kwargs: Any,
+    ) -> TransitionResult:
+        """Serialize and refresh an external terminal request under task ownership.
+
+        Webhook and label handlers construct an issue snapshot before waiting for
+        this mutex.  Submit may accept a new integration generation in between.
+        Re-read the task after acquiring ownership and reject any delivery or
+        integration drift rather than terminalizing the stale snapshot.  State is
+        deliberately copied from the caller because forge terminal-label and merge
+        events replace an already-visible terminal state with In Validation.
+        """
+
+        current_issue = kwargs.get("current_issue")
+        issue_id = str(
+            getattr(current_issue, "id", "")
+            or getattr(current_issue, "identifier", "")
+        )
+        if not issue_id:
+            return await self.request_terminal_transition(**kwargs)
+        async with self.issue_transition_lock(issue_id):
+            effective_project_id = str(
+                kwargs.get("project_id")
+                or getattr(current_issue, "project_id", "")
+                or ""
+            ).strip()
+            identifier = str(
+                getattr(current_issue, "identifier", "") or issue_id
+            ).strip()
+            try:
+                tracker = self._tracker_for_project(effective_project_id)
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    await asyncio.to_thread(invalidate)
+                fresh_issue = await asyncio.to_thread(
+                    tracker.fetch_issue_detail,
+                    identifier,
+                )
+            except Exception as exc:  # noqa: BLE001 - stale requests fail closed
+                logger.warning(
+                    "Rejected terminal request for %s: current task evidence "
+                    "could not be refreshed: %s",
+                    identifier,
+                    exc,
+                )
+                return TransitionResult(
+                    success=False,
+                    reason="current task evidence could not be refreshed",
+                )
+            if not isinstance(fresh_issue, Issue):
+                return TransitionResult(
+                    success=False,
+                    reason="current task evidence is unavailable",
+                )
+            observed_revision = self._standalone_delivery_evidence_revision(
+                current_issue
+            )
+            current_revision = self._standalone_delivery_evidence_revision(
+                fresh_issue
+            )
+            if current_revision != observed_revision:
+                logger.info(
+                    "Rejected stale terminal request for %s: delivery or "
+                    "integration generation changed while waiting for ownership",
+                    identifier,
+                )
+                return TransitionResult(
+                    success=False,
+                    reason=(
+                        "task delivery or integration generation changed before "
+                        "terminal staging"
+                    ),
+                )
+            refreshed_request = replace(
+                fresh_issue,
+                state=getattr(current_issue, "state", fresh_issue.state),
+            )
+            refreshed_request.project_id = (
+                effective_project_id or fresh_issue.project_id
+            )
+            kwargs["current_issue"] = refreshed_request
+            return await self.request_terminal_transition(**kwargs)
+
+    def adopt_open_review_from_webhook(
+        self,
+        *,
+        observed_issue: Issue,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        repo_slug: str,
+        review_id: str,
+        review_url: str,
+        source_branch: str,
+        target_branch: str,
+        review_head: str,
+    ) -> tuple[bool, str]:
+        """Atomically adopt one exact open-review webhook generation.
+
+        Resolution happens before a webhook worker reaches this method, so submit
+        may have accepted a newer generation in the meantime.  The final tracker
+        and forge observations, required metadata writes, and In Review update
+        share the same task mutex as submit and terminal transitions.
+        """
+
+        issue_id = str(
+            getattr(observed_issue, "id", "")
+            or getattr(observed_issue, "identifier", "")
+        ).strip()
+        identifier = str(getattr(observed_issue, "identifier", "") or issue_id)
+        if not issue_id or not identifier:
+            return False, "resolved task has no stable identity"
+        expected_review_id = str(review_id or "").strip()
+        expected_source = str(source_branch or "").strip()
+        expected_target = str(target_branch or "").strip()
+        expected_head = str(review_head or "").strip().lower()
+        if not all(
+            (
+                expected_review_id,
+                expected_source,
+                expected_target,
+                expected_head,
+                str(review_url or "").strip(),
+            )
+        ):
+            return False, "open-review webhook lacks exact review identity or head"
+
+        with self.issue_transition_lock(issue_id).sync():
+            try:
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                current = tracker.fetch_issue_detail(identifier)
+            except Exception as exc:  # noqa: BLE001 - webhook adoption fails closed
+                return False, f"current task evidence could not be refreshed: {exc}"
+            if not isinstance(current, Issue):
+                return False, "current task evidence is unavailable"
+            if self._standalone_delivery_evidence_revision(
+                current
+            ) != self._standalone_delivery_evidence_revision(observed_issue):
+                return False, "task delivery or integration generation changed"
+            current_status = canonicalize_status(current.state)
+            if current_status in {MERGED, ARCHIVED}:
+                return False, f"task is already {current_status}"
+            if self._branch_for_issue(current, project) != expected_source:
+                return False, "webhook source branch no longer owns the task"
+            current_target = str(
+                current.target_branch or project.default_branch or ""
+            ).strip()
+            if current_target != expected_target:
+                return False, "webhook target branch no longer matches the task"
+
+            try:
+                review = provider.find_pr_for_branch(repo_slug, expected_source)
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return False, f"current review evidence could not be refreshed: {exc}"
+            if review is None:
+                return False, "current review evidence is unavailable"
+            current_review_id = str(getattr(review, "id", "") or "").strip()
+            current_review_state = str(
+                getattr(review, "state", "") or ""
+            ).strip().lower()
+            current_review_source = str(
+                getattr(review, "source_branch", "") or ""
+            ).strip()
+            current_review_target = str(
+                getattr(review, "target_branch", "") or ""
+            ).strip()
+            current_review_head = str(
+                getattr(review, "head_sha", "") or ""
+            ).strip().lower()
+            if (
+                current_review_id != expected_review_id
+                or current_review_state != "open"
+                or current_review_source != expected_source
+                or current_review_target != expected_target
+                or not current_review_head
+                or current_review_head != expected_head
+            ):
+                return False, "open review changed before webhook adoption"
+            integration_head = str(
+                getattr(getattr(current, "integration", None), "head_sha", "") or ""
+            ).strip().lower()
+            if integration_head and integration_head != expected_head:
+                return False, "review head does not match the accepted submission"
+
+            integration_revision = self._standalone_integration_generation_revision(
+                current
+            )
+            if not self._write_review_metadata(
+                tracker,
+                identifier,
+                review_id=expected_review_id,
+                review_url=review_url,
+                source_branch=expected_source,
+                target_branch=expected_target,
+                review_head=expected_head,
+                strict=True,
+            ):
+                return False, "required review metadata could not be persisted"
+            try:
+                if callable(invalidate):
+                    invalidate()
+                persisted = tracker.fetch_issue_detail(identifier)
+            except Exception as exc:  # noqa: BLE001 - final tracker CAS fails closed
+                return False, f"persisted review evidence could not be verified: {exc}"
+            if not isinstance(persisted, Issue):
+                return False, "persisted review evidence is unavailable"
+            if (
+                self._standalone_integration_generation_revision(persisted)
+                != integration_revision
+                or str(persisted.work_branch or persisted.branch_name or "").strip()
+                != expected_source
+                or str(
+                    persisted.target_branch or project.default_branch or ""
+                ).strip()
+                != expected_target
+                or str(persisted.review_number or "").strip() != expected_review_id
+                or str(persisted.review_url or "").strip()
+                != str(review_url).strip()
+                or str(persisted.review_head or "").strip().lower() != expected_head
+            ):
+                return False, "required review metadata did not persist exactly"
+            if current_status != IN_REVIEW:
+                tracker.update_issue(identifier, status=IN_REVIEW)
+            return True, ""
 
     def _running_items_snapshot(self) -> tuple[tuple[str, RunningEntry], ...]:
         """Return a stable runtime snapshot across API and scheduler threads.
@@ -9022,43 +9298,91 @@ class Orchestrator:
                     )
                     continue
 
+                review_lookup_baseline = existing_pr
+
                 review_state = str(
                     getattr(existing_pr, "state", "") or ""
                 ).strip().lower()
-                if existing_pr is not None and review_state == "open":
-                    existing_review_id = str(
-                        getattr(existing_pr, "id", "") or ""
-                    ).strip()
-                    if not getattr(existing_pr, "draft", False):
-                        self._adopt_open_review_capacity(
-                            project_id=project_id,
-                            task_id=task_id,
-                            source_branch=task_branch,
-                            target_branch=target_branch,
-                            review_id=existing_review_id,
-                        )
-                    try:
-                        self._clear_standalone_delivery_alert(
-                            project_id,
-                            task_id,
-                            authority=authority,
-                        )
-                        if not self._write_review_metadata(
-                            tracker,
-                            task_id,
-                            review_id=getattr(existing_pr, "id", None),
-                            review_url=getattr(existing_pr, "url", None),
-                            source_branch=task_branch,
-                            target_branch=target_branch,
-                            authority=authority,
-                        ):
-                            continue
-                        self._standalone_delivery_mutation(
+                review_head = ""
+                if existing_pr is not None:
+                    review_disposition, review_head, mismatch_reason = (
+                        self._standalone_review_matches_submission(
+                            project,
+                            authority.issue,
+                            existing_pr,
                             authority,
-                            tracker,
-                            lambda: tracker.update_issue(task_id, status=IN_REVIEW),
-                            next_state=IN_REVIEW,
                         )
+                    )
+                    if review_disposition != "exact":
+                        if review_state == "open" or review_disposition == "unknown":
+                            self._arm_standalone_delivery_alert(
+                                project_id,
+                                task_id,
+                                (
+                                    f"review #{getattr(existing_pr, 'id', '?')} "
+                                    "cannot be proven to cover the accepted "
+                                    "submission: "
+                                    f"{mismatch_reason}"
+                                ),
+                                authority=authority,
+                            )
+                            logger.warning(
+                                "Deferred standalone Ready task %s because "
+                                "review #%s is not exact: %s",
+                                task_id,
+                                getattr(existing_pr, "id", "?"),
+                                mismatch_reason,
+                            )
+                            # The forge will reject a competing open review, and
+                            # unknown merged evidence may already contain the
+                            # accepted head. Wait for exact evidence rather than
+                            # duplicating or terminalizing ambiguous delivery.
+                            return
+                        if not self._preserve_superseded_standalone_review_owned(
+                            project,
+                            tracker,
+                            provider,
+                            authority,
+                            repo_slug=repo_slug,
+                            work_branch=task_branch,
+                            expected_review=existing_pr,
+                            reason=mismatch_reason,
+                        ):
+                            self._record_superseded_standalone_delivery(
+                                authority,
+                                "review generation changed before stale history "
+                                "could be preserved",
+                            )
+                            continue
+                        logger.info(
+                            "Treating review #%s for standalone Ready task %s as "
+                            "historical: %s",
+                            getattr(existing_pr, "id", "?"),
+                            task_id,
+                            mismatch_reason,
+                        )
+                        issue = authority.issue
+                        existing_pr = None
+                        review_state = ""
+                if existing_pr is not None and review_state == "open":
+                    try:
+                        adopted, adopt_reason = (
+                            self._adopt_standalone_open_review_owned(
+                                project,
+                                tracker,
+                                provider,
+                                authority,
+                                repo_slug=repo_slug,
+                                work_branch=task_branch,
+                                target_branch=target_branch,
+                                expected_review=existing_pr,
+                            )
+                        )
+                        if not adopted:
+                            self._record_superseded_standalone_delivery(
+                                authority,
+                                adopt_reason,
+                            )
                     except Exception as exc:  # noqa: BLE001
                         self._arm_standalone_delivery_alert(
                             project_id,
@@ -9080,52 +9404,40 @@ class Orchestrator:
                     self._release_review_capacity(
                         project_id,
                         review_id=getattr(existing_pr, "id", None),
-                        source_branch=task_branch,
                     )
                     review_number = str(
                         getattr(existing_pr, "id", "") or ""
                     ) or None
                     review_url = getattr(existing_pr, "url", None)
-                    if not self._write_review_metadata(
-                        tracker,
-                        task_id,
-                        review_id=review_number,
-                        review_url=review_url,
-                        source_branch=task_branch,
-                        target_branch=target_branch,
-                        authority=authority,
-                    ):
-                        continue
-                    if not self._standalone_delivery_authorized(authority, tracker):
+                    staged, transition = (
+                        self._request_standalone_merged_with_authority(
+                            authority,
+                            tracker,
+                            provider=provider,
+                            repo_slug=repo_slug,
+                            work_branch=task_branch,
+                            target_branch=target_branch,
+                            review_number=review_number,
+                            review_url=review_url,
+                            review_head=review_head,
+                        )
+                    )
+                    if not staged:
                         self._record_superseded_standalone_delivery(
                             authority,
                             "delivery authority was revoked before terminal staging",
                         )
                         continue
-                    merged_issue = replace(
-                        issue,
-                        work_branch=task_branch,
-                        branch_name=task_branch,
-                        target_branch=target_branch,
-                        review_number=review_number,
-                        review_url=review_url,
-                    )
-                    transition = self._request_merged_via_coordinator(
-                        merged_issue,
-                        project_id,
-                        trigger_identity="standalone-ready-reconciliation",
-                        trigger_source="oompah",
-                    )
                     if transition is not None and transition.success:
                         issue.work_branch = task_branch
                         issue.branch_name = task_branch
                         issue.target_branch = target_branch
                         issue.review_number = review_number
                         issue.review_url = review_url
+                        issue.review_head = review_head
                         self._clear_standalone_delivery_alert(
                             project_id,
                             task_id,
-                            authority=authority,
                         )
                         logger.info(
                             "Staged merged standalone task %s for terminal audit "
@@ -9169,7 +9481,6 @@ class Orchestrator:
                     self._release_review_capacity(
                         project_id,
                         review_id=getattr(existing_pr, "id", None),
-                        source_branch=task_branch,
                     )
 
                 if review_capacity is None:
@@ -9285,123 +9596,70 @@ class Orchestrator:
                     )
 
                 try:
-                    created, result = self._standalone_delivery_action(
-                        authority,
-                        tracker,
-                        lambda: provider.create_review(
-                            repo_slug,
-                            title,
-                            task_branch,
+                    create_outcome, result, create_reason = (
+                        self._create_standalone_review_owned(
+                            project,
+                            tracker,
+                            provider,
+                            authority,
+                            repo_slug=repo_slug,
+                            work_branch=task_branch,
                             target_branch=target_branch,
+                            title=title,
                             description=description,
-                        ),
+                            reservation=reservation,
+                            review_lookup_baseline=review_lookup_baseline,
+                        )
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
+                    create_outcome = "retry"
+                    result = None
+                    create_reason = f"review creation failed: {exc}"
+
+                if create_outcome != "created":
                     self._release_review_capacity(
                         project_id,
                         reservation_id=reservation.reservation_id,
                     )
+                if create_outcome == "superseded":
+                    self._record_superseded_standalone_delivery(
+                        authority,
+                        create_reason,
+                    )
+                    continue
+                if create_outcome == "observed":
+                    logger.info(
+                        "Deferred standalone review creation for %s after final "
+                        "forge CAS: %s",
+                        task_id,
+                        create_reason,
+                    )
+                    return
+                if create_outcome == "retry":
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
-                        f"review creation failed: {exc}",
+                        create_reason,
                         authority=authority,
                     )
                     logger.warning(
                         "Failed to create PR for standalone Ready task %s: %s",
                         task_id,
-                        exc,
+                        create_reason,
                     )
                     continue
-
-                if not created:
-                    self._release_review_capacity(
-                        project_id,
-                        reservation_id=reservation.reservation_id,
-                    )
-                    self._record_superseded_standalone_delivery(
-                        authority,
-                        "delivery authority was revoked before review creation",
-                    )
-                    continue
-
-                if result is None:
-                    self._release_review_capacity(
-                        project_id,
-                        reservation_id=reservation.reservation_id,
-                    )
+                if create_reason:
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
-                        "forge provider returned no review",
+                        create_reason,
                         authority=authority,
                     )
-                    logger.warning(
-                        "Failed to create PR for standalone Ready task %s "
-                        "(provider returned None)",
-                        task_id,
-                    )
-                    continue
-
-                created_review_id = str(
-                    getattr(result, "id", "") or ""
-                ).strip()
-                if not created_review_id:
-                    self._release_review_capacity(
-                        project_id,
-                        reservation_id=reservation.reservation_id,
-                    )
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        "forge provider returned a review without an identity",
-                        authority=authority,
-                    )
-                    continue
-                # Commit before tracker metadata writes.  The review exists
-                # even if those writes fail, and later sweeps/restarts must
-                # continue to count this durable reservation.
-                self._commit_review_slot(reservation, created_review_id)
-
-                try:
-                    self._clear_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        authority=authority,
-                    )
-                    if not self._write_review_metadata(
-                        tracker,
-                        task_id,
-                        review_id=getattr(result, "id", None),
-                        review_url=getattr(result, "url", None),
-                        source_branch=task_branch,
-                        target_branch=target_branch,
-                        authority=authority,
-                    ):
-                        continue
-                    self._standalone_delivery_mutation(
-                        authority,
-                        tracker,
-                        lambda: tracker.update_issue(task_id, status=IN_REVIEW),
-                        next_state=IN_REVIEW,
-                    )
-                    logger.info(
-                        "Created PR for standalone Ready task %s (PR #%s)",
-                        task_id,
-                        getattr(result, "id", "?"),
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to update %s to In Review after PR creation: %s",
-                        task_id,
-                        exc,
-                    )
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        f"created review but tracker update failed: {exc}",
-                        authority=authority,
-                    )
+                logger.info(
+                    "Created PR for standalone Ready task %s (PR #%s)",
+                    task_id,
+                    getattr(result, "id", "?"),
+                )
                 # A successful review handoff owns this sweep.  The next
                 # Ready snapshot will fairly select whatever remains.
                 return
@@ -9538,6 +9796,31 @@ class Orchestrator:
             return True
 
     @staticmethod
+    def _standalone_integration_generation_revision(
+        issue: Issue,
+    ) -> tuple[str, ...]:
+        """Return only immutable/accepted integration-generation evidence."""
+
+        integration = getattr(issue, "integration", None)
+        return (
+            str(getattr(integration, "version", "") or ""),
+            str(getattr(integration, "state", "") or ""),
+            str(getattr(integration, "task_branch", "") or ""),
+            str(getattr(integration, "base_branch", "") or ""),
+            str(getattr(integration, "base_sha", "") or ""),
+            str(getattr(integration, "head_sha", "") or ""),
+            str(getattr(integration, "integrated_sha", "") or ""),
+            str(getattr(integration, "attempts", "") or ""),
+            str(getattr(integration, "submitted_at", "") or ""),
+            str(getattr(integration, "updated_at", "") or ""),
+            json.dumps(
+                getattr(integration, "dependency_heads", {}) or {},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+
+    @staticmethod
     def _standalone_delivery_evidence_revision(issue: Issue) -> tuple[str, ...]:
         """Return the tracker evidence that a standalone delivery observes.
 
@@ -9550,15 +9833,518 @@ class Orchestrator:
         exact-head change still fences the claim.
         """
 
-        integration = getattr(issue, "integration", None)
         return (
             str(getattr(issue, "work_branch", "") or ""),
             str(getattr(issue, "branch_name", "") or ""),
             str(getattr(issue, "target_branch", "") or ""),
             str(getattr(issue, "review_number", "") or ""),
             str(getattr(issue, "review_url", "") or ""),
-            str(getattr(integration, "head_sha", "") or ""),
+            str(getattr(issue, "review_head", "") or ""),
+            *Orchestrator._standalone_integration_generation_revision(issue),
         )
+
+    def _standalone_review_matches_submission(
+        self,
+        project: Project,
+        issue: Issue,
+        review: ReviewRequest,
+        authority: StandaloneDeliveryAuthority,
+    ) -> tuple[str, str, str]:
+        """Verify that one forge review covers the authority's exact generation.
+
+        A branch name is reusable after a review merges, so source-branch lookup
+        alone is never delivery evidence.  Prefer the forge's immutable review
+        head, accept persisted head evidence only when it names the same review,
+        and use target containment solely for a merged legacy review whose forge
+        payload has no head.  Every ambiguous case fails closed.
+        """
+
+        review_id = str(getattr(review, "id", "") or "").strip()
+        source_branch = str(
+            getattr(review, "source_branch", "") or ""
+        ).strip()
+        target_branch = str(
+            getattr(review, "target_branch", "") or ""
+        ).strip()
+        expected_head = str(authority.head_sha or "").strip().lower()
+        if not expected_head:
+            return "unknown", "", "accepted submission head is unavailable"
+        if source_branch != authority.branch:
+            return (
+                "historical",
+                "",
+                f"source branch {source_branch or '<missing>'} does not match "
+                f"{authority.branch}",
+            )
+        if target_branch != authority.target_branch:
+            return (
+                "historical",
+                "",
+                f"target branch {target_branch or '<missing>'} does not match "
+                f"{authority.target_branch}",
+            )
+
+        forge_head = str(getattr(review, "head_sha", "") or "").strip().lower()
+        if forge_head:
+            if forge_head == expected_head:
+                return "exact", forge_head, ""
+            return (
+                "historical",
+                forge_head,
+                f"review head {forge_head} does not match accepted submission "
+                f"head {expected_head}",
+            )
+
+        recorded_review_id = str(
+            getattr(issue, "review_number", "") or ""
+        ).strip()
+        recorded_head = str(getattr(issue, "review_head", "") or "").strip().lower()
+        if review_id and recorded_review_id == review_id and recorded_head:
+            if recorded_head == expected_head:
+                return "exact", recorded_head, ""
+            return (
+                "historical",
+                recorded_head,
+                f"persisted head for review #{review_id} is {recorded_head}, not "
+                f"accepted submission head {expected_head}",
+            )
+
+        review_state = str(getattr(review, "state", "") or "").strip().lower()
+        if review_state == "closed":
+            return (
+                "historical",
+                "",
+                f"closed review #{review_id or '?'} has no exact head evidence",
+            )
+        if review_state != "merged":
+            return (
+                "unknown",
+                "",
+                f"{review_state or 'unknown-state'} review #{review_id or '?'} has "
+                "no exact head evidence",
+            )
+
+        local_head = str(
+            self._get_branch_head_sha(project, authority.branch) or ""
+        ).strip().lower()
+        if local_head != expected_head:
+            return (
+                "unknown",
+                "",
+                f"merged review #{review_id or '?'} has no head and the managed "
+                f"branch tip {local_head or '<unavailable>'} does not match accepted "
+                f"submission head {expected_head}",
+            )
+        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
+            project,
+            authority.target_branch,
+            authority.branch,
+        )
+        if commit_error:
+            return (
+                "unknown",
+                "",
+                f"merged review #{review_id or '?'} has no head and target "
+                f"containment could not be verified: {commit_error}",
+            )
+        if ahead > 0:
+            return (
+                "historical",
+                "",
+                f"merged review #{review_id or '?'} has no head and the accepted "
+                f"branch remains {ahead} commit(s) ahead of "
+                f"{authority.target_branch}",
+            )
+        return "exact", expected_head, ""
+
+    @staticmethod
+    def _standalone_review_observation(
+        review: ReviewRequest | None,
+    ) -> tuple[str, ...] | None:
+        """Return forge fields that identify one observed review generation."""
+
+        if review is None:
+            return None
+        return (
+            str(getattr(review, "id", "") or "").strip(),
+            str(getattr(review, "state", "") or "").strip().lower(),
+            str(getattr(review, "source_branch", "") or "").strip(),
+            str(getattr(review, "target_branch", "") or "").strip(),
+            str(getattr(review, "head_sha", "") or "").strip().lower(),
+            "draft" if bool(getattr(review, "draft", False)) else "ready",
+        )
+
+    def _preserve_superseded_standalone_review_owned(
+        self,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        repo_slug: str,
+        work_branch: str,
+        expected_review: ReviewRequest,
+        reason: str,
+    ) -> bool:
+        """Preserve historical review evidence as one task-owned transaction."""
+
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False
+            try:
+                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+            except Exception:  # noqa: BLE001 - final forge CAS fails closed
+                return False
+            if self._standalone_review_observation(
+                current_review
+            ) != self._standalone_review_observation(expected_review):
+                return False
+            if current_review is None:
+                return False
+            disposition, _head, _current_reason = (
+                self._standalone_review_matches_submission(
+                    project,
+                    authority.issue,
+                    current_review,
+                    authority,
+                )
+            )
+            if disposition != "historical":
+                return False
+            if not self._preserve_superseded_standalone_review(
+                tracker,
+                authority,
+                current_review,
+                reason,
+            ):
+                return False
+            review_state = str(
+                getattr(current_review, "state", "") or ""
+            ).strip().lower()
+            if review_state in {"closed", "merged"}:
+                self._release_review_capacity(
+                    authority.project_id,
+                    review_id=getattr(current_review, "id", None),
+                )
+            return True
+
+    def _adopt_standalone_open_review_owned(
+        self,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        repo_slug: str,
+        work_branch: str,
+        target_branch: str,
+        expected_review: ReviewRequest,
+    ) -> tuple[bool, str]:
+        """Adopt an exact open review and its tracker state under task ownership."""
+
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False, "delivery authority changed before open-review adoption"
+            try:
+                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return False, f"final open-review lookup failed: {exc}"
+            if (
+                self._standalone_review_observation(current_review)
+                != self._standalone_review_observation(expected_review)
+                or current_review is None
+            ):
+                return False, "review changed before open-review adoption"
+            review_state = str(
+                getattr(current_review, "state", "") or ""
+            ).strip().lower()
+            disposition, review_head, mismatch_reason = (
+                self._standalone_review_matches_submission(
+                    project,
+                    authority.issue,
+                    current_review,
+                    authority,
+                )
+            )
+            if review_state != "open" or disposition != "exact":
+                return (
+                    False,
+                    "review changed before open-review adoption"
+                    + (f": {mismatch_reason}" if mismatch_reason else ""),
+                )
+            review_id = str(getattr(current_review, "id", "") or "").strip()
+            if not getattr(current_review, "draft", False):
+                self._adopt_open_review_capacity(
+                    project_id=authority.project_id,
+                    task_id=authority.task_id,
+                    source_branch=work_branch,
+                    target_branch=target_branch,
+                    review_id=review_id,
+                )
+            if not self._clear_standalone_delivery_alert(
+                authority.project_id,
+                authority.task_id,
+                authority=authority,
+            ):
+                return False, "delivery authority changed before alert cleanup"
+            if not self._write_review_metadata(
+                tracker,
+                authority.task_id,
+                review_id=review_id or None,
+                review_url=getattr(current_review, "url", None),
+                source_branch=work_branch,
+                target_branch=target_branch,
+                review_head=review_head,
+                authority=authority,
+            ):
+                return False, "delivery authority changed during review metadata write"
+            if not self._standalone_delivery_mutation(
+                authority,
+                tracker,
+                lambda: tracker.update_issue(authority.task_id, status=IN_REVIEW),
+                next_state=IN_REVIEW,
+            ):
+                return False, "delivery authority changed before In Review update"
+            return True, ""
+
+    def _create_standalone_review_owned(
+        self,
+        project: Project,
+        tracker: TrackerProtocol,
+        provider: SCMProvider,
+        authority: StandaloneDeliveryAuthority,
+        *,
+        repo_slug: str,
+        work_branch: str,
+        target_branch: str,
+        title: str,
+        description: str,
+        reservation: ReviewCapacityReservation,
+        review_lookup_baseline: ReviewRequest | None,
+    ) -> tuple[str, ReviewRequest | None, str]:
+        """Create and record one review after a final task-owned forge CAS.
+
+        The quality gate intentionally runs before this critical section.  Once
+        the gate passes, this transaction serializes the final task/generation
+        check, forge observation, create call, durable capacity commit, metadata,
+        and In Review transition with submit and terminal webhook ownership.
+        """
+
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        with self.issue_transition_lock(issue_id).sync():
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return (
+                    "superseded",
+                    None,
+                    "delivery authority was revoked before review creation",
+                )
+            try:
+                current_review = provider.find_pr_for_branch(repo_slug, work_branch)
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return "retry", None, f"final review lookup failed: {exc}"
+            if self._standalone_review_observation(
+                current_review
+            ) != self._standalone_review_observation(review_lookup_baseline):
+                return (
+                    "observed",
+                    current_review,
+                    "forge review changed after the quality gate",
+                )
+            if current_review is not None:
+                disposition, _review_head, mismatch_reason = (
+                    self._standalone_review_matches_submission(
+                        project,
+                        authority.issue,
+                        current_review,
+                        authority,
+                    )
+                )
+                review_state = str(
+                    getattr(current_review, "state", "") or ""
+                ).strip().lower()
+                if disposition == "unknown" or (
+                    disposition == "exact" and review_state != "closed"
+                ):
+                    return (
+                        "observed",
+                        current_review,
+                        "forge review is no longer replaceable"
+                        + (f": {mismatch_reason}" if mismatch_reason else ""),
+                    )
+
+            created, result = self._standalone_delivery_action(
+                authority,
+                tracker,
+                lambda: provider.create_review(
+                    repo_slug,
+                    title,
+                    work_branch,
+                    target_branch=target_branch,
+                    description=description,
+                ),
+            )
+            if not created:
+                return (
+                    "superseded",
+                    None,
+                    "delivery authority was revoked before review creation",
+                )
+            if result is None:
+                return "retry", None, "forge provider returned no review"
+
+            created_source = str(
+                getattr(result, "source_branch", "") or ""
+            ).strip()
+            created_target = str(
+                getattr(result, "target_branch", "") or ""
+            ).strip()
+            created_head = str(
+                getattr(result, "head_sha", "") or ""
+            ).strip().lower()
+            expected_head = str(authority.head_sha or "").strip().lower()
+            if (
+                created_source != authority.branch
+                or created_target != authority.target_branch
+                or not created_head
+                or created_head != expected_head
+            ):
+                return (
+                    "retry",
+                    result,
+                    "created review did not preserve the exact accepted source, "
+                    "target, and head "
+                    f"({created_source or '<missing>'} -> "
+                    f"{created_target or '<missing>'} at "
+                    f"{created_head or '<missing>'}; expected "
+                    f"{authority.branch} -> {authority.target_branch} at "
+                    f"{expected_head})",
+                )
+
+            created_review_id = str(getattr(result, "id", "") or "").strip()
+            if not created_review_id:
+                return (
+                    "retry",
+                    result,
+                    "forge provider returned a review without an identity",
+                )
+
+            # The forge review exists from this point forward.  Commit before
+            # tracker writes so later sweeps and restarts retain its capacity.
+            self._commit_review_slot(reservation, created_review_id)
+            try:
+                if not self._clear_standalone_delivery_alert(
+                    authority.project_id,
+                    authority.task_id,
+                    authority=authority,
+                ):
+                    return (
+                        "created",
+                        result,
+                        "created review but authority changed before alert cleanup",
+                    )
+                if not self._write_review_metadata(
+                    tracker,
+                    authority.task_id,
+                    review_id=created_review_id,
+                    review_url=getattr(result, "url", None),
+                    source_branch=work_branch,
+                    target_branch=target_branch,
+                    review_head=created_head or expected_head,
+                    authority=authority,
+                ):
+                    return (
+                        "created",
+                        result,
+                        "created review but authority changed during metadata update",
+                    )
+                if not self._standalone_delivery_mutation(
+                    authority,
+                    tracker,
+                    lambda: tracker.update_issue(
+                        authority.task_id,
+                        status=IN_REVIEW,
+                    ),
+                    next_state=IN_REVIEW,
+                ):
+                    return (
+                        "created",
+                        result,
+                        "created review but authority changed before In Review update",
+                    )
+            except Exception as exc:  # noqa: BLE001 - review already exists
+                return (
+                    "created",
+                    result,
+                    f"created review but tracker update failed: {exc}",
+                )
+            return "created", result, ""
+
+    def _preserve_superseded_standalone_review(
+        self,
+        tracker: TrackerProtocol,
+        authority: StandaloneDeliveryAuthority,
+        review: ReviewRequest,
+        reason: str,
+    ) -> bool:
+        """Preserve stale review history and clear only its matching metadata."""
+
+        issue = authority.issue
+        review_id = str(getattr(review, "id", "") or "").strip()
+        recorded_review_id = str(
+            getattr(issue, "review_number", "") or ""
+        ).strip()
+        if recorded_review_id and recorded_review_id != review_id:
+            # A webhook or another reconciliation has already recorded a newer
+            # review.  Never erase that metadata based on a lagging forge lookup.
+            return False
+
+        review_url = str(getattr(review, "url", "") or "").strip()
+        forge_head = str(getattr(review, "head_sha", "") or "").strip()
+        recorded_head = str(getattr(issue, "review_head", "") or "").strip()
+        history_comment = (
+            "Superseded review preserved during standalone Ready reconciliation.\n\n"
+            f"Review: {review_url or ('#' + review_id if review_id else 'unknown')}\n"
+            f"Reviewed head: `{forge_head or recorded_head or 'unavailable'}`\n"
+            f"Accepted submission head: `{authority.head_sha or 'unavailable'}`\n"
+            f"Source branch: `{authority.branch}`\n"
+            f"Target branch: `{authority.target_branch}`\n"
+            f"Reason: {reason}\n\n"
+            "This review remains historical evidence. The accepted submission "
+            "will continue through an exact-head gate and review."
+        )
+        try:
+            if not self._standalone_delivery_mutation(
+                authority,
+                tracker,
+                lambda: tracker.add_comment(authority.task_id, history_comment),
+            ):
+                return False
+            if recorded_review_id or recorded_head or getattr(issue, "review_url", None):
+                for field in (
+                    "oompah.review_url",
+                    "oompah.review_number",
+                    "oompah.review_head",
+                ):
+                    if not self._standalone_delivery_mutation(
+                        authority,
+                        tracker,
+                        lambda field=field: tracker.set_metadata_field(
+                            authority.task_id,
+                            field,
+                            "",
+                        ),
+                    ):
+                        return False
+            return True
+        except Exception as exc:  # noqa: BLE001 - fail closed on history races
+            logger.warning(
+                "Failed to preserve superseded review history for %s: %s",
+                authority.task_id,
+                exc,
+            )
+            return False
 
     @staticmethod
     def _is_standalone_ready_delivery_issue(
@@ -9979,7 +10765,7 @@ class Orchestrator:
         tracker: TrackerProtocol,
         *,
         next_state: str | None = None,
-    ) -> None:
+    ) -> bool:
         """Advance a claim only after its own guarded tracker mutation."""
 
         current = self._fresh_standalone_delivery_issue(authority, tracker)
@@ -9988,13 +10774,23 @@ class Orchestrator:
             self._standalone_delivery_authorities.pop(
                 (authority.project_id, authority.task_id), None
             )
-            return
+            return False
+        current_generation = self._standalone_integration_generation_revision(current)
+        expected_generation = authority.evidence_revision[-len(current_generation) :]
+        if current_generation != expected_generation:
+            authority.revoked = True
+            self._standalone_delivery_authorities.pop(
+                (authority.project_id, authority.task_id),
+                None,
+            )
+            return False
         authority.issue = current
         authority.evidence_revision = self._standalone_delivery_evidence_revision(
             current
         )
         if next_state is not None:
             authority.expected_state = canonicalize_status(next_state)
+        return True
 
     def _standalone_delivery_mutation(
         self,
@@ -10014,12 +10810,11 @@ class Orchestrator:
                 )
                 return False
             mutation()
-            self._refresh_standalone_delivery_authority(
+            return self._refresh_standalone_delivery_authority(
                 authority,
                 tracker,
                 next_state=next_state,
             )
-            return True
 
     def _standalone_delivery_action(
         self,
@@ -10033,6 +10828,210 @@ class Orchestrator:
             if not self._standalone_delivery_authorized(authority, tracker):
                 return False, None
             return True, action()
+
+    async def _request_standalone_merged_with_authority_inner(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        *,
+        provider: SCMProvider,
+        repo_slug: str,
+        work_branch: str,
+        target_branch: str,
+        review_number: str | None,
+        review_url: str | None,
+        review_head: str,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Stage Merged after a final generation CAS under task ownership.
+
+        Accepted submissions and terminal API operations use the same per-issue
+        cross-loop lock. Re-read the delivery evidence inside that serialization
+        boundary, then release the delivery authority ``RLock`` before awaiting
+        the coordinator.  The coordinator revokes delivery authority from its
+        project worker thread, so retaining that thread-owned lock across the
+        await would deadlock.
+        """
+
+        issue_id = str(getattr(authority.issue, "id", "") or authority.task_id)
+        async with self.issue_transition_lock(issue_id):
+            authorized = await asyncio.to_thread(
+                self._standalone_delivery_authorized,
+                authority,
+                tracker,
+            )
+            if not authorized:
+                return False, None
+            try:
+                current_review = await asyncio.to_thread(
+                    provider.find_pr_for_branch,
+                    repo_slug,
+                    work_branch,
+                )
+            except Exception:  # noqa: BLE001 - final forge CAS fails closed
+                return False, None
+            if (
+                current_review is None
+                or str(getattr(current_review, "id", "") or "").strip()
+                != str(review_number or "").strip()
+                or str(getattr(current_review, "state", "") or "").strip().lower()
+                != "merged"
+            ):
+                return False, None
+            project = self.project_store.get(authority.project_id)
+            if project is None:
+                return False, None
+            disposition, current_review_head, _reason = await asyncio.to_thread(
+                self._standalone_review_matches_submission,
+                project,
+                authority.issue,
+                current_review,
+                authority,
+            )
+            if disposition != "exact":
+                return False, None
+            current_review_url = str(
+                getattr(current_review, "url", "") or ""
+            ).strip()
+            if not await asyncio.to_thread(
+                self._write_review_metadata,
+                tracker,
+                authority.task_id,
+                review_id=str(review_number or "") or None,
+                review_url=current_review_url or review_url,
+                source_branch=work_branch,
+                target_branch=target_branch,
+                review_head=current_review_head,
+                authority=authority,
+            ):
+                return False, None
+            # Metadata writes are part of this generation's delivery evidence.
+            # Re-run the full state/generation/head/dependency CAS before the
+            # coordinator obtains project authority.
+            if not await asyncio.to_thread(
+                self._standalone_delivery_authorized,
+                authority,
+                tracker,
+            ):
+                return False, None
+            merged_issue = replace(
+                authority.issue,
+                work_branch=work_branch,
+                branch_name=work_branch,
+                target_branch=target_branch,
+                review_number=review_number,
+                review_url=current_review_url or review_url,
+                review_head=current_review_head,
+            )
+            merged_issue.project_id = authority.project_id
+            fingerprint = compute_issue_evidence_fingerprint(
+                merged_issue,
+                authority.project_id,
+            )
+            try:
+                transition = await self.request_terminal_transition(
+                    current_issue=merged_issue,
+                    requested_target=TargetState.MERGED,
+                    trigger_identity=ContributorIdentity(
+                        "standalone-ready-reconciliation",
+                        "oompah",
+                    ),
+                    project_id=authority.project_id,
+                    evidence_fingerprint=fingerprint,
+                )
+            except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
+                logger.debug(
+                    "Failed to request standalone Merged transition for %s: %s",
+                    authority.task_id,
+                    exc,
+                )
+                return True, None
+            return True, transition
+
+    async def _request_standalone_merged_with_authority_async(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        **kwargs: Any,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Keep the lock-owning operation alive if its outer bridge is cancelled.
+
+        ``asyncio.to_thread`` work is not cancelled with its awaiting task.  The
+        inner task therefore owns the cross-loop mutex, while the bridge awaits it
+        through ``shield``.  A timeout or caller cancellation can stop waiting but
+        cannot release ownership around still-running tracker/coordinator effects.
+        """
+
+        operation = asyncio.create_task(
+            self._request_standalone_merged_with_authority_inner(
+                authority,
+                tracker,
+                **kwargs,
+            )
+        )
+        try:
+            return await asyncio.shield(operation)
+        except asyncio.CancelledError:
+
+            def _consume_result(task: asyncio.Task) -> None:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:  # noqa: BLE001 - detached owner cleanup
+                    logger.warning(
+                        "Detached standalone terminal staging failed for %s: %s",
+                        authority.task_id,
+                        exc,
+                    )
+
+            operation.add_done_callback(_consume_result)
+            raise
+
+    def _request_standalone_merged_with_authority(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        **kwargs: Any,
+    ) -> tuple[bool, TransitionResult | None]:
+        """Bridge standalone maintenance staging onto the dispatch event loop."""
+
+        request = self._request_standalone_merged_with_authority_async(
+            authority,
+            tracker,
+            **kwargs,
+        )
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                request.close()
+                raise RuntimeError(
+                    "synchronous standalone reconciliation cannot block the "
+                    "dispatch loop for a terminal transition"
+                )
+            try:
+                future = asyncio.run_coroutine_threadsafe(request, loop)
+            except Exception:  # loop stopped between is_running and scheduling
+                request.close()
+                return False, None
+            try:
+                return future.result(
+                    timeout=_STANDALONE_TERMINAL_BRIDGE_TIMEOUT_SECONDS
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Timed out waiting for standalone terminal staging for %s; "
+                    "the detached operation retains task ownership until it exits",
+                    authority.task_id,
+                )
+                return False, None
+            except Exception as exc:  # loop shutdown/cancellation is retryable
+                logger.warning(
+                    "Standalone terminal staging bridge failed for %s: %s",
+                    authority.task_id,
+                    exc,
+                )
+                return False, None
+        return asyncio.run(request)
 
     def _revoke_standalone_delivery_authority(
         self,
@@ -10346,12 +11345,13 @@ class Orchestrator:
     ) -> int:
         """Cancel stale delivery rows whose tracker task left the queue lane.
 
-        A row is retired whenever the task's tracker status is anything other
-        than READY_TO_INTEGRATE.  The previous guard (only terminal states plus
-        IN_VALIDATION/NEEDS_HUMAN) left rows alive when a task was moved back
-        to Open, which caused the gate to continue running or re-launch after
-        operator rejection — the live race reproduced repeatedly on OOMPAH-655,
-        OOMPAH-653, and OOMPAH-658.
+        A row is normally retired whenever the task's tracker status is
+        anything other than READY_TO_INTEGRATE.  One exact exception preserves
+        a blocked row while its task is in the matching repair state: that row
+        is the durable authoritative failure evidence used by the stalled-task
+        watchdog and by the repair worker.  Open, terminal, reassigned, or
+        mismatched rows are still retired, preventing rejected work from
+        relaunching its old gate.
 
         ``blocked`` rows carry the authoritative internal gate verdict for
         NEEDS_CI_FIX / NEEDS_REBASE tasks (OOMPAH-793 / OOMPAH-806) and must
@@ -10418,6 +11418,24 @@ class Orchestrator:
             # Any status other than READY_TO_INTEGRATE means the task has left
             # the queue lane (rejected back to Open, terminal, reassigned, etc.).
             if issue is not None and status == READY_TO_INTEGRATE:
+                continue
+            integration = getattr(issue, "integration", None)
+            if isinstance(integration, Mapping):
+                integration_head = integration.get("head_sha")
+                integration_branch = integration.get("task_branch")
+            else:
+                integration_head = getattr(integration, "head_sha", "")
+                integration_branch = getattr(integration, "task_branch", "")
+            preserves_exact_failure = bool(
+                issue is not None
+                and item.state == "blocked"
+                and status in {NEEDS_CI_FIX, NEEDS_REBASE}
+                and str(integration_head or "").strip().lower()
+                == str(item.head_sha or "").strip().lower()
+                and str(integration_branch or "").strip()
+                == str(item.task_branch or "").strip()
+            )
+            if preserves_exact_failure:
                 continue
             if self.integration_queue.cancel(
                 project_id,
@@ -21017,16 +22035,19 @@ class Orchestrator:
         target_branch: str | None = None,
         review_head: str | None = None,
         authority: StandaloneDeliveryAuthority | None = None,
+        strict: bool = False,
     ) -> bool:
-        """Persist review metadata fields on a task (best-effort).
+        """Persist review metadata fields on a task.
 
         Writes ``oompah.review_url`` and ``oompah.review_number`` to the
         task's metadata block.  Also writes ``oompah.work_branch`` (source),
         ``oompah.target_branch``, and ``oompah.review_head`` (the exact SHA
         the review was created for) when supplied and not already set.
 
-        All writes are best-effort: failures are logged as warnings but do
-        not propagate so the caller's control flow is unaffected.
+        Legacy callers without delivery authority retain best-effort writes.
+        Authority-owned delivery and explicit strict callers are fail-closed:
+        every supplied field is required before the task may leave its prior
+        lifecycle state.
         """
         fields: dict[str, object] = {}
         if review_url:
@@ -21062,6 +22083,8 @@ class Orchestrator:
                     identifier,
                     exc,
                 )
+                if authority is not None or strict:
+                    return False
         return True
 
     def _defer_review_handoff(
@@ -21592,6 +22615,7 @@ class Orchestrator:
             run_id=run_id,
             evidence_provider=self._collect_stalled_watchdog_evidence,
             status_transitioner=self._apply_stalled_watchdog_transition,
+            reopen_executor=self._execute_stalled_watchdog_reopen,
         )
 
         self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
@@ -21613,6 +22637,13 @@ class Orchestrator:
         newest comment when these machine signals are non-decisive.  Provider
         failures are recorded as technical evidence so an unavailable forge
         cannot be mistaken for a human decision.
+
+        The payload also carries the exact accepted head SHA from the task's
+        integration record and the latest authoritative combined-tree gate
+        outcome (head, status, generation).  The classifier uses these to
+        fence :data:`NEEDS_CI_FIX` reopen against stale focused/SCM CI
+        signals — a newer failing gate at the exact accepted head must
+        dominate an older passing SCM check.  See OOMPAH-818.
         """
         evidence: dict[str, Any] = {
             "issue": {
@@ -21625,6 +22656,34 @@ class Orchestrator:
                 if getattr(issue, key, None) not in (None, "")
             }
         }
+        # Integration record: the tracker's authoritative view of the
+        # accepted head and task branch identity used by the combined-tree
+        # gate.  Emitting it before any provider call makes an SCM outage
+        # non-fatal for the stalled-task fence.
+        integration_record = getattr(issue, "integration", None)
+        if integration_record is not None:
+            try:
+                integration_dict = (
+                    integration_record.to_dict()
+                    if hasattr(integration_record, "to_dict")
+                    else dict(integration_record)
+                    if isinstance(integration_record, Mapping)
+                    else {}
+                )
+            except Exception:  # noqa: BLE001 - malformed records are unknown evidence
+                integration_dict = {}
+            if integration_dict:
+                evidence["integration"] = integration_dict
+        # Latest authoritative combined-tree gate outcome for this exact
+        # (project, task) pair.  This is only recorded when the previous
+        # gate failed at the exact accepted head, which is exactly the
+        # OOMPAH-814 race the fence must dominate.
+        gate_snapshot = self._collect_stalled_watchdog_gate_snapshot(
+            project_id,
+            issue,
+        )
+        if gate_snapshot:
+            evidence["gate"] = gate_snapshot
         metadata: dict[str, Any] = {}
         try:
             raw_metadata = tracker.get_metadata(issue.identifier)
@@ -21740,6 +22799,235 @@ class Orchestrator:
                 f"SCM evidence collection failed: {type(exc).__name__}"
             )
         return evidence
+
+    def _collect_stalled_watchdog_gate_snapshot(
+        self,
+        project_id: str | None,
+        issue: Issue,
+    ) -> dict[str, Any]:
+        """Return durable exact-head gate authority from the integration row."""
+
+        task_id = str(getattr(issue, "identifier", "") or "").strip()
+        pid = str(project_id or "").strip()
+        if not task_id or not pid:
+            return {}
+        row = self.integration_queue.get(pid, task_id)
+        if row is None:
+            return {}
+        queue_state = str(row.state or "").strip().lower()
+        status = {
+            "blocked": "failed",
+            "integrated": "passed",
+        }.get(queue_state, queue_state)
+        generation = f"integration-queue-v1:{row.authority_generation()}"
+        return {
+            "head_sha": str(row.head_sha or "").strip().lower(),
+            "task_branch": str(row.task_branch or "").strip(),
+            "status": status,
+            "verdict": status,
+            "queue_state": queue_state,
+            "last_error": str(row.last_error or ""),
+            "attempts": row.attempts,
+            "updated_at": row.updated_at,
+            "generation": generation,
+            "authority_generation": generation,
+        }
+
+    def _execute_stalled_watchdog_reopen(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Bridge a maintenance-thread reopen into shared task authority."""
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                logger.warning(
+                    "Refusing synchronous stalled-task reopen on the dispatch loop"
+                )
+                return False
+            return bool(
+                asyncio.run_coroutine_threadsafe(
+                    self._execute_stalled_watchdog_reopen_under_authority(
+                        project_id,
+                        issue,
+                        tracker,
+                        decision,
+                        comment_body,
+                    ),
+                    loop,
+                ).result()
+            )
+        if self._running_loop() is not None:
+            logger.warning(
+                "Refusing stalled-task reopen without a synchronous authority bridge"
+            )
+            return False
+        return bool(
+            asyncio.run(
+                self._execute_stalled_watchdog_reopen_under_authority(
+                    project_id,
+                    issue,
+                    tracker,
+                    decision,
+                    comment_body,
+                )
+            )
+        )
+
+    async def _execute_stalled_watchdog_reopen_under_authority(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Execute the blocking watchdog CAS under shared issue authority."""
+
+        issue_id = str(
+            getattr(issue, "id", None)
+            or getattr(issue, "identifier", "")
+            or ""
+        ).strip()
+        if not issue_id:
+            return False
+        async with self.issue_transition_lock(issue_id):
+            return await asyncio.to_thread(
+                self._execute_stalled_watchdog_reopen_locked,
+                project_id,
+                issue,
+                tracker,
+                decision,
+                comment_body,
+            )
+
+    def _stalled_watchdog_branch_head(
+        self,
+        project_id: str,
+        task_branch: str,
+    ) -> str:
+        """Return the current forge head for one actionable task branch."""
+
+        pid = str(project_id or "").strip()
+        branch = str(task_branch or "").strip()
+        if not pid or not branch or self.project_store is None:
+            return ""
+        project = self.project_store.get(pid)
+        if project is None:
+            return ""
+        provider = detect_provider(
+            str(getattr(project, "repo_url", "") or ""),
+            access_token=getattr(project, "access_token", None),
+        )
+        if provider is None or not provider.is_available():
+            return ""
+        repo = extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+        return str(provider.get_branch_head_sha(repo, branch) or "").strip().lower()
+
+    def _execute_stalled_watchdog_reopen_locked(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Apply a reopen while issue, queue, tracker, and SCM evidence agree."""
+
+        identifier = str(getattr(issue, "identifier", "") or "").strip()
+        expected_status = canonicalize_status(
+            str(getattr(decision, "stalled_status", "") or "")
+        )
+        decision_head = str(
+            getattr(decision, "evidence_head", "") or ""
+        ).strip().lower()
+        pid = str(project_id or "").strip()
+
+        def _apply(_row: Any | None = None) -> bool:
+            current = tracker.fetch_issue_detail(identifier)
+            if current is None or canonicalize_status(current.state) != expected_status:
+                return False
+            if _row is not None:
+                integration = getattr(current, "integration", None)
+                if integration is None:
+                    return False
+                if isinstance(integration, Mapping):
+                    integration_head = integration.get("head_sha")
+                    integration_branch = integration.get("task_branch")
+                else:
+                    integration_head = getattr(integration, "head_sha", "")
+                    integration_branch = getattr(integration, "task_branch", "")
+                accepted_head = str(integration_head or "").strip().lower()
+                accepted_branch = str(integration_branch or "").strip()
+                if not accepted_head or accepted_head != str(_row.head_sha).lower():
+                    return False
+                if not accepted_branch or accepted_branch != str(_row.task_branch):
+                    return False
+                if not decision_head:
+                    return False
+                try:
+                    branch_head = self._stalled_watchdog_branch_head(
+                        pid,
+                        accepted_branch,
+                    )
+                except Exception as exc:  # noqa: BLE001 - evidence fails closed
+                    logger.warning(
+                        "Could not revalidate stalled-task branch %s: %s",
+                        accepted_branch,
+                        exc,
+                    )
+                    return False
+                if branch_head != decision_head:
+                    return False
+            if not self._apply_stalled_watchdog_transition(
+                project_id,
+                tracker,
+                current,
+                decision,
+                OPEN,
+            ):
+                return False
+            try:
+                tracker.add_comment(identifier, comment_body, author="oompah")
+            except Exception as exc:  # noqa: BLE001 - transition is already durable
+                logger.warning(
+                    "Reopened stalled task %s but could not post watchdog "
+                    "sentinel comment: %s",
+                    identifier,
+                    exc,
+                )
+            return True
+
+        generation = str(
+            getattr(decision, "evidence_generation", "") or ""
+        ).strip().lower()
+        queue_prefix = "integration-queue-v1:"
+        if pid and generation.startswith(queue_prefix):
+            return self.integration_queue.run_if_generation(
+                pid,
+                identifier,
+                expected_generation=generation[len(queue_prefix) :],
+                action=_apply,
+            )
+        if pid:
+            # A missing generation is only compatible with historical/manual
+            # stalled work that truly has no durable queue authority.  Fence
+            # that absence through the tracker mutation so a current or
+            # replacement queue row cannot be bypassed by prose fallback.
+            return self.integration_queue.run_if_absent(
+                pid,
+                identifier,
+                action=lambda: _apply(),
+            )
+        # Unmanaged historical/manual stalled states have no integration
+        # queue. They still get a fresh tracker-state comparison immediately
+        # before mutation.
+        return _apply()
 
     def _reconcile_stalled_watchdog_reopens(
         self,
