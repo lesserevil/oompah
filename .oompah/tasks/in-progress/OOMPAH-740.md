@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -21,7 +21,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-05T04:29:30.197543Z'
+updated_at: '2026-08-05T04:49:16.019406Z'
 work_branch: null
 target_branch: null
 review_url: null
