@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-817
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Persist standalone-clone recovery objects before publishing refs
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T12:49:53.841972Z'
+updated_at: '2026-08-05T13:02:10.377451Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -117,6 +117,30 @@ oompah.work_contributors:
     completed_at: '2026-08-05T01:09:16.488925+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fb82097a3882: '2026-08-05T13:02:07.184312+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-817
+    target_state: Done
+    evidence_fingerprint: e0e5e502cf0173c29761d6901efc1192a719fedea08349b63a0e8f5ae10b517c
+    audit_ids:
+    - audit-9cb1cc039b05
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T13:02:07.184320+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-817
+    audit_id: audit-9cb1cc039b05
+    attempt_id: attempt-fb82097a3882
+    target_state: Done
+    evidence_fingerprint: e0e5e502cf0173c29761d6901efc1192a719fedea08349b63a0e8f5ae10b517c
+    status: Done
+    audit_ids:
+    - audit-9cb1cc039b05
+    applied: false
+    created_at: '2026-08-05T13:02:07.184332+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -124,7 +148,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-817
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -133,7 +157,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fb82097a3882
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -143,13 +167,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T12:49:46.738545+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-817
+      verdict: pass
+      completed_at: '2026-08-05T13:02:07.184176+00:00'
+      ended_at: '2026-08-05T13:02:07.184176+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T12:49:18.847330+00:00'
-    updated_at: '2026-08-05T12:49:46.738545+00:00'
+    updated_at: '2026-08-05T13:02:07.184176+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fb82097a3882
