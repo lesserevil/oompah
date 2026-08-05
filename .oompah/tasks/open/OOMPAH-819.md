@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-819
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T03:11:41.731505Z'
+updated_at: '2026-08-05T03:12:37.131489Z'
 work_branch: null
 target_branch: null
 review_url: null
