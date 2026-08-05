@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:27:39.415016Z'
+updated_at: '2026-08-05T17:42:28.443801Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-05 17:27
 ---
 Implementation: added a race-safe ToolLivenessMonitor handoff lifecycle with running/result_pending/result_delivered/provider_stalled phases, a fixed 30-second result-delivery deadline, precise timeout classification, and bounded lifecycle metrics. Real API/ACP tool bridges defer cleanup until their bounded tool_result is persisted/emitted; child exit during communicate() is treated as pending. Exposed per-run and aggregate opaque liveness metrics, and added large-output, silent-interval, pass/fail, deadline, exactly-once, and continuation regressions.
+---
+author: oompah
+created: 2026-08-05 17:42
+---
+Verification: focused liveness/output/ACP/project-tool suites pass (87 tests); API-budget/auditor/console suites pass (212 tests, only pre-existing tempfile warnings); event-driven/orchestrator reconciliation suites pass (504 tests); state/API/WebSocket-adjacent checks pass (40 tests); compileall and diff checks pass. An ACP handoff-model subset remains environment-blocked before session construction because its fixture writes the read-only global agent-log directory, unrelated to this change.
 ---
 <!-- COMMENTS:END -->
