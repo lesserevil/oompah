@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:08.114469Z'
-updated_at: '2026-08-05T19:38:27.136290Z'
+updated_at: '2026-08-05T19:39:22.543951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T19:26:20.885977+00:00'
     branch_key: OOMPAH-546
+oompah.task_costs:
+  total_input_tokens: 48
+  total_output_tokens: 1412
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 48
+      output_tokens: 1412
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 1412
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:39:19.878747+00:00'
 ---
 ## Summary
 
@@ -173,5 +189,15 @@ Safe evidence:
 - focused_tests_present: tests/test_statuses.py, tests/test_integration_record.py, tests/test_oompah_md_tracker.py, tests/test_orchestrator_merged.py, tests/test_standalone_ready_to_integrate.py, tests/test_submission_fencing.py, tests/test_integration_executor.py, tests/test_delivery_plane_recovery.py, tests/test_quality_gate.py
 - current_head: b53bdbc77c7a50d332a97096ebc85d7923280854
 - workspace_clean: true
+---
+author: oompah
+created: 2026-08-05 19:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 28
+- Tokens: 48 in / 1.4K out [1.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 43s
+- Log: OOMPAH-546__20260805T192653Z.jsonl
 ---
 <!-- COMMENTS:END -->
