@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:30:32.859601Z'
+updated_at: '2026-08-05T01:33:58.809828Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -653,5 +653,15 @@ author: oompah
 created: 2026-08-05 01:30
 ---
 Understanding: The explicit Claude/Codex model-tier feature is complete, tested, and live-deployed (comments 28-31). Previous submission failed due to missing remote epic branch. That branch now exists. I will verify the implementation is present and unchanged, run focused auth/API/backend tests as the final gate, and submit the completed work.
+---
+author: oompah
+created: 2026-08-05 01:33
+---
+Discovery: The current branch (e1b0f4846) contains all three OOMPAH-505 commits: 59a06459a (support manual ACP model tiers), 5cf99179e (expose manual ACP model controls), ab00e7cf3 (correct Claude fast model tier to haiku). Key implementation files present: oompah/acp_backends/{base,claude,codex}.py, oompah/server.py with supports_manual_model_selection, oompah/templates/providers.html with manual model controls. Branch is clean and identical to origin.
+---
+author: oompah
+created: 2026-08-05 01:33
+---
+Implementation: The feature provides explicit Claude and Codex model tier configuration across three integrated changes. ACP backend descriptors now expose supports_manual_model_selection independently of has_catalog discovery, enabling operator-entered model IDs for catalog-less providers while retaining backend validation. The UI renders free-text manual model controls for Claude/Codex with empty catalogs. Six explicit role mappings persist and dispatch correctly: fast=Claude/haiku+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol, all with round-robin. Empty-model SDK fallback is preserved for backward compatibility.
 ---
 <!-- COMMENTS:END -->
