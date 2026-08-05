@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-830
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Project the active terminal-audit stage in multi-target chains
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T18:26:12.357184Z'
+updated_at: '2026-08-05T18:30:04.018803Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8dad7f24-0220-49d8-a372-7c235aa16db9
+oompah.agent_run_id: 9f555090-ae68-4b5b-8c15-c6f8d2a89c6a
 oompah.task_costs:
   total_input_tokens: 46476
   total_output_tokens: 303
