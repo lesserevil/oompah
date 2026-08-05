@@ -19,6 +19,7 @@ import sys
 import threading
 import types
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -476,6 +477,169 @@ class TestExecOompahTaskCommand:
             "Finished",
             author="oompah",
         )
+
+    @pytest.mark.parametrize(
+        ("command", "requested_status"),
+        (
+            (
+                "oompah task set-status owner/repo#240 'Needs Human'",
+                "Needs Human",
+            ),
+            (
+                "oompah task add-label owner/repo#240 "
+                "oompah:status:needs-human",
+                "Needs Human",
+            ),
+        ),
+    )
+    def test_task_scoped_enforce_status_uses_durable_single_writer(
+        self, command, requested_status
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        issue = Issue(
+            id="issue-240",
+            identifier="owner/repo#240",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj",
+            work_branch="task-240",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        entry = SimpleNamespace(
+            issue=issue,
+            identifier=issue.identifier,
+            run_id="run-1",
+            authority_generation="generation-1",
+            assignment_id="assignment-1",
+            focus_name="implementation",
+        )
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+        coordination._current_running_entry.return_value = entry
+        coordination._schedule_implementation_workflow_event.return_value = (
+            SimpleNamespace(job_id="status-job")
+        )
+
+        result = _exec_oompah_task_command(
+            command,
+            tracker,
+            "proj",
+            task_identifier="owner/repo#240",
+            coordination_service=coordination,
+        )
+
+        assert result in {
+            "Status set to: Needs Human",
+            "Label added: oompah:status:needs-human",
+        }
+        tracker.update_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        scheduled = coordination._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == requested_status
+        assert scheduled["payload"]["prior_generation"] == "generation-1"
+
+    def test_task_scoped_enforce_rejects_status_label_removal(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+
+        result = _exec_oompah_task_command(
+            "oompah task remove-label owner/repo#240 "
+            "oompah:status:in-progress",
+            tracker,
+            "proj",
+            task_identifier="owner/repo#240",
+            coordination_service=coordination,
+        )
+
+        assert result.startswith("Error: status labels cannot be removed")
+        tracker.remove_label.assert_not_called()
+
+    def test_task_scoped_enforce_open_observes_focus_handoff_before_noop(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        issue = Issue(
+            id="issue-240",
+            identifier="owner/repo#240",
+            title="Task",
+            description="body",
+            state="Open",
+            project_id="proj",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+        coordination._observe_task_handoff_mutation.return_value = True
+
+        result = _exec_oompah_task_command(
+            "oompah task set-status owner/repo#240 Open",
+            tracker,
+            "proj",
+            task_identifier="owner/repo#240",
+            coordination_service=coordination,
+        )
+
+        assert result == "Status set to: Open"
+        coordination._observe_task_handoff_mutation.assert_called_once()
+        coordination._schedule_implementation_workflow_event.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_durable_status_ignores_same_id_runtime_from_another_project(self):
+        from oompah.acp_tools import _schedule_durable_task_status
+
+        issue = Issue(
+            id="shared-id",
+            identifier="owner/repo#240",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="task-240",
+        )
+        foreign_issue = Issue(
+            id="shared-id",
+            identifier=issue.identifier,
+            title="Foreign task",
+            state="In Progress",
+            project_id="proj-b",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        coordination = MagicMock()
+        coordination.workflow_runtime = SimpleNamespace(enforce=True)
+        coordination._current_running_entry.return_value = SimpleNamespace(
+            issue=foreign_issue,
+            identifier=foreign_issue.identifier,
+            run_id="foreign-run",
+            authority_generation="foreign-generation",
+            assignment_id="foreign-assignment",
+            focus_name="implementation",
+        )
+        coordination._schedule_implementation_workflow_event.return_value = (
+            SimpleNamespace(job_id="status-job")
+        )
+
+        assert _schedule_durable_task_status(
+            coordination,
+            tracker,
+            project_id="proj-a",
+            identifier=issue.identifier,
+            requested_status="Needs Human",
+            reason="test exact scope",
+        )
+
+        payload = coordination._schedule_implementation_workflow_event.call_args.kwargs[
+            "payload"
+        ]
+        assert payload["prior_generation"] == ""
+        assert payload["run_id"] == ""
 
     def test_view_formats_tracker_detail_without_http(self):
         from oompah.acp_tools import _exec_oompah_task_command

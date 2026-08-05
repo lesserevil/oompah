@@ -13,6 +13,7 @@ import time
 import types
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -104,6 +105,36 @@ def test_live_direct_owner_claim_survives_repeated_orphan_scans(tmp_path):
             "renewable": True,
         }
     ]
+
+
+def test_owner_claim_ignores_same_tracker_id_owned_by_another_project(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    foreign_issue = Issue(
+        id=issue.id,
+        identifier=issue.identifier,
+        title="Foreign task with a colliding tracker id",
+        description="Another managed project owns this runtime.",
+        state="In Progress",
+        issue_type="task",
+        project_id="proj-2",
+    )
+    orch.state.running[issue.id] = RunningEntry(
+        worker_task=None,
+        identifier=foreign_issue.identifier,
+        issue=foreign_issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+    )
+
+    claim = orch.grant_owner_claim(
+        issue_id=issue.id,
+        project_id=issue.project_id,
+        owner_login="alice",
+    )
+
+    assert claim.project_id == issue.project_id
+    assert orch.state.running[issue.id].issue.project_id == "proj-2"
 
 
 def test_owner_claim_is_restored_from_durable_service_state(tmp_path):
@@ -240,6 +271,58 @@ def test_owner_claim_api_marks_direct_work_and_release_is_authorized(tmp_path):
         rejected = client.post(endpoint, json={"actor_login": "alice"})
         assert rejected.status_code == 409
         assert rejected.json()["error"]["code"] == "invalid_state"
+
+
+def test_owner_claim_api_enforce_routes_claim_and_release_through_workflow(tmp_path):
+    from oompah.implementation_workflow import ImplementationAction
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.state = "Open"
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(
+        enforce=True,
+        health_snapshot=lambda: {},
+        projections=lambda: (),
+    )
+    orch._schedule_implementation_workflow_event = MagicMock(
+        side_effect=(
+            SimpleNamespace(job_id="claim-job", generation="claim-generation"),
+            SimpleNamespace(job_id="release-job", generation="release-generation"),
+        )
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        claimed = client.post(endpoint, json={"actor_login": "alice"})
+        assert claimed.status_code == 202, claimed.text
+        claim_call = orch._schedule_implementation_workflow_event.call_args_list[
+            0
+        ].kwargs
+        assert claim_call["action"] is ImplementationAction.DIRECT_OWNER_CLAIM
+        assert claim_call["payload"]["owner_id"] == "alice"
+        tracker.update_issue.assert_not_called()
+
+        external_claim = orch.grant_owner_claim(
+            issue_id=issue.id,
+            project_id=issue.project_id,
+            owner_login="alice",
+        )
+        released = client.request(
+            "DELETE", endpoint, json={"actor_login": "alice"}
+        )
+
+    assert released.status_code == 202, released.text
+    release_call = orch._schedule_implementation_workflow_event.call_args_list[
+        1
+    ].kwargs
+    assert release_call["action"] is ImplementationAction.AUTHORITY_REVOCATION
+    assert release_call["payload"]["claim_id"] == external_claim.claim_id
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is external_claim
 
 
 def test_owner_claim_api_retires_scheduler_before_granting_direct_work(tmp_path):

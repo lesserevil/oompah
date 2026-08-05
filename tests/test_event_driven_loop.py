@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
@@ -1098,6 +1099,200 @@ class TestGracefulRestartShutdownEvent:
         event_loop.run_until_complete(orch._recover_restart_issues())
 
         tracker.update_issue.assert_called_once_with(issue_id, status="Open")
+        assert orch._load_state().get("restart_issues") == []
+
+    def test_enforce_restart_recovery_uses_durable_single_writer(
+        self, tmp_path, event_loop
+    ):
+        """Enforce startup publishes recovery instead of writing Open directly."""
+        from oompah.models import Issue
+        from oompah.task_transition_service import issue_authority_version
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-durable-restart"
+        interrupted = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Interrupted durable implementation",
+            state="In Progress",
+            project_id="proj-test",
+            work_branch=issue_id,
+            head_sha="a" * 40,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Interrupted implementation state",
+                state="In Progress",
+            )
+        ]
+        tracker.fetch_issue_detail.return_value = interrupted
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="recovery-job")
+        )
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        tracker.update_issue.assert_not_called()
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["project_id"] == "proj-test"
+        assert scheduled["identifier"] == issue_id
+        assert scheduled["action"] == "implementation_recovery"
+        assert scheduled["payload"]["expected_status"] == "In Progress"
+        assert scheduled["expected_evidence_revision"] == issue_authority_version(
+            interrupted
+        )
+        assert scheduled["expected_head_sha"] == "a" * 40
+        assert orch._load_state().get("restart_issues") == []
+
+    def test_enforce_restart_recovery_prefers_accepted_submission(
+        self, tmp_path, event_loop
+    ):
+        """Accepted work outranks a generic interrupted-worker recovery."""
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-accepted-restart"
+        interrupted = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Accepted durable submission",
+            state="In Progress",
+            project_id="proj-test",
+            work_branch=issue_id,
+            head_sha="a" * 40,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [interrupted]
+        tracker.fetch_issue_detail.return_value = interrupted
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        accepted_payload = {
+            "head_sha": "a" * 40,
+            "expected_status": "In Progress",
+            "reason": "recover accepted validation submission",
+        }
+        orch._durable_accepted_implementation_handoff = MagicMock(
+            return_value=("validation_submission", accepted_payload)
+        )
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="submission-job")
+        )
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "validation_submission"
+        assert scheduled["payload"] == accepted_payload
+        assert scheduled["expected_head_sha"] == "a" * 40
+        assert orch._load_state().get("restart_issues") == []
+
+    def test_enforce_restart_marker_survives_event_publication_failure(
+        self, tmp_path, event_loop
+    ):
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-recovery-publish-failure"
+        tracker = MagicMock()
+        detailed = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Interrupted durable implementation",
+            state="In Progress",
+            project_id="proj-test",
+        )
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Interrupted implementation state",
+                state="In Progress",
+            )
+        ]
+        tracker.fetch_issue_detail.return_value = detailed
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            side_effect=RuntimeError("ledger unavailable")
+        )
+        marker = {
+            "issue_id": issue_id,
+            "identifier": issue_id,
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[marker])
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        tracker.update_issue.assert_not_called()
+        assert orch._load_state().get("restart_issues") == [marker]
+
+    def test_enforce_legacy_restart_recovery_uses_legacy_project_binding(
+        self, tmp_path, event_loop
+    ):
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-legacy-restart"
+        sparse = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Interrupted legacy state",
+            state="In Progress",
+        )
+        detailed = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Interrupted legacy implementation",
+            state="In Progress",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [sparse]
+        tracker.fetch_issue_detail.return_value = detailed
+        orch.tracker = tracker
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="legacy-recovery")
+        )
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": None,
+                }
+            ]
+        )
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["project_id"] == "legacy"
+        assert detailed.project_id == "legacy"
+        tracker.update_issue.assert_not_called()
         assert orch._load_state().get("restart_issues") == []
 
     # Keep real storage, transition-lock, and asyncio.to_thread coverage while

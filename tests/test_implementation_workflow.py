@@ -48,6 +48,10 @@ from tests.fixtures_workflow_incidents import INCIDENTS_BY_ID
 NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
 
 
+class ProcessDeath(BaseException):
+    """Uncatchable test fault representing an abandoned worker process."""
+
+
 class Tracker:
     def __init__(self, issues):
         self.issues = {issue.identifier: issue for issue in issues}
@@ -139,6 +143,74 @@ def test_duplicate_candidate_schedules_durable_screening(tmp_path):
     assert batch.tasks[0].decision.durable_jobs == ("duplicate_screening",)
     assert result.jobs_created == 1
     assert store.list_jobs()[0].action == "duplicate_screening"
+    store.close()
+
+
+def test_open_duplicate_preflight_precedes_implementation_start(tmp_path):
+    task = issue(OPEN)
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector(
+            [task],
+            config={
+                "duplicate_screening_state": "unchecked",
+                "implementation_pending_action": "duplicate_screening",
+            },
+        ),
+        store=store,
+    )
+
+    batch, result = controller.reconcile([task])
+
+    assert batch.tasks[0].decision.durable_jobs == ("duplicate_screening",)
+    assert result.jobs_created == 1
+    assert [job.action for job in store.list_jobs()] == ["duplicate_screening"]
+    store.close()
+
+
+@pytest.mark.parametrize(
+    ("status", "requested_status"),
+    (
+        (OPEN, DUPLICATE_CANDIDATE),
+        (DUPLICATE_CANDIDATE, OPEN),
+    ),
+)
+def test_duplicate_verdict_status_mismatch_recovers_through_worker_exit(
+    tmp_path, status, requested_status
+):
+    task = issue(status)
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    payload = {
+        "requested_status": requested_status,
+        "expected_status": status,
+        "reason": "recover duplicate-screening transition",
+    }
+    controller = ImplementationWorkflowController(
+        collector=collector(
+            [task],
+            config={
+                "duplicate_screening_state": "checked",
+                "duplicate_screening_verdict": (
+                    "duplicate_candidate"
+                    if requested_status == DUPLICATE_CANDIDATE
+                    else "no_duplicate"
+                ),
+                "duplicate_screening_enabled": True,
+                "implementation_pending_action": "worker_exit",
+                "implementation_pending_payload": payload,
+            },
+        ),
+        store=store,
+    )
+
+    batch, result = controller.reconcile([task])
+
+    assert batch.tasks[0].decision.durable_jobs == ("worker_exit",)
+    assert result.jobs_created == 1
+    job = store.list_jobs()[0]
+    assert job.action == "worker_exit"
+    assert job.payload["requested_status"] == requested_status
+    assert job.payload["expected_status"] == status
     store.close()
 
 
@@ -298,7 +370,7 @@ class Backend:
             ImplementationAction.VALIDATION_SUBMISSION.value: ImplementationState.SUBMITTED,
             ImplementationAction.AUTHORITY_REVOCATION.value: ImplementationState.REVOKED,
             ImplementationAction.RETRY.value: ImplementationState.RETRY_WAIT,
-            ImplementationAction.DUPLICATE_SCREENING.value: ImplementationState.COMPLETED,
+            ImplementationAction.DUPLICATE_SCREENING.value: ImplementationState.ACTIVE,
         }.get(context.job.action, ImplementationState.ACTIVE)
         if self.status == "incomplete":
             state = ImplementationState.INCOMPLETE
@@ -683,6 +755,7 @@ def test_fact_reconcile_replays_equivalent_imperative_event(tmp_path):
         "owner_id": "agent-2",
         "focus": "testing",
         "work_branch": "TASK-1",
+        "expected_status": task.state,
         "lease_expires_at": datetime(2099, 1, 2, tzinfo=timezone.utc).isoformat(),
     }
     controller = ImplementationWorkflowController(
@@ -869,6 +942,101 @@ async def test_implementation_retry_action_uses_durable_due_timer(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_completed_retry_carries_launch_context_into_recovery(tmp_path):
+    now = [0.0]
+    store = WorkflowJobStore(
+        str(tmp_path / "jobs.sqlite3"), clock=lambda: now[0]
+    )
+    controller = ImplementationWorkflowController(
+        collector=collector([issue()]), store=store
+    )
+    event(
+        controller,
+        ImplementationAction.RETRY,
+        payload={
+            "owner_id": "agent-1",
+            "work_branch": "TASK-1",
+            "retry_at": datetime.fromtimestamp(0, tz=timezone.utc).isoformat(),
+            "attempt": 2,
+            "profile": "escalated",
+            "workspace_path": "/work/TASK-1",
+            "incomplete_sessions": 2,
+            "focus": "bugfix",
+        },
+    )
+    backend = Backend()
+    backend.status = "retry_scheduled"
+
+    assert (
+        await worker(store, backend).run_once()
+    ).disposition is WorkflowRunDisposition.COMPLETED
+    in_progress = issue(IN_PROGRESS)
+    authority = controller.implementation_authority(in_progress)
+    reconciler = ImplementationWorkflowController(
+        collector=collector([in_progress], authority=authority), store=store
+    )
+
+    batch, scheduled = reconciler.reconcile([in_progress])
+
+    assert batch.tasks[0].decision.durable_jobs == ("implementation_recovery",)
+    assert scheduled.jobs_created == 1
+    recovery = store.list_jobs(newest_first=True)[0]
+    assert recovery.action == "implementation_recovery"
+    assert recovery.payload["attempt"] == 2
+    assert recovery.payload["profile"] == "escalated"
+    assert recovery.payload["workspace_path"] == "/work/TASK-1"
+    assert recovery.payload["incomplete_sessions"] == 2
+    assert recovery.payload["focus"] == "bugfix"
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_abandoned_retry_attempt_still_honors_original_retry_at(tmp_path):
+    now = [0.0]
+    path = tmp_path / "jobs.sqlite3"
+    store = WorkflowJobStore(str(path), clock=lambda: now[0])
+    controller = ImplementationWorkflowController(
+        collector=collector([issue()]), store=store
+    )
+    job = event(
+        controller,
+        ImplementationAction.RETRY,
+        payload={
+            "owner_id": "agent-1",
+            "work_branch": "TASK-1",
+            "retry_at": datetime.fromtimestamp(10, tz=timezone.utc).isoformat(),
+        },
+    )
+    backend = Backend()
+    backend.status = "retry_scheduled"
+    crashed = False
+
+    def abandon_after_verification(phase, _job):
+        nonlocal crashed
+        if phase == "verify_returned" and not crashed:
+            crashed = True
+            raise ProcessDeath("worker disappeared before arming retry")
+
+    with pytest.raises(ProcessDeath):
+        await worker(store, backend, observer=abandon_after_verification).run_once()
+    assert store.get(job.job_id).state is WorkflowJobState.RUNNING
+    assert store.recover_abandoned() == 1
+
+    before_due = await worker(store, backend).run_once()
+
+    assert before_due.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    recovered = store.get(job.job_id)
+    assert recovered.attempts == 2
+    assert recovered.state is WorkflowJobState.RETRY_WAIT
+    assert recovered.retry_at == 10
+    assert (await worker(store, backend).run_once()).disposition is WorkflowRunDisposition.IDLE
+
+    now[0] = 10
+    assert (await worker(store, backend).run_once()).disposition is WorkflowRunDisposition.COMPLETED
+    store.close()
+
+
+@pytest.mark.asyncio
 async def test_stale_generation_is_superseded_before_external_work(tmp_path):
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
     controller = ImplementationWorkflowController(
@@ -914,7 +1082,7 @@ async def test_late_execution_result_is_terminally_superseded(tmp_path):
         ),
         (
             ImplementationAction.DUPLICATE_SCREENING,
-            ImplementationState.COMPLETED,
+            ImplementationState.ACTIVE,
             ImplementationOwnershipSource.DUPLICATE_INVESTIGATOR,
         ),
         (

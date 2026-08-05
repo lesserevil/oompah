@@ -1405,6 +1405,7 @@ def _execute_tool(
     validation_reuse_policy_handler: Callable[..., object] | None = None,
     project_store: Any = None,
     submission_handler: Any = None,
+    coordination_service: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1489,6 +1490,7 @@ def _execute_tool(
                 project_id,
                 action_policy,
                 task_identifier,
+                coordination_service=coordination_service,
                 workspace_path=workspace,
                 project_store=project_store,
                 submission_handler=submission_handler,
@@ -1850,6 +1852,7 @@ class ApiAgentSession:
         validation_reuse_policy_handler: Callable[..., object] | None = None,
         project_store: Any = None,
         submission_handler: Any = None,
+        coordination_service: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1916,6 +1919,7 @@ class ApiAgentSession:
         self.validation_reuse_policy_handler = validation_reuse_policy_handler
         self.project_store = project_store
         self.submission_handler = submission_handler
+        self.coordination_service = coordination_service
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -2352,6 +2356,7 @@ class ApiAgentSession:
                             ),
                             project_store=self.project_store,
                             submission_handler=self.submission_handler,
+                            coordination_service=self.coordination_service,
                         )
 
                     tool_failed = result_str.startswith("Error")

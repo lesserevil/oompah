@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -403,6 +404,56 @@ class TestOrchestratorAskQuestionExit:
 
         # Verify: NOT in retry queue
         assert issue_id not in orch.state.retry_attempts
+
+    def test_enforce_ask_question_exit_schedules_needs_answer_not_retry(
+        self, tmp_path, event_loop
+    ):
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        issue = _make_issue(state="In Progress")
+        issue.project_id = "proj-a"
+        issue.work_branch = issue.identifier
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.workflow_runtime = SimpleNamespace(enforce=True)
+        orch._schedule_implementation_workflow_event = MagicMock(
+            return_value=SimpleNamespace(job_id="question-exit")
+        )
+        orch._schedule_retry = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch._post_event = MagicMock()
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="run-question",
+            authority_generation="generation-question",
+        )
+        orch.state.running[issue.id] = entry
+
+        event_loop.run_until_complete(
+            orch._on_worker_exit(
+                issue.id,
+                "ask_question",
+                "Which database should I use?",
+                run_id=entry.run_id,
+            )
+        )
+
+        scheduled = orch._schedule_implementation_workflow_event.call_args.kwargs
+        assert scheduled["action"] == "worker_exit"
+        assert scheduled["payload"]["requested_status"] == "Needs Answer"
+        assert scheduled["payload"]["prior_generation"] == "generation-question"
+        assert scheduled["payload"]["run_id"] == "run-question"
+        orch._schedule_retry.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_ask_question_exit_not_marked_completed(self, tmp_path, event_loop):
         """ask_question should NOT mark the issue as completed."""

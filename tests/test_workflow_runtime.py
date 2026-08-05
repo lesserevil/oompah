@@ -162,6 +162,84 @@ def test_runtime_factory_migrates_native_tracker_startup_objects(tmp_path):
     store.close()
 
 
+def test_runtime_authority_source_refreshes_live_durable_lease(tmp_path):
+    class ProjectStore:
+        def list_all(self):
+            return []
+
+    class Config:
+        workflow_engine_mode = "shadow"
+        workflow_runtime_decision_limit = 17
+        workflow_runtime_batch_size = 9
+
+    refreshed = []
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-LIVE", state="In Progress", project_id="legacy")
+    tracker = NativeTracker([task])
+
+    def refresh(_self, issue, authority):
+        refreshed.append((issue.identifier, dict(authority)))
+        return {**authority, "lease_expires_at": "2099-01-01T00:00:00+00:00"}
+
+    orchestrator = type(
+        "OrchestratorDouble",
+        (),
+        {
+            "project_store": ProjectStore(),
+            "tracker": tracker,
+            "config": Config(),
+            "workflow_job_store": store,
+            "_state_path": str(tmp_path / "service-state.json"),
+            "_refresh_durable_implementation_authority": refresh,
+        },
+    )()
+    runtime = WorkflowRuntime.from_orchestrator(orchestrator)
+    binding = runtime.project_bindings["legacy"]
+    binding.implementation_controller.implementation_authority = lambda _issue: {
+        "state": "active",
+        "generation": "generation-1",
+        "run_id": "run-1",
+        "lease_expires_at": "2020-01-01T00:00:00+00:00",
+    }
+
+    facts = binding.collector.collect(task.identifier)
+    authority = facts.fact(FactDomain.IMPLEMENTATION_AUTHORITY).value
+
+    assert refreshed == [
+        (
+            task.identifier,
+            {
+                "state": "active",
+                "generation": "generation-1",
+                "run_id": "run-1",
+                "lease_expires_at": "2020-01-01T00:00:00+00:00",
+            },
+        )
+    ]
+    assert authority["lease_expires_at"] == "2099-01-01T00:00:00+00:00"
+    runtime.close()
+    store.close()
+
+
+def test_runtime_scopes_projectless_tracker_rows_before_controller_hashing(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    task = make_issue("TASK-UNSCOPED", project_id=None)
+    tracker = NativeTracker([task])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+
+    issues = runtime._issues(binding)
+
+    assert issues[0].project_id == "project-1"
+    runtime.close()
+    store.close()
+
+
 def test_runtime_shares_ledger_and_recovers_leased_job(tmp_path):
     store_path = str(tmp_path / "jobs.sqlite3")
     store = WorkflowJobStore(store_path)
