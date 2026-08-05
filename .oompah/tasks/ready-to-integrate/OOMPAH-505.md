@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T02:07:28.109197Z'
+updated_at: '2026-08-05T02:07:52.261501Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 25e7c1fe-313b-436f-846b-2fd28235e869
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9678921
-  total_output_tokens: 39343
+  total_input_tokens: 9679519
+  total_output_tokens: 39498
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 50767
-      output_tokens: 5325
+      input_tokens: 51365
+      output_tokens: 5480
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +69,12 @@ oompah.task_costs:
     output_tokens: 4945
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:49:01.035940+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 598
+    output_tokens: 155
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T02:07:47.911840+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -898,5 +904,20 @@ author: oompah
 created: 2026-08-05 02:07
 ---
 Explicit Claude and Codex model tiers implementation complete and verified. Backend descriptors expose supports_manual_model_selection() independent of catalog discovery. UI provides manual model entry for catalog-less ACP backends with SDK-default fallback. Role store validates and persists explicit role candidates with priority/round-robin strategy support. All 853 focused tests passing: providers (301), orchestrator handlers (324), ACP backends (45), auth tests (183). Secrets scan clean. Production deployment ready.
+---
+author: oompah
+created: 2026-08-05 02:07
+---
+Verification: Implementation submitted successfully. Branch epic-OOMPAH-502--task-OOMPAH-505 contains all OOMPAH-505 changes (commits 5cf99179e and ab00e7cf3). Comprehensive test results: 301 provider/role/matrix tests, 324 orchestrator handler tests (including explicit model propagation and candidate failover), 45 ACP backend descriptor tests, 183 auth boundary tests. All pass with no regressions. make check-secrets clean.
+---
+author: oompah
+created: 2026-08-05 02:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 35
+- Tokens: 598 in / 155 out [753 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 19s
+- Log: OOMPAH-505__20260805T020146Z.jsonl
 ---
 <!-- COMMENTS:END -->
