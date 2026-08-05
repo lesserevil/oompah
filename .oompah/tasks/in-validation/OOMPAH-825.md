@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T13:24:55.013056Z'
+updated_at: '2026-08-05T13:32:13.084480Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -36,6 +36,31 @@ oompah.target_branch: main
 oompah.review_head: 11c75e6c1b86f16837c13efb32938f814f362b79
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-d04fe57ac79d: '2026-08-05T13:32:03.004855+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-825
+    target_state: Done
+    evidence_fingerprint: f1446e7a5635bf07712e5dc07c6bcf7c4d386aee89bb245209cbf5f4c6138b71
+    audit_ids:
+    - audit-5ffc50b0397d
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T13:32:03.004870+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-825
+    audit_id: audit-5ffc50b0397d
+    attempt_id: attempt-d04fe57ac79d
+    target_state: Done
+    evidence_fingerprint: f1446e7a5635bf07712e5dc07c6bcf7c4d386aee89bb245209cbf5f4c6138b71
+    status: In Validation
+    audit_ids:
+    - audit-5ffc50b0397d
+    applied: true
+    created_at: '2026-08-05T13:32:03.004890+00:00'
+    applied_at: '2026-08-05T13:32:10.475660+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +68,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-825
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -52,7 +77,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d04fe57ac79d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -62,13 +87,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T13:15:23.162171+00:00'
       branch_key: OOMPAH-825
+      verdict: pass
+      completed_at: '2026-08-05T13:32:03.004640+00:00'
+      ended_at: '2026-08-05T13:32:03.004640+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T13:13:49.463353+00:00'
-    updated_at: '2026-08-05T13:15:23.162171+00:00'
+    updated_at: '2026-08-05T13:32:03.004640+00:00'
   - version: 1
     audit_id: audit-073bdc9f703b
     project_id: proj-14849f1b
@@ -201,5 +229,27 @@ author: oompah
 created: 2026-08-05 13:24
 ---
 Post-deploy live acceptance found two narrower production-shape gaps not covered by the reviewed migration fixture. The key exhaustion/action_required migration succeeded (exhausted=0, action_required=false) and OOMPAH-662 repaired to Done, but OOMPAH-452/453/455/456 retry as lifecycle_metadata_not_finalized and OOMPAH-660 retries as lifecycle_repair_not_applied. Exact diagnosis: Archived audits use disposition fingerprints from request_archived_audit, which cannot equal _lifecycle_terminal_authorities' issue fingerprint despite completed PASS + applied result intent; filed OOMPAH-828. OOMPAH-660 is the original OOMPAH-663 legacy canonicalization pair: current/integration audit ab40139d2035 versus applied Done override 62954f9b5fdc; the live-shaped OOMPAH-825 fixture incorrectly modeled equality; filed OOMPAH-829 for bounded equivalence migration. No service_state/task metadata was hand-edited. Both bugs are Open; project remains paused.
+---
+author: oompah
+created: 2026-08-05 13:32
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 11c75e6c1b86f16837c13efb32938f814f362b79
+- merge_commit: 7978ec91b5532784c5dd6f18bc028954fd3696a9
+- pr_number: 721
+- parent_main: c14ca03f59078e6df06871488cf78f04477acb11
+- branch_commits: 74c4b71cf (Scope lifecycle reconciliation evidence) + 11c75e6c1 (Isolate close-gate tests from host auth)
+- files_changed: 6 (5 code+tests, 1 close-gate isolation)
+- insertions_deletions: +2140/-266
+- classifier_version: LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION=2
+- full_gate_result: 15657 passed, 7 skipped, 1 xfailed in 619.73s
+- terminal_mutation_scan: 8 identified, 8 allowlisted
+- [REDACTED-credential-key]: clean
+- commit_trailer: canonical oompah trailer, no model attribution
+- merged_to_main: true
 ---
 <!-- COMMENTS:END -->
