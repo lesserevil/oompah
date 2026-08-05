@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-08-05T16:14:28.259279Z'
+updated_at: '2026-08-05T16:14:35.111101Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
@@ -45,8 +45,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-70f345674817
-    applied: false
+    applied: true
     created_at: '2026-08-05T16:14:24.993420+00:00'
+    applied_at: '2026-08-05T16:14:33.852035+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -303,5 +304,12 @@ author: oompah
 created: 2026-08-05 15:44
 ---
 Systemic follow-up OOMPAH-831 filed from attempts #1/#2: the advertised search_files regex semantics, match-to-context read path, and safe git ls-tree fallback are inconsistent. Attempt #3 recovered through the approved command contract and is queued behind the shared validation lease; no operator override is being applied while natural audit flow remains live.
+---
+author: oompah
+created: 2026-08-05 16:14
+---
+Audit PASS — Archived
+
+[REDACTED]
 ---
 <!-- COMMENTS:END -->
