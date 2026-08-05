@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T17:58:13.052620Z'
+updated_at: '2026-08-05T17:58:51.394169Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
@@ -125,6 +125,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T17:26:42.008601+00:00'
     branch_key: OOMPAH-838
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 569
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 569
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 569
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T17:58:48.963549+00:00'
 ---
 ## Summary
 
@@ -209,5 +225,15 @@ Safe evidence:
 - claim_fence: UPDATE, SELECT, COMMIT all inside single BEGIN IMMEDIATE; claimed_retry_forced carried on returned item only
 - durable_flag_state_after_claim: retry_forced=0 in row (verified by test_retry_forced_is_returned_once_and_consumed_by_claim and integrating.retry_forced is False assertions)
 - orchestrator_call_site: oompah/orchestrator.py:11059 retry_forced=item.claimed_retry_forced
+---
+author: oompah
+created: 2026-08-05 17:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 35, Tool calls: 23
+- Tokens: 6 in / 569 out [575 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 55s
+- Log: OOMPAH-838__20260805T172702Z.jsonl
 ---
 <!-- COMMENTS:END -->
