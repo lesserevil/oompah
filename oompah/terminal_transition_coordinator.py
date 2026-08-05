@@ -261,12 +261,53 @@ def audit_recovery_mode(record: TerminalAuditRecord) -> str | None:
     if record.request_state != RequestState.COMPLETED:
         return None
     terminal = _terminal_attempt(record)
-    if terminal is None or terminal.failure_classification is None:
+    if (
+        terminal is None
+        or terminal.request_state != RequestState.COMPLETED
+        or terminal.verdict not in {Verdict.FAIL, Verdict.NEEDS_HUMAN}
+        or terminal.target_state != record.target_state
+        or terminal.evidence_fingerprint != record.evidence_fingerprint
+        or terminal.failure_classification is None
+    ):
         return None
     if terminal.failure_classification in _EVIDENCE_REARM_CLASSES:
         return "evidence_addendum"
     if terminal.failure_classification in _INFRASTRUCTURE_RETRYABLE_CLASSES:
         return "infrastructure"
+    return None
+
+
+def _active_rearm_mode(
+    document: TerminalAuditMetadata,
+    record: TerminalAuditRecord,
+) -> str | None:
+    """Return the durable recovery mode that created an active retry record.
+
+    Rearm provenance is stored outside the audit record so the record remains
+    compatible with older metadata.  Bind a history row to the complete audit
+    identity before trusting its mode; an unrelated or malformed row must not
+    authorize a cross-mode retry.
+    """
+
+    raw_history = document.unknown_fields.get(_TERMINAL_REARM_HISTORY_KEY)
+    if not isinstance(raw_history, list):
+        return None
+    for row in reversed(raw_history):
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            row.get("audit_id") != record.audit_id
+            or row.get("project_id") != record.project_id
+            or row.get("task_id") != record.task_id
+            or row.get("target_state") != record.target_state.value
+        ):
+            continue
+        mode = row.get("mode")
+        if mode == "infrastructure_recovery":
+            return "infrastructure"
+        if mode == "evidence_addendum":
+            return mode
+        return None
     return None
 
 
@@ -1044,12 +1085,18 @@ class TerminalTransitionCoordinator:
 
         def _operation() -> TransitionResult:
             tracker = self._tracker_for_project(project_id)
-            locked_issue, locked_fingerprint = self._refresh_override_evidence(
+            refreshed_evidence = self._refresh_retry_evidence(
                 tracker,
                 current_issue,
                 project_id,
                 evidence_fingerprint,
             )
+            if refreshed_evidence is None:
+                return TransitionResult(
+                    success=False,
+                    reason="evidence_refresh_failed",
+                )
+            locked_issue, locked_fingerprint = refreshed_evidence
             if locked_fingerprint != evidence_fingerprint:
                 return TransitionResult(
                     success=False,
@@ -1100,6 +1147,11 @@ class TerminalTransitionCoordinator:
             def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
                 nonlocal decision, retired_audit_id
                 chain = list(doc.pending_chain)
+                desired_mode = (
+                    "evidence_addendum"
+                    if evidence_addendum is not None
+                    else "infrastructure"
+                )
                 matching = [
                     record
                     for record in chain
@@ -1108,34 +1160,42 @@ class TerminalTransitionCoordinator:
                     and record.task_id
                     in {locked_issue.identifier, str(locked_issue.id or "")}
                 ]
-                active = next(
-                    (
-                        record
-                        for record in reversed(matching)
-                        if record.request_state
-                        in (RequestState.PENDING, RequestState.IN_PROGRESS)
-                    ),
-                    None,
-                )
-                if active is not None:
-                    decision = TransitionResult(
-                        success=True,
-                        audit_id=active.audit_id,
-                        coalesced=True,
-                        status_staged=False,
-                    )
-                    return doc
-
                 # Only the newest record is authoritative.  Looking farther
                 # back would let an old failed audit bypass a newer PASS (or
                 # a newer changed-fingerprint failure), violating successful
                 # audit finality.
                 latest = matching[-1] if matching else None
-                desired_mode = (
-                    "evidence_addendum"
-                    if evidence_addendum is not None
-                    else "infrastructure"
-                )
+                if latest is not None and latest.request_state in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
+                    if latest.evidence_fingerprint != locked_fingerprint:
+                        decision = TransitionResult(
+                            success=False,
+                            reason="evidence_fingerprint_mismatch",
+                        )
+                        return doc
+                    active_mode = _active_rearm_mode(doc, latest)
+                    if (
+                        active_mode is not None
+                        and active_mode != desired_mode
+                    ) or (
+                        desired_mode == "evidence_addendum"
+                        and active_mode != "evidence_addendum"
+                    ):
+                        decision = TransitionResult(
+                            success=False,
+                            reason="audit_not_retryable",
+                        )
+                        return doc
+                    decision = TransitionResult(
+                        success=True,
+                        audit_id=latest.audit_id,
+                        coalesced=True,
+                        status_staged=False,
+                    )
+                    return doc
+
                 latest_mode = (
                     audit_recovery_mode(latest)
                     if latest is not None
@@ -1410,6 +1470,43 @@ class TerminalTransitionCoordinator:
     # ------------------------------------------------------------------
     # Public API — override_transition
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _refresh_retry_evidence(
+        tracker: TrackerProtocol,
+        current_issue: Issue,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+    ) -> tuple[Issue, EvidenceFingerprint] | None:
+        """Refresh retry evidence, failing closed when production reads fail.
+
+        Small tracker-neutral integrations may omit ``fetch_issue_detail`` and
+        continue to supply an explicit fingerprint.  A production tracker that
+        exposes the detail-read contract is different: an exception, missing
+        task, or malformed result means the coordinator cannot prove that the
+        caller's snapshot is current, so retry authority must be denied.
+        """
+
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if not callable(fetch_issue_detail):
+            return current_issue, evidence_fingerprint
+        try:
+            refreshed = fetch_issue_detail(current_issue.identifier)
+        except Exception:  # noqa: BLE001 - retry authority fails closed
+            logger.warning(
+                "Could not refresh issue evidence for audit retry %s",
+                current_issue.identifier,
+                exc_info=True,
+            )
+            return None
+        if not isinstance(refreshed, Issue):
+            logger.warning(
+                "Could not refresh issue evidence for audit retry %s: "
+                "tracker returned no authoritative issue",
+                current_issue.identifier,
+            )
+            return None
+        return refreshed, compute_issue_evidence_fingerprint(refreshed, project_id)
 
     @staticmethod
     def _refresh_override_evidence(

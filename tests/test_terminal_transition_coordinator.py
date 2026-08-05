@@ -133,6 +133,13 @@ class _FailingUpdateTracker(_MemoryTracker):
         super().update_issue(identifier, **kwargs)
 
 
+class _FailingRefreshTracker(_MemoryTracker):
+    """Production-shaped tracker whose authoritative detail read is down."""
+
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        raise RuntimeError(f"authoritative read failed for {identifier}")
+
+
 class _BlockingMetadataTracker(_MemoryTracker):
     """Block the first metadata write to force cross-loop lock contention."""
 
@@ -1890,7 +1897,7 @@ def _exhausted_missing_evidence_record() -> TerminalAuditRecord:
 
 def _exhausted_mixed_attempt_record() -> TerminalAuditRecord:
     """Create a record with mixed attempt history (finalization_failure + terminal no_auditor).
-    
+
     This reproduces OOMPAH-745: a task with multiple failed attempts from
     different failures, ending with NO_AUDITOR. The record should still be
     retryable via infrastructure recovery because the TERMINAL attempt is NO_AUDITOR.
@@ -2008,6 +2015,220 @@ class TestRetryFailedAudit:
             tracker, _LockStore(), PROJECT_ID
         ).read(TASK_ID)
         assert len(stored.pending_chain) == 2
+
+    def test_active_infrastructure_retry_rejects_evidence_addendum(self) -> None:
+        """An addendum cannot coalesce onto a non-evidence recovery audit."""
+
+        tracker = _MemoryTracker()
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+        common = (
+            _issue(NEEDS_HUMAN),
+            TargetState.ARCHIVED,
+            ContributorIdentity("project-owner", "api"),
+            PROJECT_ID,
+            "Retry after infrastructure repair",
+            self._owner_project(),
+        )
+        first = _run(
+            coordinator.retry_failed_audit(
+                *common,
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        replay = _run(
+            coordinator.retry_failed_audit(
+                *common,
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": exhausted.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+
+        assert first.success is True
+        assert replay.success is False
+        assert replay.reason == "audit_not_retryable"
+        assert len(
+            TerminalAuditMetadataStore(
+                tracker, _LockStore(), PROJECT_ID
+            ).read(TASK_ID).pending_chain
+        ) == 2
+
+    def test_active_evidence_retry_rejects_infrastructure_replay(self) -> None:
+        """A no-addendum retry cannot change an active addendum recovery mode."""
+
+        tracker = _MemoryTracker()
+        failed = _exhausted_missing_evidence_record()
+        _seed_metadata(tracker, [failed])
+        coordinator = _coordinator(tracker, post_comments=False)
+        common = (
+            _issue(NEEDS_HUMAN),
+            TargetState.DONE,
+            ContributorIdentity("project-owner", "api"),
+            PROJECT_ID,
+            "Evidence supplied",
+            self._owner_project(),
+        )
+        first = _run(
+            coordinator.retry_failed_audit(
+                *common,
+                evidence_fingerprint=failed.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": failed.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+
+        replay = _run(
+            coordinator.retry_failed_audit(
+                *common,
+                evidence_fingerprint=failed.evidence_fingerprint,
+            )
+        )
+
+        assert first.success is True
+        assert replay.success is False
+        assert replay.reason == "audit_not_retryable"
+        assert len(
+            TerminalAuditMetadataStore(
+                tracker, _LockStore(), PROJECT_ID
+            ).read(TASK_ID).pending_chain
+        ) == 2
+
+    def test_evidence_addendum_does_not_coalesce_unproven_active_audit(self) -> None:
+        """A generic active audit has no missing-evidence rearm authority."""
+
+        failed = _exhausted_missing_evidence_record()
+        active = replace(
+            failed,
+            audit_id="audit-active-without-rearm-provenance",
+            request_state=RequestState.PENDING,
+            attempts=[],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [failed, active])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Evidence supplied",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": failed.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [failed, active]
+
+    def test_active_retry_only_coalesces_for_exact_current_fingerprint(self) -> None:
+        failed = _exhausted_no_auditor_record()
+        stale_active = replace(
+            failed,
+            audit_id="audit-stale-active",
+            evidence_fingerprint=_alt_fingerprint(),
+            request_state=RequestState.PENDING,
+            attempts=[],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [failed, stale_active])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry after infrastructure repair",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_fingerprint_mismatch"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [failed, stale_active]
+
+    def test_newer_successful_audit_fences_older_active_record(self) -> None:
+        failed = _exhausted_no_auditor_record()
+        older_active = replace(
+            failed,
+            audit_id="audit-older-active",
+            request_state=RequestState.PENDING,
+            attempts=[],
+        )
+        passed = replace(
+            failed,
+            audit_id="audit-newer-pass",
+            attempts=[
+                replace(
+                    failed.attempts[-1],
+                    attempt_id="newer-pass",
+                    verdict=Verdict.PASS,
+                    failure_classification=None,
+                )
+            ],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [older_active, passed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry the historical active record",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [older_active, passed]
+
+    def test_production_retry_fails_closed_when_evidence_refresh_fails(self) -> None:
+        failed = _exhausted_no_auditor_record()
+        tracker = _FailingRefreshTracker()
+        _seed_metadata(tracker, [failed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry after infrastructure repair",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_refresh_failed"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [failed]
+        assert tracker.update_calls == []
 
     def test_non_owner_cannot_rearm_audit(self) -> None:
         tracker = _MemoryTracker()
@@ -2300,7 +2521,7 @@ class TestRetryFailedAudit:
         assert result.status_staged is True
         assert result.superseded_audit_id == mixed.audit_id
         assert tracker.current_status(TASK_ID) == IN_VALIDATION
-        
+
         # Verify the mixed history is preserved but a fresh record is created
         stored = TerminalAuditMetadataStore(
             tracker, _LockStore(), PROJECT_ID
@@ -2312,7 +2533,7 @@ class TestRetryFailedAudit:
         assert fresh.request_state == RequestState.PENDING
         assert fresh.evidence_fingerprint == mixed.evidence_fingerprint
         assert fresh.attempts == []  # Fresh record has no attempts yet
-        
+
         # Alert should be cleared after retry
         assert (
             "clear_actionable_alert",
@@ -3544,7 +3765,7 @@ class TestApplyBarriersAgainstSecondaryLanes:
 
 class TestRetryEligibilityFunctions:
     """Test canonical retry-eligibility functions that ensure alert/action parity.
-    
+
     These tests verify that is_audit_infrastructure_retryable() and
     is_audit_evidence_retryable() correctly identify when an audit is retryable
     based on its TERMINAL (final) attempt classification, ensuring that recovery
@@ -3556,7 +3777,7 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_infrastructure_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-no-auditor",
             project_id=PROJECT_ID,
@@ -3575,7 +3796,7 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is True
 
     def test_infrastructure_retryable_for_infrastructure_error_terminal(self) -> None:
@@ -3583,7 +3804,7 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_infrastructure_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-infra-error",
             project_id=PROJECT_ID,
@@ -3602,7 +3823,7 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is True
 
     @pytest.mark.parametrize(
@@ -3641,7 +3862,7 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_evidence_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-missing-evidence",
             project_id=PROJECT_ID,
@@ -3660,7 +3881,7 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_evidence_retryable(record) is True
 
     def test_not_infrastructure_retryable_for_missing_evidence(self) -> None:
@@ -3668,7 +3889,7 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_infrastructure_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-missing-evidence",
             project_id=PROJECT_ID,
@@ -3687,7 +3908,7 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is False
 
     def test_not_evidence_retryable_for_no_auditor(self) -> None:
@@ -3695,7 +3916,7 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_evidence_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-no-auditor",
             project_id=PROJECT_ID,
@@ -3714,12 +3935,12 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_evidence_retryable(record) is False
 
     def test_mixed_history_infrastructure_retry_uses_terminal_classification(self) -> None:
         """Mixed attempt history should use TERMINAL classification for infrastructure retry.
-        
+
         OOMPAH-745 regression: when a task has multiple failed attempts
         (e.g., FINALIZATION_FAILURE then NO_AUDITOR), the retryability should be
         determined from the TERMINAL (final) attempt's classification only.
@@ -3728,13 +3949,13 @@ class TestRetryEligibilityFunctions:
         from oompah.terminal_transition_coordinator import (
             is_audit_infrastructure_retryable,
         )
-        
+
         record = _exhausted_mixed_attempt_record()
         # Verify the record has mixed history (first attempt is FINALIZATION_FAILURE)
         assert len(record.attempts) == 2
         assert record.attempts[0].failure_classification == FailureClassification.FINALIZATION_FAILURE
         assert record.attempts[1].failure_classification == FailureClassification.NO_AUDITOR
-        
+
         # Should be retryable via infrastructure based on TERMINAL classification
         assert is_audit_infrastructure_retryable(record) is True
 
@@ -3744,7 +3965,7 @@ class TestRetryEligibilityFunctions:
             is_audit_infrastructure_retryable,
             is_audit_evidence_retryable,
         )
-        
+
         # CI_FAILURE is not retryable
         record = TerminalAuditRecord(
             audit_id="audit-ci-failure",
@@ -3764,7 +3985,7 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is False
         assert is_audit_evidence_retryable(record) is False
 
@@ -3774,7 +3995,7 @@ class TestRetryEligibilityFunctions:
             is_audit_infrastructure_retryable,
             is_audit_evidence_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-pass",
             project_id=PROJECT_ID,
@@ -3793,9 +4014,74 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is False
         assert is_audit_evidence_retryable(record) is False
+
+    def test_successful_audit_with_stale_failure_classification_is_final(self) -> None:
+        """A stale classification cannot override an explicit PASS verdict."""
+
+        from oompah.terminal_transition_coordinator import (
+            is_audit_evidence_retryable,
+            is_audit_infrastructure_retryable,
+        )
+
+        record = replace(
+            _exhausted_no_auditor_record(),
+            attempts=[
+                replace(
+                    _exhausted_no_auditor_record().attempts[-1],
+                    verdict=Verdict.PASS,
+                    failure_classification=FailureClassification.NO_AUDITOR,
+                )
+            ],
+        )
+
+        assert is_audit_infrastructure_retryable(record) is False
+        assert is_audit_evidence_retryable(record) is False
+
+    def test_incomplete_terminal_attempt_is_not_retryable(self) -> None:
+        """A completed envelope cannot promote a nonterminal attempt outcome."""
+
+        from oompah.terminal_transition_coordinator import (
+            is_audit_evidence_retryable,
+            is_audit_infrastructure_retryable,
+        )
+
+        record = replace(
+            _exhausted_no_auditor_record(),
+            attempts=[
+                replace(
+                    _exhausted_no_auditor_record().attempts[-1],
+                    request_state=RequestState.PENDING,
+                )
+            ],
+        )
+
+        assert is_audit_infrastructure_retryable(record) is False
+        assert is_audit_evidence_retryable(record) is False
+
+    def test_terminal_attempt_must_match_completed_record_evidence(self) -> None:
+        """Retry authority is bound to the terminal attempt's exact evidence."""
+
+        from oompah.terminal_transition_coordinator import (
+            is_audit_evidence_retryable,
+            is_audit_infrastructure_retryable,
+        )
+
+        record = _exhausted_no_auditor_record()
+        mismatched = replace(
+            record,
+            attempts=[
+                replace(
+                    record.attempts[-1],
+                    evidence_fingerprint=_alt_fingerprint(),
+                )
+            ],
+        )
+
+        assert is_audit_infrastructure_retryable(mismatched) is False
+        assert is_audit_evidence_retryable(mismatched) is False
 
     def test_not_retryable_for_pending_records(self) -> None:
         """Pending records should not be considered retryable."""
@@ -3803,7 +4089,7 @@ class TestRetryEligibilityFunctions:
             is_audit_infrastructure_retryable,
             is_audit_evidence_retryable,
         )
-        
+
         record = TerminalAuditRecord(
             audit_id="audit-pending",
             project_id=PROJECT_ID,
@@ -3822,6 +4108,6 @@ class TestRetryEligibilityFunctions:
                 )
             ],
         )
-        
+
         assert is_audit_infrastructure_retryable(record) is False
         assert is_audit_evidence_retryable(record) is False

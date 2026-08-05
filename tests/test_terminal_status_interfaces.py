@@ -960,6 +960,40 @@ def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     assert tracker.status_updates == []
 
 
+def test_patch_owner_audit_retry_returns_503_when_evidence_refresh_fails(client):
+    issue = Issue(
+        "task-retry-refresh-failure",
+        "task-retry-refresh-failure",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.retry_result = TransitionResult(
+        success=False,
+        reason="evidence_refresh_failed",
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry-refresh-failure",
+            json={
+                "project_id": "proj-1",
+                "status": "Archived",
+                "audit_retry": True,
+                "audit_retry_reason": "Detached audit checkout is deployed",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "terminal_transition"
+    assert "could not be verified" in response.json()["error"]["message"]
+    assert tracker.status_updates == []
+
+
 def test_patch_owner_evidence_addendum_rearm_uses_canonical_integrated_fingerprint(client):
     issue = Issue(
         "task-evidence-retry",

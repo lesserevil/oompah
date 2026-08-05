@@ -8652,7 +8652,7 @@ class Orchestrator:
         """
 
         source = f"terminal_audit_recovery:{project_id}:{task_id}"
-        
+
         # Build message based on recovery mode
         if recovery_mode == "evidence_addendum":
             message = (

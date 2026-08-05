@@ -6290,6 +6290,12 @@ async def _stage_terminal_transition(
                     "refresh and retry.",
                     409,
                 )
+            if result.reason == "evidence_refresh_failed":
+                return None, (
+                    "The current task evidence could not be verified; retry after "
+                    "the tracker is available.",
+                    503,
+                )
             if result.reason in {"audit_not_retryable", "project_mismatch"}:
                 return None, (
                     "No matching exhausted audit can be retried for this task.",

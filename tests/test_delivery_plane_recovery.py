@@ -8,22 +8,29 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import shlex
 import subprocess
+import threading
 import time
 from unittest import mock
 
 import pytest
+from fastapi.testclient import TestClient
 
+from oompah import server as server_module
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
 from oompah.models import Issue, Project, RunningEntry
+from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner
+from oompah.server import AuthenticatedPrincipal, app
 from oompah.statuses import (
     ARCHIVED,
     DONE,
+    IN_VALIDATION,
     MERGED,
     NEEDS_CI_FIX,
+    NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
     READY_TO_INTEGRATE,
@@ -38,7 +45,11 @@ from oompah.terminal_audit import (
     Verdict,
     compute_issue_evidence_fingerprint,
 )
-from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
+    TerminalAuditMetadata,
+    TerminalAuditMetadataStore,
+)
 from oompah.terminal_transition_coordinator import TransitionResult
 
 
@@ -157,6 +168,100 @@ def _close(orchestrator: Orchestrator) -> None:
     orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+class _RecoveryProjectStore:
+    """Concrete project boundary for the durable recovery lifecycle test."""
+
+    def __init__(self, project: Project) -> None:
+        self.project = project
+        self._lock = threading.RLock()
+        self.removed_worktrees: list[tuple[str, str]] = []
+
+    def list_all(self) -> list[Project]:
+        return [self.project]
+
+    def get(self, project_id: str) -> Project | None:
+        return self.project if project_id == self.project.id else None
+
+    def find_by_name(self, name: str) -> Project | None:
+        return self.project if name == self.project.name else None
+
+    def project_write_lock(self, project_id: str) -> threading.RLock:
+        assert project_id == self.project.id
+        return self._lock
+
+    def epic_branch_name(self, project_id: str, epic_id: str) -> str:
+        assert project_id == self.project.id
+        return f"epic-{epic_id}"
+
+    def remove_worktree(self, project_id: str, task_id: str) -> None:
+        self.removed_worktrees.append((project_id, task_id))
+
+
+def _close_durable_harness(orchestrator: Orchestrator) -> None:
+    asyncio.run(orchestrator._drain_background_work())
+    orchestrator.integration_queue.close()
+    orchestrator.coordination_store.close()
+
+
+def _durable_recovery_harness(tmp_path, project: Project, project_store):
+    state_dir = tmp_path / "durable-state"
+    state_dir.mkdir(exist_ok=True)
+    tracker = OompahMarkdownTracker(
+        active_states=[OPEN, IN_VALIDATION, NEEDS_HUMAN, READY_TO_INTEGRATE],
+        terminal_states=[DONE],
+        cwd=project.repo_path,
+        default_branch=project.default_branch,
+        git_sync=False,
+    )
+    orchestrator = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path=str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(state_dir / "service-state.json"),
+    )
+    orchestrator._project_trackers[project.id] = tracker
+    return orchestrator, tracker
+
+
+def _authenticated_owner_retry(
+    orchestrator: Orchestrator,
+    *,
+    project_id: str,
+    task_id: str,
+    reason: str,
+):
+    client = TestClient(app, raise_server_exceptions=False)
+    try:
+        with (
+            mock.patch.object(
+                server_module,
+                "_get_orchestrator",
+                return_value=orchestrator,
+            ),
+            mock.patch.object(
+                server_module,
+                "_authenticated_principal",
+                return_value=AuthenticatedPrincipal("owner", "owner", "basic"),
+            ),
+            mock.patch.object(
+                server_module,
+                "broadcast_issues",
+                new=mock.AsyncMock(),
+            ),
+        ):
+            return client.patch(
+                f"/api/v1/issues/{task_id}",
+                json={
+                    "project_id": project_id,
+                    "status": DONE,
+                    "audit_retry": True,
+                    "audit_retry_reason": reason,
+                },
+            )
+    finally:
+        client.close()
+
+
 def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(tmp_path):
     issue = _issue(state="Needs Human", integration_state="integrated")
     issue.integration = replace(issue.integration, integrated_sha="c" * 40)
@@ -222,6 +327,189 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
         )
     finally:
         _close(orchestrator)
+
+
+def test_owner_recovery_lifecycle_is_durable_coalesced_and_clears_alert(tmp_path):
+    """Exercise the production tracker, API, coordinator, queue, and restart path."""
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    project = Project(
+        id="proj-durable",
+        name="Durable recovery project",
+        repo_url=str(repo),
+        repo_path=str(repo),
+        default_branch="main",
+        tracker_kind="oompah_md",
+        tracker_owner="owner",
+        tracker_repo="durable-recovery",
+        status_actor_login="owner",
+        status_label_authorized_logins=["owner"],
+    )
+    project_store = _RecoveryProjectStore(project)
+    orchestrator, tracker = _durable_recovery_harness(
+        tmp_path,
+        project,
+        project_store,
+    )
+    restarted: Orchestrator | None = None
+    orchestrator_closed = False
+    issue = tracker.create_issue(
+        "Durable audit recovery",
+        description="Exercise the complete recovery lifecycle.",
+        initial_status=NEEDS_HUMAN,
+    )
+    integration = IntegrationRecord(
+        state="integrated",
+        task_branch=f"task-{issue.identifier}",
+        base_branch="main",
+        base_sha="b" * 40,
+        head_sha="a" * 40,
+        integrated_sha="c" * 40,
+    )
+    tracker.set_metadata_field(
+        issue.identifier,
+        "oompah.integration",
+        integration.to_dict(),
+    )
+    issue = tracker.fetch_issue_detail(issue.identifier)
+    assert issue is not None
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    failed = TerminalAuditRecord(
+        audit_id="audit-durable-failure",
+        project_id=project.id,
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="attempt-finalization",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.FAIL,
+                failure_classification=FailureClassification.FINALIZATION_FAILURE,
+            ),
+            AuditAttempt(
+                attempt_id="attempt-no-auditor",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.FAIL,
+                failure_classification=FailureClassification.NO_AUDITOR,
+            ),
+        ],
+        requested_by=ContributorIdentity("auditor", "service"),
+        previous_state=READY_TO_INTEGRATE,
+    )
+    audit_store = TerminalAuditMetadataStore(
+        tracker,
+        project_store,
+        project.id,
+    )
+    audit_store.write(
+        issue.identifier,
+        TerminalAuditMetadata(pending_chain=[failed]),
+    )
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="top-level",
+        task_id=issue.identifier,
+        task_branch=integration.task_branch or "",
+        head_sha=integration.head_sha or "",
+        base_sha=integration.base_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="top-level",
+        lease_owner="integration-worker",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        issue.identifier,
+        lease_owner="integration-worker",
+    )
+    integrated_row = orchestrator.integration_queue.get(project.id, issue.identifier)
+    assert integrated_row is not None
+
+    try:
+        asyncio.run(orchestrator._stage_integrated_task_audit(integrated_row))
+        recovery_source = (
+            f"terminal_audit_recovery:{project.id}:{issue.identifier}"
+        )
+        recovery_alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == recovery_source
+        ]
+        assert len(recovery_alerts) == 1
+        assert "`audit_retry`" in recovery_alerts[0]["message"]
+
+        response = _authenticated_owner_retry(
+            orchestrator,
+            project_id=project.id,
+            task_id=issue.identifier,
+            reason="Auditor transport is healthy again.",
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["audit_retry"] is True
+        assert payload["status"] == IN_VALIDATION
+        fresh_audit_id = payload["audit_id"]
+        recovered = audit_store.read(issue.identifier).pending_chain
+        assert len(recovered) == 2
+        assert recovered[0].request_state == RequestState.SUPERSEDED
+        assert recovered[1].request_state == RequestState.PENDING
+        assert recovered[1].audit_id == fresh_audit_id
+        assert recovered[1].evidence_fingerprint == fingerprint
+
+        asyncio.run(orchestrator._stage_integrated_task_audit(integrated_row))
+        assert not any(
+            alert.get("source") == recovery_source
+            for alert in orchestrator._alerts
+        )
+
+        _close_durable_harness(orchestrator)
+        orchestrator_closed = True
+        restarted, restarted_tracker = _durable_recovery_harness(
+            tmp_path,
+            project,
+            project_store,
+        )
+        restarted_row = restarted.integration_queue.get(project.id, issue.identifier)
+        assert restarted_row is not None
+        coalesced_response = _authenticated_owner_retry(
+            restarted,
+            project_id=project.id,
+            task_id=issue.identifier,
+            reason="Confirm recovery after restart.",
+        )
+
+        assert coalesced_response.status_code == 200
+        assert coalesced_response.json()["audit_id"] == fresh_audit_id
+        restarted_audit_store = TerminalAuditMetadataStore(
+            restarted_tracker,
+            project_store,
+            project.id,
+        )
+        after_restart = restarted_audit_store.read(issue.identifier).pending_chain
+        assert len(after_restart) == 2
+        assert after_restart[-1].request_state == RequestState.PENDING
+        asyncio.run(restarted._stage_integrated_task_audit(restarted_row))
+        assert not any(
+            alert.get("source") == recovery_source
+            for alert in restarted._alerts
+        )
+    finally:
+        if restarted is not None:
+            _close_durable_harness(restarted)
+        elif not orchestrator_closed:
+            _close_durable_harness(orchestrator)
 
 
 def test_integrated_audit_recovery_alert_uses_evidence_addendum_only_for_missing_evidence(
