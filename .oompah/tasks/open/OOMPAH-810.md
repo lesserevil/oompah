@@ -7,12 +7,11 @@ title: Return completed auditor command results without stranding the ACP sessio
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: &id001
-- OOMPAH-768
+start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T15:59:13.777255Z'
+updated_at: '2026-08-05T16:04:47.988886Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -122,5 +121,10 @@ author: oompah
 created: 2026-08-05 15:59
 ---
 Graph correction: removed the OOMPAH-768 hard-start. OOMPAH-523 proves this common ACP result-delivery race affects implementation workers required to complete 768, so keeping the repair behind 768 is circular operationally even though the tracker graph is acyclic. The transport/result_pending fix can coordinate with OOMPAH-781 durable replay without depending on the whole domain epic landing first.
+---
+author: oompah
+created: 2026-08-05 16:04
+---
+Deadlock correction: the earlier dependency removal omitted --hard-start, so the actual start_dependencies edge on OOMPAH-768 remained despite the comment. Removed that exact hard-start edge now. OOMPAH-810/833 may proceed independently and no longer wait behind the workflow whose ACP result-delivery race they repair.
 ---
 <!-- COMMENTS:END -->
