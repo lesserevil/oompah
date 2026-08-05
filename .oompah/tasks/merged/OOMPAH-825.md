@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T13:35:12.733889Z'
+updated_at: '2026-08-05T13:35:19.971624Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -80,8 +80,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-073bdc9f703b
-    applied: false
+    applied: true
     created_at: '2026-08-05T13:35:09.376198+00:00'
+    applied_at: '2026-08-05T13:35:18.647980+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -338,5 +339,25 @@ author: oompah
 created: 2026-08-05 13:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 13:35
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 11c75e6c1b86f16837c13efb32938f814f362b79
+- merge_commit: 7978ec91b5532784c5dd6f18bc028954fd3696a9
+- merge_parent_main: c14ca03f59078e6df06871488cf78f04477acb11
+- pr_number: 721
+- branch_commits: 74c4b71cf,11c75e6c1
+- files_changed: 6
+- insertions_deletions: +2140/-266
+- merged_into_main: true
+- commit_trailer: canonical_oompah_no_model_attribution
+- prior_full_gate: 15657 passed, 7 skipped, 1 xfailed, 619.73s (recorded)
+- followup_open_bugs: OOMPAH-828, OOMPAH-829 (do not block Merged)
 ---
 <!-- COMMENTS:END -->
