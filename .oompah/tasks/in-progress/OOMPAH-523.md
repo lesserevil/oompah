@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:35:29.284876Z'
+updated_at: '2026-08-05T05:36:21.205048Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -931,5 +931,10 @@ author: oompah
 created: 2026-08-05 05:35
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 05:36
+---
+Understanding: Verifying the ASGI Basic-auth enforcement implementation already in place. Previous agents confirmed middleware, startup wiring, and WebSocket pre-accept checks are implemented. Now running focused tests to verify all acceptance criteria are met.
 ---
 <!-- COMMENTS:END -->
