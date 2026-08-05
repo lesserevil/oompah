@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-822
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Stop failed lifecycle reconciliation from retry-spinning and starving validation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T08:17:23.689548Z'
+updated_at: '2026-08-05T08:31:24.500893Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,12 +20,37 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: OOMPAH-822
+  base_branch: epic-OOMPAH-763
+  base_sha: 7bf278b09de0a311c1d1050f6733c5fc9f530975
   head_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
+  integrated_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
   submitted_at: '2026-08-05T08:17:16.833275+00:00'
-  updated_at: '2026-08-05T08:17:16.833275+00:00'
+  updated_at: '2026-08-05T08:31:16.338938+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8764a6c3f4a9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-822
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 603c9883af622273b909103cb19720b0be112267ddfb85d366c625e4cfb2c292
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T08:31:18.921787+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +73,10 @@ author: oompah
 created: 2026-08-05 08:17
 ---
 Record the reviewed lifecycle reconciliation scheduler repair on the systemic parent branch at exact head 6a62d9658: bounded durable retry/backoff and exhaustion, pending-first fairness, coalesced persistence/scheduling, lossless rediscovery, and responsive state API; 217 focused tests and required scans pass.
+---
+author: oompah
+created: 2026-08-05 08:31
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
