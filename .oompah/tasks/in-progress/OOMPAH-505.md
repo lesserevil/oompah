@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:43:47.446273Z'
+updated_at: '2026-08-05T05:46:48.014983Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1101,5 +1101,30 @@ author: oompah
 created: 2026-08-05 05:43
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 05:46
+---
+Understanding: This handoff is verification and integration recovery for OOMPAH-505. I will preserve the existing explicit Claude/Codex model-tier implementation, confirm focused API/UI/ACP dispatch coverage, refresh the parent branch ref that previously caused integration validation to fail, then push and resubmit.
+---
+author: oompah
+created: 2026-08-05 05:46
+---
+Discovery: The task branch is clean at e1b0f4846 and contains OOMPAH-505 commits 5cf99179e and ab00e7cf3. The remote now exposes epic-OOMPAH-502 at 9ea2b5523, resolving the exact missing-parent-ref failure recorded in the prior integration attempt.
+---
+author: oompah
+created: 2026-08-05 05:46
+---
+Implementation: No additional source changes were necessary. The current branch retains separate catalog/manual ACP capability descriptors, manual catalog-less model entry with SDK-default fallback, role-candidate persistence/validation, and explicit model propagation through ACP sessions and telemetry.
+---
+author: oompah
+created: 2026-08-05 05:46
+---
+Verification: Current-head focused checks passed: 354 provider/API/role-matrix/UI tests; 46 targeted ACP/dispatch/model tests with 142 unrelated cases deselected; make check-secrets passed (existing null-byte scanner warning only).
+---
+author: oompah
+created: 2026-08-05 05:46
+---
+Completion: Final synchronization and task submission are next. The branch will be pushed with the existing feature commits preserved, then submitted against the now-available epic-OOMPAH-502 parent ref.
 ---
 <!-- COMMENTS:END -->
