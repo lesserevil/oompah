@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T05:56:08.962641Z'
+updated_at: '2026-08-05T06:16:19.703157Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -218,5 +218,10 @@ author: oompah
 created: 2026-08-05 05:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 06:16
+---
+Operator deadlock recovery: the auditor's redundant make test-serial subprocess remained uninterruptibly blocked in jbd2_log_wait_commit for more than seven minutes after all competing suites were removed. The exact submitted head ce2526a8b already passed the canonical combined-tree integration gate before entering In Validation. Do not launch another full suite on this pre-lease server; use the durable exact-head gate result plus bounded read-only inspection to complete the independent audit. OOMPAH-816 provides the systemic heavyweight-validation arbitration fix.
 ---
 <!-- COMMENTS:END -->
