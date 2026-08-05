@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:30:19.645146Z'
+updated_at: '2026-08-05T05:30:37.849241Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -894,5 +894,10 @@ author: oompah
 created: 2026-08-05 05:30
 ---
 Verification: scripts/run-tests.sh serial with the directly affected server/WebSocket/webhook/MCP/auth/build/startup targets passed 1,043 tests (5 pre-existing deprecation warnings). make check-secrets passed; it emitted only the existing null-byte shell warning. The worktree remains clean.
+---
+author: oompah
+created: 2026-08-05 05:30
+---
+Completion: verified the main-integrated OOMPAH-523 recovery head without duplicating its already-landed source. ASGI Basic auth enforcement remains covered across HTTP, mounts, MCP, WebSocket, healthz, and forge webhook boundaries with exact exemptions, strict parsing, redaction, startup wiring, and 1,043 passing focused affected tests. The branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
