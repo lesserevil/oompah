@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from oompah.epic_proposal import (
     EPIC_PROPOSAL_METADATA_KEY,
@@ -699,6 +700,41 @@ def test_orchestrator_auto_decomposes_oversized_proposed_issues_for_yolo_project
     assert orch._last_epic_proposal_metrics["created_count"] == 0
     assert orch._last_epic_proposal_metrics["applied_count"] == 1
     assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
+
+
+def test_orchestrator_applies_epic_proposal_under_project_mutation_fence():
+    source = _source_issue(project_id="proj")
+    project = SimpleNamespace(id="proj", yolo=True, intake_auto_promote=True)
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.config = SimpleNamespace(tracker_kind="oompah_md")
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.get.return_value = project
+    project_lock = threading.RLock()
+    orch.project_store.project_write_lock.return_value = project_lock
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch.tracker = tracker
+    result = SimpleNamespace(
+        duplicate_suppressed=False,
+        created=False,
+        comment_posted=False,
+        promoted=False,
+        created_child_count=0,
+        updated_child_count=0,
+    )
+
+    def process(*_args, **_kwargs):
+        assert project_lock._is_owned()  # type: ignore[attr-defined]
+        return result
+
+    with patch(
+        "oompah.orchestrator.process_epic_proposal_issue",
+        side_effect=process,
+    ):
+        assert orch._process_epic_proposals() == [source]
+
+    orch.project_store.project_write_lock.assert_called_once_with("proj")
 
 
 def test_orchestrator_disables_epic_proposals_for_github_issue_projects():

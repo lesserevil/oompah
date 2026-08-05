@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import pytest
 
+from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
@@ -22,6 +23,7 @@ from oompah.task_transition_service import (
     TransitionOutcome,
     TransitionPhase,
     issue_authority_version,
+    issue_exact_head,
 )
 
 
@@ -121,11 +123,24 @@ def _service(tmp_path, tracker, **overrides):
 
 def test_intent_is_canonical_and_has_stable_round_trip():
     issue = _issue()
-    intent = _intent(issue, expected_status="open", requested_status="in progress")
+    intent = _intent(
+        issue,
+        expected_status="open",
+        requested_status="in progress",
+        precondition_revision="facts-v2",
+    )
 
     assert intent.expected_status == "Open"
     assert intent.requested_status == "In Progress"
     assert TransitionIntent.from_dict(intent.to_dict()) == intent
+    assert TransitionIntent.from_dict(intent.to_dict()).revision == intent.revision
+    assert intent.precondition_revision == "facts-v2"
+
+
+def test_legacy_intent_serialization_omits_optional_precondition():
+    intent = _intent(_issue())
+
+    assert "precondition_revision" not in intent.to_dict()
     assert TransitionIntent.from_dict(intent.to_dict()).revision == intent.revision
 
 
@@ -149,15 +164,65 @@ def test_intent_rejects_incomplete_or_unstable_fields(field, value, message):
 
 def test_authority_version_ignores_benign_tracker_timestamp_churn():
     issue = _issue()
-    changed = replace(issue, updated_at=None, description="new prose", labels=["x"])
+    changed = replace(issue, updated_at=None, labels=["x"])
 
     assert issue_authority_version(changed) == issue_authority_version(issue)
+    assert issue_authority_version(
+        replace(issue, description="new requirements")
+    ) != issue_authority_version(issue)
     assert issue_authority_version(
         replace(issue, assignment_id="generation-2")
     ) != issue_authority_version(issue)
     assert issue_authority_version(
         replace(issue, state="In Progress")
     ) != issue_authority_version(issue)
+    assert issue_authority_version(
+        replace(issue, parent_id="OTHER-EPIC")
+    ) != issue_authority_version(issue)
+    assert issue_authority_version(
+        replace(issue, title="Rebase epic-TASK-1 onto main")
+    ) != issue_authority_version(issue)
+    assert issue_authority_version(
+        replace(issue, labels=["merge-conflict"])
+    ) != issue_authority_version(issue)
+
+
+def test_authority_version_fences_the_exact_integrated_audit_revision():
+    issue = _issue(
+        state="In Review",
+        integration=IntegrationRecord(
+            state="integrated",
+            task_branch="TASK-1",
+            base_branch="main",
+            head_sha="a" * 40,
+            integrated_sha="b" * 40,
+        ),
+    )
+
+    changed = replace(
+        issue,
+        integration=replace(issue.integration, integrated_sha="c" * 40),
+    )
+
+    assert issue_authority_version(changed) != issue_authority_version(issue)
+
+
+def test_review_head_is_exact_authority_when_rollup_has_no_implementation_head():
+    issue = _issue(head_sha=None, integration=None, review_head="b" * 40)
+
+    assert issue_exact_head(issue) == "b" * 40
+    assert issue_authority_version(
+        replace(issue, review_head="c" * 40)
+    ) != issue_authority_version(issue)
+    assert issue_authority_version(
+        replace(issue, review_number="43")
+    ) != issue_authority_version(issue)
+
+
+def test_live_implementation_head_supersedes_stale_epic_review_head():
+    issue = _issue(head_sha="c" * 40, review_head="b" * 40)
+
+    assert issue_exact_head(issue) == "c" * 40
 
 
 @pytest.mark.asyncio
@@ -190,6 +255,23 @@ async def test_project_scopes_native_issue_before_authority_compare(tmp_path):
 
     assert outcome.disposition is TransitionDisposition.APPLIED
     assert tracker.updates == [("TASK-1", "In Progress")]
+
+
+@pytest.mark.asyncio
+async def test_nonterminal_write_holds_shared_project_lock(tmp_path):
+    lock = threading.RLock()
+
+    class LockCheckingTracker(FakeTracker):
+        def update_issue(self, identifier: str, **fields: str) -> None:
+            assert lock._is_owned()  # type: ignore[attr-defined]
+            super().update_issue(identifier, **fields)
+
+    tracker = LockCheckingTracker(_issue())
+    service = _service(tmp_path, tracker, write_lock=lambda: lock)
+
+    outcome = await service.execute(_intent(tracker.issue))
+
+    assert outcome.disposition is TransitionDisposition.APPLIED
 
 
 @pytest.mark.asyncio
@@ -561,6 +643,39 @@ async def test_coordinator_adapter_passes_canonical_evidence():
     assert coordinator.kwargs["requested_target"].value == "Merged"
     assert coordinator.kwargs["trigger_identity"].identity == "worker-1"
     assert len(coordinator.kwargs["evidence_fingerprint"].digest) == 64
+
+
+@pytest.mark.asyncio
+async def test_coordinator_adapter_rejects_changed_mutation_precondition():
+    class Coordinator:
+        async def request_transition(self, **kwargs):
+            conflict = kwargs["mutation_guard"]()
+            return type(
+                "Result",
+                (),
+                {
+                    "success": False,
+                    "audit_id": None,
+                    "reason": f"workflow_precondition_changed: {conflict}",
+                },
+            )()
+
+    issue = _issue(state="In Review")
+    intent = _intent(
+        issue,
+        requested_status="Merged",
+        evidence_generation=None,
+        precondition_revision="before-child-reopen",
+    )
+    adapter = CoordinatorTerminalAdapter(
+        Coordinator(), mutation_guard=lambda _intent: "child reopened"
+    )
+
+    result = await adapter.stage(intent, issue)
+
+    assert result.success is False
+    assert result.reason_code == "transition.stale_precondition"
+    assert result.detail == "workflow_precondition_changed: child reopened"
 
 
 def test_journal_survives_restart_and_preserves_event_order(tmp_path):

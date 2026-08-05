@@ -309,6 +309,76 @@ def test_git_landing_collector_distinguishes_positive_negative_and_unknown(tmp_p
     assert unknown.proof["kind"] == LandingProofKind.SOURCE_UNAVAILABLE.value
 
 
+def test_authoritative_remote_target_detects_merge_with_stale_local_main(tmp_path):
+    repo, base, task = _git_repo(tmp_path)
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "push", "origin", "main", "task")
+    _git(repo, "merge", "--no-ff", "task", "-m", "remote merge")
+    merged = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "push", "origin", "main")
+    _git(repo, "update-ref", "refs/heads/main", base)
+    _git(repo, "update-ref", "refs/remotes/origin/main", base)
+
+    def refresh(target):
+        _git(
+            repo,
+            "fetch",
+            "origin",
+            f"+refs/heads/{target}:refs/remotes/origin/{target}",
+        )
+        return _git(repo, "rev-parse", f"refs/remotes/origin/{target}")
+
+    fact = GitLandingCollector(
+        repo,
+        project_id="project-1",
+        clock=lambda: NOW,
+        target_refresher=refresh,
+    ).collect(
+        LandingRequest(
+            "task",
+            "main",
+            task,
+            authoritative_target=True,
+        )
+    )
+
+    assert _git(repo, "rev-parse", "refs/heads/main") == base
+    assert fact.state is LandingState.LANDED
+    assert fact.proof["target_sha"] == merged
+
+
+def test_authoritative_target_refresh_failure_does_not_reuse_stale_prior(tmp_path):
+    repo, _base, task = _git_repo(tmp_path)
+    _git(repo, "merge", "--no-ff", "task", "-m", "merge")
+    prior = GitLandingCollector(
+        repo, project_id="project-1", clock=lambda: NOW
+    ).collect(LandingRequest("task", "main", task))
+
+    def fail(_target):
+        raise TimeoutError("remote unavailable")
+
+    fact = GitLandingCollector(
+        repo,
+        project_id="project-1",
+        clock=lambda: NOW,
+        target_refresher=fail,
+    ).collect(
+        LandingRequest(
+            "task",
+            "main",
+            task,
+            prior=prior,
+            authoritative_target=True,
+        )
+    )
+
+    assert fact.state is LandingState.UNKNOWN
+    assert fact.durable is False
+    assert fact.error_code == "target_refresh_timeouterror"
+
+
 def test_deleted_source_branch_remains_provable_from_exact_revision(tmp_path):
     repo, _, task = _git_repo(tmp_path)
     _git(repo, "merge", "--no-ff", "task", "-m", "merge")
@@ -347,6 +417,29 @@ def test_durable_prior_survives_unavailable_source_object(tmp_path):
     assert preserved.state is LandingState.LANDED
     assert preserved.evidence_revision == prior.evidence_revision
     assert cross_project.state is LandingState.UNKNOWN
+
+
+def test_unavailable_new_revision_cannot_reuse_older_durable_landing(tmp_path):
+    repo, _, _ = _git_repo(tmp_path)
+    collector = GitLandingCollector(repo, project_id="project-1", clock=lambda: NOW)
+    prior = LandingFact(
+        "deleted-task",
+        "main",
+        "a" * 40,
+        {"kind": LandingProofKind.TERMINAL_AUDIT.value, "audit_id": "audit-1"},
+        NOW_ISO,
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+
+    observed = collector.collect(
+        LandingRequest("deleted-task", "main", "b" * 40, prior=prior)
+    )
+
+    assert observed.state is LandingState.UNKNOWN
+    assert observed.revision == "b" * 40
+    assert observed.evidence_revision != prior.evidence_revision
 
 
 def test_git_durable_prior_does_not_survive_target_rewrite(tmp_path):

@@ -20,6 +20,7 @@ import inspect
 import logging
 import os
 import re
+import subprocess
 import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -27,7 +28,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from oompah.epic_workflow import EPIC_ACTIONS, EpicFactCollector, EpicWorkflowController
+from oompah.epic_workflow import (
+    EPIC_ACTIONS,
+    EpicAction,
+    EpicFactCollector,
+    EpicWorkflowController,
+)
+from oompah.events import EventType
 from oompah.implementation_workflow import (
     IMPLEMENTATION_ACTIONS,
     ImplementationWorkflowController,
@@ -42,6 +49,7 @@ from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
     TaskTransitionService,
     TransitionJournal,
+    issue_authority_version,
 )
 from oompah.workflow_facts import FactDomain, GitLandingCollector, WorkflowFactCollector
 from oompah.workflow_jobs import (
@@ -284,6 +292,7 @@ class WorkflowRuntime:
         topology_signature: tuple[Any, ...] | None = None,
         topology_source: Callable[[], tuple[Any, ...]] | None = None,
         topology_change_handler: Callable[[], Any] | None = None,
+        transition_observer: Callable[[Any], None] | None = None,
     ) -> None:
         normalized_mode = str(mode or "off").strip().lower()
         if normalized_mode not in {"off", "shadow", "enforce"}:
@@ -308,6 +317,7 @@ class WorkflowRuntime:
         self._topology_signature = topology_signature
         self._topology_source = topology_source
         self._topology_change_handler = topology_change_handler
+        self._transition_observer = transition_observer
         self._abandoned_lease_owners = frozenset(
             str(owner).strip() for owner in abandoned_lease_owners if str(owner).strip()
         )
@@ -395,11 +405,6 @@ class WorkflowRuntime:
         )
         root.mkdir(parents=True, exist_ok=True)
         journal = TransitionJournal(str(root / "task_transitions.sqlite3"))
-        terminal_adapter = (
-            CoordinatorTerminalAdapter(terminal_transition_coordinator)
-            if terminal_transition_coordinator is not None
-            else None
-        )
         store = orchestrator.workflow_job_store
         terminal_workflow = getattr(orchestrator, "terminal_audit_workflow", None)
         if terminal_workflow is None:
@@ -535,12 +540,61 @@ class WorkflowRuntime:
                 )
             }
             repo_path = getattr(project, "repo_path", "") if project is not None else ""
-            landing = GitLandingCollector(repo_path or ".", project_id=project_id)
-            transition_service = TaskTransitionService(
+
+            def refresh_target(
+                target: str,
+                *,
+                _project=project,
+                _repo_path=repo_path or ".",
+            ) -> str | None:
+                runtime = getattr(orchestrator, "workflow_runtime", None)
+                runtime_enforce = getattr(runtime, "enforce", None)
+                enforce = (
+                    runtime_enforce
+                    if isinstance(runtime_enforce, bool)
+                    else configured_mode == "enforce"
+                )
+                if not enforce:
+                    return None
+                remote_ref = f"refs/remotes/origin/{target}"
+                fetched = orchestrator._run_project_network_git(
+                    _project,
+                    [
+                        "git",
+                        "fetch",
+                        "--prune",
+                        "origin",
+                        f"+refs/heads/{target}:{remote_ref}",
+                    ],
+                    cwd=_repo_path,
+                    timeout=60,
+                )
+                if fetched.returncode != 0:
+                    raise WorkflowRuntimeError(
+                        "authoritative target fetch failed: "
+                        f"{str(fetched.stderr or '').strip()[:500]}"
+                    )
+                resolved = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{remote_ref}^{{commit}}"],
+                    cwd=_repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                )
+                revision = str(resolved.stdout or "").strip().lower()
+                if resolved.returncode != 0 or not re.fullmatch(
+                    r"[0-9a-f]{40,64}", revision
+                ):
+                    raise WorkflowRuntimeError(
+                        f"authoritative target {target} is unavailable after fetch"
+                    )
+                return revision
+
+            landing = GitLandingCollector(
+                repo_path or ".",
                 project_id=project_id,
-                tracker=tracker,
-                journal=journal,
-                terminal_adapter=terminal_adapter,
+                target_refresher=refresh_target,
             )
             collector = WorkflowFactCollector(
                 project_id=project_id,
@@ -558,6 +612,84 @@ class WorkflowRuntime:
                 ),
                 landing_collector=landing,
                 sources=sources,
+            )
+            epic_controller = EpicWorkflowController(
+                collector=epic_collector,
+                store=store,
+                decision_limit=configured_limit,
+            )
+
+            def workflow_transition_guard(
+                intent: Any,
+                *,
+                _controller=epic_controller,
+                _tracker=tracker,
+            ) -> str | None:
+                guarded_reason = str(intent.reason_code or "").strip()
+                invalidate = getattr(_tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                guarded_issue = _tracker.fetch_issue_detail(intent.task_id)
+                if guarded_issue is None:
+                    return "guarded issue is unavailable"
+                if issue_authority_version(guarded_issue) != intent.expected_version:
+                    return "task transition authority changed"
+                if not intent.precondition_revision or guarded_reason not in {
+                    "terminal.immediate_target_landing_proven",
+                    "epic.rebase_target_superseded",
+                }:
+                    return None
+                if guarded_reason == "epic.rebase_target_superseded":
+                    epic_id = str(
+                        getattr(guarded_issue, "parent_id", None) or ""
+                    ).strip()
+                    if not epic_id:
+                        return "rebase helper no longer has an owning epic"
+                    epic = _tracker.fetch_issue_detail(epic_id)
+                else:
+                    epic = guarded_issue
+                if epic is None:
+                    return "epic is unavailable"
+                # A terminal guard evaluates one exact epic while the project
+                # mutation fence is held.  Do not use the persistent project
+                # controller for that narrow read: ``evaluate`` replaces its
+                # project-wide projection cache and would make unrelated epics
+                # temporarily disappear from runtime/UI observations.
+                guard_controller = EpicWorkflowController(
+                    collector=_controller.collector,
+                    store=_controller.store,
+                    scheduler=_controller.scheduler,
+                    decision_limit=_controller.decision_limit,
+                )
+                batch = guard_controller.evaluate((epic,), persist_evidence=False)
+                if not batch.tasks:
+                    return "epic is no longer eligible for guarded workflow mutation"
+                decision = batch.tasks[0].decision
+                if decision.evidence_revision != intent.precondition_revision:
+                    return "epic workflow evidence or containment changed"
+                if (
+                    guarded_reason == "terminal.immediate_target_landing_proven"
+                    and EpicAction.AUTO_CLOSE.value not in decision.durable_jobs
+                ):
+                    return "epic auto-close is no longer authorized"
+                return None
+
+            terminal_adapter = (
+                CoordinatorTerminalAdapter(
+                    terminal_transition_coordinator,
+                    mutation_guard=workflow_transition_guard,
+                )
+                if terminal_transition_coordinator is not None
+                else None
+            )
+            transition_service = TaskTransitionService(
+                project_id=project_id,
+                tracker=tracker,
+                journal=journal,
+                terminal_adapter=terminal_adapter,
+                write_lock=lambda _project_id=project_id: (
+                    project_store.project_write_lock(_project_id)
+                ),
             )
             binding = WorkflowProjectBinding(
                 project_id=project_id,
@@ -580,11 +712,7 @@ class WorkflowRuntime:
                     decision_limit=configured_limit,
                 ),
                 epic_collector=epic_collector,
-                epic_controller=EpicWorkflowController(
-                    collector=epic_collector,
-                    store=store,
-                    decision_limit=configured_limit,
-                ),
+                epic_controller=epic_controller,
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
                 dispatch_enabled=dispatch_enabled,
@@ -692,6 +820,18 @@ class WorkflowRuntime:
                 handler_coverage = {
                     action: set(routed) for action, routed in project_handlers.items()
                 }
+
+        def transition_observer(job: Any) -> None:
+            orchestrator.event_bus.emit(
+                EventType.ISSUE_STATE_CHANGED,
+                {
+                    "project_id": str(job.project_id),
+                    "identifier": str(job.task_id),
+                    "change": "durable-workflow-transition-applied",
+                },
+            )
+            orchestrator.request_refresh()
+
         runtime = cls(
             project_bindings=bindings,
             store=store,
@@ -707,6 +847,7 @@ class WorkflowRuntime:
             topology_signature=topology_source(),
             topology_source=topology_source,
             topology_change_handler=topology_change_handler,
+            transition_observer=transition_observer,
         )
         runtime._integration_maintenance_scheduler = getattr(
             orchestrator,
@@ -1111,16 +1252,85 @@ class WorkflowRuntime:
             "processed": sum(item.job_id is not None for item in results),
         }
 
-    async def drain(self, *, timeout_seconds: float = 10.0) -> bool:
+    def _lifecycle_handlers(self) -> tuple[WorkflowActionHandler, ...]:
+        """Return unique project-leaf handlers which may own background work."""
+
+        unique: dict[int, WorkflowActionHandler] = {}
+        for handler in self.handlers.values():
+            routed = getattr(handler, "handlers", None)
+            candidates = routed.values() if isinstance(routed, Mapping) else (handler,)
+            for candidate in candidates:
+                unique.setdefault(id(candidate), candidate)
+        return tuple(unique.values())
+
+    @property
+    def pending_mutation_count(self) -> int:
+        return sum(
+            int(getattr(handler, "pending_mutation_count", 0) or 0)
+            for handler in self._lifecycle_handlers()
+        )
+
+    @property
+    def pending_operation_count(self) -> int:
+        """Operations which make closing stores unsafe."""
+
+        return self.worker.active_count + self.pending_mutation_count
+
+    async def _drain_handler_mutations(
+        self, *, timeout_seconds: float | None
+    ) -> bool:
+        drains = [
+            getattr(handler, "drain_mutations")
+            for handler in self._lifecycle_handlers()
+            if callable(getattr(handler, "drain_mutations", None))
+            and int(getattr(handler, "pending_mutation_count", 0) or 0) > 0
+        ]
+        if not drains:
+            return True
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            return False
+        pending = [drain(timeout_seconds=None) for drain in drains]
+        waiter = asyncio.gather(*pending, return_exceptions=True)
+        try:
+            if timeout_seconds is None:
+                results = await waiter
+            else:
+                results = await asyncio.wait_for(
+                    asyncio.shield(waiter), timeout_seconds
+                )
+        except TimeoutError:
+            return False
+        return all(
+            not isinstance(result, BaseException) and result is not False
+            for result in results
+        )
+
+    async def drain(self, *, timeout_seconds: float | None = 10.0) -> bool:
         with self._lock:
             self._draining = True
-        return await self.worker.drain(timeout_seconds=timeout_seconds)
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        loop = asyncio.get_running_loop()
+        deadline = (
+            None if timeout_seconds is None else loop.time() + timeout_seconds
+        )
+        worker_drained = await self.worker.drain(timeout_seconds=timeout_seconds)
+        if not worker_drained:
+            return False
+        remaining = None if deadline is None else max(0.0, deadline - loop.time())
+        return await self._drain_handler_mutations(timeout_seconds=remaining)
 
     def close(self) -> None:
         """Close transition journals; the orchestrator owns the job store."""
 
         if self._closed:
             return
+        pending = self.pending_operation_count
+        if pending:
+            raise WorkflowRuntimeError(
+                "cannot close workflow runtime while "
+                f"{pending} operation(s) are still running"
+            )
         for journal in set(self.journals.values()):
             journal.close()
         self._closed = True
@@ -1180,6 +1390,17 @@ class WorkflowRuntime:
                 )
             )
             del self._events[:-128]
+        if (
+            str(phase) == "transition_applied"
+            and self._transition_observer is not None
+        ):
+            try:
+                self._transition_observer(job)
+            except Exception:  # noqa: BLE001 - observation cannot fail the job
+                logger.exception(
+                    "Failed to publish durable workflow transition for %s",
+                    getattr(job, "task_id", "unknown"),
+                )
 
 
 def build_workflow_runtime(orchestrator: Any, **kwargs: Any) -> WorkflowRuntime:

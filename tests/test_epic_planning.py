@@ -1,6 +1,7 @@
 """Tests for epic planning: _should_dispatch_epic, _fetch_epic_children, _plan_open_epics."""
 
 import asyncio
+import threading
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
@@ -626,6 +627,49 @@ class TestAutoDecomposition:
 
         tracker.create_issue.assert_not_called()
         tracker.update_issue.assert_not_called()
+
+    def test_decomposition_holds_project_fence_for_complete_child_set(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        parent = _make_issue(
+            "parent-1",
+            issue_type="epic",
+            project_id="proj-test",
+        )
+        tasks = [
+            {"title": "First", "description": "first details"},
+            {"title": "Second", "description": "second details"},
+        ]
+        tracker = MagicMock()
+        project_lock = threading.RLock()
+        orch.project_store.project_write_lock = MagicMock(
+            return_value=project_lock
+        )
+
+        # Only identifiers are consumed after creation in this lock-focused
+        # regression.
+        created = iter([
+            _make_issue("child-1"),
+            _make_issue("child-2"),
+        ])
+
+        def locked_create(**kwargs):
+            assert project_lock._is_owned()  # type: ignore[attr-defined]
+            assert kwargs["parent"] == "parent-1"
+            return next(created)
+
+        tracker.create_issue.side_effect = locked_create
+
+        asyncio.run(
+            orch._execute_decomposition(
+                parent,
+                tasks,
+                tracker,
+                "proj-test",
+            )
+        )
+
+        assert tracker.create_issue.call_count == 2
+        orch.project_store.project_write_lock.assert_called_once_with("proj-test")
 
 
 class TestEpicPlannerFocusSelection:

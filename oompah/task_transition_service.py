@@ -16,6 +16,7 @@ this service never writes a terminal tracker status directly.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import inspect
 import json
@@ -122,19 +123,39 @@ def issue_authority_version(issue: Issue) -> str:
 
     Generic tracker timestamps are deliberately excluded.  A comment or
     other benign metadata write must not invalidate lifecycle authority.  The
-    projection contains only task identity, lifecycle state, implementation
-    generation/head, delivery branches, and integration authority.
+    projection contains only task/project/parent identity, lifecycle state,
+    epic-containment classification fields, implementation/review generation
+    and head, delivery branches, integration authority, and the canonical
+    terminal-audit evidence.  Including that evidence is important even for
+    the pre-audit compare-and-swap: otherwise a requirements, contributor, or
+    integrated-revision change could stage an audit for a stale snapshot.
     """
 
     projection = {
         "identifier": str(issue.identifier),
         "project_id": str(issue.project_id or ""),
+        "parent_id": _optional_text(getattr(issue, "parent_id", None)),
+        "issue_type": _optional_text(getattr(issue, "issue_type", None)),
+        # Epic containment classifies maintenance children from their title and
+        # labels.  Those fields therefore participate in transition/cleanup
+        # authority just like parent, status, branch, and exact head.
+        "title": _optional_text(getattr(issue, "title", None)),
+        "maintenance_labels": sorted(
+            str(label).strip().lower()
+            for label in (getattr(issue, "labels", None) or ())
+            if str(label).strip().lower() in {"merge-conflict", "ci-fix"}
+        ),
         "status": canonicalize_status(issue.state),
         "assignment_id": _optional_text(getattr(issue, "assignment_id", None)),
         "head_sha": _optional_text(getattr(issue, "head_sha", None)),
+        "review_number": _optional_text(getattr(issue, "review_number", None)),
+        "review_head": _optional_text(getattr(issue, "review_head", None)),
         "work_branch": _optional_text(getattr(issue, "work_branch", None)),
         "target_branch": _optional_text(getattr(issue, "target_branch", None)),
         "integration": _integration_projection(issue),
+        "terminal_evidence": compute_issue_evidence_fingerprint(
+            issue, str(issue.project_id or "legacy")
+        ).digest,
     }
     return hashlib.sha256(_canonical_json(projection).encode("utf-8")).hexdigest()
 
@@ -145,12 +166,18 @@ def issue_exact_head(issue: Issue) -> str | None:
     direct = _optional_text(getattr(issue, "head_sha", None))
     if direct:
         return direct.lower()
+    review_head = _optional_text(getattr(issue, "review_head", None))
     integration = getattr(issue, "integration", None)
     if isinstance(integration, Mapping):
         value = _optional_text(integration.get("head_sha"))
     else:
         value = _optional_text(getattr(integration, "head_sha", None))
-    return value.lower() if value else None
+    if value:
+        return value.lower()
+    # Review-created rollups may not have an implementation record of their
+    # own.  Their persisted review head is nevertheless the exact immutable
+    # source revision against which terminal landing was proven.
+    return review_head.lower() if review_head else None
 
 
 class TransitionAuthority(str, Enum):
@@ -218,6 +245,7 @@ class TransitionIntent:
     originating_job: str
     evidence_generation: str | None = None
     exact_head: str | None = None
+    precondition_revision: str | None = None
     schema_version: int = 1
 
     def __post_init__(self) -> None:
@@ -270,6 +298,11 @@ class TransitionIntent:
                     "exact_head must be a 40-64 character hexadecimal revision"
                 )
         object.__setattr__(self, "exact_head", exact_head)
+        object.__setattr__(
+            self,
+            "precondition_revision",
+            _optional_text(self.precondition_revision),
+        )
         if self.schema_version != 1:
             raise ValueError("unsupported TransitionIntent schema_version")
 
@@ -280,7 +313,7 @@ class TransitionIntent:
         ).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "project_id": self.project_id,
             "task_id": self.task_id,
@@ -295,6 +328,12 @@ class TransitionIntent:
             "evidence_generation": self.evidence_generation,
             "exact_head": self.exact_head,
         }
+        # Preserve the canonical revision of schema-v1 intents written before
+        # this optional fence existed.  New auto-close intents include the
+        # field; legacy and unrelated intents continue to hash byte-for-byte.
+        if self.precondition_revision is not None:
+            payload["precondition_revision"] = self.precondition_revision
+        return payload
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "TransitionIntent":
@@ -380,13 +419,19 @@ class TerminalTransitionAdapter(Protocol):
 class CoordinatorTerminalAdapter:
     """Adapt ``TerminalTransitionCoordinator`` to the service boundary."""
 
-    def __init__(self, coordinator: Any):
+    def __init__(
+        self,
+        coordinator: Any,
+        *,
+        mutation_guard: Callable[[TransitionIntent], str | None] | None = None,
+    ):
         self._coordinator = coordinator
+        self._mutation_guard = mutation_guard
 
     async def stage(
         self, intent: TransitionIntent, issue: Issue
     ) -> TerminalStageResult:
-        result = await self._coordinator.request_transition(
+        fields = dict(
             current_issue=issue,
             requested_target=TargetState.from_raw(intent.requested_status),
             trigger_identity=ContributorIdentity(intent.actor, intent.authority.value),
@@ -395,15 +440,21 @@ class CoordinatorTerminalAdapter:
                 issue, intent.project_id
             ),
         )
+        if self._mutation_guard is not None:
+            fields["mutation_guard"] = lambda: self._mutation_guard(intent)
+        result = await self._coordinator.request_transition(**fields)
+        reason = _optional_text(getattr(result, "reason", None))
         return TerminalStageResult(
             success=bool(result.success),
             audit_id=_optional_text(getattr(result, "audit_id", None)),
             reason_code=(
                 "transition.terminal_staged"
                 if result.success
+                else "transition.stale_precondition"
+                if reason and reason.startswith("workflow_precondition_changed:")
                 else "transition.terminal_rejected"
             ),
-            detail=_optional_text(getattr(result, "reason", None)),
+            detail=reason,
         )
 
 
@@ -880,12 +931,14 @@ class TaskTransitionService:
         tracker: TrackerProtocol,
         journal: TransitionJournal,
         terminal_adapter: TerminalTransitionAdapter | None = None,
+        write_lock: Callable[[], Any] | None = None,
         claim_ttl_seconds: float = DEFAULT_TRANSITION_CLAIM_TTL_SECONDS,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
         self.tracker = tracker
         self.journal = journal
         self.terminal_adapter = terminal_adapter
+        self._write_lock = write_lock
         if claim_ttl_seconds <= 0:
             raise ValueError("claim_ttl_seconds must be positive")
         self.claim_ttl_seconds = claim_ttl_seconds
@@ -909,9 +962,24 @@ class TaskTransitionService:
     async def _update(self, task_id: str, status: str) -> None:
         operation = self.tracker.update_issue
         if inspect.iscoroutinefunction(operation):
-            await operation(task_id, status=status)
+            lock = self._write_lock() if self._write_lock is not None else None
+            if lock is None:
+                await operation(task_id, status=status)
+                return
+            with lock:
+                await operation(task_id, status=status)
             return
-        await asyncio.to_thread(operation, task_id, status=status)
+
+        def update() -> None:
+            context = (
+                self._write_lock()
+                if self._write_lock is not None
+                else contextlib.nullcontext()
+            )
+            with context:
+                operation(task_id, status=status)
+
+        await asyncio.to_thread(update)
 
     def _outcome(
         self,
