@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T03:10:08.175144Z'
+updated_at: '2026-08-05T03:11:41.731505Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-05 03:08
 ---
 Started implementation. The tracker claim is live, but the claimed /home/shedwards/.oompah/worktrees/oompah/OOMPAH-819 checkout and local OOMPAH-819 branch were absent from Git's worktree registry. I am resolving the recorded claim base and will recreate only that missing checkout before implementing the exact-head Ready reconciliation fence and race regressions.
+---
+author: oompah
+created: 2026-08-05 03:11
+---
+Topology correction recorded: OOMPAH-819 remains the systemic epic-lineage task. No implementation edits were made in its recreated checkout. The same accepted fix is now being bootstrapped on standalone main-based OOMPAH-820; OOMPAH-819 depends on that deployment and will later record the patch on the epic lineage.
 ---
 <!-- COMMENTS:END -->

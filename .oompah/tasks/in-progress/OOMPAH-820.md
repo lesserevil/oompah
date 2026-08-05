@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T03:10:30.698656Z'
+updated_at: '2026-08-05T03:11:45.938112Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Bootstrap delivery for the live stale-review-generation regression discovered wh
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 03:11
+---
+Started main-based implementation of the exact-head Ready reconciliation fence. Live evidence confirms find_pr_for_branch returned historical PR #716 for OOMPAH-818 at new accepted head e3140b65, then Ready reconciliation staged Merged without an exact-head gate or target landing. I am binding review reuse and terminal staging to the accepted integration head plus current delivery authority, with stale-history and resubmit/webhook/restart regressions.
+---
+<!-- COMMENTS:END -->
