@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:24:46.472395Z'
+updated_at: '2026-08-05T01:27:05.163301Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -606,5 +606,10 @@ author: oompah
 created: 2026-08-05 01:24
 ---
 Implementation: no code patch is warranted in this recovery pass. The already-landed implementation cleanly separates catalog discovery from manual ACP selection, validates providers through the backend registry, preserves empty-model SDK fallback, and carries explicit role models through ACP dispatch. The current branch also contains the live-tier correction to Claude haiku/sonnet/opus plus Codex gpt-5.6-luna/terra/sol, reflecting the verified Claude CLI behavior; no provider IDs or credentials are embedded in production defaults.
+---
+author: oompah
+created: 2026-08-05 01:27
+---
+Verification: focused provider/role/API/UI suites pass (356 tests), ACP handoff/orchestrator/telemetry suites pass (375 tests), and make check-secrets passes. The test environment used a writable temporary OOMPAH_AGENT_LOG_DIR, avoiding the managed read-only default log path. I am running the remaining auth/JSON-boundary neighbor tests, then will verify clean/up-to-date git state and submit.
 ---
 <!-- COMMENTS:END -->
