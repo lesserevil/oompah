@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T06:19:06.965072Z'
+updated_at: '2026-08-05T06:19:24.564160Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 156e3318-83cd-4e12-b78c-e2a1d6ff8b5c
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9680891
-  total_output_tokens: 39895
+  total_input_tokens: 9681529
+  total_output_tokens: 40024
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 52737
-      output_tokens: 5877
+      input_tokens: 53375
+      output_tokens: 6006
       cost_usd: 0.0
   runs:
   - profile: default
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 228
     cost_usd: 0.0
     recorded_at: '2026-08-05T05:42:00.761652+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 638
+    output_tokens: 129
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T06:19:21.808289+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -1195,5 +1201,15 @@ author: oompah
 created: 2026-08-05 06:19
 ---
 Explicit Claude and Codex model tiers implementation complete and verified. Backend descriptors expose supports_manual_model_selection independently from has_catalog. UI supports manual model entry with SDK-default fallback. Role infrastructure supports explicit role candidates. Six explicit mappings (fast=Claude/haiku+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol) configured and tested. 481 focused tests pass, secrets scan clean.
+---
+author: oompah
+created: 2026-08-05 06:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 37
+- Tokens: 638 in / 129 out [767 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 5s
+- Log: OOMPAH-505__20260805T055933Z.jsonl
 ---
 <!-- COMMENTS:END -->
