@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:13:08.562782Z'
+updated_at: '2026-08-05T06:13:31.820492Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: b6c79f85-97bf-47cc-a848-eb4d3acb79c4
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 790
@@ -281,12 +281,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
-  updated_at: '2026-08-05T06:09:44.999715+00:00'
+  head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+  submitted_at: '2026-08-05T06:13:13.926938+00:00'
+  updated_at: '2026-08-05T06:13:13.926938+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1075,5 +1077,20 @@ author: oompah
 created: 2026-08-05 06:13
 ---
 Completion: OOMPAH-523 is verified at clean pushed head 9ea2b5523. Basic auth covers all interactive HTTP/mounted and WebSocket surfaces, preserves exact forge webhook and health exemptions, keeps forge validation intact, rejects bypass variants, redacts credentials, and preserves disabled behavior. Focused verification and secret scan passed.
+---
+author: oompah
+created: 2026-08-05 06:13
+---
+Verified integrated ASGI Basic authentication enforcement across HTTP, mounted routes, WebSockets, health, and forge webhook surfaces; 570 focused tests and make check-secrets pass; clean pushed head 9ea2b5523.
+---
+author: oompah
+created: 2026-08-05 06:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 24
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 56s
+- Log: OOMPAH-523__20260805T060951Z.jsonl
 ---
 <!-- COMMENTS:END -->
