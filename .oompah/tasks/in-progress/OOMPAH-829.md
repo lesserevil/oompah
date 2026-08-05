@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T18:43:52.466169Z'
+updated_at: '2026-08-05T19:07:31.422813Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-08-05 18:43
 ---
 Implementation: Added an explicit integrated-evidence fingerprint-variant reconstruction in terminal_audit.py and a v1 legacy Done-override equivalence fence in terminal_audit_enforcement.py. Only one active/applied, schema-valid Done override with exact project/task/target/authorized fields and the reconstructed legacy digest can qualify; current evidence must equal the reconstructed integrated digest and the task must remain a non-CI/non-conflict direct epic rebase helper. Under the project lock, the Merged conflict is revalidated, the complete equivalence/integration intent is durably checkpointed before the Done write, and restart recovery re-derives the marker before finalizing only the exact child's incompatible Merged metadata.
+---
+author: oompah
+created: 2026-08-05 19:07
+---
+Verification: focused fingerprint/enforcement/coordinator suites passed (240 passed). The correctly provisioned full branch gate passed via make test: 15,682 passed, 7 skipped, 1 xfailed, 44 warnings in 650.32s; terminal mutation scan also passed. The initial Snap/DBus uv bootstrap issue was bypassed with the existing project venv, and the prior environment-only subprocess checks independently passed (35 passed, 5 skipped).
 ---
 <!-- COMMENTS:END -->
