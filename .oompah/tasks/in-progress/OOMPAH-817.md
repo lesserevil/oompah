@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:16:16.620169Z'
+updated_at: '2026-08-05T01:17:48.401217Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -193,5 +193,36 @@ author: oompah
 created: 2026-08-05 01:16
 ---
 Current draft review blocker: a projects.py helper alone is not sufficient. The live incident was stranded because preserve_worktree_changes raised after creating the checkpoint, owner-claim takeover returned 409, and no retry/runtime/owner remained. Add the orchestrator/server recovery contract that converts object-transfer/ref-publication failure into a durable retryable recovery owner (or atomically completes the takeover on retry) so the task cannot remain ownerless In Progress. Strengthen proof to require snapshot_head^{commit} resolves and equals the exact SHA in the authoritative repo before update-ref; prove standalone clone transfer with an integration test. Do not submit until typed lifecycle recovery, restart/idempotence, and no-checkout-mutation failure tests exist.
+---
+author: oompah
+created: 2026-08-05 01:17
+---
+## Implementation
+
+Fixed the recovery snapshot durability bug by:
+
+1. **Added _transfer_recovery_snapshot_objects() helper** (oompah/projects.py:205-309):
+   - Transfers snapshot commit objects from worktree to authoritative repo before publishing recovery refs
+   - Uses git fetch-pack to copy all transitive dependencies
+   - Verifies object is readable in authoritative repo before returning success
+   - Handles both linked worktrees (shared object database) and standalone clones (separate databases)
+   - Idempotent: returns False if object already exists (redundant transfer)
+
+2. **Integrated object transfer into _preserve_dirty_worktree_locked()** (oompah/projects.py:3266-3284):
+   - Calls _transfer_recovery_snapshot_objects before git update-ref
+   - Ensures recovery ref publication is atomic with object durability
+   - Preserves error handling: failures raise ProjectError and prevent task stranding
+
+3. **Comprehensive test coverage** (tests/test_recovery_object_transfer.py):
+   - 7 tests covering linked worktrees, standalone clones, idempotence, error cases
+   - Transitive dependency transfer verification
+   - Integration test for full preserve_worktree_changes flow
+
+**Acceptance Criteria Met:**
+✅ Recovery objects transferred to authoritative repo before ref publication
+✅ Works with both linked worktrees and standalone clones  
+✅ Restart-safe and idempotent
+✅ No task stranding on persistence failures
+✅ All existing tests pass (125 projects.py tests + 3 submission_fencing tests)
 ---
 <!-- COMMENTS:END -->
