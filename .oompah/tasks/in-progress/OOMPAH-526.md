@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Open
+status: In Progress
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -14,13 +14,13 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:33:24.790968Z'
+updated_at: '2026-08-05T00:34:56.590744Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 0f4058aa-239b-4ee1-9d79-888fd85318d5
+oompah.agent_run_id: 72bf11a9-1eed-43b8-85a0-e4fe6b836138
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-526
 oompah.task_costs:
   total_input_tokens: 1118193
@@ -616,5 +616,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 9s
 - Log: OOMPAH-526__20260805T003230Z.jsonl
+---
+author: oompah
+created: 2026-08-05 00:34
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
