@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:20:33.756925Z'
+updated_at: '2026-08-05T01:21:15.967533Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: bb8c3eae-8dbb-4dd4-ac42-30eb1b01fcf9
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9678325
@@ -236,12 +236,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:10:52.314489+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T01:20:57.657546+00:00'
+  updated_at: '2026-08-05T01:20:57.657546+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -559,5 +561,20 @@ author: oompah
 created: 2026-08-05 01:20
 ---
 Completion: The integrated feature is verified with no additional patch required. Focused ACP/provider/UI/orchestrator suites pass (481 tests) with OOMPAH_AGENT_LOG_DIR redirected to writable task temp; role/API/model neighbor suite passes (83 tests); make check-secrets passes. The initial seven ACP failures were only the managed read-only ~/.oompah/agent-logs path and disappear with the documented writable log-dir setting. Branch is clean at e1b0f4846, which already contains the shipped OOMPAH-505 implementation; no live deployment/config mutation was attempted.
+---
+author: oompah
+created: 2026-08-05 01:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 27
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 33s
+- Log: OOMPAH-505__20260805T011102Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:21
+---
+Verified integrated explicit Claude/Codex model-tier support; 564 focused/neighbor tests pass and secret scan is clean
 ---
 <!-- COMMENTS:END -->

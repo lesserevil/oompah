@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T01:06:44.126177Z'
+updated_at: '2026-08-05T01:21:02.539396Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -21,14 +21,47 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-814
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   head_sha: 254b131c713bece56500a72408f796c46bfee8d0
   submitted_at: '2026-08-05T01:06:35.410800+00:00'
-  updated_at: '2026-08-05T01:06:35.410800+00:00'
+  updated_at: '2026-08-05T01:20:55.639298+00:00'
+  last_error: "Combined-tree quality gate failed: TestForwarderProcessFullLifecycle::test_stop_terminates_all_tracked_processes\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
+    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
+    \ at 0x7f930d20b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
+    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
+    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
+    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
+    \ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketRefreshIncludesAuth::test_ws_refresh_includes_http_auth\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
+    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
+    \ at 0x7a49bf8979c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
+    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
+    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
+    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
+    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
+    \ short test summary info ============================\nFAILED tests/test_event_driven_loop.py::TestRetryTimerResetsInProgressOnRelease::test_does_not_reset_when_running_agent_exists\n\
+    FAILED tests/test_release_delivery_refresh.py::TestTrickleScaleBacklogRegressionOOMPAH251::test_scm_calls_bounded_by_items_with_deleted_branches\n\
+    = 2 failed, 15693 passed, 8 skipped, 1 xfailed, 45 warnings in 785.45s (0:13:05)\
+    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-814
 oompah.duplicate_screening:
@@ -278,5 +311,66 @@ author: oompah
 created: 2026-08-05 01:06
 ---
 Removed accidental real project-tracker I/O from three dispatch-policy fixture families using concrete temporary stores/projects, preseeded no-I/O trackers, raising factory guards, and complete resource cleanup. Exact head 254b131c7; 227 related tests pass in 2.31s and independent review accepted.
+---
+author: oompah
+created: 2026-08-05 01:21
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-814`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+TestForwarderProcessFullLifecycle::test_stop_terminates_all_tracked_processes
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f930d20b9c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_websocket_authenticated_bootstrap.py::TestWebSocketRefreshIncludesAuth::test_ws_refresh_includes_http_auth
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7a49bf8979c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_event_driven_loop.py::TestRetryTimerResetsInProgressOnRelease::test_does_not_reset_when_running_agent_exists
+FAILED tests/test_release_delivery_refresh.py::TestTrickleScaleBacklogRegressionOOMPAH251::test_scm_calls_bounded_by_items_with_deleted_branches
+= 2 failed, 15693 passed, 8 skipped, 1 xfailed, 45 warnings in 785.45s (0:13:05) =
+
+make: *** [Makefile:401: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
