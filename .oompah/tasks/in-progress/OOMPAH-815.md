@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:46:03.910820Z'
+updated_at: '2026-08-05T01:07:26.371376Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-05 00:46
 ---
 Containment detail: _git_submission_evidence uses merge-base only for changed paths and does not return base_sha; _submission_record only syntax-checks inherited/supplied base_sha and does not verify ancestry. If accepting/reusing a parented null-metadata branch, add server-authoritative read-only proof that origin/<submitted branch> exists at submitted head and the head is compatible with/descends from the expected recorded parent base before any tracker/queue write. Otherwise reject pre-mutation. The executor's later fetch/rebase guard is necessary but does not meet this task's pre-mutation acceptance.
+---
+author: oompah
+created: 2026-08-05 01:07
+---
+Acceptance detail for same-head resubmission: _persist_worker_submission currently returns early when the integration record is unchanged and status is Ready. Reconcile/backfill Issue.work_branch from the accepted non-working IntegrationRecord before that early return, or include branch projection agreement in the idempotency condition. Otherwise legacy null/stale work_branch rows remain vulnerable after an idempotent resubmit. Add exact regression for same task_branch/head with null and conflicting stale work_branch, proving accepted integration authority wins and the projection is repaired atomically.
 ---
 <!-- COMMENTS:END -->
