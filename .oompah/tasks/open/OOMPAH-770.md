@@ -9,6 +9,7 @@ children:
 - OOMPAH-784
 - OOMPAH-795
 - OOMPAH-796
+- OOMPAH-821
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-765
@@ -17,7 +18,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-05T00:01:39.509889Z'
+updated_at: '2026-08-05T05:11:57.451461Z'
 work_branch: null
 target_branch: null
 review_url: null
