@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-05T16:39:12.099995Z'
+updated_at: '2026-08-05T17:02:33.861404Z'
 work_branch: null
 target_branch: null
 review_url: null
