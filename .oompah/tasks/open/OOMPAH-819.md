@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T04:49:01.012222Z'
+updated_at: '2026-08-05T04:52:18.571827Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -26,15 +26,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-819 is on
-    OOMPAH-819, not expected branch epic-OOMPAH-768--task-OOMPAH-819; refusing to
-    reset it
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 1225b5df-7d21-41ea-99c8-bdb5d461d0bb
+  claim_owner: 4d963552-8ec1-4f4b-8986-7bc16090635b
+  claimed_at: '2026-08-05T04:52:15.649413+00:00'
+  claim_expires_at: '2026-08-05T05:22:15.649413+00:00'
   retry_count: 1
-  retry_after: '2026-08-05T04:49:53.354557+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
