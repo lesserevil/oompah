@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T18:57:29.391732Z'
+updated_at: '2026-08-05T18:57:49.112300Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 41s
 - Log: OOMPAH-831__20260805T183157Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:57
+---
+Scheduler authority was revoked after verifying the worktree was clean: this duplicate-screening Codex provider bootstrap was queued as a heavyweight validation waiter due OOMPAH-841. The waiter is removed and no implementation was discarded. Resume normal dispatch only after standalone deployment OOMPAH-842 is live.
 ---
 <!-- COMMENTS:END -->

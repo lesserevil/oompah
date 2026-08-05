@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T18:56:43.598960Z'
+updated_at: '2026-08-05T18:57:46.637838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 26m 22s
 - Log: OOMPAH-830__20260805T183022Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:57
+---
+Temporary direct-owner fence applied after verifying the worktree was clean: the native Codex provider bootstrap itself was waiting on/holding heavyweight validation capacity due OOMPAH-841, so allowing this session to start would reproduce the live whole-session lease deadlock. No implementation work was discarded. Keep fenced until standalone deployment OOMPAH-842 is live, then release back to normal server dispatch.
 ---
 <!-- COMMENTS:END -->
