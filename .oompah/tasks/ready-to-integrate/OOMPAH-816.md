@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T09:15:16.148505Z'
+updated_at: '2026-08-05T09:15:19.276132Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ author: oompah
 created: 2026-08-05 09:15
 ---
 Repaired the exact first-gate failures at clean pushed head 71af47ac143d3dd614eb2d235e9cf79037bf54c6. The large auditor-output test had invoked newly-heavy make test without the required validation lease; it now supplies a real isolated lease. Tick telemetry tests had been launching production fire-and-forget maintenance outside their scope and across xdist boundaries; their helper now disables shared integration, stubs both maintenance bodies, and drains its owned executor. Verification: complete prior focused matrix 586/586; affected output-bounds/handler/telemetry xdist suite 320/320; exact four failed nodes 80/80 across 20 xdist repetitions; terminal mutation scan 8/8; secret and diff checks pass.
+---
+author: oompah
+created: 2026-08-05 09:15
+---
+Fixed all four exact full-gate failures without weakening validation behavior; pushed 71af47ac1 after 320 affected tests and 80 repeated parallel node passes.
 ---
 <!-- COMMENTS:END -->
