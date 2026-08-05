@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T22:42:11.577186Z'
+updated_at: '2026-08-05T23:21:32.660648Z'
 work_branch: OOMPAH-563
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/583
@@ -98,6 +98,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/583
 oompah.review_number: '583'
 oompah.work_branch: OOMPAH-563
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-79e52794cc1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-563
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cf668811f69e8000b632265f5e6af57507d688e19a56b427cc3ab29f2de868fc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T23:21:25.964144+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -222,5 +244,10 @@ author: oompah
 created: 2026-07-29 22:42
 ---
 Deployed on main via PR #583 (merge 61230608) and activated by graceful restart. Live terminal-audit enforcement rebuilt its baseline successfully: quarantine is false, errors are empty, and the dashboard alert has cleared.
+---
+author: oompah
+created: 2026-08-05 23:21
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
