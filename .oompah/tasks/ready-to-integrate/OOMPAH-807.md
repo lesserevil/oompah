@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T16:00:37.558258Z'
+updated_at: '2026-08-05T16:01:18.477453Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -45,16 +45,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: de4bec9b-2fc3-4ad5-b2e3-d84ab9c5db88
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-807
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-807
   base_branch: epic-OOMPAH-763
   base_sha: 22252cc0486e919a657d15e5367ce29476622ce3
-  updated_at: '2026-08-05T15:30:35.792313+00:00'
+  head_sha: b1c089614b81076b961c7681b6ddad64ca68191e
+  submitted_at: '2026-08-05T16:01:02.263145+00:00'
+  updated_at: '2026-08-05T16:01:02.263145+00:00'
 oompah.task_costs:
   total_input_tokens: 47501
   total_output_tokens: 583
@@ -325,5 +327,25 @@ author: oompah
 created: 2026-08-05 16:00
 ---
 Verification: 328 passed in 39.21s for the changed product suites (archive evidence, OOMPAH-803/workspace recovery, lifecycle, auditor contract, children, projects). 532 passed in 239.60s for adjacent terminal-audit/enforcement/coordinator/auditor-dispatch/orchestrator-handler suites. make terminal-audit-scan passed (8 identified, 8 allowlisted).
+---
+author: oompah
+created: 2026-08-05 16:01
+---
+Completion: Delivered and pushed b1c089614 (rebased on epic head 5d7cdb766). Metadata-only Archived duplicates can audit without a code revision/worktree, unsafe retirement remains blocked by evidence checks, and code-bearing terminal audits remain fail-closed. Focused verification and the terminal mutation scan are green.
+---
+author: oompah
+created: 2026-08-05 16:01
+---
+Rebased revisionless metadata-only Archived audit patch; focused audit suites and terminal mutation scan pass
+---
+author: oompah
+created: 2026-08-05 16:01
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 16
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 30m 51s
+- Log: OOMPAH-807__20260805T153043Z.jsonl
 ---
 <!-- COMMENTS:END -->
