@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:23:44.649319Z'
+updated_at: '2026-08-05T01:24:07.184758Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 3d162b1f16d8f609ede69a559947440f139e2416a65c3e1c6e0ceb213d8558b0
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 37a566cb-81c3-4715-b5ce-7eae04ac3fe5
+  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
+  claimed_at: '2026-08-05T01:23:55.680148+00:00'
+  claim_expires_at: '2026-08-05T01:53:55.680148+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 8e226ac5-fe4e-4515-9192-785136e5d367
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Live regression on 2026-08-05: OOMPAH-814 exact accepted head 254b131c713bece565
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 01:24
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-08-05 01:24
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
