@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T18:53:19.753066Z'
+updated_at: '2026-08-05T19:21:35.765584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-05 18:53
 ---
 Implementation in progress on the OOMPAH-763 root: native guard config now records an exact operator-installed Codex entrypoint plus service parent PID/start-ticks and inode/device. Only that direct node <entrypoint> exec bootstrap bypasses leasing, while the guarded PATH/SHELL remain active for real provider commands; lookalike paths and the same entrypoint from a task-controlled parent still queue normally. Added native process and backend-wiring regressions. Static compile and diff checks pass; focused tests are intentionally waiting for the currently occupied shared validation lane.
+---
+author: oompah
+created: 2026-08-05 19:21
+---
+Independent review found and blocked two unsafe identities before testing: the first draft authenticated the Codex script but PATH-selected Node, and it did not pin the SDK launch to the authenticated Codex path. The repair now records exact operator Codex and Node path/device/inode identities, rejects any executable under task-writable workspace/git roots, bypasses PATH by execing the recorded Node identity, and passes the same exact Codex path through codex_path_override. Added lookalike Node, same-path replacement, wrong-parent/start-tick, descendant-guard, and backend identity-wiring regressions. Validation health now specifically identifies a legacy Codex provider-root owner and advertises the existing authenticated direct-owner recovery action that retires only that task generation while preserving its worktree. Static compile/diff checks pass; runtime tests remain queued behind the active shared lane.
 ---
 <!-- COMMENTS:END -->
