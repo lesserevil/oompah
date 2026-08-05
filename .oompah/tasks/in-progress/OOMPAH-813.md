@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:21:24.214984Z'
+updated_at: '2026-08-05T00:22:00.537986Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,5 +69,10 @@ author: oompah
 created: 2026-08-05 00:21
 ---
 Acceptance-blocker repair implemented: revoked submission recovery now uses the identity-safe running-entry removal as its final post-preservation compare-and-remove and returns without clearing claims or touching tracker task data when a replacement generation owns the slot. Added deterministic executor interleaving regression that installs a replacement during preserve_worktree_changes and verifies running/claimed/claimed_issues remain intact with no stale tracker fetch/update. Focused matrix passes 101 tests; Ruff F821, git diff --check, and terminal mutation scan 8/8 pass. Preparing commit/push; task remains unsubmitted and claimed for coordinator re-audit.
+---
+author: oompah
+created: 2026-08-05 00:22
+---
+Acceptance repair completed and pushed at eb5d206f2fc040698808130b2629a997c3c9b953 on OOMPAH-813, ordinary fast-forward from 7eada51f6. The helper now atomically proves the retired entry still owns state after the preservation await; a superseded exit returns before claim cleanup or tracker access. Deterministic regression installs a replacement from preserve_worktree_changes and verifies replacement running/claimed/claimed_issues plus zero stale tracker fetch/update. Verification: exact regression 1/1; focused submission-fencing/run-identity/provider-retirement/task-handoff/auditor-exit matrix 101/101; Ruff F821; git diff --check; terminal mutation scan 8/8. Branch is clean and up to date with origin. OOMPAH-813 was not submitted and its owner claim was not released.
 ---
 <!-- COMMENTS:END -->
