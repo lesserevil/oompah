@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:21:44.066242Z'
+updated_at: '2026-08-05T14:18:29.823915Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 9b54fcb5-47cb-462d-b192-38ead1c4dfef
+oompah.agent_run_id: 898d829d-b960-430e-bed7-90b40bed2a2d
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 1080
