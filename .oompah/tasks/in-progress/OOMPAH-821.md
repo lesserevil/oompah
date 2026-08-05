@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T14:19:02.637912Z'
+updated_at: '2026-08-05T14:19:13.982230Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-08-05 09:32
 ---
 Read-only live reproduction on 2026-08-05: OOMPAH-745 is Ready to Integrate while its integration row is already integrated at exact b08a12057 on epic-OOMPAH-740. Audit audit-e1f46d62a09b is completed FAIL/no_auditor with mixed abandoned/finalization-failure/synthetic history; a later same-head resubmit re-entered Ready, and terminal staging rejected the fingerprint as already completed. The active alert incorrectly prescribes audit_retry_evidence_addendum, which is only valid for missing_evidence, while current mixed-attempt retry eligibility returns 409. This is the task's exact alert/action-parity and retryability regression. Recovery must preserve exact-fingerprint and successful-audit finality, then infrastructure-rearm target Done only once a genuinely independent auditor candidate exists; do not use another normal resubmit or a missing-evidence addendum.
+---
+author: oompah
+created: 2026-08-05 14:19
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
