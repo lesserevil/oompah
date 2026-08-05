@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-510
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Measure throughput improvements and validate the clean epic branch
 parent: OOMPAH-502
@@ -18,7 +18,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T15:06:11.106221Z'
-updated_at: '2026-08-05T01:04:27.298617Z'
+updated_at: '2026-08-05T01:04:30.977629Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
