@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:31:31.775959Z'
+updated_at: '2026-08-05T20:32:18.554040Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,13 +70,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9cca355f-357c-4f01-a103-1685fae57231
 oompah.task_costs:
-  total_input_tokens: 936
-  total_output_tokens: 2594
+  total_input_tokens: 1068
+  total_output_tokens: 43662
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 936
       output_tokens: 2594
+      cost_usd: 0.0
+    opus:
+      input_tokens: 132
+      output_tokens: 41068
       cost_usd: 0.0
   runs:
   - profile: default
@@ -91,6 +95,12 @@ oompah.task_costs:
     output_tokens: 225
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:42:16.553408+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 132
+    output_tokens: 41068
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:32:03.185943+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-828__20260805T181810Z
@@ -101,14 +111,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-828
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:20:05.427853+00:00'
+  - run_id: OOMPAH-828__20260805T194409Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: oompah_tests
+    source_branch: OOMPAH-828
+    source_sha: a5545b61a8db17a99655f81dfdafa7f5741c243c
+    completed_at: '2026-08-05T20:32:03.200813+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-828
+  base_branch: main
+  base_sha: da53569a99412c0c8bf2e45f1c0587837a36b444
   head_sha: a5545b61a8db17a99655f81dfdafa7f5741c243c
   submitted_at: '2026-08-05T20:31:23.369024+00:00'
-  updated_at: '2026-08-05T20:31:23.369024+00:00'
+  updated_at: '2026-08-05T20:32:15.326133+00:00'
 ---
 ## Summary
 
@@ -281,5 +301,20 @@ author: oompah
 created: 2026-08-05 20:31
 ---
 Add target-aware Archived-lifecycle finality: _lifecycle_terminal_authorities now accepts a completed PASS Archived record joined to an applied Archived result intent via an exact project/task/audit/attempt/target/fingerprint tuple, so live rows OOMPAH-452/453/455/456 converge to not_needed with zero tracker mutations while incomplete, failed, mismatched, retired, quarantined, unapplied evidence and Done/Merged targets remain fail-closed. Covered by 10 new tests plus 313 neighboring-suite regressions passing.
+---
+author: oompah
+created: 2026-08-05 20:32
+---
+Agent completed successfully in 2895s (41200 tokens)
+---
+author: oompah
+created: 2026-08-05 20:32
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 182, Tool calls: 126
+- Tokens: 132 in / 41.1K out [41.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 48m 15s
+- Log: OOMPAH-828__20260805T194409Z.jsonl
 ---
 <!-- COMMENTS:END -->
