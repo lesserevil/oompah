@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -12,13 +12,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:13:24.357044Z'
+updated_at: '2026-08-05T12:19:28.817637Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-825
+  head_sha: 74c4b71cfab349bc782fff71188c97651f54f519
+  submitted_at: '2026-08-05T12:19:21.829561+00:00'
+  updated_at: '2026-08-05T12:19:21.829561+00:00'
 ---
 ## Summary
 
@@ -41,5 +49,15 @@ author: oompah
 created: 2026-08-05 12:13
 ---
 Rebased the reviewed lifecycle recovery implementation onto deployed OOMPAH-824 main c14ca03f59078e6df06871488cf78f04477acb11. New exact clean pushed head 74c4b71cfab349bc782fff71188c97651f54f519 has that exact parent, one canonical commit, and the same five-path delta. Rebase had zero conflicts/manual adaptations. Validation lease construction and top-level/health validation_resources projections coexist with lifecycle landing evidence, tri-state SCM observation, locked finality revalidation, and v1 migration; no workflow-shadow/job fields leaked. Nine-file combined lifecycle/SCM/validation/orchestrator suite: 983 passed. Terminal scan 8/8, secret scan, diff checks, trailer, upstream cleanliness all pass. Independent exact-head review is in progress before submission.
+---
+author: oompah
+created: 2026-08-05 12:19
+---
+Independent exact-head review PASS at 74c4b71cfab349bc782fff71188c97651f54f519: one exact parent c14ca03f5, clean/pushed; patch-identical rebase; validation arbitration preserved; project-scoped fingerprints and tri-state SCM fail closed; exhausted rows rearm only on authoritative evidence changes; v1 migration marker is outage/restart durable; fresh complete snapshot is revalidated under the project write lock; live-shaped 46-row migration converges 44 no-op + exactly 2 authorized Done repairs; no workflow-shadow leakage; tests and trailer valid.
+---
+author: oompah
+created: 2026-08-05 12:19
+---
+Authoritative lifecycle-ledger recovery rebased onto deployed validation arbitration at exact reviewed head 74c4b71cfab349bc782fff71188c97651f54f519. 983 focused tests and required scans pass; independent review PASS.
 ---
 <!-- COMMENTS:END -->
