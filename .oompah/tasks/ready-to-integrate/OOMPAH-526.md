@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T01:02:45.801977Z'
+updated_at: '2026-08-05T18:23:09.566803Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -736,5 +736,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 27m 35s
 - Log: OOMPAH-526__20260805T003514Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:23
+---
+In-flight OOMPAH-840 workaround: parent OOMPAH-521 is Merged and its epic branch was intentionally pruned, while exact task branch/head epic-OOMPAH-521--task-OOMPAH-526@e1b0f4846054bacac48e667295e2c00733d86d8c is reachable from origin/main b53bdbc77. Historical task evidence records the full project gate passing and the documentation/auth deliverables on main. Route this already-landed exact evidence to audited Done rather than attempting integration into the deleted terminal container.
 ---
 <!-- COMMENTS:END -->

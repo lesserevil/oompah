@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T17:56:49.759894Z'
+updated_at: '2026-08-05T18:23:16.350655Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -102,6 +102,28 @@ oompah.task_costs:
     output_tokens: 387
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:13:30.322098+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e3b8a9d5003a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-474
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 991f83c4a253177990af2e46e5dee4ae37cad6a2a5373a16d64b2acaece41150
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:23:10.297673+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -324,5 +346,10 @@ Run #3 [attempt=3, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 6s
 - Log: OOMPAH-474__20260729T031235Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:23
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
