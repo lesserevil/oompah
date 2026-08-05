@@ -11,14 +11,14 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:06:24.912267Z'
-work_branch: epic-OOMPAH-502
+updated_at: '2026-08-05T01:06:54.240028Z'
+work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: b626fea1-3961-435b-b736-c9beeb209c35
-oompah.work_branch: epic-OOMPAH-502
+oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9628154
   total_output_tokens: 34018
@@ -218,6 +218,14 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-502--task-OOMPAH-505
+  base_branch: epic-OOMPAH-502
+  base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  updated_at: '2026-08-05T01:06:47.324510+00:00'
 ---
 ## Summary
 
@@ -485,5 +493,15 @@ created: 2026-08-05 00:04
 **Evidence:** current review 564 is merged
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 01:06
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-05 01:06
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

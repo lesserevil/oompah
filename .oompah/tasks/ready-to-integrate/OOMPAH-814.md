@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T01:03:41.447145Z'
+updated_at: '2026-08-05T01:06:44.126177Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -21,13 +21,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-814
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
-  updated_at: '2026-08-05T00:31:44.285215+00:00'
-oompah.agent_run_id: 216ec019-e38f-4f3b-8c1b-366ba5e0fcc0
+  head_sha: 254b131c713bece56500a72408f796c46bfee8d0
+  submitted_at: '2026-08-05T01:06:35.410800+00:00'
+  updated_at: '2026-08-05T01:06:35.410800+00:00'
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-814
 oompah.duplicate_screening:
   schema_version: 1
@@ -271,5 +273,10 @@ author: oompah
 created: 2026-08-05 01:03
 ---
 Direct-owner repair completed at local exact head 11d5b97d69f4d521243f8d98a2c7c31439b60f1c after the server worker failed to consume its acceptance blocker. TestShouldDispatchCompleted now uses a concrete empty temporary ProjectStore; TestDispatchSerializationByProject uses a complete concrete proj-1 Project plus preseeded no-I/O tracker; all three repaired fixture families install a raising _new_tracker_for_project spy. The combined test_orchestrator_merged + submit_queue_concurrency suite improved from 227 tests in roughly 140s to 227 passed in 2.31s, with the affected 15 tests in 0.54s. Terminal mutation scan 8/8, F401, and diff check pass. Awaiting independent exact-diff review before push/submission.
+---
+author: oompah
+created: 2026-08-05 01:06
+---
+Removed accidental real project-tracker I/O from three dispatch-policy fixture families using concrete temporary stores/projects, preseeded no-I/O trackers, raising factory guards, and complete resource cleanup. Exact head 254b131c7; 227 related tests pass in 2.31s and independent review accepted.
 ---
 <!-- COMMENTS:END -->
