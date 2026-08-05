@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:57:05.338035Z'
+updated_at: '2026-08-05T19:20:22.968969Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -97,6 +97,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-84ef9133aa36-3: '2026-08-05T00:00:56.553062+00:00'
+    attempt-6a14937f6aa1: '2026-08-05T19:20:19.180708+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-505
@@ -107,6 +108,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-05T00:00:56.553073+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    target_state: Done
+    evidence_fingerprint: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
+    audit_ids:
+    - audit-adbaaac8362f
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T19:20:19.180726+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-505
@@ -120,6 +130,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T00:00:56.553090+00:00'
     applied_at: '2026-08-05T00:01:04.260859+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    audit_id: audit-adbaaac8362f
+    attempt_id: attempt-6a14937f6aa1
+    target_state: Done
+    evidence_fingerprint: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
+    status: Done
+    audit_ids:
+    - audit-adbaaac8362f
+    applied: false
+    created_at: '2026-08-05T19:20:19.180745+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -204,7 +225,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-505
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -213,7 +234,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6a14937f6aa1
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -223,13 +244,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T18:56:53.691422+00:00'
       branch_key: epic-OOMPAH-502--task-OOMPAH-505
+      verdict: pass
+      completed_at: '2026-08-05T19:20:19.180484+00:00'
+      ended_at: '2026-08-05T19:20:19.180484+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: In Progress
     created_at: '2026-08-05T18:27:54.797137+00:00'
-    updated_at: '2026-08-05T18:56:53.691422+00:00'
+    updated_at: '2026-08-05T19:20:19.180484+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-140026660249
