@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T20:20:25.861964Z'
+updated_at: '2026-08-05T20:21:48.366935Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -333,5 +333,10 @@ author: oompah
 created: 2026-08-05 20:20
 ---
 Implementation: All audit blockers repaired. (1) workflow_facts.py: _overlay_integration_queue now fences the queue row to the tracker's exact head_sha - stale rows for older heads (H1) do not suppress attempts for newer heads (H2); emits retry_forced flag from durable queue authority into the fact; emits live_claim_precedes_history when the queue holds a valid integrating lease and the tracker still shows ready/queued. (2) work_decision.py: _integration_decision now evaluates live_claim_precedes_history BEFORE tracker action_required (so historical operator escalations do not evict a live owner); gate_blocked yields to retry_forced=True (OOMPAH-838 same-generation retry authority). (3) work_decision.py: terminal_audit unsafe/quarantined evidence routes to ACTION_REQUIRED with operator.action_required and its own action_code, while plain queued/running dispositions are preserved. (4) orchestrator.py: both WorkflowFactCollector construction sites now pass self.integration_queue so the overlay reaches production. Test additions: 7 tests in test_workflow_facts.py (overlay: integrating/blocked/retry_forced/stale H1 for both blocked and integrating/read-error/expired-lease/live-claim), 5 tests in test_work_decision.py (gate_blocked/retry_forced/live-claim-precedes/audit-unsafe/audit-queued-running preserved), 6 tests in test_workflow_controller.py (end-to-end gate_blocked/retry_forced/live-claim/generation-race stale H1/live-claim signaled/restart-convergence idempotent).
+---
+author: oompah
+created: 2026-08-05 20:21
+---
+Verification: Focused workflow suites pass. tests/test_work_decision.py: 45 passed (5 new). tests/test_workflow_facts.py: 40 passed (7 new). tests/test_workflow_controller.py: 17 passed (6 new). tests/test_workflow_shadow_integration.py: 11 passed. tests/test_workflow_jobs.py: 30 passed. tests/test_workflow_reasons.py: 12 passed. tests/test_workflow_scheduler.py: 17 passed. tests/test_workflow_contract.py: 22 passed. tests/test_integration_queue.py: 20 passed. tests/test_workflow_incident_fixtures.py: 33 passed. Neighbour suites tests/test_orchestrator_handlers.py + test_orchestrator_conflict_repair.py + test_orchestrator_full_sync.py: 307 passed. Total focused verification: 554 tests pass. Pushed as 2af2f103d.
 ---
 <!-- COMMENTS:END -->
