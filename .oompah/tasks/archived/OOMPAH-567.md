@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-08-05T23:26:09.932441Z'
+updated_at: '2026-08-05T23:26:17.507832Z'
 work_branch: OOMPAH-567
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/584
@@ -111,8 +111,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-e19146ff10c8
-    applied: false
+    applied: true
     created_at: '2026-08-05T23:26:06.573423+00:00'
+    applied_at: '2026-08-05T23:26:15.559395+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -260,5 +261,21 @@ author: oompah
 created: 2026-08-05 23:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 23:26
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 441c09132
+- task_commit: 98c4cd0fe
+- merged_at: 2026-07-29
+- makefile_targets: test-setup depends on $(VENV)/.uv-test-setup; test/test-serial depend on test-setup; setup unchanged (server extra)
+- regression_tests: tests/test_makefile_setup.py (test_test_targets_install_complete_dev_dependencies, test_setup_installs_server_dependencies_only); tests/test_pytest_parallel.py updated for test-serial
+- worktree_state: clean; contained in main
+- coordination_peers: OOMPAH-745 advisory only; not a blocker
 ---
 <!-- COMMENTS:END -->
