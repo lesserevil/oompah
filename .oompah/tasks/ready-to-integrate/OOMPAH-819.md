@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-819
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T05:31:35.356911Z'
+updated_at: '2026-08-05T05:34:51.614039Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -40,16 +40,18 @@ oompah.duplicate_screening:
   owner_resolution_reason: 'OOMPAH-820 is the terminal standalone bootstrap, but OOMPAH-819
     has distinct accepted epic-lineage accounting: the same reviewed patch must be
     recorded on epic-OOMPAH-768 before program rollup.'
-oompah.agent_run_id: 7aab2a4e-e82a-4e63-875a-f05df06fb630
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-819
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-819
   base_branch: epic-OOMPAH-768
   base_sha: eb5d206f2fc040698808130b2629a997c3c9b953
-  updated_at: '2026-08-05T04:52:47.563755+00:00'
+  head_sha: ce2526a8b7e67426c3919cf890a9b3b1cdca20ad
+  submitted_at: '2026-08-05T05:34:40.842315+00:00'
+  updated_at: '2026-08-05T05:34:40.842315+00:00'
 oompah.task_costs:
   total_input_tokens: 47589
   total_output_tokens: 254
@@ -137,5 +139,15 @@ author: oompah
 created: 2026-08-05 04:55
 ---
 Cleared the automatic-retry blocker: the pre-existing /home/shedwards/.oompah/worktrees/oompah/OOMPAH-819 directory belonged to obsolete standalone branch OOMPAH-819 at already-merged commit f1270e41, while this task now authoritatively targets epic-OOMPAH-768--task-OOMPAH-819. The worktree was clean with no unique commits, so the redundant worktree and local branch were safely removed. The next server retry can create the correct nested worktree; implementation remains held until OOMPAH-820 finishes terminal audit/deployment.
+---
+author: oompah
+created: 2026-08-05 05:34
+---
+Recorded the independently accepted OOMPAH-820 bootstrap patch on the systemic epic lineage as commits 742327deb and ce2526a8b (same two logical commits, cleanly applied onto current epic-OOMPAH-768). Verification on the lineage tree: 660 focused standalone-ready, terminal coordinator, native tracker, webhook, and submission-fencing tests passed; terminal mutation scan 8/8 allowlisted; secret scan and git diff check passed. Branch is clean and pushed at ce2526a8b7e67426c3919cf890a9b3b1cdca20ad.
+---
+author: oompah
+created: 2026-08-05 05:34
+---
+Recorded the deployed exact-head review-generation fence on epic-OOMPAH-768; 660 focused regressions and required scans pass at ce2526a8b.
 ---
 <!-- COMMENTS:END -->
