@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-05T03:19:43.379457Z'
+updated_at: '2026-08-05T12:10:39.582363Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -441,5 +441,10 @@ author: oompah
 created: 2026-08-05 03:19
 ---
 Live OOMPAH-818 resubmission exposed a terminal-audit chain generation bug within this task's scope. Tracker metadata retains Done audit audit-1fa98e0837dc in_progress at old evidence fingerprint 4b2e72bc plus a newer Merged request fingerprint b8b2f37c. Current _build_merged_entries reuses any active Done row without fingerprint equality; pure-code replay produced only Merged(new), so startup ignores stale Done and the new generation silently skips required Done auditing. Required cutover regression/fix: reuse an active Done request only when its evidence fingerprint exactly equals the current Merged generation; supersede stale active cross-target Done records while preserving attempt/history; build a fresh same-fingerprint Done→Merged chain across restart. Bootstrap implementation is being added to OOMPAH-820 before OOMPAH-818 reflow.
+---
+author: oompah
+created: 2026-08-05 12:10
+---
+New live restart/duplicate-finalization evidence (2026-08-05, OOMPAH-824) is within this task's accepted scope, so no separate bug was filed. A standalone task staged one Merged transition but the terminal store simultaneously exposed pending audit-6b3fa26bb2f6 and running audit-11ec4964b81b. The latter independently audited exact head 50d19fe5d, posted PASS at 12:05, incremented passed, then was stale-discarded and left the task In Validation. A normal draining restart recovered audit-6b3fa26bb2f6, launched one new attempt, and that PASS authoritatively applied Merged at 12:08. Safety held (stale verdict never mutated terminal state), but work was duplicated and convergence required a second expensive Opus audit. Required regression: concurrent webhook/review/reconcile staging must coalesce by exact target+evidence generation; restart must replay an already-persisted PASS/finalization checkpoint before launching another auditor; only a genuinely distinct authoritative generation may supersede and redispatch. Live IDs and timestamps above should be used in the duplicate/restart/finalization acceptance matrix.
 ---
 <!-- COMMENTS:END -->
