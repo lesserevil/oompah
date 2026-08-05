@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-546
 type: feature
-status: Merged
+status: In Validation
 priority: 0
 title: Add Ready to Integrate lifecycle and integration metadata
 parent: OOMPAH-545
@@ -11,12 +11,34 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:08.114469Z'
-updated_at: '2026-07-29T18:27:48.611511Z'
+updated_at: '2026-08-05T19:24:17.551154Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f25e7a0cb9cd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-546
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da1be0232d1ddfe4d875ae9bde769f55d3f8145c97b6d70d7406286519e417c0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T19:24:09.635285+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -63,5 +85,10 @@ author: oompah
 created: 2026-07-29 18:27
 ---
 Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; focused post-rebase compatibility tests passed.
+---
+author: oompah
+created: 2026-08-05 19:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
