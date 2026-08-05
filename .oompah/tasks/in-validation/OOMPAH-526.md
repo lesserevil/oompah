@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T18:29:30.831393Z'
+updated_at: '2026-08-05T18:29:38.319466Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -183,7 +183,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-526
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +192,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b47b4284fc80
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -202,13 +202,19 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T18:25:22.161078+00:00'
       branch_key: epic-OOMPAH-521--task-OOMPAH-526
+      failure_classification: policy_incompatibility
+      ended_at: '2026-08-05T18:29:29.464362+00:00'
+      failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+        auditor capability policy permits only read-only repository inspection and
+        configured test commands; command denied'
+      next_retry_at: '2026-08-05T18:29:39.464334+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-05T18:23:18.899055+00:00'
-    updated_at: '2026-08-05T18:25:22.161078+00:00'
+    updated_at: '2026-08-05T18:29:29.464362+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc08a582ec99
@@ -260,7 +266,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-b47b4284fc80
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -270,6 +276,12 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T18:25:22.161078+00:00'
     branch_key: epic-OOMPAH-521--task-OOMPAH-526
+    failure_classification: policy_incompatibility
+    ended_at: '2026-08-05T18:29:29.464362+00:00'
+    failure_reason: 'read-only auditor exceeded the policy-denial limit (3): Error:
+      auditor capability policy permits only read-only repository inspection and configured
+      test commands; command denied'
+    next_retry_at: '2026-08-05T18:29:39.464334+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 204d885d71bcc81769e05f23d1e4547ae43b843a5e2fae0c8f002a7c40e9dd7a
