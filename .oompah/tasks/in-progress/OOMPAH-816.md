@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:58:02.212843Z'
+updated_at: '2026-08-05T01:14:45.624154Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 31s
 - Log: OOMPAH-816__20260805T004341Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:14
+---
+Additional live acceptance evidence: during OOMPAH-814's exact gate, OOMPAH-505 launched python -m pytest -q over five broad subsystem files (acp_backends, providers, providers_ui, acp_agent, orchestrator_handlers). It owned 11 managed processes and hundreds of SQLite/WAL handles; dm-0 reached 98-99% utilization and both that command plus all four gate workers blocked in jbd2_log_wait_commit. Heavyweight classification cannot rely only on make test/test-serial or a claim that any explicit file list is focused. Treat substantial multi-file pytest commands as heavyweight; permit only genuinely bounded node/small-file checks to bypass, with regressions for this exact five-file shape.
 ---
 <!-- COMMENTS:END -->
