@@ -3005,6 +3005,243 @@ class ProjectStore:
             context["publication_state"] = "published"
         return context
 
+    @staticmethod
+    def _recovery_ancestry(
+        repo_path: str,
+        snapshot_head: str,
+        accepted_head: str,
+    ) -> str | None:
+        """Classify two exact recovery commits in one object database.
+
+        ``incorporated`` means the accepted submission contains the recovery
+        checkpoint. ``current`` means the checkpoint is newer than, or
+        divergent from, the accepted submission. ``None`` means this object
+        database cannot prove the relationship.
+        """
+
+        snapshot = str(snapshot_head or "").strip().lower()
+        accepted = str(accepted_head or "").strip().lower()
+        full_oid = r"[0-9a-f]{40}|[0-9a-f]{64}"
+        if not re.fullmatch(full_oid, snapshot) or not re.fullmatch(
+            full_oid, accepted
+        ):
+            return None
+        for value in (snapshot, accepted):
+            resolved = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{value}^{{commit}}"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if resolved.returncode != 0 or resolved.stdout.strip().lower() != value:
+                return None
+        incorporated = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", snapshot, accepted],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if incorporated.returncode == 0:
+            return "incorporated"
+        if incorporated.returncode == 1:
+            return "current"
+        return None
+
+    def _consume_worktree_recovery_if_incorporated_locked(
+        self,
+        project: Project,
+        issue_identifier: str,
+        accepted_head: str,
+        *,
+        accepted_branch: str | None = None,
+        wt_path: str | None = None,
+        expected_snapshot: str | None = None,
+    ) -> str:
+        """Consume one exact published checkpoint only after ancestry proof.
+
+        The authoritative ref is the durable current/consumed generation
+        boundary. Deleting it with an exact old-value CAS records consumption;
+        a concurrent replacement can never be deleted accidentally.
+        """
+
+        context = self._recovery_context_from_ref(project, issue_identifier)
+        if context is None:
+            return "absent"
+        snapshot = str(context.get("snapshot_head") or "").strip().lower()
+        expected = str(expected_snapshot or "").strip().lower()
+        if expected and snapshot != expected:
+            return "changed"
+
+        candidates: list[str] = []
+        if wt_path and os.path.isdir(wt_path):
+            candidates.append(wt_path)
+        if project.repo_path not in candidates:
+            candidates.append(project.repo_path)
+        relationship = next(
+            (
+                result
+                for candidate in candidates
+                if (
+                    result := self._recovery_ancestry(
+                        candidate,
+                        snapshot,
+                        accepted_head,
+                    )
+                )
+            ),
+            None,
+        )
+
+        # A restarted service may have the durable checkpoint but not yet the
+        # later accepted branch tip. Fetch that branch into a temporary ref,
+        # never into a task/epic branch, and retry the exact ancestry proof.
+        branch = str(accepted_branch or "").strip()
+        if relationship is None and branch:
+            valid_branch = subprocess.run(
+                ["git", "check-ref-format", f"refs/heads/{branch}"],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if valid_branch.returncode == 0:
+                temporary_ref = (
+                    "refs/oompah/recovery-accepted/" + uuid.uuid4().hex
+                )
+                try:
+                    fetched = self._run_network_git(
+                        project,
+                        [
+                            "git",
+                            "fetch",
+                            "--no-tags",
+                            "origin",
+                            f"refs/heads/{branch}:{temporary_ref}",
+                        ],
+                        timeout=30,
+                    )
+                    if fetched.returncode == 0:
+                        relationship = self._recovery_ancestry(
+                            project.repo_path,
+                            snapshot,
+                            accepted_head,
+                        )
+                except (OSError, subprocess.TimeoutExpired):
+                    logger.warning(
+                        "Could not fetch accepted recovery generation project=%s "
+                        "issue=%s branch=%s",
+                        project.id,
+                        issue_identifier,
+                        branch,
+                        exc_info=True,
+                    )
+                finally:
+                    try:
+                        subprocess.run(
+                            ["git", "update-ref", "-d", temporary_ref],
+                            cwd=project.repo_path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
+                            env=_recovery_git_env(),
+                        )
+                    except (OSError, subprocess.TimeoutExpired):
+                        logger.warning(
+                            "Could not remove temporary accepted-recovery ref "
+                            "project=%s issue=%s ref=%s",
+                            project.id,
+                            issue_identifier,
+                            temporary_ref,
+                            exc_info=True,
+                        )
+
+        if relationship != "incorporated":
+            return relationship or "unknown"
+
+        recovery_ref = _worktree_recovery_ref(issue_identifier)
+        consumed = subprocess.run(
+            ["git", "update-ref", "-d", recovery_ref, snapshot],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if consumed.returncode != 0:
+            current = self._recovery_context_from_ref(project, issue_identifier)
+            return "consumed" if current is None else "changed"
+
+        if wt_path and os.path.isdir(wt_path):
+            try:
+                subprocess.run(
+                    [
+                        "git",
+                        "update-ref",
+                        "-d",
+                        _worktree_pending_recovery_ref(issue_identifier),
+                        snapshot,
+                    ],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                logger.warning(
+                    "Could not remove consumed pending recovery ref project=%s "
+                    "issue=%s snapshot=%s",
+                    project.id,
+                    issue_identifier,
+                    snapshot,
+                    exc_info=True,
+                )
+        logger.info(
+            "Consumed incorporated worktree recovery project=%s issue=%s "
+            "snapshot=%s accepted=%s",
+            project.id,
+            issue_identifier,
+            snapshot,
+            accepted_head,
+        )
+        return "consumed"
+
+    def consume_worktree_recovery_if_incorporated(
+        self,
+        project_id: str,
+        issue_identifier: str,
+        accepted_head: str,
+        *,
+        accepted_branch: str | None = None,
+        wt_path: str | None = None,
+        expected_snapshot: str | None = None,
+    ) -> str:
+        """Classify and durably consume an incorporated recovery generation."""
+
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        with self.project_write_lock(project_id):
+            return self._consume_worktree_recovery_if_incorporated_locked(
+                project,
+                issue_identifier,
+                accepted_head,
+                accepted_branch=accepted_branch,
+                wt_path=wt_path,
+                expected_snapshot=expected_snapshot,
+            )
+
     def _recovery_context_from_commit(
         self,
         project: Project,
@@ -3526,6 +3763,7 @@ class ProjectStore:
         wt_path: str,
         *,
         branch_name: str | None = None,
+        consume_incorporated_recovery: bool = False,
     ) -> dict[str, object] | None:
         """Snapshot task-owned state before any reuse, sync, or cleanup.
 
@@ -3622,7 +3860,36 @@ class ProjectStore:
         # owner takeover and normal worktree reuse.
         published = self._recovery_context_from_ref(project, issue_identifier)
         if published is not None:
-            return published
+            if consume_incorporated_recovery:
+                current_head = subprocess.run(
+                    ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if current_head.returncode == 0 and current_head.stdout.strip():
+                    relationship = (
+                        self._consume_worktree_recovery_if_incorporated_locked(
+                            project,
+                            issue_identifier,
+                            current_head.stdout.strip(),
+                            accepted_branch=branch_name,
+                            wt_path=wt_path,
+                            expected_snapshot=str(
+                                published.get("snapshot_head") or ""
+                            ),
+                        )
+                    )
+                    if relationship in {"consumed", "absent"}:
+                        published = self._recovery_context_from_ref(
+                            project,
+                            issue_identifier,
+                        )
+            if published is not None:
+                return published
         pending = self._pending_recovery_context(
             project,
             issue_identifier,
@@ -4889,6 +5156,7 @@ class ProjectStore:
             recovery_identifier,
             wt_path,
             branch_name=branch_name,
+            consume_incorporated_recovery=True,
         )
         if recovery and recovery.get("snapshot_head"):
             logger.info(

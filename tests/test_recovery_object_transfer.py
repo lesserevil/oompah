@@ -138,6 +138,65 @@ def test_standalone_checkpoint_objects_precede_recovery_ref(tmp_path):
     ).returncode != 0
 
 
+def test_successor_submission_consumes_checkpoint_and_stays_consumed(tmp_path):
+    store, project, checkout = _standalone_task(tmp_path)
+    issue = "TASK-RECOVERY"
+    (checkout / "checkpoint.txt").write_text("checkpoint\n", encoding="utf-8")
+    checkpoint = store.preserve_worktree_changes(
+        project.id, issue, str(checkout), issue
+    )
+    assert checkpoint is not None
+    snapshot = str(checkpoint["snapshot_head"])
+
+    (checkout / "successor.txt").write_text("successor\n", encoding="utf-8")
+    _git(checkout, "add", "successor.txt")
+    _git(checkout, "commit", "-m", "legitimate successor")
+    successor = _resolve(checkout, "HEAD")
+
+    assert store.consume_worktree_recovery_if_incorporated(
+        project.id,
+        issue,
+        successor,
+        accepted_branch=issue,
+        wt_path=str(checkout),
+        expected_snapshot=snapshot,
+    ) == "consumed"
+    assert store.worktree_recovery_context(project.id, issue) is None
+    assert store.preserve_worktree_changes(
+        project.id, issue, str(checkout), issue
+    ) is None
+
+    restarted, _ = _store(tmp_path, Path(project.repo_path))
+    assert restarted.pending_worktree_recoveries() == []
+
+
+def test_restart_consumes_successor_from_authoritative_branch(tmp_path):
+    store, project, checkout = _standalone_task(tmp_path)
+    issue = "TASK-RECOVERY"
+    (checkout / "checkpoint.txt").write_text("checkpoint\n", encoding="utf-8")
+    checkpoint = store.preserve_worktree_changes(
+        project.id, issue, str(checkout), issue
+    )
+    assert checkpoint is not None
+    snapshot = str(checkpoint["snapshot_head"])
+    (checkout / "successor.txt").write_text("accepted\n", encoding="utf-8")
+    _git(checkout, "add", "successor.txt")
+    _git(checkout, "commit", "-m", "accepted successor")
+    successor = _resolve(checkout, "HEAD")
+    _git(checkout, "push", "origin", f"HEAD:refs/heads/{issue}")
+
+    restarted, _ = _store(tmp_path, Path(project.repo_path))
+    assert restarted.consume_worktree_recovery_if_incorporated(
+        project.id,
+        issue,
+        successor,
+        accepted_branch=issue,
+        wt_path=None,
+        expected_snapshot=snapshot,
+    ) == "consumed"
+    assert restarted.worktree_recovery_context(project.id, issue) is None
+
+
 def test_missing_object_update_ref_reproduction_then_transfer(tmp_path):
     _store_value, project, checkout = _standalone_task(tmp_path)
     (checkout / "new.txt").write_text("new graph\n", encoding="utf-8")
@@ -361,6 +420,18 @@ def test_standalone_active_rebase_checkpoint_preserves_operation(tmp_path):
         "show",
         f"{context['snapshot_head']}:base.txt",
     ).stdout == "resolved\n"
+    assert _resolve(
+        project.repo_path,
+        f"{context['recovery_ref']}^{{commit}}",
+    ) == context["snapshot_head"]
+    assert store.consume_worktree_recovery_if_incorporated(
+        project.id,
+        issue,
+        detached_head,
+        accepted_branch=issue,
+        wt_path=str(checkout),
+        expected_snapshot=str(context["snapshot_head"]),
+    ) == "current"
     assert _resolve(
         project.repo_path,
         f"{context['recovery_ref']}^{{commit}}",

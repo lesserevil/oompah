@@ -32950,15 +32950,76 @@ class Orchestrator:
                 continue
             published += 1
             current_state = canonicalize_status(issue.state)
+            integration = getattr(issue, "integration", None)
+            if isinstance(integration, dict):
+                accepted_head = str(integration.get("head_sha") or "").strip()
+                accepted_branch = str(
+                    integration.get("task_branch") or ""
+                ).strip()
+            else:
+                accepted_head = str(
+                    getattr(integration, "head_sha", "") or ""
+                ).strip()
+                accepted_branch = str(
+                    getattr(integration, "task_branch", "") or ""
+                ).strip()
+            relationship = "current"
+            if accepted_head:
+                try:
+                    relationship = (
+                        self.project_store.consume_worktree_recovery_if_incorporated(
+                            project_id,
+                            identifier,
+                            accepted_head,
+                            accepted_branch=(
+                                accepted_branch
+                                or getattr(issue, "work_branch", None)
+                                or getattr(issue, "branch_name", None)
+                            ),
+                            wt_path=worktree_path or None,
+                            expected_snapshot=str(
+                                recovery.get("snapshot_head") or ""
+                            ),
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - retry from durable ref
+                    errors.append(f"{identifier}: generation classification: {exc}")
+                    continue
+            if relationship in {"unknown", "changed"}:
+                deferred += 1
+                errors.append(
+                    f"{identifier}: recovery generation could not be proven "
+                    "current or incorporated"
+                )
+                continue
+            if relationship in {"consumed", "absent"}:
+                if current_state == IN_PROGRESS:
+                    try:
+                        tracker.update_issue(
+                            identifier,
+                            status=READY_TO_INTEGRATE,
+                        )
+                        self.state.completed.add(issue.id)
+                    except Exception as exc:  # noqa: BLE001 - accepted head is durable
+                        errors.append(
+                            f"{identifier}: restore accepted submission: {exc}"
+                        )
+                        continue
+                self._pending_recovery_publications.pop(key, None)
+                continue
             if is_terminal_status(issue.state) or current_state == IN_VALIDATION:
                 self._pending_recovery_publications.pop(key, None)
                 continue
-            if current_state not in {OPEN, IN_PROGRESS}:
+            if current_state not in {
+                OPEN,
+                IN_PROGRESS,
+                READY_TO_INTEGRATE,
+            }:
                 # A historical recovery ref is evidence, not authority to
                 # override a deliberate Needs Human/CI/Ready transition.
                 self._pending_recovery_publications.pop(key, None)
                 continue
-            if current_state == IN_PROGRESS:
+            if current_state in {IN_PROGRESS, READY_TO_INTEGRATE}:
                 try:
                     tracker.update_issue(identifier, status=OPEN)
                     self.state.claimed.discard(issue.id)
@@ -35845,6 +35906,54 @@ class Orchestrator:
         recovery_snapshot = str(
             (recovery_context or {}).get("snapshot_head") or ""
         ).strip()
+        if (
+            recovery_snapshot
+            and record.head_sha
+            and project_id_val
+            and project_store is not None
+        ):
+            consume_recovery = getattr(
+                project_store,
+                "consume_worktree_recovery_if_incorporated",
+                None,
+            )
+            if callable(consume_recovery):
+                try:
+                    relationship = await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: consume_recovery(
+                            project_id_val,
+                            entry.identifier,
+                            record.head_sha,
+                            accepted_branch=(
+                                record.task_branch
+                                or getattr(entry.issue, "work_branch", None)
+                                or getattr(entry.issue, "branch_name", None)
+                            ),
+                            wt_path=workspace_path,
+                            expected_snapshot=recovery_snapshot,
+                        ),
+                    )
+                except Exception:  # noqa: BLE001 - retain evidence, fail closed
+                    logger.warning(
+                        "Could not classify recovery generation against accepted "
+                        "submission issue_identifier=%s snapshot=%s accepted=%s",
+                        entry.identifier,
+                        recovery_snapshot,
+                        record.head_sha,
+                        exc_info=True,
+                    )
+                else:
+                    if relationship in {"consumed", "absent"}:
+                        logger.info(
+                            "Accepted submission incorporated prior recovery "
+                            "issue_identifier=%s snapshot=%s accepted=%s",
+                            entry.identifier,
+                            recovery_snapshot,
+                            record.head_sha,
+                        )
+                        recovery_context = None
+                        recovery_snapshot = ""
         if recovery_snapshot and record.head_sha and recovery_snapshot != record.head_sha:
             late_changes_detected = True
             logger.warning(
