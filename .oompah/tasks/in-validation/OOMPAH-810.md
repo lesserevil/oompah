@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T18:16:34.158987Z'
+updated_at: '2026-08-05T19:18:09.854201Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -57,13 +57,17 @@ oompah.integration:
   submitted_at: '2026-08-05T17:46:35.612561+00:00'
   updated_at: '2026-08-05T18:14:04.464750+00:00'
 oompah.task_costs:
-  total_input_tokens: 46708
-  total_output_tokens: 435
+  total_input_tokens: 46797
+  total_output_tokens: 4100
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46708
       output_tokens: 435
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 89
+      output_tokens: 3665
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +76,12 @@ oompah.task_costs:
     output_tokens: 435
     cost_usd: 0.0
     recorded_at: '2026-08-04T22:06:45.703190+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 89
+    output_tokens: 3665
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:17:57.677538+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-810__20260804T220544Z
@@ -91,7 +101,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-810
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +110,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4d0bf58a6399
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -110,6 +120,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T18:16:10.681061+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-810
+      ended_at: '2026-08-05T19:18:05.116942+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: oompah-integration
@@ -121,7 +133,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-4d0bf58a6399
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -131,6 +143,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T18:16:10.681061+00:00'
     branch_key: epic-OOMPAH-763--task-OOMPAH-810
+    ended_at: '2026-08-05T19:18:05.116942+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
@@ -243,5 +257,15 @@ author: oompah
 created: 2026-08-05 18:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:18
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 64
+- Tokens: 89 in / 3.7K out [3.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 1m 42s
+- Log: OOMPAH-810__20260805T181639Z.jsonl
 ---
 <!-- COMMENTS:END -->
