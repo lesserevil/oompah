@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T21:19:22.206840Z'
+updated_at: '2026-08-05T21:20:12.009402Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
@@ -70,8 +70,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9cca355f-357c-4f01-a103-1685fae57231
 oompah.task_costs:
-  total_input_tokens: 1068
-  total_output_tokens: 43662
+  total_input_tokens: 1071
+  total_output_tokens: 43853
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -81,6 +81,10 @@ oompah.task_costs:
     opus:
       input_tokens: 132
       output_tokens: 41068
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 3
+      output_tokens: 191
       cost_usd: 0.0
   runs:
   - profile: default
@@ -101,6 +105,12 @@ oompah.task_costs:
     output_tokens: 41068
     cost_usd: 0.0
     recorded_at: '2026-08-05T20:32:03.185943+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 191
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T21:20:08.532506+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-828__20260805T181810Z
@@ -455,5 +465,15 @@ Safe evidence:
 - branch_gate: make test passed in 632.9s
 - pr: PR #724 merged to main
 - new_tests: 10 tests in test_terminal_audit_enforcement.py
+---
+author: oompah
+created: 2026-08-05 21:20
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 57, Tool calls: 30
+- Tokens: 3 in / 191 out [194 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 47s
+- Log: OOMPAH-828__20260805T210031Z.jsonl
 ---
 <!-- COMMENTS:END -->
