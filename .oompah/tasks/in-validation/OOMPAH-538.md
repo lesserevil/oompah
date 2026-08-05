@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:36:33.663494Z'
+updated_at: '2026-08-05T01:42:22.741585Z'
 work_branch: OOMPAH-538
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/574
@@ -102,6 +102,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/574
 oompah.review_number: '574'
 oompah.work_branch: OOMPAH-538
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-99e8894c032b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-538
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a10e26ae1f9c1dc6e23b8adddab26f9585759d1725c5adc493118129981a0827
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T01:42:16.980543+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -356,5 +378,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 28s
 - Log: OOMPAH-538__20260729T012910Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:42
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
