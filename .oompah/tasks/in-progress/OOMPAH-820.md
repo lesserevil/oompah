@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T03:42:28.384181Z'
+updated_at: '2026-08-05T04:02:59.905855Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-05 03:42
 ---
 Independent concurrency review found and blocked two production-only races before submission: the prior task ownership lock was an asyncio.Lock shared across API and scheduler event loops, and exact-review metadata writes occurred before the final submission-generation fence. The bootstrap is being strengthened with one process-wide cross-loop task mutex covering submit, dispatch, webhook/label terminal requests, exact review metadata, final authority revalidation, and coordinator staging. The original RLock/coordinator deadlock and malformed Done→Merged audit-chain replay are already reproduced and fixed; server remains paused pending bounded two-loop race tests and re-review.
+---
+author: oompah
+created: 2026-08-05 04:02
+---
+Implemented and pushed generation-safe standalone Ready delivery fencing at 43a8b531ea8ab4bf06dd1d8fd54b484b0a34fdc3. Exact source/target/head review validation now fails closed; historical cleanup, open-review adoption, and post-gate review creation run under the shared cross-loop task mutex with final tracker/forge CAS; stale webhook/label snapshots refresh and reject changed delivery generations; malformed mixed-fingerprint Done/Merged audit chains are superseded and rebuilt. Verification: 743 affected workflow/concurrency/webhook tests passed; 226 additional terminal-audit/fingerprint/override tests passed; terminal mutation scan passed (8/8 allowlisted); check-secrets and git diff --check passed. Branch origin/OOMPAH-820 is ready for independent review. Task intentionally not submitted yet.
 ---
 <!-- COMMENTS:END -->
