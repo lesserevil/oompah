@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:09:48.563536Z'
+updated_at: '2026-08-05T06:10:11.011710Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1050,5 +1050,10 @@ author: oompah
 created: 2026-08-05 06:09
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 06:10
+---
+Understanding: verify the recovered ASGI Basic-auth implementation against every stated HTTP, WebSocket, health, webhook, redaction, and disabled-mode requirement; repair any concrete gaps, run focused Makefile-backed checks, then commit, push, and submit the task.
 ---
 <!-- COMMENTS:END -->
