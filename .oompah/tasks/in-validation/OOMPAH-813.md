@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T01:05:20.971920Z'
+updated_at: '2026-08-05T01:05:56.155687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +224,15 @@ author: oompah
 created: 2026-08-05 01:04
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-05 01:05
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-05 01:05
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
