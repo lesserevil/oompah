@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T18:20:14.874926Z'
+updated_at: '2026-08-05T18:20:31.316759Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 724dee77-fd2c-400b-a75c-5c4dc654e861
 ---
 ## Summary
 
@@ -48,3 +49,11 @@ Live reproduction during OOMPAH-817 terminal audit on deployed main c14ca03f5907
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:20
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
