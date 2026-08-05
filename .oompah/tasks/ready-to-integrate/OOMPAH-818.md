@@ -12,12 +12,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:25:06.199487Z'
+updated_at: '2026-08-05T05:25:26.391674Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: ''
-review_number: '716'
-review_head: null
+review_number: ''
+review_head: ''
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -102,7 +102,7 @@ oompah.integration:
   submitted_at: '2026-08-05T03:02:39.901294+00:00'
   updated_at: '2026-08-05T03:02:39.901294+00:00'
 oompah.review_url: ''
-oompah.review_number: '716'
+oompah.review_number: ''
 oompah.work_branch: OOMPAH-818
 oompah.target_branch: main
 oompah.terminal_audit:
@@ -188,6 +188,7 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T03:04:38.616891+00:00'
     branch_key: OOMPAH-818
+oompah.review_head: ''
 ---
 ## Summary
 

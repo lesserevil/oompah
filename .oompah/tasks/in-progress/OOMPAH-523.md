@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:55:22.397473Z'
+updated_at: '2026-08-05T05:25:36.003801Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: null
+oompah.agent_run_id: 66c37c97-da45-42b0-942d-086b2f52b39b
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 500
@@ -872,5 +872,10 @@ created: 2026-08-05 04:55
 Integration could not verify `epic-OOMPAH-521--task-OOMPAH-523`: remote epic branch epic-OOMPAH-521 does not exist
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-05 05:25
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
