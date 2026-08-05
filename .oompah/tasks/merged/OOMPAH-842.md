@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:25:55.771388Z'
+updated_at: '2026-08-05T22:26:01.448778Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -79,8 +79,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-2fb4256b75cb
-    applied: false
+    applied: true
     created_at: '2026-08-05T22:25:52.383699+00:00'
+    applied_at: '2026-08-05T22:26:00.182164+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -284,5 +285,26 @@ author: oompah
 created: 2026-08-05 22:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 22:25
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c5c0f4029096f43c669840e3138e1317a1aa3361
+- origin_main_head: b98ebb40d269ebeb7a134dc43add36bf782d9402
+- prior_main_head: 2c7f609e0
+- merge_pr: PR #725
+- merge_commit_title: Merge pull request #725 from lesserevil/OOMPAH-842
+- fix_commit_title: Prevent native provider bootstrap validation leases
+- ancestor_check: c5c0f4029 is ancestor of origin/main (exit 0)
+- commits_over_prior_main: 2 (merge b98ebb40d + fix c5c0f4029)
+- diff_scope_files: oompah/acp_backends/codex.py, oompah/native_validation_guard.py, oompah/orchestrator.py, oompah/server.py, oompah/validation_resource_lease.py, tests/test_acp_codex_backend.py, tests/test_native_validation_guard.py, tests/test_owner_claim.py, tests/test_terminal_audit_health_api.py, tests/test_validation_resource_lease.py
+- focused_test_provider_node_bootstrap: tests/test_native_validation_guard.py:108 test_trusted_provider_node_bootstrap_does_not_lease_entire_session
+- focused_test_managed_native_cli_fence: tests/test_acp_codex_backend.py:938 test_managed_native_cli_fences_exact_provider_bootstrap
+- prior_full_gate: 15721 passed 7 skipped 1 xfailed exit 0 in 649.5s (recorded 2026-08-05 22:07)
 ---
 <!-- COMMENTS:END -->
