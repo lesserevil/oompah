@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T01:00:05.564176Z'
+updated_at: '2026-08-05T01:03:41.447145Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -266,5 +266,10 @@ author: oompah
 created: 2026-08-05 00:59
 ---
 Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not persist recovery ref for OOMPAH-814: fatal: update_ref failed for ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0': cannot update ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0': trying to write ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0' with nonexistent object 515cbc2c84ef6bf955468534a163b7fc77b33f2a
+---
+author: oompah
+created: 2026-08-05 01:03
+---
+Direct-owner repair completed at local exact head 11d5b97d69f4d521243f8d98a2c7c31439b60f1c after the server worker failed to consume its acceptance blocker. TestShouldDispatchCompleted now uses a concrete empty temporary ProjectStore; TestDispatchSerializationByProject uses a complete concrete proj-1 Project plus preseeded no-I/O tracker; all three repaired fixture families install a raising _new_tracker_for_project spy. The combined test_orchestrator_merged + submit_queue_concurrency suite improved from 227 tests in roughly 140s to 227 passed in 2.31s, with the affected 15 tests in 0.54s. Terminal mutation scan 8/8, F401, and diff check pass. Awaiting independent exact-diff review before push/submission.
 ---
 <!-- COMMENTS:END -->
