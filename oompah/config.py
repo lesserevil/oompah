@@ -606,6 +606,11 @@ class ServiceConfig:
     coordination_retention_seconds: int = 30 * 24 * 60 * 60
     restart_drain_timeout_seconds: int = 60 * 60
     quality_gate_timeout_seconds: int = 60 * 60
+    # Host-wide capacity shared by exact branch gates, completion auditors, and
+    # managed implementation workers. Queue aging bounds priority inversion:
+    # a waiter gains one priority point per interval.
+    heavyweight_validation_capacity: int = 1
+    heavyweight_validation_aging_seconds: int = 30
     # Integration delivery retries are deliberately bounded and delayed so a
     # deterministic failure cannot monopolize the queue.
     integration_retry_max_attempts: int = 5
@@ -831,6 +836,12 @@ class ServiceConfig:
         )
         self.quality_gate_timeout_seconds = max(
             int(self.quality_gate_timeout_seconds), 1
+        )
+        self.heavyweight_validation_capacity = max(
+            int(self.heavyweight_validation_capacity), 1
+        )
+        self.heavyweight_validation_aging_seconds = max(
+            int(self.heavyweight_validation_aging_seconds), 1
         )
         self.integration_retry_max_attempts = max(
             int(self.integration_retry_max_attempts), 1
@@ -1239,6 +1250,12 @@ class ServiceConfig:
             ),
             quality_gate_timeout_seconds=_env_int(
                 "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", None, 60 * 60
+            ),
+            heavyweight_validation_capacity=_env_int(
+                "OOMPAH_HEAVYWEIGHT_VALIDATION_CAPACITY", None, 1
+            ),
+            heavyweight_validation_aging_seconds=_env_int(
+                "OOMPAH_HEAVYWEIGHT_VALIDATION_AGING_SECONDS", None, 30
             ),
             integration_retry_max_attempts=_env_int(
                 "OOMPAH_INTEGRATION_RETRY_MAX_ATTEMPTS", None, 5

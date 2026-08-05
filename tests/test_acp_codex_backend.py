@@ -20,8 +20,10 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import types
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -41,6 +43,10 @@ from oompah.acp_backends.codex import (
     _get_worktree_git_meta_dir,
 )
 from oompah.models import ModelProvider
+from oompah.validation_resource_lease import (
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 
 # ----------------------------------------------------------------------
@@ -67,6 +73,23 @@ class TestCodexRegistration:
         and resolves to ClaudeAcpBackend."""
         assert "claude" in BACKENDS
         assert BACKENDS["claude"] is ClaudeAcpBackend
+
+    def test_registry_lists_both(self):
+        """Both backends remain available to the provider UI."""
+
+        assert {"claude", "codex"}.issubset(set(BACKENDS.keys()))
+
+    def test_acp_mode_provider_with_codex_validates_via_registry(self):
+        """An ACP Codex provider resolves through the backend registry."""
+
+        provider = ModelProvider(
+            id="p",
+            name="codex",
+            base_url="",
+            backend="codex",
+            api_key="sk-codex-test",
+        )
+        assert provider.validate_for_mode("acp") == []
 
 
 def test_codex_completed_message_extracts_verdict_before_display_truncation():
@@ -95,21 +118,17 @@ def test_codex_completed_message_extracts_verdict_before_display_truncation():
         "no_duplicate"
     )
 
-    def test_registry_lists_both(self):
-        """Both backends present so the /providers UI dropdown can
-        offer the operator a real choice."""
-        assert {"claude", "codex"}.issubset(set(BACKENDS.keys()))
 
-    def test_acp_mode_provider_with_codex_validates_via_registry(self):
-        """Provider record with mode=acp + backend='codex' passes the
-        registry lookup check (validate_for_mode) — acceptance
-        criterion in the task description."""
-        provider = ModelProvider(
-            id="p", name="codex", base_url="", backend="codex",
-            api_key="sk-codex-test",
+def test_codex_native_validation_uses_server_authority_generation():
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path="/tmp/ws",
+            prompt="screen",
+            validation_authority_generation="server-generation",
         )
-        # Backend resolves and registry-level validation is empty.
-        assert provider.validate_for_mode("acp") == []
+    )
+
+    assert session._native_cli_validation_generation == "server-generation"
 
 
 # ----------------------------------------------------------------------
@@ -370,6 +389,13 @@ def _install_fake_cli(monkeypatch, *, events, capture=None):
     class _FakeCodex:
         def __init__(self, *args, **kwargs):
             cap["codex_kwargs"] = kwargs
+            environment = kwargs.get("env") or {}
+            guard_bin = environment.get("OOMPAH_NATIVE_VALIDATION_GUARD")
+            if guard_bin:
+                config_path = Path(guard_bin).parent / "validation-guard.json"
+                cap["validation_guard_config"] = json.loads(
+                    config_path.read_text(encoding="utf-8")
+                )
 
         def start_thread(self, options=None):
             cap["thread_options"] = options
@@ -781,6 +807,105 @@ class TestCodexCliPath:
         assert "tool_use" in kinds
         assert "tool_result" in kinds
         assert sess.status == "succeeded"
+
+    def test_managed_native_cli_does_not_lease_an_entire_light_turn(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        state_path = tmp_path / "validation.sqlite3"
+        lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+        gate = lease.acquire(
+            ValidationLeaseOwner.exact_gate(
+                project_id="gate-project",
+                task_id="GATE-1",
+                authority_generation="gate-head",
+            )
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+
+        async def run():
+            options = AcpBackendOptions(
+                workspace_path=str(tmp_path),
+                prompt="implement the task",
+                billing_model="subscription",
+                coordination_service=service,
+                project_id="worker-project",
+                task_identifier="WORK-1",
+            )
+            session = CodexAcpBackendSession(options)
+            events = [event async for event in session.run_turn()]
+            return session, events
+
+        session, events = asyncio.run(run())
+        assert session.status == "succeeded"
+        assert events[0].kind == "session_start"
+        assert capture["prompt"] == "implement the task"
+        assert lease.status().waiter_count == 0
+        assert lease.status().owner_count == 1
+        guarded_env = capture["codex_kwargs"]["env"]
+        assert "validation-guard-bin" in guarded_env["PATH"]
+        gate.release()
+
+    def test_managed_native_cli_guard_uses_auditor_owner_identity(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        capture: dict = {}
+        _install_fake_cli(
+            monkeypatch,
+            events=[_cli_ev("turn.completed", usage=None)],
+            capture=capture,
+        )
+        service = types.SimpleNamespace(validation_resource_lease=lease)
+        audit_target = types.SimpleNamespace(
+            project_id="worker-project",
+            task_id="WORK-1",
+            attempt_id="audit-attempt",
+        )
+        action_policy = types.SimpleNamespace(
+            auditor_session=True,
+            project_id="worker-project",
+            task_identifier="WORK-1",
+        )
+
+        async def run() -> CodexAcpBackendSession:
+            session = CodexAcpBackendSession(
+                AcpBackendOptions(
+                    workspace_path=str(tmp_path),
+                    prompt="audit the task",
+                    billing_model="subscription",
+                    coordination_service=service,
+                    project_id="worker-project",
+                    task_identifier="WORK-1",
+                    action_policy=action_policy,
+                    audit_target=audit_target,
+                )
+            )
+            async for _event in session.run_turn():
+                pass
+            return session
+
+        session = asyncio.run(run())
+        assert session.status == "succeeded"
+        assert lease.status().waiter_count == 0
+        assert capture["prompt"] == "audit the task"
+        owner = capture["validation_guard_config"]["owner"]
+        assert owner["kind"] == "auditor"
+        assert owner["project_id"] == "worker-project"
+        assert owner["task_id"] == "WORK-1"
+        assert owner["authority_generation"] == "audit-attempt"
 
     def test_missing_extension_returns_errored(self, monkeypatch):
         def _boom():

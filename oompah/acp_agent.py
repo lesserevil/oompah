@@ -115,6 +115,7 @@ class AcpAgentSession:
         terminal_transition_coordinator: Any = None,
         comment_queue: Any = None,
         tool_liveness: Any = None,
+        validation_authority_generation: str | None = None,
         focus: Any = None,
         auditor: bool = False,
         audit_target: Any = None,
@@ -167,6 +168,7 @@ class AcpAgentSession:
         # A per-session monitor lets reconciliation distinguish a live,
         # bounded run_command child from silent model/prompt work.
         self.tool_liveness = tool_liveness
+        self.validation_authority_generation = validation_authority_generation
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -287,6 +289,7 @@ class AcpAgentSession:
             terminal_transition_coordinator=self.terminal_transition_coordinator,
             comment_queue=self.comment_queue,
             tool_liveness=self.tool_liveness,
+            validation_authority_generation=self.validation_authority_generation,
             focus=self.focus,
             auditor=self.auditor,
             audit_target=self.audit_target,
@@ -334,6 +337,10 @@ class AcpAgentSession:
         times. Idempotent. The backend session's ``close`` cleans up the
         subprocess; this just signals our drain loop to break."""
         self._stop_requested = True
+        if self.tool_liveness is not None:
+            request_cancel = getattr(self.tool_liveness, "request_cancel", None)
+            if callable(request_cancel):
+                request_cancel()
         backend_session = self._backend_session
         if backend_session is not None:
             try:

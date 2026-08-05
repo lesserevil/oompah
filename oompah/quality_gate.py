@@ -7,9 +7,11 @@ from importlib import metadata
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import socket
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -21,6 +23,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable
 from urllib.parse import unquote, urlparse
+
+from oompah.validation_resource_lease import (
+    ValidationLeaseCancelled,
+    ValidationLeaseError,
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +144,27 @@ class QualityGateResult:
 
 
 @dataclass(frozen=True)
+class AuditorQualityEvidenceProof:
+    """Proof that an auditor ran the configured gate on the exact candidate.
+
+    Every compatibility dimension used by the normal evidence key is explicit,
+    and the independently observed detached-worktree head/fingerprint prevent a
+    caller from relabeling a successful but different auditor command.
+    """
+
+    repo_identity: str
+    target_branch: str
+    work_branch: str
+    head_sha: str
+    workspace_head_sha: str
+    command: str
+    configured_command: str
+    evidence_fingerprint: str
+    expected_evidence_fingerprint: str
+    detached_workspace: bool
+
+
+@dataclass(frozen=True)
 class QualityGateOwner:
     """Exact authority that owns one branch-quality gate attempt.
 
@@ -238,12 +268,14 @@ class BranchQualityGate:
         output_tail_bytes: int = 16 * 1024,
         safety_head: str = _OOMPAH_652_SAFETY_HEAD,
         sandbox_launcher: Callable[[str, str, Path], list[str]] | None = None,
+        validation_lease: ValidationResourceLease | None = None,
     ) -> None:
         self.state_path = Path(state_path)
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self.safety_head = safety_head
         self._sandbox_launcher = sandbox_launcher or self._sandbox_command
+        self.validation_lease = validation_lease
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
 
@@ -1275,6 +1307,74 @@ class BranchQualityGate:
             except OSError as exc:
                 logger.warning("Failed to persist branch quality evidence: %s", exc)
 
+    def record_compatible_auditor_pass(
+        self,
+        proof: AuditorQualityEvidenceProof,
+        *,
+        duration_seconds: float = 0.0,
+        output_tail: str = "",
+    ) -> bool:
+        """Persist independently-run auditor evidence only when exactly equal.
+
+        This is deliberately stricter than ordinary cache lookup.  Missing or
+        mismatched command, head, branch, repository, fingerprint, or detached
+        workspace proof returns ``False`` and leaves the exact gate to run.
+        """
+
+        values = (
+            proof.repo_identity,
+            proof.target_branch,
+            proof.work_branch,
+            proof.head_sha,
+            proof.workspace_head_sha,
+            proof.command,
+            proof.configured_command,
+            proof.evidence_fingerprint,
+            proof.expected_evidence_fingerprint,
+        )
+        if not proof.detached_workspace or not all(
+            str(value or "").strip() for value in values
+        ):
+            return False
+        head = proof.head_sha.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            return False
+        if proof.workspace_head_sha.strip().lower() != head:
+            return False
+        command = proof.command.strip()
+        if command != proof.configured_command.strip():
+            return False
+        if (
+            proof.evidence_fingerprint.strip()
+            != proof.expected_evidence_fingerprint.strip()
+        ):
+            return False
+
+        key = self._evidence_key(
+            repo_identity=proof.repo_identity,
+            target_branch=proof.target_branch,
+            work_branch=proof.work_branch,
+            head_sha=head,
+            command=command,
+        )
+        result = QualityGateResult(
+            status="passed",
+            head_sha=head,
+            command=command,
+            duration_seconds=max(float(duration_seconds), 0.0),
+            output_tail=str(output_tail or ""),
+        )
+        with self._key_lock(key):
+            self._store_result(
+                {},
+                key,
+                result,
+                repo_identity=proof.repo_identity,
+                target_branch=proof.target_branch,
+                work_branch=proof.work_branch,
+            )
+        return True
+
     @contextmanager
     def _key_lock(self, key: str):
         """Yield a single-flight lock and discard it once its last user leaves."""
@@ -1455,30 +1555,117 @@ class BranchQualityGate:
             head_sha=head_sha,
             command=command,
         )
-        with self._key_lock(key):
+
+        def _load_reusable_result() -> tuple[
+            dict[str, dict[str, object]], QualityGateResult | None
+        ]:
             try:
                 with self._lock:
-                    entries = self._load()
+                    loaded = self._load()
             except OSError:
-                entries = {}
-            cached = entries.get(key)
-            if isinstance(cached, dict) and cached.get("status"):
-                cached_status = str(cached["status"])
-                # On forced retry, skip cache for failed/timed_out/error.
-                # Reuse passed results regardless of retry_forced flag.
-                if retry_forced and cached_status in {"failed", "timed_out", "error"}:
-                    # Fall through to re-execute instead of returning cached result
-                    pass
-                else:
-                    _release_owned_generation()
-                    return QualityGateResult(
-                        status=cached_status,
-                        head_sha=head_sha,
-                        command=command,
-                        duration_seconds=float(cached.get("duration_seconds", 0) or 0),
-                        output_tail=str(cached.get("output_tail", "") or ""),
-                        cached=True,
+                loaded = {}
+            cached_entry = loaded.get(key)
+            if not isinstance(cached_entry, dict) or not cached_entry.get("status"):
+                return loaded, None
+            cached_status = str(cached_entry["status"])
+            if retry_forced and cached_status in {"failed", "timed_out", "error"}:
+                return loaded, None
+            return loaded, QualityGateResult(
+                status=cached_status,
+                head_sha=head_sha,
+                command=command,
+                duration_seconds=float(
+                    cached_entry.get("duration_seconds", 0) or 0
+                ),
+                output_tail=str(cached_entry.get("output_tail", "") or ""),
+                cached=True,
+            )
+
+        # Fast cache lookup does not consume host capacity.  Crucially, the
+        # evidence key is released before a lease wait: a successful auditor
+        # owns that lease while synchronously recording compatible evidence
+        # under this same key.
+        with self._key_lock(key):
+            entries, cached_result = _load_reusable_result()
+            if cached_result is not None:
+                _release_owned_generation()
+                return cached_result
+
+        validation_handle = None
+        if self.validation_lease is not None:
+            validation_owner = ValidationLeaseOwner.exact_gate(
+                project_id=(
+                    owned_owner.project_id
+                    if owned_owner is not None
+                    else repo_identity
+                ),
+                task_id=(
+                    owned_owner.task_id
+                    if owned_owner is not None
+                    else work_branch
+                ),
+                authority_generation=(
+                    owned_owner.authority_generation
+                    if owned_owner is not None
+                    else f"{head_sha}:{key}"
+                ),
+            )
+
+            def _lease_wait_cancelled() -> bool:
+                if (
+                    owned_generation is not None
+                    and self._generation_is_cancelled(
+                        owned_generation,
+                        owner_key,
                     )
+                ):
+                    return True
+                if is_current is None:
+                    return False
+                try:
+                    return not bool(is_current())
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Quality gate lease authority check failed: %s",
+                        exc,
+                    )
+                    return True
+
+            try:
+                validation_handle = self.validation_lease.acquire(
+                    validation_owner,
+                    is_cancelled=_lease_wait_cancelled,
+                )
+            except ValidationLeaseCancelled as exc:
+                _release_owned_generation()
+                return QualityGateResult(
+                    status="interrupted",
+                    head_sha=head_sha,
+                    command=command,
+                    output_tail=str(exc),
+                )
+            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
+                _release_owned_generation()
+                return QualityGateResult(
+                    status="infrastructure_error",
+                    head_sha=head_sha,
+                    command=command,
+                    output_tail=(
+                        "Exact quality gate could not acquire host "
+                        f"validation capacity: {exc}"
+                    ),
+                )
+
+        # The auditor may have published a PASS while this gate waited.  Take
+        # the single-flight key only after capacity, reload durable evidence,
+        # and avoid executing the exact command twice.
+        with self._key_lock(key):
+            entries, cached_result = _load_reusable_result()
+            if cached_result is not None:
+                if validation_handle is not None:
+                    validation_handle.release()
+                _release_owned_generation()
+                return cached_result
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
@@ -1600,7 +1787,25 @@ class BranchQualityGate:
                     stderr=subprocess.PIPE,
                     text=True,
                     start_new_session=True,
+                    pass_fds=(
+                        validation_handle.pass_fds
+                        if validation_handle is not None
+                        else ()
+                    ),
                 )
+                if validation_handle is not None:
+                    try:
+                        validation_handle.attach_process(
+                            process,
+                            timeout_seconds=self.timeout_seconds,
+                        )
+                    except ValidationLeaseError:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        process.communicate()
+                        raise
                 # Track process group for graceful shutdown cleanup.
                 # --- Barrier 3: Popen-to-registration window ---
                 # Re-check the tombstone under the lock immediately after
@@ -1739,7 +1944,7 @@ class BranchQualityGate:
                     work_branch=work_branch,
                 )
                 return result
-            except OSError as exc:
+            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
                 result = QualityGateResult(
                     status="error",
                     head_sha=head_sha,
@@ -1766,6 +1971,8 @@ class BranchQualityGate:
                         self._active_generations.pop(process.pid, None)
                         self._active_owners.pop(process.pid, None)
                         self._active_snapshots.pop(process.pid, None)
+                if validation_handle is not None:
+                    validation_handle.release()
                 # A cancelled generation remains fenced until every caller
                 # already registered for it has crossed the barrier.  This
                 # prevents one interrupted caller from clearing the tombstone

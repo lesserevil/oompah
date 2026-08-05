@@ -163,6 +163,15 @@ def _make_orchestrator(tmp_path, projects=None):
     )
 
 
+def _close_orchestrator(orchestrator) -> None:
+    """Close resources owned by a short-lived orchestrator fixture."""
+    orchestrator.integration_queue.close()
+    orchestrator.coordination_store.close()
+    orchestrator.review_capacity_store.close()
+    orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+    orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def _make_delivery(
     delivery_id: str = "rd_gl_001",
     *,
@@ -611,15 +620,36 @@ class TestGitLabRebaseConflictFlow:
         )
         provider.get_review.return_value = review
 
-        # Wire a tracker so we can assert it was called
+        # Return a concrete task so this unit test exercises the notification
+        # path instead of allowing an unconstrained MagicMock to masquerade as
+        # an epic and wander into unrelated production helpers.
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = []
+        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+            id="oompah/FEAT-1",
+            identifier="oompah/FEAT-1",
+            title="Feature task",
+            state="Done",
+            labels=[],
+            issue_type="task",
+            parent_id=None,
+            project_id=project.id,
+        )
         orch._project_trackers[project.id] = tracker
 
-        # _yolo_notify_conflict should not raise
-        orch._yolo_notify_conflict(project, provider, _GITLAB_SLUG, "7")
+        try:
+            with patch(
+                "oompah.orchestrator.run_git_merge_tree",
+                return_value=([], None),
+            ):
+                orch._yolo_notify_conflict(project, provider, _GITLAB_SLUG, "7")
 
-        provider.rebase_review.assert_called_once_with(_GITLAB_SLUG, "7")
+            provider.rebase_review.assert_called_once_with(_GITLAB_SLUG, "7")
+            tracker.fetch_issue_detail.assert_called_once_with("oompah/FEAT-1")
+            tracker.add_comment.assert_called_once()
+            tracker.update_issue.assert_called_once()
+        finally:
+            _close_orchestrator(orch)
 
     def test_gitlab_rebase_network_error_still_notifies(self, tmp_path, caplog):
         """If GitLab rebase raises, the conflict notification still runs."""

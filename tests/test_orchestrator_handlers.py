@@ -32,6 +32,7 @@ from oompah.terminal_transition_coordinator import TransitionResult
 
 
 _TEST_ORCHESTRATORS: list[Orchestrator] = []
+_TEST_REFRESH_RELEASES: list[threading.Event] = []
 
 def _make_config() -> ServiceConfig:
     return ServiceConfig(
@@ -218,27 +219,38 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
 
 @pytest.fixture(autouse=True)
 def _shutdown_test_orchestrator_pools():
-    """Do not let helper-owned tick executor threads cross test boundaries.
-
-    Refresh-timeout tests intentionally leave their simulated 60-second reads
-    running, so their separate refresh pool is outside this tick-race fixture.
-    """
+    """Do not let helper-owned resources cross test boundaries."""
     yield
+    releases = list(_TEST_REFRESH_RELEASES)
+    _TEST_REFRESH_RELEASES.clear()
+    for release in releases:
+        release.set()
+
     orchestrators = list(_TEST_ORCHESTRATORS)
     _TEST_ORCHESTRATORS.clear()
+    background_errors: list[str] = []
     for orch in orchestrators:
         orch._tick_pool.shutdown(wait=True, cancel_futures=False)
+        orch._refresh_pool.shutdown(wait=True, cancel_futures=False)
         for future in (
             orch._maintenance_future,
             orch._epic_maintenance_future,
             orch._integration_future,
             orch._standalone_delivery_future,
+            orch._terminal_lifecycle_future,
         ):
             if future is not None and future.done() and not future.cancelled():
-                # Retrieving an exception prevents asyncio's delayed
-                # "Future exception was never retrieved" warning. Tests that
-                # care about the failure still assert it before teardown.
-                future.exception()
+                error = future.exception()
+                if error is not None:
+                    background_errors.append(repr(error))
+        orch.integration_queue.close()
+        orch.coordination_store.close()
+        orch.review_capacity_store.close()
+    if background_errors:
+        pytest.fail(
+            "helper-owned background work failed before teardown: "
+            + "; ".join(background_errors)
+        )
 
 
 async def _await_tick_background(orch: Orchestrator) -> None:
@@ -523,32 +535,54 @@ class TestHandleDispatchNeeded:
         slow = _make_project("slow")
         fast = _make_project("fast")
         orch = _make_orchestrator(tmp_path, projects=[slow, fast])
-        orch.config.project_refresh_timeout_ms = 10
+        # Leave enough room to prove the executor callback entered before the
+        # production deadline expires. The callback then remains blocked, so
+        # the 500 ms boundary still distinguishes bounded dispatch from a hung
+        # executor read without leaving work behind after the assertion.
+        orch.config.project_refresh_timeout_ms = 500
         expected = _make_issue("FAST-1", project_id="fast")
 
         slow_tracker = MagicMock()
-        # Block for 60s to make "timeout worked" unambiguous even under heavy
-        # xdist load: either we timeout in ~10ms and return early, or we wait
-        # the full 60s. The timing assertion below just needs to verify we did
-        # not wait for the full 60s (proving the timeout fired).
-        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(60)
+        slow_read_entered = threading.Event()
+        slow_read_release = threading.Event()
+        _TEST_REFRESH_RELEASES.append(slow_read_release)
+
+        def _slow_read():
+            slow_read_entered.set()
+            slow_read_release.wait()
+            return []
+
+        slow_tracker.fetch_candidate_issues.side_effect = _slow_read
         fast_tracker = MagicMock()
         fast_tracker.fetch_candidate_issues.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
             slow_tracker if project_id == "slow" else fast_tracker
         )
 
-        started = time.monotonic()
-        candidates = asyncio.run(orch._fetch_all_candidates_bounded())
-        elapsed = time.monotonic() - started
+        async def _exercise_timeout():
+            fetch_task = asyncio.create_task(orch._fetch_all_candidates_bounded())
+            entered = await asyncio.to_thread(slow_read_entered.wait, 1.0)
+            assert entered, "blocking tracker read never entered its executor"
+            assert not fetch_task.done(), "fetch completed while its read was blocked"
+            return await asyncio.wait_for(fetch_task, timeout=2.0)
 
-        # Structural invariants: timeout worked if results only include the
-        # fast project and metrics record the timeout.  We still verify timing
-        # (< 2s vs. 60s full wait) to catch regressions, but the threshold is
-        # loose enough for xdist contention.
-        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
-        assert candidates == [expected]
-        assert orch._project_refresh_metrics["slow"]["candidates"]["timeout_count"] == 1
+        try:
+            started = time.monotonic()
+            candidates = asyncio.run(_exercise_timeout())
+            elapsed = time.monotonic() - started
+
+            # Structural invariants: timeout worked if the blocking read
+            # entered, results include only the fast project, and metrics
+            # record the timeout. The blocker is released in ``finally`` so
+            # no executor thread or orchestrator survives this test.
+            assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
+            assert candidates == [expected]
+            assert (
+                orch._project_refresh_metrics["slow"]["candidates"]["timeout_count"]
+                == 1
+            )
+        finally:
+            slow_read_release.set()
 
     def test_in_progress_refresh_timeout_uses_the_same_safe_boundary(self, tmp_path):
         """Orphan reconciliation cannot block on synchronous tracker I/O.
@@ -562,30 +596,48 @@ class TestHandleDispatchNeeded:
         slow = _make_project("slow")
         fast = _make_project("fast")
         orch = _make_orchestrator(tmp_path, projects=[slow, fast])
-        orch.config.project_refresh_timeout_ms = 10
+        orch.config.project_refresh_timeout_ms = 500
         expected = _make_issue("FAST-RUNNING", project_id="fast")
 
         slow_tracker = MagicMock()
-        # Block for 60s to make "timeout worked" unambiguous even under heavy
-        # xdist load: either we timeout in ~10ms and return early, or we wait
-        # the full 60s.
-        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(60)
+        slow_read_entered = threading.Event()
+        slow_read_release = threading.Event()
+        _TEST_REFRESH_RELEASES.append(slow_read_release)
+
+        def _slow_read(_states):
+            slow_read_entered.set()
+            slow_read_release.wait()
+            return []
+
+        slow_tracker.fetch_issues_by_states.side_effect = _slow_read
         fast_tracker = MagicMock()
         fast_tracker.fetch_issues_by_states.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
             slow_tracker if project_id == "slow" else fast_tracker
         )
 
-        started = time.monotonic()
-        issues = asyncio.run(orch._fetch_in_progress_issues_bounded())
-        elapsed = time.monotonic() - started
+        async def _exercise_timeout():
+            fetch_task = asyncio.create_task(
+                orch._fetch_in_progress_issues_bounded()
+            )
+            entered = await asyncio.to_thread(slow_read_entered.wait, 1.0)
+            assert entered, "blocking tracker read never entered its executor"
+            assert not fetch_task.done(), "fetch completed while its read was blocked"
+            return await asyncio.wait_for(fetch_task, timeout=2.0)
 
-        # Structural invariants: timeout worked if results only include the
-        # fast project and metrics record the timeout.  Timing assertion is
-        # loose (< 2s vs. 60s full wait) for xdist contention resilience.
-        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
-        assert issues == [expected]
-        assert orch._project_refresh_metrics["slow"]["in_progress"]["timeout_count"] == 1
+        try:
+            started = time.monotonic()
+            issues = asyncio.run(_exercise_timeout())
+            elapsed = time.monotonic() - started
+
+            assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
+            assert issues == [expected]
+            assert (
+                orch._project_refresh_metrics["slow"]["in_progress"]["timeout_count"]
+                == 1
+            )
+        finally:
+            slow_read_release.set()
 
     def test_pre_resolves_blockers_for_candidates(self, tmp_path):
         """_pre_resolve_blockers is called with the fetched candidates."""
@@ -2584,6 +2636,11 @@ class TestMaintenanceLaneNonBlocking:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # This test owns only the step-5b future.  Shared integration and
+        # lifecycle reconciliation are independent background lanes and must
+        # not outlive either asyncio loop under the full xdist gate.
+        orch.config.parallel_epic_children_enabled = False
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
         # The release-addendum recovery reads tracker state in the tick pool.
         # It is unrelated to this maintenance-future sequencing assertion and
         # can exceed the five-second test timeout under parallel CI load.
@@ -2595,7 +2652,10 @@ class TestMaintenanceLaneNonBlocking:
             nonlocal call_count
             call_count += 1
 
-        orch._maybe_heal_repos = _count_calls
+        # Count the future body itself.  Calling the production maintenance
+        # body would also run unrelated archive/cleanup/label sweeps and turn
+        # this executor-guard assertion into a filesystem integration test.
+        orch._run_step5b_maintenance = _count_calls
 
         async def _run_two_ticks():
             # First tick — starts maintenance
@@ -2617,7 +2677,10 @@ class TestMaintenanceLaneNonBlocking:
 
             return first_count
 
-        first_count = asyncio.run(_run_two_ticks())
+        try:
+            first_count = asyncio.run(_run_two_ticks())
+        finally:
+            orch._tick_pool.shutdown(wait=True, cancel_futures=False)
 
         # Both ticks should have triggered a maintenance run (first was done)
         assert call_count == first_count + 1
@@ -3112,6 +3175,10 @@ class TestRepoHealErrorReporting:
             assert orch._maintenance_future is not None
             with pytest.raises(RuntimeError, match="catastrophic git failure"):
                 await orch._maintenance_future
+            # The exact failure was asserted above; clear the owned slot so
+            # autouse teardown can distinguish this expected failure from an
+            # unobserved background exception in any other test.
+            orch._maintenance_future = None
             assert orch._epic_maintenance_future is not None
             await orch._epic_maintenance_future
 
@@ -3312,6 +3379,12 @@ class TestTickDelegation:
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
+        # Release-addendum and terminal-lifecycle recovery intentionally run
+        # before config validation in production. They are independent safety
+        # lanes, not part of this handler-order assertion, and may perform real
+        # tracker I/O through the helper's legacy tracker.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
 
         with patch(
             "oompah.orchestrator.validate_dispatch_config",

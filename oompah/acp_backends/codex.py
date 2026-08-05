@@ -83,8 +83,10 @@ import contextlib
 import logging
 import os
 import shutil
+import tempfile
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, AsyncIterator, TYPE_CHECKING
 
 from oompah.acp_backends.base import (
@@ -95,12 +97,14 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
+from oompah.native_validation_guard import install_native_validation_guard
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
 )
 from oompah.agent import AgentEvent
+from oompah.validation_resource_lease import managed_agent_validation_owner
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -314,6 +318,9 @@ class CodexAcpBackendSession(AcpBackendSession):
         # Codex extension cancels a turn via an ``asyncio.Event`` signal
         # passed in TurnOptions; close() sets it.
         self._cli_abort: Any = None
+        self._native_cli_validation_generation = str(
+            options.validation_authority_generation or os.urandom(16).hex()
+        )
         # Billing tier drives the execution path AND cost reporting:
         #   * "per_token"    -> in-process OpenAI-Agents SDK (API key)
         #   * "subscription" -> Codex CLI subprocess (OAuth via auth.json)
@@ -322,6 +329,10 @@ class CodexAcpBackendSession(AcpBackendSession):
         self._comment_queue: asyncio.Queue[str] | None = options.comment_queue
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir: str | None = None
+        self._validation_guard_dir: str | None = None
+        self._native_validation_owner: Any = None
+        self._native_validation_lease: Any = None
+        self._native_validation_cancel_path: str | None = None
 
     def _resolve_billing_model(self) -> str:
         """Resolve the billing model that selects the execution path.
@@ -386,6 +397,21 @@ class CodexAcpBackendSession(AcpBackendSession):
         run_turn() short-circuit.
         """
         self._stop_requested = True
+        # Native commands may have created their own process group so that the
+        # durable lease can expire them safely.  Withdraw the exact session
+        # generation before asking the SDK to stop, covering both queued and
+        # already-attached validation commands without touching another task.
+        if self._native_validation_cancel_path:
+            with contextlib.suppress(OSError):
+                Path(self._native_validation_cancel_path).touch(mode=0o600)
+        if (
+            self._native_validation_lease is not None
+            and self._native_validation_owner is not None
+        ):
+            with contextlib.suppress(Exception):
+                self._native_validation_lease.cancel_owner(
+                    self._native_validation_owner
+                )
         # CLI path: signal the Codex subprocess to abort.
         if self._cli_abort is not None:
             with contextlib.suppress(Exception):
@@ -796,6 +822,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
         )
+        self._worker_runtime_dir = cli_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         if self._options.task_handoff_token:
             cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
@@ -803,6 +830,59 @@ class CodexAcpBackendSession(AcpBackendSession):
             if self._options.task_identifier:
                 cli_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
         cli_env.pop("CODEX_API_KEY", None)
+
+        # The subscription CLI owns a native shell surface below the SDK
+        # process. Install command shims that acquire capacity only around an
+        # actual heavyweight validation process. The shim execs that process
+        # with the flock descriptor inherited, so a service/SDK crash cannot
+        # release the lane while validation is still running.
+        coordination_service = self._options.coordination_service
+        if coordination_service is not None:
+            validation_lease = getattr(
+                coordination_service,
+                "validation_resource_lease",
+                None,
+            )
+            validation_owner = managed_agent_validation_owner(
+                self._options.action_policy,
+                self._options.audit_target,
+                project_id=self._options.project_id,
+                task_id=self._options.task_identifier,
+                authority_generation=self._native_cli_validation_generation,
+            )
+            if validation_lease is None or validation_owner is None:
+                self._last_error = (
+                    "Codex CLI validation capacity is unavailable because "
+                    "trusted managed-agent lease configuration is incomplete"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
+            try:
+                runtime_root = tempfile.mkdtemp(prefix="oompah-codex-validation-")
+                self._validation_guard_dir = runtime_root
+                self._native_validation_owner = validation_owner
+                self._native_validation_lease = validation_lease
+                self._native_validation_cancel_path = os.path.join(
+                    runtime_root,
+                    "cancelled",
+                )
+                cli_env, _ = install_native_validation_guard(
+                    cli_env,
+                    runtime_root=runtime_root,
+                    validation_lease=validation_lease,
+                    owner=validation_owner,
+                    timeout_seconds=self._options.turn_timeout_s,
+                )
+            except Exception as exc:
+                self._cleanup_worker_runtime_dir()
+                self._last_error = (
+                    "unable to install Codex CLI validation guard: "
+                    f"{exc}"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
 
         # Detect git worktrees: the Codex ``workspace-write`` sandbox only
         # allows writes inside the workspace directory, but git worktree
@@ -832,82 +912,84 @@ class CodexAcpBackendSession(AcpBackendSession):
                 )
             )
         except Exception as exc:
+            self._cleanup_worker_runtime_dir()
             self._last_error = f"Codex CLI init failed: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
             return
 
-        yield self._emit(
-            "acp_session_start",
-            payload={
-                "model": self._options.model,
-                "max_turns": self._options.max_turns,
-                "permission_mode": self._options.permission_mode,
-                "tool_policy": "codex_cli:native_sandbox",
-                "sandbox_mode": sandbox_mode,
-                "additional_directories": additional_dirs,
-                "approval_policy": "never",
-                "network_access_enabled": not self._options.read_only,
-                "billing_model": self._billing_model,
-                "cwd": self._options.workspace_path,
-            },
-        )
-
-        self._cli_abort = asyncio.Event()
         try:
-            streamed = await thread.run_streamed(
-                self._options.prompt,
-                TurnOptions(signal=self._cli_abort),
-            )
-        except Exception as exc:
-            self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
-            logger.warning(self._last_error)
             yield self._emit(
-                "acp_session_error", payload={"error": self._last_error}
+                "acp_session_start",
+                payload={
+                    "model": self._options.model,
+                    "max_turns": self._options.max_turns,
+                    "permission_mode": self._options.permission_mode,
+                    "tool_policy": "codex_cli:native_sandbox",
+                    "sandbox_mode": sandbox_mode,
+                    "additional_directories": additional_dirs,
+                    "approval_policy": "never",
+                    "network_access_enabled": not self._options.read_only,
+                    "billing_model": self._billing_model,
+                    "cwd": self._options.workspace_path,
+                },
             )
-            self._status = "errored"
-            return
 
-        deadline = time.monotonic() + self._options.turn_timeout_s
-        try:
-            async for event in streamed.events:
-                if self._stop_requested:
-                    self._status = "interrupted"
-                    return
-                if time.monotonic() > deadline:
-                    self._cli_abort.set()
-                    yield self._emit(
-                        "acp_turn_timeout",
-                        payload={"timeout_s": self._options.turn_timeout_s},
-                    )
-                    self._status = "stalled"
-                    return
-                async for be in self._translate_cli_event(event):
-                    yield be
-
-            # Stream drained without an explicit terminal event — treat
-            # as success (defensive; turn.completed normally sets this).
-            if self._status == "pending":
-                yield self._emit(
-                    "acp_result",
-                    payload={
-                        "subtype": "success",
-                        "is_error": False,
-                        "stop_reason": "end_turn",
-                        "num_turns": self._counters.turn_count,
-                        "total_cost_usd": self._final_cost_usd,
-                        "usage": self._cost_payload(),
-                        "errors": None,
-                    },
+            self._cli_abort = asyncio.Event()
+            try:
+                streamed = await thread.run_streamed(
+                    self._options.prompt,
+                    TurnOptions(signal=self._cli_abort),
                 )
-                self._status = "succeeded"
-        except Exception as exc:
-            self._last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Codex CLI session failed: %s", self._last_error)
-            yield self._emit(
-                "acp_session_error", payload={"error": self._last_error}
-            )
-            self._status = "errored"
+            except Exception as exc:
+                self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
+                logger.warning(self._last_error)
+                yield self._emit(
+                    "acp_session_error", payload={"error": self._last_error}
+                )
+                self._status = "errored"
+                return
+
+            deadline = time.monotonic() + self._options.turn_timeout_s
+            try:
+                async for event in streamed.events:
+                    if self._stop_requested:
+                        self._status = "interrupted"
+                        return
+                    if time.monotonic() > deadline:
+                        self._cli_abort.set()
+                        yield self._emit(
+                            "acp_turn_timeout",
+                            payload={"timeout_s": self._options.turn_timeout_s},
+                        )
+                        self._status = "stalled"
+                        return
+                    async for be in self._translate_cli_event(event):
+                        yield be
+
+                # Stream drained without an explicit terminal event — treat
+                # as success (defensive; turn.completed normally sets this).
+                if self._status == "pending":
+                    yield self._emit(
+                        "acp_result",
+                        payload={
+                            "subtype": "success",
+                            "is_error": False,
+                            "stop_reason": "end_turn",
+                            "num_turns": self._counters.turn_count,
+                            "total_cost_usd": self._final_cost_usd,
+                            "usage": self._cost_payload(),
+                            "errors": None,
+                        },
+                    )
+                    self._status = "succeeded"
+            except Exception as exc:
+                self._last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning("Codex CLI session failed: %s", self._last_error)
+                yield self._emit(
+                    "acp_session_error", payload={"error": self._last_error}
+                )
+                self._status = "errored"
         finally:
             self._cli_abort = None
             # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
@@ -921,28 +1003,33 @@ class CodexAcpBackendSession(AcpBackendSession):
         cleaned up from inside the sandbox (it's read-only), so cleanup happens
         from the orchestrator process. Failures are logged but not fatal.
         """
-        if not self._worker_runtime_dir:
-            return
-
-        try:
-            if os.path.isdir(self._worker_runtime_dir):
-                shutil.rmtree(self._worker_runtime_dir, ignore_errors=True)
-                logger.debug(
-                    "Cleaned up temporary worker runtime directory: %s",
-                    self._worker_runtime_dir,
+        for label, directory in (
+            ("worker runtime", self._worker_runtime_dir),
+            ("validation guard", self._validation_guard_dir),
+        ):
+            if not directory:
+                continue
+            try:
+                if os.path.isdir(directory):
+                    shutil.rmtree(directory, ignore_errors=True)
+                    logger.debug(
+                        "Cleaned up temporary %s directory: %s",
+                        label,
+                        directory,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to clean up %s directory %s: %s; "
+                    "administrator may need to manually remove",
+                    label,
+                    directory,
+                    exc,
                 )
-            else:
-                logger.debug(
-                    "Worker runtime directory already removed: %s",
-                    self._worker_runtime_dir,
-                )
-        except Exception as exc:
-            logger.warning(
-                "Failed to clean up worker runtime directory %s: %s; "
-                "administrator may need to manually remove",
-                self._worker_runtime_dir,
-                exc,
-            )
+        self._worker_runtime_dir = None
+        self._validation_guard_dir = None
+        self._native_validation_owner = None
+        self._native_validation_lease = None
+        self._native_validation_cancel_path = None
 
     def _absorb_cli_usage(self, usage: Any) -> None:
         """Roll a Codex CLI ``Usage`` object into our counters.
