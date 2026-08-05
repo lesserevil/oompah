@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:34:24.960174Z'
+updated_at: '2026-08-05T01:34:32.714966Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -675,5 +675,10 @@ author: oompah
 created: 2026-08-05 01:34
 ---
 Explicit Claude and Codex model tiers fully implemented, tested (481 focused tests), and live-deployed. ACP backends expose manual model selection independently from catalog discovery. UI provides free-text model input for catalog-less providers. Six explicit role mappings configured: fast=haiku/luna, standard=sonnet/terra, deep=opus/sol. Backend validation, role persistence, dispatch propagation, telemetry, documentation, and backward-compatible fallback all verified. Branch clean and pushed at e1b0f4846.
+---
+author: oompah
+created: 2026-08-05 01:34
+---
+Completion: OOMPAH-505 submitted for integration. The explicit Claude/Codex model-tier feature is complete across backend descriptors, server API, frontend UI, role configuration, dispatch propagation, and telemetry. All 481 focused tests pass; secret scan clean; branch pushed and verified. The feature enables operators to configure distinct model tiers (fast=haiku/luna, standard=sonnet/terra, deep=opus/sol) with manual entry for catalog-less ACP providers, backward-compatible fallback for empty models, and transparent model selection in running-task telemetry.
 ---
 <!-- COMMENTS:END -->
