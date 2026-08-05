@@ -421,6 +421,180 @@ class TestMergedChain:
         assert len(merged_records) == 1
         assert len(done_records) == 1
 
+    def test_new_merged_fingerprint_supersedes_old_in_progress_done(self) -> None:
+        """OOMPAH-818: a new Merged generation requires a fresh Done audit."""
+
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        old = _run(
+            coord.request_transition(
+                _issue(),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("a"),
+            )
+        )
+        store.update(
+            TASK_ID,
+            lambda doc: replace(
+                doc,
+                pending_chain=[
+                    replace(record, request_state=RequestState.IN_PROGRESS)
+                    if record.audit_id == old.audit_id
+                    else record
+                    for record in doc.pending_chain
+                ],
+            ),
+        )
+
+        fresh = _run(
+            coord.request_transition(
+                _issue(state=IN_VALIDATION),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("b"),
+            )
+        )
+
+        assert fresh.success is True
+        assert fresh.queued_targets == [TargetState.DONE, TargetState.MERGED]
+        records = store.read(TASK_ID).pending_chain
+        old_done = next(record for record in records if record.audit_id == old.audit_id)
+        assert old_done.request_state == RequestState.SUPERSEDED
+        current = [
+            record
+            for record in records
+            if record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ]
+        assert [record.target_state for record in current] == [
+            TargetState.DONE,
+            TargetState.MERGED,
+        ]
+        assert all(
+            record.evidence_fingerprint == _fingerprint("b")
+            for record in current
+        )
+
+    def test_merged_replay_repairs_stale_done_prerequisite_then_coalesces(self) -> None:
+        """A same-Merged replay normalizes Done before it may coalesce."""
+
+        tracker = _MemoryTracker()
+        old_done = TerminalAuditRecord(
+            audit_id="audit-done-a",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint("a"),
+            request_state=RequestState.IN_PROGRESS,
+        )
+        queued_merged = TerminalAuditRecord(
+            audit_id="audit-merged-b",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=_fingerprint("b"),
+            request_state=RequestState.PENDING,
+        )
+        _seed_metadata(tracker, [old_done, queued_merged])
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+
+        repaired = _run(
+            coord.request_transition(
+                _issue(state=IN_VALIDATION),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("b"),
+            )
+        )
+
+        assert repaired.success is True
+        assert repaired.coalesced is False
+        assert repaired.queued_targets == [TargetState.DONE, TargetState.MERGED]
+        assert repaired.superseded_audit_ids == [
+            old_done.audit_id,
+            queued_merged.audit_id,
+        ]
+        active = [
+            record
+            for record in store.read(TASK_ID).pending_chain
+            if record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ]
+        assert [record.target_state for record in active] == [
+            TargetState.DONE,
+            TargetState.MERGED,
+        ]
+        assert all(record.evidence_fingerprint == _fingerprint("b") for record in active)
+
+        repeated = _run(
+            coord.request_transition(
+                _issue(state=IN_VALIDATION),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("b"),
+            )
+        )
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert len(store.read(TASK_ID).pending_chain) == 4
+
+    def test_changed_merged_generation_cleans_up_every_superseded_audit(self) -> None:
+        """Changed evidence retires and clears both Done and Merged identities."""
+
+        tracker = _MemoryTracker()
+        old_done = TerminalAuditRecord(
+            audit_id="audit-done-b",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint("b"),
+            request_state=RequestState.IN_PROGRESS,
+        )
+        old_merged = TerminalAuditRecord(
+            audit_id="audit-merged-b",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=_fingerprint("b"),
+            request_state=RequestState.PENDING,
+        )
+        _seed_metadata(tracker, [old_done, old_merged])
+        metrics = _MetricsRecorder()
+        cleared: list[tuple[str, str, str]] = []
+        coord = _coordinator(
+            tracker,
+            post_comments=False,
+            metrics=metrics,
+        )
+        coord.set_alert_clearer(lambda *identity: cleared.append(identity))
+
+        result = _run(
+            coord.request_transition(
+                _issue(state=IN_VALIDATION),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint("c"),
+            )
+        )
+
+        assert result.superseded_audit_ids == [old_done.audit_id, old_merged.audit_id]
+        for audit_id in result.superseded_audit_ids:
+            assert (
+                "stale_discarded",
+                (PROJECT_ID, TASK_ID, audit_id),
+            ) in metrics.calls
+        assert cleared == [
+            (PROJECT_ID, TASK_ID, old_done.audit_id),
+            (PROJECT_ID, TASK_ID, old_merged.audit_id),
+        ]
+
 
 class TestSharedEpicMergedCompatibility:
     """Every coordinator terminal boundary honors the shared-epic gate."""
