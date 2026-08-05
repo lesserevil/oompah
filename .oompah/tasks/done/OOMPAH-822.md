@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T08:45:06.136101Z'
+updated_at: '2026-08-05T08:45:19.675996Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,6 +106,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T08:31:45.455755+00:00'
     branch_key: OOMPAH-822
+oompah.task_costs:
+  total_input_tokens: 83
+  total_output_tokens: 18064
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 83
+      output_tokens: 18064
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 83
+    output_tokens: 18064
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T08:45:16.733092+00:00'
 ---
 ## Summary
 
@@ -168,5 +184,15 @@ Safe evidence:
 - config_scheduler_floor_seconds_default: 1.0
 - lifecycle_fix_also_on_main_via_OOMPAH_823: d509c0821+2f9984c6a
 - diff_stat_lifecycle_change_touches: oompah/config.py, oompah/orchestrator.py, oompah/terminal_audit_enforcement.py, tests
+---
+author: oompah
+created: 2026-08-05 08:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 98, Tool calls: 77
+- Tokens: 83 in / 18.1K out [18.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 29s
+- Log: OOMPAH-822__20260805T083157Z.jsonl
 ---
 <!-- COMMENTS:END -->
