@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-05T00:12:32.660428Z'
+updated_at: '2026-08-05T00:18:30.907939Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -218,18 +218,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-457
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-33956268cad9
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+      created_at: '2026-08-05T00:18:19.312200+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T00:18:19.312200+00:00'
+      branch_key: epic-OOMPAH-457
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:35:36.253495+00:00'
+    updated_at: '2026-08-05T00:18:19.312200+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-66403b6f73b4
@@ -313,6 +327,19 @@ oompah.terminal_audit:
     failure_reason: 'terminal audit evidence has no safely resolvable revision for
       OOMPAH-457 (tried: origin/epic-OOMPAH-457, origin/OOMPAH-457)'
     next_retry_at: '2026-08-05T00:08:55.966907+00:00'
+  - version: 1
+    attempt_id: attempt-33956268cad9
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    created_at: '2026-08-05T00:18:19.312200+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T00:18:19.312200+00:00'
+    branch_key: epic-OOMPAH-457
 oompah.task_costs:
   total_input_tokens: 18
   total_output_tokens: 5780
@@ -539,5 +566,15 @@ created: 2026-08-05 00:10
 **Evidence:** current review 565 is merged
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 00:18
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 00:18
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
