@@ -60,6 +60,45 @@ class _DispatchTracker:
         return []
 
 
+def _dispatch_project_store(
+    tmp_path,
+    projects: list[Project] | None = None,
+) -> ProjectStore:
+    """Return a concrete, task-local project lookup boundary."""
+
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    store._projects = {project.id: project for project in (projects or [])}
+    return store
+
+
+def _dispatch_project(tmp_path, project_id: str = "proj-1") -> Project:
+    """Return a complete project without creating a repository or tracker."""
+
+    return Project(
+        id=project_id,
+        name="test-project",
+        repo_url="https://github.com/org/repo",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="main",
+    )
+
+
+def _forbid_project_tracker_factory(orch: Orchestrator) -> MagicMock:
+    """Fail immediately if a policy-only test escapes its tracker fixture."""
+
+    factory = MagicMock(
+        side_effect=AssertionError(
+            "dispatch-policy test unexpectedly constructed a project tracker"
+        )
+    )
+    orch._new_tracker_for_project = factory
+    return factory
+
+
 _OWNED_ORCHESTRATORS: list[Orchestrator] = []
 
 
@@ -2011,8 +2050,7 @@ class TestShouldDispatchCompleted:
     """Tests that completed issues are not re-dispatched."""
 
     def _make_orchestrator(self, tmp_path, projects=None):
-        project_store = MagicMock()
-        project_store.list_all.return_value = projects or []
+        project_store = _dispatch_project_store(tmp_path, projects)
         legacy_tracker = _DispatchTracker()
         with patch.object(
             Orchestrator,
@@ -2028,6 +2066,7 @@ class TestShouldDispatchCompleted:
         orch._project_trackers.update(
             {project.id: _DispatchTracker() for project in (projects or [])}
         )
+        _forbid_project_tracker_factory(orch)
         _OWNED_ORCHESTRATORS.append(orch)
         return orch
 
@@ -2064,6 +2103,7 @@ class TestShouldDispatchCompleted:
         orch = self._make_orchestrator(tmp_path)
         issue = _make_issue("feat-short", state="open", description="x")
         assert orch._should_dispatch(issue) is True
+        orch._new_tracker_for_project.assert_not_called()
 
 
 def _make_review(
@@ -2891,11 +2931,12 @@ class TestDispatchSerializationByProject:
     """Tests that open reviews no longer serialize agent dispatch."""
 
     def _make_orchestrator(self, tmp_path, projects=None):
-        project_store = MagicMock()
-        project_store.list_all.return_value = projects or []
-        project_store.get.side_effect = lambda pid: next(
-            (p for p in (projects or []) if p.id == pid), None
+        concrete_projects = (
+            list(projects)
+            if projects is not None
+            else [_dispatch_project(tmp_path)]
         )
+        project_store = _dispatch_project_store(tmp_path, concrete_projects)
         legacy_tracker = _DispatchTracker()
         with patch.object(
             Orchestrator,
@@ -2909,8 +2950,9 @@ class TestDispatchSerializationByProject:
                 state_path=str(tmp_path / "state.json"),
             )
         orch._project_trackers.update(
-            {project.id: _DispatchTracker() for project in (projects or [])}
+            {project.id: _DispatchTracker() for project in concrete_projects}
         )
+        _forbid_project_tracker_factory(orch)
         _OWNED_ORCHESTRATORS.append(orch)
         return orch
 
@@ -2934,6 +2976,7 @@ class TestDispatchSerializationByProject:
         orch._reviews_cache = {"proj-1": [_make_review("10")]}
 
         assert orch._should_dispatch(issue) is True
+        orch._new_tracker_for_project.assert_not_called()
 
     def test_dispatch_allowed_when_project_has_no_open_review(self, tmp_path):
         """An issue in a project with no open reviews can be dispatched."""
@@ -3468,7 +3511,6 @@ class TestBudgetGateFreeTierBypass:
         from oompah.config import ServiceConfig
         from oompah.providers import ProviderStore
         from oompah.models import ModelProvider, AgentProfile
-        from unittest.mock import MagicMock
 
         cfg = ServiceConfig(duplicate_preflight_max_agents=0)
         cfg.budget_limit = 10.0
@@ -3489,8 +3531,7 @@ class TestBudgetGateFreeTierBypass:
         # auto-load the real .oompah/providers.json from the cwd.
         provider_store = ProviderStore(path=str(tmp_path / "providers.json"))
         provider_store._providers = {prov.id: prov}
-        project_store = MagicMock()
-        project_store.list_all.return_value = []
+        project_store = _dispatch_project_store(tmp_path)
         legacy_tracker = _DispatchTracker()
         with patch.object(
             Orchestrator,
@@ -3502,6 +3543,7 @@ class TestBudgetGateFreeTierBypass:
                 provider_store=provider_store, project_store=project_store,
                 state_path=str(tmp_path / "state.json"),
             )
+        _forbid_project_tracker_factory(orch)
         self._owned_orchestrators.append(orch)
         return orch
 
