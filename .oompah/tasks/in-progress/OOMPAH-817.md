@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T02:57:52.359042Z'
+updated_at: '2026-08-05T03:07:48.152892Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ author: oompah
 created: 2026-08-05 02:57
 ---
 Forward race closure pushed at exact head 776addf3b. Consumption now publishes an immutable per-generation tombstone in the authoritative repository before the exact recovery-ref CAS, so a standalone clone cannot resurrect generation A even if it recreates its pending ref after the final absence probe. Ordinary worktree reuse no longer self-authorizes consumption; only accepted integration metadata may do so. Focused recovery/submission/owner/project suite: 164 passed. Independent exact-head review requested.
+---
+author: oompah
+created: 2026-08-05 03:07
+---
+Independent exact-head review ACCEPTED f19615f155ffc102d80a20905b166763b466f83d. Reviewer verified final-probe recreation closure, A→C generation isolation, eligible already-pruned terminal cleanup, repeated cleanup idempotence, and retention for shared/unowned/protected/checked-out skips. 18 focused tests passed; branch is clean and matches upstream. Submission is held until OOMPAH-819 deploys so stale merged-review evidence cannot bypass this head's gate.
 ---
 <!-- COMMENTS:END -->
