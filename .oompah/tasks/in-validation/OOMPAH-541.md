@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-08-05T03:04:59.456575Z'
+updated_at: '2026-08-05T04:26:00.901294Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -29,7 +29,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-541
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -38,7 +38,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ac5e7e4358b6
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -48,6 +48,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T03:03:58.949953+00:00'
       branch_key: OOMPAH-541
+      ended_at: '2026-08-05T04:25:55.816726+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: oompah
@@ -59,7 +61,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ac5e7e4358b6
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,6 +71,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T03:03:58.949953+00:00'
     branch_key: OOMPAH-541
+    ended_at: '2026-08-05T04:25:55.816726+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
