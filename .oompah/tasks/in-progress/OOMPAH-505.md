@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:54:16.257770Z'
+updated_at: '2026-08-05T01:54:38.756952Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -829,5 +829,10 @@ author: oompah
 created: 2026-08-05 01:54
 ---
 Understanding: The implementation is already present on the clean task branch. I will independently verify the landed ACP descriptor/API/UI, explicit role propagation, telemetry, and auth-boundary regressions, then push the exact head and submit OOMPAH-505 if all checks pass.
+---
+author: oompah
+created: 2026-08-05 01:54
+---
+Discovery: The landed contracts are present in oompah/acp_backends/{base,claude,codex}.py, server.py, providers.html, and the role/dispatch tests. Claude and Codex advertise manual selection independently of empty catalogs; the branch also contains the live-tier correction to Claude haiku/sonnet/opus and Codex gpt-5.6-luna/terra/sol. No provider IDs or credentials are embedded in production defaults, and no code gap is evident.
 ---
 <!-- COMMENTS:END -->
