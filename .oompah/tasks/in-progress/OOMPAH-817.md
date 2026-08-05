@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:11:20.141753Z'
+updated_at: '2026-08-05T01:11:51.140803Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -148,5 +148,22 @@ author: oompah
 created: 2026-08-05 01:11
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 01:11
+---
+## Understanding
+
+**Issue:** During owner-takeover of OOMPAH-814, recovery checkpoint objects created in a standalone clone failed to persist to the authoritative repo before git update-ref tried to publish them, leaving the task stranded in In Progress.
+
+**Root Problem:** Recovery workflow doesn't ensure objects are durable in the authoritative repo before publishing refs, causing cross-repository object-reference failures.
+
+**Planned Approach:**
+1. Examine \`oompah/projects.py\` for current recovery logic (_worktree_recovery_ref, preserve_worktree_changes)
+2. Understand how linked worktrees vs standalone clones differ in object storage
+3. Implement object transfer/fetch to authoritative repo BEFORE ref publication
+4. Make checkpoint+ref publication a fenced atomic transaction with rollback
+5. Add comprehensive tests for both worktree types, object transfer failures, and recovery states
+6. Verify tasks return to recoverable owner/scheduler state on persistence failures
 ---
 <!-- COMMENTS:END -->
