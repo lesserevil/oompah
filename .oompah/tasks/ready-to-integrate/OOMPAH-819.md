@@ -6,13 +6,12 @@ priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
 children: []
-blocked_by:
-- OOMPAH-820
+blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T05:34:51.614039Z'
+updated_at: '2026-08-05T05:40:54.443077Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -149,5 +148,10 @@ author: oompah
 created: 2026-08-05 05:34
 ---
 Recorded the deployed exact-head review-generation fence on epic-OOMPAH-768; 660 focused regressions and required scans pass at ce2526a8b.
+---
+author: oompah
+created: 2026-08-05 05:40
+---
+Removing the OOMPAH-820 finish dependency after fulfillment: OOMPAH-820 is terminal Merged on main, and this submitted lineage head contains the same two reviewed logical commits. Keeping the cross-epic dependency would intentionally require main to be reachable from epic-OOMPAH-768 before the very integration that records those commits, creating an artificial containment cycle.
 ---
 <!-- COMMENTS:END -->
