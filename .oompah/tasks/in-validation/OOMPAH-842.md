@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:23:19.087825Z'
+updated_at: '2026-08-05T22:23:34.831940Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -127,6 +127,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T22:18:56.622928+00:00'
     branch_key: OOMPAH-842
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 7614
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 29
+      output_tokens: 7614
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 7614
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T22:23:30.754261+00:00'
 ---
 ## Summary
 
@@ -197,5 +213,15 @@ Safe evidence:
 - [REDACTED-credential-key]: pass (exit 0)
 - focused_tests_present: test_trusted_provider_node_bootstrap_does_not_lease_entire_session, test_managed_native_cli_fences_exact_provider_bootstrap, and 14 additional native guard regression tests
 - prior_full_gate: 15721 passed 7 skipped 1 xfailed exit 0 in 649.5s (per prior audit comment 2026-08-05 22:07)
+---
+author: oompah
+created: 2026-08-05 22:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 43, Tool calls: 32
+- Tokens: 29 in / 7.6K out [7.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 32s
+- Log: OOMPAH-842__20260805T221908Z.jsonl
 ---
 <!-- COMMENTS:END -->
