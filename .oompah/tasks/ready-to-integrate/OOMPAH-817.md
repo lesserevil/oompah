@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-817
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Persist standalone-clone recovery objects before publishing refs
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T03:07:48.152892Z'
+updated_at: '2026-08-05T12:31:57.943146Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -70,16 +70,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 44de72d8-fd64-4e43-a12a-b121073ac819
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-817
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-817
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
-  updated_at: '2026-08-05T01:11:14.879836+00:00'
+  head_sha: 22252cc0486e919a657d15e5367ce29476622ce3
+  submitted_at: '2026-08-05T12:31:47.543052+00:00'
+  updated_at: '2026-08-05T12:31:47.543052+00:00'
 oompah.task_costs:
   total_input_tokens: 1016
   total_output_tokens: 2287
@@ -260,5 +262,15 @@ author: oompah
 created: 2026-08-05 03:07
 ---
 Independent exact-head review ACCEPTED f19615f155ffc102d80a20905b166763b466f83d. Reviewer verified final-probe recreation closure, A→C generation isolation, eligible already-pruned terminal cleanup, repeated cleanup idempotence, and retention for shared/unowned/protected/checked-out skips. 18 focused tests passed; branch is clean and matches upstream. Submission is held until OOMPAH-819 deploys so stale merged-review evidence cannot bypass this head's gate.
+---
+author: oompah
+created: 2026-08-05 12:31
+---
+Final accepted stack is clean and pushed at exact head 22252cc0486e919a657d15e5367ce29476622ce3 on current parent 510d518c17a6a5974ef174b54a3fc15ffca1b96b. Eight commits preserve recovery objects before authoritative ref publication, exact SHA CAS, pending-publication fail-closed behavior, consumption/tombstones, restart idempotence, and recoverable scheduler state. Task matrix 214 and seam matrix 346 passed; terminal/secret/diff scans passed; independent exact-head review PASS. Submitting now while OOMPAH-825 validates remotely; deployed validation arbitration serializes the local exact gate.
+---
+author: oompah
+created: 2026-08-05 12:31
+---
+Persist and fence standalone-clone recovery objects at exact reviewed head 22252cc0486e919a657d15e5367ce29476622ce3. 560 focused/seam tests and required scans pass; independent review PASS.
 ---
 <!-- COMMENTS:END -->
