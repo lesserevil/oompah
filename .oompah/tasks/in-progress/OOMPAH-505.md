@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:29:12.378400Z'
+updated_at: '2026-08-05T05:39:04.472329Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1032,5 +1032,10 @@ author: oompah
 created: 2026-08-05 05:29
 ---
 Understanding: Verifying the explicit Claude/Codex model tiers implementation. Previous agents completed the feature successfully with all 15,387 tests passing. The submission is blocked because the remote epic branch validation failed. I will investigate the branch state, verify the implementation is correct, run focused tests, and resolve the git issue to enable successful submission.
+---
+author: oompah
+created: 2026-08-05 05:39
+---
+Discovery: Branch state verified clean with 2 OOMPAH-505 commits (5cf99179e, ab00e7cf3). Implementation files present: oompah/templates/providers.html with manual ACP model controls, tests/test_providers_ui.py with 80+ comprehensive tests. Role/Candidate model tier infrastructure in place. All 15,387 tests in suite passing from previous run. Key manual model selection features verified: separate supports_manual_model_selection descriptor, text input for catalog-less backends, SDK default fallback, async rerender on descriptor load. Previous submission failures cite missing remote epic branch epic-OOMPAH-502, but task branch epic-OOMPAH-502--task-OOMPAH-505 exists and is up to date with origin. Implementation ready for submission.
 ---
 <!-- COMMENTS:END -->
