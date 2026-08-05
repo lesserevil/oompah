@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T19:21:35.765584Z'
+updated_at: '2026-08-05T19:23:43.407740Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-05 19:21
 ---
 Independent review found and blocked two unsafe identities before testing: the first draft authenticated the Codex script but PATH-selected Node, and it did not pin the SDK launch to the authenticated Codex path. The repair now records exact operator Codex and Node path/device/inode identities, rejects any executable under task-writable workspace/git roots, bypasses PATH by execing the recorded Node identity, and passes the same exact Codex path through codex_path_override. Added lookalike Node, same-path replacement, wrong-parent/start-tick, descendant-guard, and backend identity-wiring regressions. Validation health now specifically identifies a legacy Codex provider-root owner and advertises the existing authenticated direct-owner recovery action that retires only that task generation while preserving its worktree. Static compile/diff checks pass; runtime tests remain queued behind the active shared lane.
+---
+author: oompah
+created: 2026-08-05 19:23
+---
+Focused verification passed after the review repairs: 221/221 tests across native validation guard, validation-resource lease, and Codex backend. This includes exact Node/Codex identity pinning, task-writable and PATH lookalike rejection, entrypoint inode replacement, parent PID/start-tick fencing, provider descendant command leasing, legacy provider-root health classification, and recovery metadata. Static compile and diff checks remain clean. Awaiting a fresh independent post-repair review before commit.
 ---
 <!-- COMMENTS:END -->
