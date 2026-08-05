@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-841
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:59:01.846291Z'
+updated_at: '2026-08-05T21:17:53.842462Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,15 +20,37 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 1
+  state: integrated
+  attempts: 2
   task_branch: OOMPAH-841
   base_branch: epic-OOMPAH-763
   base_sha: bb42de1e71f355a8f0eb2c4c0ddd958715b646e6
   head_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
+  integrated_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
   submitted_at: '2026-08-05T20:42:54.818726+00:00'
-  updated_at: '2026-08-05T20:59:00.521396+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-08-05T21:17:45.607388+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-57b9189aa8e6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-841
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 805911c9b49a6e8b9d4fb47a2e87368a9cd865f7b5fc8ea0580247d8fd4047f2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T21:17:48.052797+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -103,5 +125,10 @@ author: oompah
 created: 2026-08-05 20:43
 ---
 Canonical direct-claim worktree reconciled to the already reviewed and published head 58ffd477b; retry integration.
+---
+author: oompah
+created: 2026-08-05 21:17
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
