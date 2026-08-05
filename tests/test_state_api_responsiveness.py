@@ -13,7 +13,12 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
+import json
+import threading
 import time
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -334,6 +339,119 @@ class TestApiStateCachingCombinedMode:
             server_module._ipc = original_ipc
             server_module._state_snapshot = original_snapshot
             server_module._state_snapshot_at = original_at
+
+    @pytest.mark.asyncio
+    async def test_large_lifecycle_state_writes_do_not_block_state_endpoint(self):
+        """Repeated 850 KiB lifecycle checkpoints stay off the API read path."""
+
+        from oompah.models import Issue
+        from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+
+        class Tracker:
+            def __init__(self):
+                self.issue = Issue(
+                    id="CHILD-LARGE-STATE",
+                    identifier="CHILD-LARGE-STATE",
+                    title="large state lifecycle regression",
+                    state="Merged",
+                    project_id="project-a",
+                )
+
+            def fetch_all_issues_enriched(self):
+                return [self.issue]
+
+            def get_metadata(self, _identifier):
+                return {}
+
+        persisted = {"large_unrelated_state": "x" * 850_000}
+        save_calls = 0
+        serialized_sizes = []
+        save_blocked = threading.Event()
+        release_save = threading.Event()
+
+        def load_state():
+            return deepcopy(persisted)
+
+        def save_state(update):
+            nonlocal save_calls
+            candidate = deepcopy(persisted)
+            candidate.update(deepcopy(update))
+            serialized_sizes.append(len(json.dumps(candidate)))
+            persisted.clear()
+            persisted.update(candidate)
+            save_calls += 1
+            if save_calls == 3:
+                save_blocked.set()
+                assert release_save.wait(timeout=2)
+
+        def unavailable_validator(*_args):
+            raise RuntimeError("transient validator outage")
+
+        tracker = Tracker()
+        enforcer = TerminalAuditEnforcement(
+            service_state_path="unused.json",
+            load_state=load_state,
+            save_state=save_state,
+            validate_terminal_transition=unavailable_validator,
+        )
+        base = datetime(2026, 8, 5, tzinfo=timezone.utc)
+
+        def lifecycle_worker():
+            for offset in (0, 1, 3):
+                enforcer.reconcile_lifecycle_batch(
+                    [("project-a", tracker)],
+                    max_attempts=10,
+                    retry_backoff_seconds=1,
+                    retry_max_backoff_seconds=8,
+                    now=base + timedelta(seconds=offset),
+                )
+
+        worker = threading.Thread(target=lifecycle_worker)
+        original_orch = server_module._orchestrator
+        original_ipc = server_module._ipc
+        original_snapshot = server_module._state_snapshot
+        original_at = server_module._state_snapshot_at
+        try:
+            server_module._orchestrator = MagicMock()
+            server_module._ipc = None
+            server_module._update_state_snapshot(
+                {
+                    "paused": False,
+                    "counts": {"running": 0, "retrying": 0},
+                    "running": [],
+                    "retrying": [],
+                    "orchestrator_metrics": {
+                        "maintenance": {
+                            "terminal_lifecycle_reconciliation": {
+                                "status": "degraded",
+                                "retry_pending": 1,
+                            }
+                        }
+                    },
+                }
+            )
+            worker.start()
+            assert await asyncio.to_thread(save_blocked.wait, 1)
+
+            started = time.monotonic()
+            response = await asyncio.wait_for(server_module.api_state(), timeout=0.25)
+            elapsed = time.monotonic() - started
+            data = json.loads(response.body)
+
+            assert response.status_code == 200
+            assert elapsed < 0.25
+            assert data["counts"]["running"] == 0
+            assert save_calls == 3
+            assert min(serialized_sizes) > 800_000
+            assert worker.is_alive(), "endpoint waited for the blocked lifecycle writer"
+        finally:
+            release_save.set()
+            worker.join(timeout=2)
+            server_module._orchestrator = original_orch
+            server_module._ipc = original_ipc
+            server_module._state_snapshot = original_snapshot
+            server_module._state_snapshot_at = original_at
+        assert not worker.is_alive()
 
 
 # ---------------------------------------------------------------------------

@@ -1557,6 +1557,7 @@ class Orchestrator:
         # from the scheduler tick and coalesce continuations to one worker.
         self._terminal_lifecycle_future: "asyncio.Future[None] | None" = None
         self._terminal_lifecycle_timer: "asyncio.TimerHandle | None" = None
+        self._terminal_lifecycle_rediscovery_pending = False
         # Dedicated future for epic maintenance (step 5c) so it does not
         # compete for the same coalescing gate as the step-5b heal/cleanup
         # jobs.  Fire-and-forget: a new run starts only when the previous one
@@ -2199,6 +2200,11 @@ class Orchestrator:
             self._terminal_lifecycle_timer = None
         future = self._terminal_lifecycle_future
         if future is not None and not future.done():
+            if discover_new:
+                # The active scan cannot observe a tracker event that arrived
+                # after its snapshot.  Retain one coalesced edge so completion
+                # performs a fresh discovery even when its result looks idle.
+                self._terminal_lifecycle_rediscovery_pending = True
             return
         loop = self._dispatch_loop
         if loop is None or not loop.is_running():
@@ -2215,8 +2221,18 @@ class Orchestrator:
                 completed.result()
             except Exception:  # pragma: no cover - worker method is defensive
                 logger.exception("terminal lifecycle reconciliation future failed")
-            if self._terminal_lifecycle_future is completed:
-                self._terminal_lifecycle_future = None
+            if self._terminal_lifecycle_future is not completed:
+                # A tracker event observed this future as already done and
+                # launched its successor before this callback ran.  Only the
+                # current generation may arm a continuation timer.
+                return
+            self._terminal_lifecycle_future = None
+            if self._terminal_lifecycle_rediscovery_pending:
+                self._terminal_lifecycle_rediscovery_pending = False
+                self._schedule_terminal_lifecycle_reconciliation(
+                    discover_new=True
+                )
+                return
             status = self._terminal_audit_enforcement.lifecycle_reconciliation_status()
             delay = self._terminal_lifecycle_schedule_delay(
                 status,
@@ -6433,6 +6449,7 @@ class Orchestrator:
         ):
             self._terminal_lifecycle_timer.cancel()
             self._terminal_lifecycle_timer = None
+        self._terminal_lifecycle_rediscovery_pending = False
         # Terminate active quality gate process groups before shutdown
         terminated = self._branch_quality_gate.cleanup_active_processes()
         if terminated > 0:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import threading
@@ -899,6 +900,112 @@ def test_lifecycle_retry_due_time_survives_restart_and_transient_recovers(tmp_pa
     assert tracker.status_updates == [("CHILD-RETRY", "Done")]
 
 
+def test_lifecycle_transient_scope_scan_outage_does_not_consume_retry(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-SCAN-OUTAGE")
+    state_path = tmp_path / "service_state.json"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    tracker.fail_status_updates = True
+    first = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started,
+    )
+    assert first["retry_pending"] == 1
+
+    fetch_issues = tracker.fetch_all_issues_enriched
+
+    def fail_scan():
+        raise RuntimeError("transient project snapshot outage")
+
+    tracker.fetch_all_issues_enriched = fail_scan
+    during_outage = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started + timedelta(seconds=1),
+    )
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY]
+    row = persisted["lifecycle_reconciliation"]["records"][0]
+    assert during_outage["status"] == "degraded"
+    assert during_outage["retry_pending"] == 1
+    assert during_outage["exhausted"] == 0
+    assert during_outage["action_required"] is False
+    assert row["attempts"] == 1
+    assert any(error.startswith("scan_failed:project-a") for error in during_outage["errors"])
+
+    tracker.fetch_all_issues_enriched = fetch_issues
+    tracker.fail_status_updates = False
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started + timedelta(seconds=2),
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 1
+    assert tracker.status_updates == [("CHILD-SCAN-OUTAGE", "Done")]
+
+
+def test_lifecycle_exhausted_absence_reopens_when_task_reappears(tmp_path):
+    tracker = _Tracker([])
+    state_path = tmp_path / "service_state.json"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state = TerminalAuditEnforcementState(
+        lifecycle_reconciliation={
+            "version": 1,
+            "status": "migrating",
+            "records": [
+                {
+                    "project_id": "project-a",
+                    "task_id": "CHILD-REAPPEARS",
+                    "status": "pending",
+                    "attempts": 0,
+                    "last_error": None,
+                }
+            ],
+            "cursor": 0,
+            "updated_at": started.isoformat(),
+            "errors": [],
+        }
+    )
+    state_path.write_text(
+        json.dumps({SERVICE_STATE_KEY: state.to_dict()}), encoding="utf-8"
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    absent = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+    assert absent["exhausted"] == 1
+    assert absent["action_required"] is True
+
+    _legacy_lifecycle_issue(tracker, "CHILD-REAPPEARS")
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=1,
+        now=started + timedelta(seconds=1),
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["action_required"] is False
+    assert tracker.status_updates == [("CHILD-REAPPEARS", "Done")]
+
+
 def test_lifecycle_exhaustion_reopens_after_relevant_operator_change(tmp_path):
     tracker = _Tracker([])
     _legacy_lifecycle_issue(tracker, "CHILD-OPERATOR")
@@ -1090,6 +1197,7 @@ def test_lifecycle_scheduler_uses_due_time_floor_and_coalesces_timer():
     orchestrator._tick_pool = None
     orchestrator._terminal_lifecycle_future = None
     orchestrator._terminal_lifecycle_timer = None
+    orchestrator._terminal_lifecycle_rediscovery_pending = False
     orchestrator._terminal_audit_enforcement = SimpleNamespace(
         lifecycle_reconciliation_status=lambda: {"pending": 1}
     )
@@ -1109,6 +1217,60 @@ def test_lifecycle_scheduler_uses_due_time_floor_and_coalesces_timer():
     orchestrator._schedule_terminal_lifecycle_reconciliation(discover_new=True)
     assert len(loop.futures) == 2
     assert loop.timers[0].cancelled()
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_discovery_event_during_active_scan_is_replayed():
+    first_started = threading.Event()
+    release_first = threading.Event()
+    second_started = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def run_batch():
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 1:
+            first_started.set()
+            assert release_first.wait(timeout=2)
+        elif call_number == 2:
+            second_started.set()
+
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator._stopping = False
+    orchestrator._dispatch_loop = asyncio.get_running_loop()
+    orchestrator._tick_pool = None
+    orchestrator._terminal_lifecycle_future = None
+    orchestrator._terminal_lifecycle_timer = None
+    orchestrator._terminal_lifecycle_rediscovery_pending = False
+    orchestrator._run_terminal_lifecycle_reconciliation_batch = run_batch
+    orchestrator._terminal_audit_enforcement = SimpleNamespace(
+        lifecycle_reconciliation_status=lambda: {
+            "status": "degraded",
+            "pending": 0,
+            "retry_pending": 0,
+            "exhausted": 4,
+        }
+    )
+    orchestrator.config = SimpleNamespace(
+        terminal_lifecycle_reconciliation_scheduler_floor_seconds=1.0
+    )
+
+    orchestrator._schedule_terminal_lifecycle_reconciliation(discover_new=True)
+    assert await asyncio.to_thread(first_started.wait, 1)
+    orchestrator._schedule_terminal_lifecycle_reconciliation(discover_new=True)
+    orchestrator._schedule_terminal_lifecycle_reconciliation(discover_new=True)
+    assert orchestrator._terminal_lifecycle_rediscovery_pending is True
+    assert calls == 1
+
+    release_first.set()
+    assert await asyncio.to_thread(second_started.wait, 1)
+    await asyncio.sleep(0)
+    assert calls == 2
+    assert orchestrator._terminal_lifecycle_rediscovery_pending is False
+    assert orchestrator._terminal_lifecycle_timer is None
 
 
 def test_lifecycle_worker_uses_configured_retry_policy():
