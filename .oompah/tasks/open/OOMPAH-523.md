@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:31:06.978489Z'
+updated_at: '2026-08-05T05:32:32.527299Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -275,14 +275,15 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 8d24fb7b411af40bb02292236368c727ecfdb0d0
   head_sha: 8d24fb7b411af40bb02292236368c727ecfdb0d0
   submitted_at: '2026-08-05T05:30:47.028488+00:00'
-  updated_at: '2026-08-05T05:30:47.028488+00:00'
+  updated_at: '2026-08-05T05:32:25.297216+00:00'
+  last_error: remote epic branch epic-OOMPAH-521 does not exist
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -916,5 +917,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 28s
 - Log: OOMPAH-523__20260805T052549Z.jsonl
+---
+author: oompah
+created: 2026-08-05 05:32
+---
+Integration could not verify `epic-OOMPAH-521--task-OOMPAH-523`: remote epic branch epic-OOMPAH-521 does not exist
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
