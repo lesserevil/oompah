@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T17:27:00.014386Z'
+updated_at: '2026-08-05T17:58:13.052620Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
@@ -33,6 +33,31 @@ oompah.target_branch: main
 oompah.review_head: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-4ba35f85be8a: '2026-08-05T17:58:02.650965+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-838
+    target_state: Done
+    evidence_fingerprint: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+    audit_ids:
+    - audit-41bcaf72f72b
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T17:58:02.650977+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-838
+    audit_id: audit-41bcaf72f72b
+    attempt_id: attempt-4ba35f85be8a
+    target_state: Done
+    evidence_fingerprint: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+    status: In Validation
+    audit_ids:
+    - audit-41bcaf72f72b
+    applied: true
+    created_at: '2026-08-05T17:58:02.650994+00:00'
+    applied_at: '2026-08-05T17:58:10.241542+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -40,7 +65,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-838
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -49,7 +74,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4ba35f85be8a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -59,13 +84,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T17:26:42.008601+00:00'
       branch_key: OOMPAH-838
+      verdict: pass
+      completed_at: '2026-08-05T17:58:02.650768+00:00'
+      ended_at: '2026-08-05T17:58:02.650768+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T17:26:12.554338+00:00'
-    updated_at: '2026-08-05T17:26:42.008601+00:00'
+    updated_at: '2026-08-05T17:58:02.650768+00:00'
   - version: 1
     audit_id: audit-e856e8a1a478
     project_id: proj-14849f1b
@@ -162,5 +190,24 @@ author: oompah
 created: 2026-08-05 17:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 17:58
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
+- merge_commit: b53bdbc77
+- pr: PR #722
+- make_test: 15660 passed, 7 skipped, 1 xfailed, 55 warnings in 622.19s
+- terminal_mutation_scan: 8 identified, 8 explicitly allowlisted (pass)
+- changed_files: oompah/integration_queue.py, oompah/orchestrator.py, tests/test_integration_queue.py, tests/test_integration_executor.py
+- regression_test: test_claimed_explicit_retry_bypasses_cached_gate_failure (OOMPAH-523)
+- claim_fence: UPDATE, SELECT, COMMIT all inside single BEGIN IMMEDIATE; claimed_retry_forced carried on returned item only
+- durable_flag_state_after_claim: retry_forced=0 in row (verified by test_retry_forced_is_returned_once_and_consumed_by_claim and integrating.retry_forced is False assertions)
+- orchestrator_call_site: oompah/orchestrator.py:11059 retry_forced=item.claimed_retry_forced
 ---
 <!-- COMMENTS:END -->
