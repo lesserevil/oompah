@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-08-05T20:14:22.800072Z'
+updated_at: '2026-08-05T20:15:06.076212Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 23b60eb7-1bf2-4723-a836-b0ff39d80695
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 14343173
-  total_output_tokens: 68789
+  total_input_tokens: 14343231
+  total_output_tokens: 79347
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -62,6 +62,10 @@ oompah.task_costs:
     opus:
       input_tokens: 25
       output_tokens: 497
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 58
+      output_tokens: 10558
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +98,12 @@ oompah.task_costs:
     output_tokens: 497
     cost_usd: 0.0
     recorded_at: '2026-07-29T07:02:57.722461+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 58
+    output_tokens: 10558
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:14:59.559142+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -479,5 +489,15 @@ Safe evidence:
 - full_gate_result: 15682 passed, 7 skipped, 1 xfailed, 0 failures in 621.41s via `make test`
 - collector_file: oompah/archived_evidence_collector.py (41,126 chars)
 - collector_features: DispositionType(retention/duplicate/obsolete/blocked/superseded), TaskStateSnapshot, AuditReferenceEvidence, SafetyFailureMode(20 modes), RestorationGuidance
+---
+author: oompah
+created: 2026-08-05 20:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 68, Tool calls: 52
+- Tokens: 58 in / 10.6K out [10.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 36s
+- Log: OOMPAH-473__20260805T194739Z.jsonl
 ---
 <!-- COMMENTS:END -->
