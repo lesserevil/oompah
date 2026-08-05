@@ -3275,6 +3275,40 @@ class TestRepoHealErrorReporting:
 class TestTickDelegation:
     """_tick() must call the five handlers in the correct order."""
 
+    def test_enforce_tick_refreshes_review_facts_before_durable_decisions(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        call_order: list[str] = []
+
+        async def fake_review_check():
+            call_order.append("review_check")
+
+        async def fake_audit_lane():
+            call_order.append("terminal_audit")
+            return {}
+
+        class Runtime:
+            enforce = True
+            started = True
+
+            async def reconcile_async(self):
+                call_order.append("durable_runtime")
+                return {}
+
+        orch.workflow_runtime = Runtime()
+        orch._handle_review_check = fake_review_check
+        orch._dispatch_audit_lane = fake_audit_lane
+        orch._notify_observers = MagicMock()
+
+        asyncio.run(orch._tick())
+
+        assert call_order == [
+            "review_check",
+            "terminal_audit",
+            "durable_runtime",
+        ]
+
     def test_tick_calls_all_handlers(self, tmp_path):
         """_tick() calls all five targeted handlers."""
         orch = _make_orchestrator(tmp_path)
