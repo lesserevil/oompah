@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T02:02:49.746703Z'
+updated_at: '2026-08-05T02:06:32.291231Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -886,5 +886,10 @@ author: oompah
 created: 2026-08-05 02:02
 ---
 Understanding: Previous agents completed the feature implementation (backend descriptors, UI, dispatch tests, telemetry). Submission failed due to missing epic branch reference. Current state: I'm verifying the landed implementation is intact, checking that tests pass, and attempting to resolve the submission issue. Will investigate whether role tier mappings require deployment configuration or if they're already in place.
+---
+author: oompah
+created: 2026-08-05 02:06
+---
+Discovery: Verified landed OOMPAH-505 implementation is complete and intact. Key findings: (1) Backend descriptors expose supports_manual_model_selection() independently from has_catalog (Claude and Codex both return True); (2) UI supports manual model entry with fallback to SDK defaults; (3) Role store validates and persists explicit role candidates; (4) Role matrix supports multi-candidate configuration with priority/round-robin strategy. All focused tests passing: 301 provider/role tests, 324 orchestrator handler tests, 45 ACP backend tests, 183 auth tests = 853 passing. make check-secrets clean (null-byte warning is expected).
 ---
 <!-- COMMENTS:END -->
