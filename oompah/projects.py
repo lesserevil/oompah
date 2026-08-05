@@ -772,10 +772,25 @@ def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None
     return project_path, project_name
 
 
-def _sanitize_identifier(value: str) -> str:
-    """Make a project or task identifier safe for local branch/path names."""
+def sanitize_branch_identifier(value: str) -> str:
+    """Make an identifier safe for a single Git branch component.
+
+    The character allow-list alone is insufficient for Git refs: components
+    may not contain ``..`` or end in ``.lock``.  Keep this deterministic so
+    fact collectors and ProjectStore always address the same service-owned
+    branch.
+    """
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
-    return cleaned.strip("._-") or "unnamed"
+    cleaned = re.sub(r"\.{2,}", "_", cleaned).strip("._-") or "unnamed"
+    if cleaned.casefold().endswith(".lock"):
+        cleaned += "_"
+    return cleaned
+
+
+def _sanitize_identifier(value: str) -> str:
+    """Backward-compatible alias for branch/path identifier sanitization."""
+
+    return sanitize_branch_identifier(value)
 
 
 # ---------------------------------------------------------------------------

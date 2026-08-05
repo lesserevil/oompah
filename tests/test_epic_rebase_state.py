@@ -217,7 +217,7 @@ class TestEpicTargetResolution:
         assert orch._dispatch_proactive_rebase_agents([epic]) == 0
         orch._file_rebase_task.assert_not_called()
         assert any(
-            alert["source"] == "epic_target_unresolved:EPIC-CHILD"
+            alert["source"] == "epic_target_unresolved:proj-1:EPIC-CHILD"
             for alert in orch._alerts
         )
 
