@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T14:19:50.440168Z'
+updated_at: '2026-08-05T15:02:37.601332Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -257,5 +257,17 @@ author: oompah
 created: 2026-08-05 14:19
 ---
 UNDERSTANDING: Investigating revisionless audit support for metadata-only Archived dispositions. The issue is that OOMPAH-803 (Backlog duplicate with no implementation branch) fails terminal audit with 'terminal audit evidence has no safely resolvable revision'. Need to separate code-bearing completion audits (require immutable revision) from metadata-only Archived retirement (validate structured reason, replacement ref, no active work) without requiring fake branch. Will examine orchestrator._create_workspace_for_auditor, ArchivedEvidenceCollector, and terminal coordinator.
+---
+author: oompah
+created: 2026-08-05 15:02
+---
+DISCOVERY: Found the code flow for revisionless audits. The revisionless_metadata_archive_candidate() check works correctly (verified with test), but the issue must be in how the workspace is used after creation or in the recovery path. Key findings:
+
+1. revisionless_metadata_archive_candidate() checks: target=archived, previous_state in {proposed,backlog}, no code evidence (deliberately excludes branch_name to avoid OOMPAH-803 false positive)
+2. _create_workspace_for_auditor() calls this check and creates metadata workspace if it passes  
+3. TerminalAuditRecord.previous_state is correctly set from issue.state at audit request time
+4. AuditDispatchPlan passes previous_state from the record to the auditor
+
+The error 'terminal audit evidence has no safely resolvable revision' comes from _create_workspace_for_auditor line 17142 when falling through to revision resolution. This suggests the revisionless check is NOT passing or there's another code path. Need to check: (a) if previous_state is preserved correctly on retry/restart, (b) if there's another path calling _create_workspace_for_auditor with wrong previous_state, (c) if the check is being re-evaluated incorrectly during recovery.
 ---
 <!-- COMMENTS:END -->
