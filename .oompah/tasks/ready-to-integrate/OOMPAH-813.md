@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-813
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence revoked accepted-submission worker exits with the resolved project
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:22:00.537986Z'
+updated_at: '2026-08-05T00:26:58.814436Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,9 +24,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-813
-  head_sha: 7eada51f6fe7ea384c02317654c0b376183fb7af
-  submitted_at: '2026-08-05T00:04:04.526160+00:00'
-  updated_at: '2026-08-05T00:04:04.526160+00:00'
+  head_sha: eb5d206f2fc040698808130b2629a997c3c9b953
+  submitted_at: '2026-08-05T00:26:52.430468+00:00'
+  updated_at: '2026-08-05T00:26:52.430468+00:00'
 ---
 ## Summary
 
@@ -74,5 +74,15 @@ author: oompah
 created: 2026-08-05 00:22
 ---
 Acceptance repair completed and pushed at eb5d206f2fc040698808130b2629a997c3c9b953 on OOMPAH-813, ordinary fast-forward from 7eada51f6. The helper now atomically proves the retired entry still owns state after the preservation await; a superseded exit returns before claim cleanup or tracker access. Deterministic regression installs a replacement from preserve_worktree_changes and verifies replacement running/claimed/claimed_issues plus zero stale tracker fetch/update. Verification: exact regression 1/1; focused submission-fencing/run-identity/provider-retirement/task-handoff/auditor-exit matrix 101/101; Ruff F821; git diff --check; terminal mutation scan 8/8. Branch is clean and up to date with origin. OOMPAH-813 was not submitted and its owner claim was not released.
+---
+author: oompah
+created: 2026-08-05 00:26
+---
+Independent exact-head acceptance audit found no blockers at eb5d206f2fc040698808130b2629a997c3c9b953. It verified project identity is frozen before cleanup awaits, the post-preservation identity CAS is performed under the retry-authority lock, CAS loss returns before every claim/token/tracker mutation, and replacement-generation plus cross-project/non-revoked behavior remains covered. Read-only audit checks: focused race/compatibility 9 passed, Ruff F821, diff check.
+---
+author: oompah
+created: 2026-08-05 00:26
+---
+Fixed revoked accepted-submission exit fencing at eb5d206f: exact project scope, post-await generation CAS, and deterministic replacement-run regression; 101 focused tests plus independent acceptance audit pass.
 ---
 <!-- COMMENTS:END -->
