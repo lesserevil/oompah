@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-07-28T23:46:56.181118Z'
+updated_at: '2026-08-05T00:41:18.324704Z'
 work_branch: OOMPAH-535
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/569
@@ -51,6 +51,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/569
 oompah.review_number: '569'
 oompah.work_branch: OOMPAH-535
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1f5fb9f467fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-535
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 732538e0d13f16f1c5520e87466005bcaf2552949b4390708ff36d5bd33d9101
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T00:41:07.984647+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -116,5 +138,10 @@ author: oompah
 created: 2026-07-28 23:39
 ---
 Implementation complete on branch OOMPAH-535. Focused lifecycle/capability regressions pass (278 tests), and the full make test gate passes (13,082 passed, 7 skipped). Preparing the reviewed branch for push and deployment; the project remains paused until the corrected service is running.
+---
+author: oompah
+created: 2026-08-05 00:41
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
