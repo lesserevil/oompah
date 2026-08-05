@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T18:33:27.534570Z'
+updated_at: '2026-08-05T18:40:17.901270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,15 @@ author: oompah
 created: 2026-08-05 18:33
 ---
 **Understanding:** Issue is about centralizing work-kind classification across observability surfaces. Root cause: /api/v1/state uses Orchestrator.get_snapshot which correctly classifies (audit → duplicate_screening → implementation), while /api/v1/agents/:agent_id/activity uses a separate classifier that ignores is_auditor. Goal: Create one authoritative classifier for RunningEntry with precedence order, use it for state/activity/dispatch events, add safe audit identity fields, and ensure comprehensive test coverage. Starting code exploration.
+---
+author: oompah
+created: 2026-08-05 18:40
+---
+**Discovery:** Found work_kind classification mismatch in 3 locations:
+1. server.py:13580 (api_agent_activity) - checks duplicate_preflight ONLY
+2. orchestrator.py:31986 (AGENT_DISPATCHED event) - checks duplicate_preflight ONLY  
+3. orchestrator.py:39706 (get_snapshot) - correctly checks is_auditor FIRST, then duplicate_preflight, then implementation
+
+Root cause: No centralized classifier. Fix approach: Create reusable classifier function in models.py, use it everywhere. Also need to add is_auditor, audit_id, audit_attempt_id, retiring fields to api_agent_activity response.
 ---
 <!-- COMMENTS:END -->
