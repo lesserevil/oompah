@@ -3506,6 +3506,8 @@ class TestBudgetGateFreeTierBypass:
         yield
         for orch in reversed(self._owned_orchestrators):
             asyncio.run(orch._drain_background_work())
+            orch.coordination_store.close()
+            orch.integration_queue.close()
 
     def _make_orchestrator(self, tmp_path):
         from oompah.config import ServiceConfig
