@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T03:10:17.124188Z'
+updated_at: '2026-08-05T05:24:39.609841Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -307,5 +307,10 @@ author: oompah
 created: 2026-08-05 03:02
 ---
 Fenced stalled-task reopen against exact durable queue generation, tracker integration identity, and live SCM head; legacy no-row compatibility is transactionally absence-fenced. Independent exact-head review accepted; 247 focused tests passed.
+---
+author: oompah
+created: 2026-08-05 05:24
+---
+Reflow accepted exact head e3140b65 after OOMPAH-820 exact-head fencing reached terminal Merged state.
 ---
 <!-- COMMENTS:END -->
