@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T02:32:25.048574Z'
+updated_at: '2026-08-05T02:39:50.203776Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -246,5 +246,10 @@ author: oompah
 created: 2026-08-05 02:32
 ---
 Durable queue-row authority repair pushed at 060dc2cb288767bd761aa3268a5e8d0a09b67251 with 382 related tests passing. Independent review identified two remaining action-time fences: missing tracker integration identity and branch-head rollback between classification/action. A forward repair is now in progress; task remains held.
+---
+author: oompah
+created: 2026-08-05 02:39
+---
+Action-time race repair pushed at 3d19d3ff38cc9c1d693c46e3f48303d15c54f03e. Queue-backed reopen now requires complete exact tracker integration identity, revalidates live SCM branch head against the actionable evidence head under shared issue-transition authority, and fails closed on missing metadata, B→A rollback, or tracker generation changes. 151 focused tests pass; awaiting a fresh independent review before resubmission.
 ---
 <!-- COMMENTS:END -->
