@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-815
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve accepted child branch identity across repair dispatch
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:34:18.196554Z'
+updated_at: '2026-08-05T00:35:17.809750Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 795d9f5d-b843-4924-8545-09cb2c8efca6
+oompah.agent_run_id: d5851470-838f-4fe1-ad39-99a7a719d023
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-815
 oompah.integration:
   version: 2
@@ -124,5 +124,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 24s
 - Log: OOMPAH-815__20260805T003307Z.jsonl
+---
+author: oompah
+created: 2026-08-05 00:35
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
