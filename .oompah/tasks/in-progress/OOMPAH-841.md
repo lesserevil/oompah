@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T20:15:55.845089Z'
+updated_at: '2026-08-05T20:22:05.857431Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,5 +60,10 @@ author: oompah
 created: 2026-08-05 20:15
 ---
 Security/race review repairs are implemented and focused verification is green. Native guard runtime/config/shims now live under an operator-only ~/.oompah/native-validation-guards root outside workspace, git, /tmp, and effective temp roots; both direct and Node Codex executables are rejected if task-writable. Legacy-provider health requires the startup-captured exact Codex and Node path/device/inode plus direct service-or-init parent identity, so inherited SDK markers and task-owned lookalikes cannot trigger recovery. Owner recovery now requires all four advertised process fields and atomically compares the sole exact generation/process row before writing a cancellation tombstone, preventing same-generation ABA cancellation. Gate result: terminal mutation scan passed; 248/249 focused tests passed in the combined run, with the sole failure an incorrect new assertion about pre-session error events; after correcting only that assertion, its isolated rerun passed (effective 249/249). Static compile and diff checks pass. Awaiting fresh independent final review; no commit or push yet.
+---
+author: oompah
+created: 2026-08-05 20:22
+---
+Clean final focused rerun after the durable-owner retirement and live-session PID fences: make test-setup + terminal-audit-scan passed, then 251/251 targeted tests passed in 27.59s across native guard, validation-resource leasing, Codex backend, authenticated owner-claim recovery, and aggregate health. Static compile/diff checks remain clean. Fresh independent review is in progress; branch remains uncommitted/unpushed.
 ---
 <!-- COMMENTS:END -->
