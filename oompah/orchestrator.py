@@ -4256,6 +4256,22 @@ class Orchestrator:
                     "branch quality gate did not pass for the exact review head",
                 )
 
+            # The source branch is forge-owned and can advance while the
+            # local command runs.  Re-read the review before persisting any
+            # metadata so passing evidence for the prior head cannot adopt a
+            # replacement generation that arrived during the gate.
+            try:
+                gated_review = provider.find_pr_for_branch(
+                    repo_slug,
+                    expected_source,
+                )
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return False, f"gated review evidence could not be refreshed: {exc}"
+            if self._standalone_review_observation(
+                gated_review
+            ) != self._standalone_review_observation(review):
+                return False, "open review changed while branch quality gate ran"
+
             integration_revision = self._standalone_integration_generation_revision(
                 current
             )
@@ -9032,6 +9048,16 @@ class Orchestrator:
                         project_id,
                         review_id=getattr(existing_pr, "id", None),
                     )
+                    # A forge merge does not substitute for the configured
+                    # local branch gate.  Reconcile terminal state only after
+                    # the accepted exact review head has passing evidence.
+                    if not self._review_quality_gate_passes(
+                        project,
+                        authority.issue,
+                        task_branch,
+                        target_branch,
+                    ):
+                        return
                     review_number = str(
                         getattr(existing_pr, "id", "") or ""
                     ) or None
