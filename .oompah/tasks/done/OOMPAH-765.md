@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-765
 type: epic
-status: Merged
+status: Done
 priority: 1
 title: Build unified versioned facts and a pure WorkDecision evaluator
 parent: OOMPAH-763
@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-04T17:09:16.056839Z'
+updated_at: '2026-08-05T08:07:52.924277Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
