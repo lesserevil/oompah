@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T08:15:35.010539Z'
+updated_at: '2026-08-05T08:15:49.736831Z'
 work_branch: OOMPAH-823
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/719
@@ -178,13 +178,13 @@ oompah.terminal_audit:
     started_at: '2026-08-05T08:09:21.768663+00:00'
     branch_key: OOMPAH-823
 oompah.task_costs:
-  total_input_tokens: 35
-  total_output_tokens: 8717
+  total_input_tokens: 73
+  total_output_tokens: 16855
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 35
-      output_tokens: 8717
+      input_tokens: 73
+      output_tokens: 16855
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -193,6 +193,12 @@ oompah.task_costs:
     output_tokens: 8717
     cost_usd: 0.0
     recorded_at: '2026-08-05T08:08:13.856271+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 38
+    output_tokens: 8138
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T08:15:46.372241+00:00'
 ---
 ## Summary
 
@@ -305,5 +311,15 @@ Safe evidence:
 - prior_full_gate: make test PASS at 772.9s reported for d509c08 (prior orchestrator run)
 - prior_focused_tests: 200 passed reported by prior auditor for test_terminal_audit_enforcement.py + test_state_api_responsiveness.py + test_config.py
 - commit_trailer_compliance: Both branch commits use canonical oompah trailer; no model/vendor attribution present
+---
+author: oompah
+created: 2026-08-05 08:15
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 41, Tool calls: 32
+- Tokens: 38 in / 8.1K out [8.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 22s
+- Log: OOMPAH-823__20260805T080932Z.jsonl
 ---
 <!-- COMMENTS:END -->
