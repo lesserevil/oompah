@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:54:49.037258Z'
+updated_at: '2026-08-05T00:55:46.014767Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-08-05 00:54
 ---
 Acceptance blocker in the initial lease draft: fcntl is imported but the lock file is never opened/locked, so separate processes can both acquire and race/lost-update JSON; restart reloads a durable owner forever with no PID/start-time/heartbeat/expiry/fencing token and never prunes recovered waiters; configured capacity is ignored; strict priority can starve auditors; and sorting with self._waiters.index(x) inside list.sort can raise because the list appears empty during key evaluation. Redesign before integration. Carry exact owner scope: auditor run_command gets audit attempt/audit/project/task from _exec_tool, while BranchQualityGate already has QualityGateOwner. Gate acquire belongs after cache/authority checks but before Popen; lease wait must not consume command timeout and must observe cancellation. Release in the same process-cleanup finally; cancellation removes only its own waiter/lease and never broadly terminates another gate. Add real multiprocess mutual exclusion/lost-update, crash/expiry/fencing, restart/pruning, capacity, fairness, cancellation, and exact-owner regressions.
+---
+author: oompah
+created: 2026-08-05 00:55
+---
+Further acceptance constraints: heavyweight classification must be fail-closed per every shell segment; a lightweight token anywhere cannot bypass 'echo x; make test' or 'make test && git status'. Cover uv run pytest, python -m pytest, options, tests paths, node IDs, and compound commands. BranchQualityGate must acquire unconditionally for its configured exact command after exact cache lookup, not use arbitrary-agent classification. Wire OOMPAH_HEAVYWEIGHT_CAPACITY through ServiceConfig and .env.example with validated parsing; no module-global os.environ initialization or Path.home state. Use service-owned configured state root with safe permissions, schema/version, fsync/atomic replace, corruption quarantine, and actual interprocess lock. Tool liveness/command timeout begins only after lease acquisition; queued auditors observe cancellation/session liveness separately. Compatible evidence reuse must key repo identity + exact SHA + exact command/gate version and never reuse failed/interrupted evidence.
 ---
 <!-- COMMENTS:END -->
