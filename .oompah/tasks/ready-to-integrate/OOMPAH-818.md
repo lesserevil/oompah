@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T02:59:52.597395Z'
+updated_at: '2026-08-05T03:02:49.127631Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 039409f9-c1b5-4d94-9c8f-7bcaa808b1b2
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 48508
   total_output_tokens: 4803
@@ -96,9 +96,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-818
-  head_sha: f361f5dfe831ff336f961aa27b7d0598cb1f45a0
-  submitted_at: '2026-08-05T01:51:27.475575+00:00'
-  updated_at: '2026-08-05T01:51:27.475575+00:00'
+  base_branch: main
+  head_sha: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
+  submitted_at: '2026-08-05T03:02:39.901294+00:00'
+  updated_at: '2026-08-05T03:02:39.901294+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/716
 oompah.review_number: '716'
 oompah.work_branch: OOMPAH-818
@@ -256,5 +257,10 @@ author: oompah
 created: 2026-08-05 02:59
 ---
 Corrected forward repair pushed at exact head e3140b65f. Managed tasks with any durable integration-queue row now require the exact row generation for reopen; legacy generation-free decisions are fenced by proven row absence across the tracker mutation. CI/rebase comment fallbacks preserve exact head and generation. Focused watchdog/queue coverage: 247 passed; independent exact-head review is running. Server remains paused until acceptance.
+---
+author: oompah
+created: 2026-08-05 03:02
+---
+Fenced stalled-task reopen against exact durable queue generation, tracker integration identity, and live SCM head; legacy no-row compatibility is transactionally absence-fenced. Independent exact-head review accepted; 247 focused tests passed.
 ---
 <!-- COMMENTS:END -->
