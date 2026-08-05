@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:00:29.571202Z'
+updated_at: '2026-08-05T06:03:47.182029Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 20m 46s
 - Log: OOMPAH-821__20260805T053954Z.jsonl
+---
+author: oompah
+created: 2026-08-05 06:03
+---
+Independent exact-head review found an acceptance-critical gap at bdbe4ba2: retry_failed_audit now accepts terminal retryability for mixed attempt histories, but the integrated-audit recovery alert producer is unchanged and still advertises audit_retry_evidence_addendum for every transition failure. _arm_integrated_audit_recovery_alert and _stage_integrated_task_audit do not consume the new canonical eligibility/recovery mode, and the new alert-clearing assertion covers coordinator observability rather than the live terminal_audit_recovery dashboard alert. Withdrawing this head from delivery until alert/action parity, truthful recovery mode, and live alert lifecycle tests are implemented.
 ---
 <!-- COMMENTS:END -->
