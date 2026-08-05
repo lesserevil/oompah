@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-08-05T00:05:29.271331Z'
+updated_at: '2026-08-05T00:05:36.378333Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -91,8 +91,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-d43b7e380fae
-    applied: false
+    applied: true
     created_at: '2026-08-05T00:05:24.356985+00:00'
+    applied_at: '2026-08-05T00:05:33.685066+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -620,5 +621,19 @@ author: oompah
 created: 2026-08-04 23:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 00:05
+---
+Audit PASS — Archived
+
+Implementation complete and verified. OverrideRecord dataclass with validation, override_transition() method with project-owner authorization, OverrideResult typed result, and comprehensive test coverage (23 override tests, 147 audit tests all passing). Feature enables authorized project owners to bypass auditing with durable reason while preventing unauthorized overrides. All acceptance criteria satisfied.
+
+Safe evidence:
+- commits_present: cbbe8d39b, a5699d6fc on main
+- override_record_validation: non-empty reason, evidence fingerprint, authorized actor checks
+- authorization_model: uses is_authorized_status_actor() - respects status_label_authorized_logins, status_actor_login, tracker_owner
+- test_results: 15386 passed (1 unrelated failure in orchestrator), 23 override tests + 147 audit tests verified passing
+- implementation_files: oompah/terminal_audit.py (OverrideRecord), oompah/terminal_transition_coordinator.py (override_transition, OverrideResult), tests/test_terminal_override.py
 ---
 <!-- COMMENTS:END -->
