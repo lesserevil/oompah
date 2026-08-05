@@ -104,15 +104,35 @@ class TestIsWebhookHealthy:
 
     def test_webhook_just_at_threshold_boundary(self):
         """Webhook just under 150s threshold = healthy."""
+        fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now if tz is not None else fixed_now.replace(tzinfo=None)
+
         proj = _make_project(
             project_id="proj-1",
-            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(seconds=149),
+            last_webhook_received_at=FrozenDateTime.fromtimestamp(
+                (fixed_now - timedelta(seconds=149)).timestamp(),
+                timezone.utc,
+            ),
         )
         project_store = MagicMock()
         project_store.get.return_value = proj
         orch = _make_orchestrator(projects=[proj])
         orch.project_store = project_store
-        assert orch.is_webhook_healthy("proj-1") is True
+        try:
+            with patch("oompah.orchestrator.datetime", FrozenDateTime):
+                assert orch.is_webhook_healthy("proj-1") is True
+        finally:
+            orch.integration_queue.close()
+            orch.coordination_store.close()
+            orch.task_transition_journal.close()
+            orch.review_capacity_store.close()
+            orch.workflow_job_store.close()
+            orch._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
     def test_slightly_stale_webhook_above_threshold(self):
         """Webhook older than 150s = unhealthy."""
