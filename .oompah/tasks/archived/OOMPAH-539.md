@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-08-05T05:04:13.485224Z'
+updated_at: '2026-08-05T05:04:20.728884Z'
 work_branch: OOMPAH-539
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/575
@@ -143,8 +143,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-2ed6d5ab9763
-    applied: false
+    applied: true
     created_at: '2026-08-05T05:04:09.049341+00:00'
+    applied_at: '2026-08-05T05:04:19.353128+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -581,5 +582,21 @@ author: oompah
 created: 2026-08-05 04:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 05:04
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: eb76e561d
+- implementation_commit: 2990316f5
+- pr: 575
+- merged_at: 2026-07-29
+- focused_tests_current_run: test_dashboard_duplicate_screening.py 4/4 PASSED, test_duplicate_preflight.py 18/18 PASSED
+- unrelated_failure: test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick (timeout in unrelated test)
+- focused_tests_at_merge: 46/46 PASSED (from CI fix agent comment 2026-07-29 02:28)
 ---
 <!-- COMMENTS:END -->
