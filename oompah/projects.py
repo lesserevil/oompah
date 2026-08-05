@@ -3222,17 +3222,22 @@ class ProjectStore:
                     return "unknown"
                 if removed_pending.returncode != 0:
                     return "unknown"
-                pending_after = subprocess.run(
-                    ["git", "rev-parse", "--verify", f"{pending_ref}^{{commit}}"],
-                    cwd=wt_path,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=10,
-                    env=_recovery_git_env(),
-                )
+                try:
+                    pending_after = subprocess.run(
+                        ["git", "show-ref", "--verify", "--quiet", pending_ref],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
                 if pending_after.returncode == 0:
                     return "changed"
+                if pending_after.returncode != 1:
+                    return "unknown"
 
         # Delete the authoritative generation last. If pending cleanup fails,
         # the authoritative ref remains discoverable and the retry is safely
