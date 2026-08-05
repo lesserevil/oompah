@@ -309,6 +309,25 @@ class AcpAgentSession:
 
         try:
             async for _ev in self._backend_session.run_turn():
+                # The command helper keeps liveness ownership in
+                # ``result_pending`` until the backend has translated and
+                # emitted the provider-visible tool result.  All ACP
+                # backends converge on this event vocabulary, so the facade
+                # is the single race-safe acknowledgement point.
+                if getattr(_ev, "kind", None) == "tool_result":
+                    mark_delivered = getattr(
+                        self.tool_liveness,
+                        "result_delivered",
+                        None,
+                    )
+                    if callable(mark_delivered):
+                        try:
+                            mark_delivered()
+                        except Exception:  # pragma: no cover - observer path
+                            logger.debug(
+                                "Unable to acknowledge ACP tool result",
+                                exc_info=True,
+                            )
                 if self._stop_requested:
                     # The backend will see _stop_requested via close()
                     # and break out; but we also want to short-circuit

@@ -142,6 +142,105 @@ def test_completion_removes_command_from_supervision():
     assert monitor.snapshot() is None
 
 
+def test_exited_child_enters_result_pending_until_provider_acknowledges():
+    monitor = ToolLivenessMonitor(result_delivery_timeout_s=30)
+    invocation_id = monitor.start(
+        tool_name="run_command",
+        timeout_s=720,
+        result_delivery_required=True,
+    )
+    monitor.attach_process(invocation_id, _LiveProcess(returncode=0))
+
+    snapshot = monitor.snapshot()
+
+    assert snapshot is not None
+    assert snapshot.phase == "result_pending"
+    assert snapshot.protects_from_stall is True
+    assert monitor.result_delivered() == invocation_id
+    assert monitor.snapshot() is None
+    assert monitor.metrics() == {
+        "running": 0,
+        "result_pending": 0,
+        "result_delivered": 1,
+        "provider_stalled": 0,
+    }
+
+
+def test_result_delivery_deadline_is_precise_and_recoverable():
+    monitor = ToolLivenessMonitor(result_delivery_timeout_s=0)
+    invocation_id = monitor.start(
+        tool_name="run_command",
+        timeout_s=720,
+        result_delivery_required=True,
+    )
+    monitor.attach_process(invocation_id, _LiveProcess(returncode=0))
+    entry = _running_entry(monitor)
+
+    protected, reason = Orchestrator._tool_stall_status(entry)
+
+    assert protected is False
+    assert reason == "run_command result delivery timed out after 0s"
+    assert monitor.snapshot() is not None
+    assert monitor.snapshot().phase == "provider_stalled"
+
+
+def test_public_state_exposes_pending_liveness_without_provider_details():
+    monitor = ToolLivenessMonitor()
+    invocation_id = monitor.start(
+        tool_name="run_command",
+        timeout_s=720,
+        result_delivery_required=True,
+    )
+    monitor.attach_process(invocation_id, _LiveProcess(returncode=0))
+    entry = _running_entry(monitor)
+
+    state = Orchestrator._tool_liveness_state(entry)
+
+    assert state["phase"] == "result_pending"
+    assert state["metrics"]["result_pending"] == 1
+    assert "provider-private" not in repr(state)
+
+
+def test_command_result_stays_owned_until_bounded_api_bridge_ack(tmp_path):
+    monitor = ToolLivenessMonitor(result_delivery_timeout_s=30)
+    result = _exec_run_command(
+        tmp_path,
+        {
+            "command": (
+                "sleep 0.05; python -c \"print('x' * 1500000)\"; "
+                "exit 0"
+            )
+        },
+        timeout=2,
+        tool_liveness=monitor,
+        result_delivery_required=True,
+    )
+
+    assert len(result) < 65_000
+    pending = monitor.snapshot()
+    assert pending is not None
+    assert pending.phase == "result_pending"
+    assert monitor.result_delivered() is not None
+    assert monitor.snapshot() is None
+
+
+def test_failing_command_uses_the_same_exactly_once_delivery_path(tmp_path):
+    monitor = ToolLivenessMonitor()
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "echo failure >&2; exit 7"},
+        timeout=2,
+        tool_liveness=monitor,
+        result_delivery_required=True,
+    )
+
+    assert "exit_code: 7" in result
+    assert monitor.snapshot() is not None
+    assert monitor.result_delivered() is not None
+    assert monitor.result_delivered() is None
+    assert monitor.metrics()["result_delivered"] == 1
+
+
 def test_concurrent_commands_are_isolated_and_deadline_wins():
     monitor = ToolLivenessMonitor()
     live_id = monitor.start(tool_name="run_command", timeout_s=720)

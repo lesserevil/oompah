@@ -40078,6 +40078,54 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         return refreshed_map
 
     @staticmethod
+    def _tool_liveness_state(entry: RunningEntry) -> dict[str, Any]:
+        """Expose bounded tool lifecycle state without provider internals."""
+
+        monitor = getattr(getattr(entry, "session", None), "tool_liveness", None)
+        empty = {
+            "phase": None,
+            "metrics": {
+                "running": 0,
+                "result_pending": 0,
+                "result_delivered": 0,
+                "provider_stalled": 0,
+            },
+        }
+        if monitor is None:
+            return empty
+        try:
+            snapshots = [
+                snapshot
+                for snapshot in monitor.snapshots()
+                if snapshot is not None
+            ]
+            metrics_fn = getattr(monitor, "metrics", None)
+            metrics = metrics_fn() if callable(metrics_fn) else {}
+            normalized_metrics = {
+                phase: int(metrics.get(phase, 0) or 0)
+                for phase in empty["metrics"]
+            }
+            # A delivery deadline transition can happen during snapshots;
+            # retain only the opaque lifecycle label in the public state.
+            phase_priority = (
+                "provider_stalled",
+                "result_pending",
+                "running",
+                "waiting_for_capacity",
+            )
+            phase = next(
+                (
+                    candidate
+                    for candidate in phase_priority
+                    if any(item.phase == candidate for item in snapshots)
+                ),
+                None,
+            )
+            return {"phase": phase, "metrics": normalized_metrics}
+        except Exception:  # pragma: no cover - defensive telemetry boundary
+            return empty
+
+    @staticmethod
     def _tool_stall_status(entry: RunningEntry) -> tuple[bool, str | None]:
         """Return whether a live bounded tool protects *entry* from a stall.
 
@@ -40110,7 +40158,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if not snapshots:
             return False, None
         timed_out = next(
-            (snapshot for snapshot in snapshots if snapshot.deadline_exceeded),
+            (
+                snapshot
+                for snapshot in snapshots
+                if snapshot.deadline_exceeded
+                or snapshot.result_delivery_deadline_exceeded
+                or snapshot.phase == "provider_stalled"
+            ),
             None,
         )
         if timed_out is not None:
@@ -41204,6 +41258,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self._reconcile_integration_retry_alerts()
 
         running_rows = []
+        tool_liveness_totals = {
+            "running": 0,
+            "result_pending": 0,
+            "result_delivered": 0,
+            "provider_stalled": 0,
+        }
         live_seconds = 0.0
         for issue_id, entry in self._running_items_snapshot():
             elapsed = (now - entry.started_at).total_seconds()
@@ -41242,6 +41302,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     getattr(entry, "managed_processes", {}) or {}
                 ),
                 "provider_started": bool(getattr(entry, "provider_started", False)),
+                "tool_liveness": self._tool_liveness_state(entry),
                 "policy_denial_count": int(
                     getattr(entry, "policy_denial_count", 0) or 0
                 ),
@@ -41269,6 +41330,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "output_tokens": entry.session.output_tokens,
                     "total_tokens": entry.session.total_tokens,
                 }
+            for phase, count in row["tool_liveness"]["metrics"].items():
+                tool_liveness_totals[phase] += int(count or 0)
             running_rows.append(row)
 
         retry_rows = []
@@ -41358,6 +41421,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "retrying": len(retry_rows),
             },
             "running": running_rows,
+            "tool_liveness": tool_liveness_totals,
             "retrying": retry_rows,
             "owner_claims": owner_claim_rows,
             "agent_totals": {
@@ -41662,6 +41726,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             if entry.session.last_timestamp
                             else None
                         ),
+                        "tool_liveness": self._tool_liveness_state(entry),
                         "tokens": {
                             "input_tokens": entry.session.input_tokens,
                             "output_tokens": entry.session.output_tokens,
