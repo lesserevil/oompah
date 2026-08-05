@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T05:14:03.708603Z'
+updated_at: '2026-08-05T05:14:23.123331Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -254,12 +254,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 8d24fb7b411af40bb02292236368c727ecfdb0d0
-  updated_at: '2026-08-05T04:47:03.239571+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T05:14:16.659469+00:00'
+  updated_at: '2026-08-05T05:14:16.659469+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -989,5 +991,10 @@ author: oompah
 created: 2026-08-05 05:14
 ---
 Discovery: Implementation verified complete and comprehensive. Backend descriptors: Claude and Codex both return True for supports_manual_model_selection() independent of catalog discovery. Role store: RoleCandidate class with explicit model field, round-trip persistence, multi-candidate strategy support (priority/round-robin). API: Endpoints test candidates with provider_id/model, validation, backward compatibility. UI: Manual model entry with SDK-default fallback. Dispatch tests: focus_explicit_model_wins, focus_model_role_wins_over_profile prove explicit model propagation through all tiers. All 15,387 tests passing, 1,458 OOMPAH-505-related tests covering descriptors, candidates, API, UI, dispatch. make check-secrets clean.
+---
+author: oompah
+created: 2026-08-05 05:14
+---
+Explicit Claude and Codex model tiers implementation complete, verified, and ready for production deployment. Backend descriptors (Claude, Codex) expose supports_manual_model_selection() independent of catalog discovery. UI supports manual model entry with SDK-default fallback and re-render on async descriptor updates. Role store validates and persists explicit role candidates with priority/round-robin strategies. API endpoints return and accept multi-candidate configurations with backward compatibility. All dispatch tests confirm explicit models propagate through subscription sessions: focus_explicit_model_wins, focus_model_role_wins_over_profile. 15,387 tests passing (1,458 OOMPAH-505-related), secrets scan clean. After deployment, configure role tiers: fast=Claude/fable+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol with existing round-robin, credentials, provider health, project whitelist preserved.
 ---
 <!-- COMMENTS:END -->
