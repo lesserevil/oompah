@@ -10,9 +10,10 @@ blocked_by:
 - OOMPAH-522
 labels:
 - focus-complete:duplicate_detector
+- human-only
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T16:59:53.458920Z'
+updated_at: '2026-08-05T17:01:21.470798Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
