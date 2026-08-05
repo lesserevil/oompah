@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:34:08.941010Z'
+updated_at: '2026-08-05T01:34:24.960174Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -236,12 +236,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:29:32.311087+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T01:34:19.561201+00:00'
+  updated_at: '2026-08-05T01:34:19.561201+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -668,5 +670,10 @@ author: oompah
 created: 2026-08-05 01:34
 ---
 Verification: Focused test suite passed: 481 tests (test_acp_backends, test_providers, test_providers_ui, test_acp_agent, test_orchestrator_handlers) pass with OOMPAH_AGENT_LOG_DIR redirected to writable /tmp; make check-secrets passes; git status clean and up-to-date with origin. No code changes required; implementation is complete, tested, and live-deployed.
+---
+author: oompah
+created: 2026-08-05 01:34
+---
+Explicit Claude and Codex model tiers fully implemented, tested (481 focused tests), and live-deployed. ACP backends expose manual model selection independently from catalog discovery. UI provides free-text model input for catalog-less providers. Six explicit role mappings configured: fast=haiku/luna, standard=sonnet/terra, deep=opus/sol. Backend validation, role persistence, dispatch propagation, telemetry, documentation, and backward-compatible fallback all verified. Branch clean and pushed at e1b0f4846.
 ---
 <!-- COMMENTS:END -->
