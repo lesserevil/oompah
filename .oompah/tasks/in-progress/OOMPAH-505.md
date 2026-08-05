@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:57:59.439220Z'
+updated_at: '2026-08-05T01:59:04.806035Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -839,5 +839,10 @@ author: oompah
 created: 2026-08-05 01:57
 ---
 Implementation: No patch was needed in this recovery pass. The existing implementation already separates catalog discovery from manual ACP model selection, validates and persists explicit role candidates with empty-model SDK fallback, propagates selected Claude/Codex models through dispatch and telemetry, and preserves provider health, credentials, and whitelist behavior.
+---
+author: oompah
+created: 2026-08-05 01:59
+---
+Verification: Directly affected provider/API/UI/role tests passed (241), ACP dispatch/orchestrator/telemetry tests passed (329), and neighboring client/HTTP/label auth tests passed (183), for 753 passing tests total. make check-secrets passed with only the scanner's existing null-byte warning; no failures or code changes occurred.
 ---
 <!-- COMMENTS:END -->
