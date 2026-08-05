@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T12:49:24.892622Z'
+updated_at: '2026-08-05T12:49:53.841972Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -124,19 +124,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-817
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: e0e5e502cf0173c29761d6901efc1192a719fedea08349b63a0e8f5ae10b517c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-fb82097a3882
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e0e5e502cf0173c29761d6901efc1192a719fedea08349b63a0e8f5ae10b517c
+      created_at: '2026-08-05T12:49:46.738545+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T12:49:46.738545+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-817
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T12:49:18.847330+00:00'
-  attempt_history: []
+    updated_at: '2026-08-05T12:49:46.738545+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-fb82097a3882
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e0e5e502cf0173c29761d6901efc1192a719fedea08349b63a0e8f5ae10b517c
+    created_at: '2026-08-05T12:49:46.738545+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T12:49:46.738545+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-817
 ---
 ## Summary
 
@@ -300,5 +327,15 @@ author: oompah
 created: 2026-08-05 12:49
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 12:49
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 12:49
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
