@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:38:51.477116Z'
+updated_at: '2026-08-05T03:13:06.810729Z'
 work_branch: OOMPAH-539
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/575
@@ -109,6 +109,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/575
 oompah.review_number: '575'
 oompah.work_branch: OOMPAH-539
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2ed6d5ab9763
+    project_id: proj-14849f1b
+    task_id: OOMPAH-539
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b22e7f300da26f58d206891b76515f77ff68247044a532c6c77e1f5fe38c4a6e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T03:13:00.306182+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -428,5 +450,10 @@ author: oompah
 created: 2026-07-29 02:38
 ---
 YOLO: merged PR #575.
+---
+author: oompah
+created: 2026-08-05 03:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
