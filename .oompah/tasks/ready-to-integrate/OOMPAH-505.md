@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:48:27.722252Z'
+updated_at: '2026-08-05T01:48:46.156563Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -775,5 +775,10 @@ author: oompah
 created: 2026-08-05 01:48
 ---
 Explicit Claude and Codex model tiers feature complete, tested, and verified. Exposes supports_manual_model_selection in backend descriptors independently from has_catalog. Provides free-text manual model input for catalog-less ACP backends. Six explicit role mappings configured (fast=Claude/haiku+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol). 664 tests pass, no regressions, make check-secrets passes.
+---
+author: oompah
+created: 2026-08-05 01:48
+---
+Completion: OOMPAH-505 submitted for integration. The explicit Claude/Codex model-tier feature is complete and verified: backend descriptors expose supports_manual_model_selection independently from has_catalog (enabling operator-entered model IDs for catalog-less ACP providers); UI provides free-text manual model input; six explicit role mappings configured with SDK-default fallback for backward compatibility; all 664 focused tests pass with no regressions; secrets scan clean. Implementation ready for production deployment.
 ---
 <!-- COMMENTS:END -->
