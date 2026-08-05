@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:48:09.778297Z'
+updated_at: '2026-08-05T04:49:04.750982Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -827,5 +827,10 @@ author: oompah
 created: 2026-08-05 04:48
 ---
 Understanding: enforce the OOMPAH-522 htpasswd verifier at the ASGI boundary for all HTTP, mounted, and WebSocket surfaces when enabled, with only exact healthz and forge webhook POST exemptions. I will audit the recovered implementation and focused tests, repair any gaps, verify disabled/enabled behavior and forge validation, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-05 04:49
+---
+Discovery: the current branch contains commits fb9526679 and 2c090848a. _BasicAuthMiddleware is outermost around FastAPI and mounts, uses strict Basic parsing and raw_path exact exemptions, redacts Authorization downstream, authenticates WebSockets before endpoint execution, and startup wiring exists for both Granian and uvicorn. Existing tests also cover healthz/build identity and protected MCP surfaces. I found no obvious source gap, so verification will determine whether any repair is needed.
 ---
 <!-- COMMENTS:END -->
