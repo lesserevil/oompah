@@ -235,6 +235,7 @@ class DurableWorkflowWorker:
             "transition.generation_mismatch",
             "transition.head_missing",
             "transition.head_mismatch",
+            "transition.stale_precondition",
         }
     )
 

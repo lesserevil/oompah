@@ -402,6 +402,8 @@ class LandingRequest:
     target: str
     revision: str | None = None
     prior: LandingFact | None = None
+    prefer_live_source: bool = False
+    authoritative_target: bool = False
 
     def __post_init__(self) -> None:
         for name in ("source", "target"):
@@ -578,11 +580,13 @@ class GitLandingCollector:
         project_id: str,
         clock: Callable[[], datetime] | None = None,
         command_timeout_seconds: float = 30.0,
+        target_refresher: Callable[[str], str | None] | None = None,
     ) -> None:
         self.repo_path = Path(repo_path).resolve()
         self.project_id = _required_text(project_id, "project_id")
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self.command_timeout_seconds = max(float(command_timeout_seconds), 0.1)
+        self._target_refresher = target_refresher
 
     def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
         command = ["git", *args]
@@ -675,12 +679,62 @@ class GitLandingCollector:
         )
         return result.returncode == 0
 
+    def collect_many(
+        self, requests: Sequence[LandingRequest]
+    ) -> tuple[LandingFact, ...]:
+        """Collect a batch while refreshing each authoritative target once.
+
+        Enforce-mode runtime wiring supplies ``target_refresher``.  A refresh
+        failure is evidence unavailability, never permission to fall back to
+        a possibly stale local target branch.  A ``None`` result deliberately
+        means that authoritative refresh is disabled (off/shadow mode).
+        """
+
+        target_evidence: dict[str, tuple[str | None, str | None] | None] = {}
+        for request in requests:
+            if not request.authoritative_target or self._target_refresher is None:
+                continue
+            if request.target in target_evidence:
+                continue
+            try:
+                revision = self._target_refresher(request.target)
+                if revision is None:
+                    target_evidence[request.target] = None
+                    continue
+                normalized = str(revision).strip().lower()
+                if not _GIT_REVISION_RE.fullmatch(normalized):
+                    raise ValueError("target refresh returned an invalid revision")
+                target_evidence[request.target] = (normalized, None)
+            except Exception as exc:  # noqa: BLE001 - remote evidence boundary
+                target_evidence[request.target] = (
+                    None,
+                    f"target_refresh_{type(exc).__name__.lower()}",
+                )
+        return tuple(
+            self._collect(request, target_evidence.get(request.target))
+            for request in requests
+        )
+
     def collect(self, request: LandingRequest) -> LandingFact:
+        return self.collect_many((request,))[0]
+
+    def _collect(
+        self,
+        request: LandingRequest,
+        authoritative_target: tuple[str | None, str | None] | None = None,
+    ) -> LandingFact:
         observed_at = _render_time(self._clock())
         source = _required_text(request.source, "source")
         target = _required_text(request.target, "target")
         requested_revision = _optional_text(request.revision)
-        if requested_revision:
+        # Resolve the live ref first. Callers identify mutable epic sources
+        # whose persisted review head is only fallback evidence after pruning;
+        # exact child revisions keep their immutable requested identity.
+        live_revision, live_error = self._resolve(source)
+        if request.prefer_live_source and live_revision is not None:
+            source_revision = live_revision
+            source_error = live_error
+        elif requested_revision:
             source_result = self._run(
                 "cat-file", "-e", f"{requested_revision}^{{commit}}"
             )
@@ -689,13 +743,33 @@ class GitLandingCollector:
             )
             source_error = _git_error_code(source_result.stderr)
         else:
-            source_revision, source_error = self._resolve(source)
-        target_revision, target_error = self._resolve(target)
-        # When a live source ref resolves, bind replay to its current tip.  A
-        # prior landing for the same branch name must not bless commits added
-        # after that proof was recorded.  An explicit immutable revision takes
-        # precedence, and a missing/pruned source may use historical proof.
-        effective_revision = requested_revision or source_revision
+            source_revision, source_error = live_revision, live_error
+        if authoritative_target is None:
+            target_revision, target_error = self._resolve(target)
+        else:
+            target_revision, target_error = authoritative_target
+        # An epic's own mutable source opts into live-tip binding so an older
+        # review cannot bless later commits.  Exact child revisions retain
+        # their immutable identity even when a shared container ref advances.
+        # An explicit immutable revision remains the authority fence even when
+        # its object is not available locally yet.  Treating an unresolved
+        # revision as ``None`` would make ``_matching_prior`` wildcard the
+        # revision and could let an older durable landing authorize newer work.
+        effective_revision = source_revision or requested_revision
+        # A failed authoritative target refresh must fail closed before a
+        # durable prior is considered.  Otherwise stale local history could
+        # keep authorizing cleanup after a remote force-push or merge.
+        if authoritative_target is not None and target_revision is None:
+            return LandingFact(
+                source,
+                target,
+                source_revision or requested_revision,
+                {"kind": LandingProofKind.TARGET_UNAVAILABLE.value},
+                observed_at,
+                self.project_id,
+                state=LandingState.UNKNOWN,
+                error_code=target_error or "target_refresh_failed",
+            )
         prior = self._matching_prior(
             request.prior,
             source=source,
@@ -1150,9 +1224,14 @@ class WorkflowFactCollector:
             )
         elif landing_requests:
             try:
-                collected = tuple(
-                    self.landing_collector.collect(request)
-                    for request in landing_requests
+                collect_many = getattr(self.landing_collector, "collect_many", None)
+                collected = (
+                    tuple(collect_many(landing_requests))
+                    if callable(collect_many)
+                    else tuple(
+                        self.landing_collector.collect(request)
+                        for request in landing_requests
+                    )
                 )
             except Exception as exc:  # noqa: BLE001 - landing evidence boundary
                 observations[FactDomain.LANDING] = FactObservation.error(

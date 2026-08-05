@@ -1224,6 +1224,18 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
         )
         for item in raw_children
     )
+    epic_source = str(value.get("epic_branch") or "").strip()
+    epic_target = str(value.get("target_branch") or "").strip()
+    epic_landing = None
+    if target_relative and epic_source and epic_target:
+        epic_landing = next(
+            (
+                item
+                for item in facts.landings
+                if item.source == epic_source and item.target == epic_target
+            ),
+            None,
+        )
     incomplete: list[UnmetPrerequisite] = []
     landing_unknown: list[UnmetPrerequisite] = []
     landing_observation = facts.fact(FactDomain.LANDING)
@@ -1342,17 +1354,12 @@ def _rollup_decision(task: _TaskView, facts: WorkflowFacts) -> WorkDecision:
             ),
         )
 
-    epic_source = str(value.get("epic_branch") or "").strip()
-    epic_target = str(value.get("target_branch") or "").strip()
     if target_relative and epic_source and epic_target:
-        epic_landing = next(
-            (
-                item
-                for item in facts.landings
-                if item.source == epic_source and item.target == epic_target
-            ),
-            None,
-        )
+        # The epic's own landing can authorize terminalization only after the
+        # current containment snapshot has passed every child obligation above.
+        # A previously landed (or still-base) epic ref must not hide a child
+        # added or reopened after that landing.  Persisted per-child landing
+        # facts keep already-pruned terminal children from deadlocking here.
         if epic_landing is not None and epic_landing.state is LandingState.LANDED:
             return _decision(
                 task,

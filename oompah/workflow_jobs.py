@@ -757,6 +757,55 @@ class WorkflowJobStore:
             values.append(value)
         return tuple(values)
 
+    def latest_landing_facts(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        limit: int = MAX_SCAN_LIMIT,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return the newest durable fact for each source/target pair.
+
+        ``landing_facts`` intentionally exposes a bounded history window.  A
+        workflow recovery pass needs a different projection: one current row
+        for every landing obligation.  Limiting raw history can otherwise let
+        one churning branch evict the only durable proof for a pruned peer.
+        """
+
+        project = _required_text(project_id, "project_id")
+        task = _required_text(task_id, "task_id")
+        bounded = _bounded_limit(limit)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                WITH ranked AS (
+                    SELECT fact_json, source, target,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY source, target
+                               ORDER BY recorded_at DESC,
+                                        evidence_revision DESC
+                           ) AS pair_rank
+                      FROM workflow_landing_facts
+                     WHERE project_id = ? AND task_id = ?
+                       AND json_extract(fact_json, '$.durable') = 1
+                )
+                SELECT fact_json FROM ranked
+                 WHERE pair_rank = 1
+                 ORDER BY source, target
+                 LIMIT ?
+                """,
+                (project, task, bounded),
+            ).fetchall()
+        values: list[dict[str, Any]] = []
+        for row in rows:
+            value = _decode_json_object(row["fact_json"], "landing_fact")
+            if value is None or str(value.get("project_id") or "") != project:
+                raise WorkflowJobCorruptionError(
+                    "landing fact project scope is invalid"
+                )
+            values.append(value)
+        return tuple(values)
+
     @property
     def schema_version(self) -> int:
         with self._lock:

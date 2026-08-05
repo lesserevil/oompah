@@ -9,6 +9,7 @@ clear 409 (epic_state_reverted) rather than silently returning ok=true.
 from __future__ import annotations
 
 import asyncio
+import threading
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -329,6 +330,31 @@ class TestEpicStateVerification:
         # to read `existing_issue` for the is_epic check, but it must NOT
         # call it again for the Epic verification loop.
         assert mock_tracker.fetch_issue_detail.call_count == 2
+
+    def test_non_epic_state_write_holds_project_mutation_fence(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="open"
+        )
+        lock = threading.RLock()
+        mock_orch.project_store.project_write_lock.return_value = lock
+
+        def update_issue(_identifier, **_fields):
+            assert lock._is_owned()  # type: ignore[attr-defined]
+
+        mock_tracker.update_issue.side_effect = update_issue
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            response = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress", "project_id": "proj-1"},
+            )
+
+        assert response.status_code == 200
+        mock_tracker.update_issue.assert_called_once()
 
     def test_epic_state_update_persists_returns_200(self, client):
         """When Epic state change persists, return 200 ok."""

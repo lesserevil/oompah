@@ -18,6 +18,7 @@ import hmac
 import json
 import threading
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,6 +31,34 @@ from oompah.terminal_transition_coordinator import TransitionResult
 
 
 _REAL_THREAD = threading.Thread
+
+
+def test_enforce_mode_suppresses_legacy_epic_webhook_writer():
+    from oompah.server import _label_task_merged_from_pr
+
+    project = SimpleNamespace(id="project-1", name="project")
+    issue = SimpleNamespace(
+        identifier="EPIC-1", issue_type="epic", state="In Review"
+    )
+    tracker = MagicMock()
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch._resolve_task_for_branch.return_value = issue
+    orch.workflow_runtime = SimpleNamespace(
+        enforce=True,
+        project_bindings={
+            "project-1": SimpleNamespace(epic_controller=object())
+        },
+    )
+    event = SimpleNamespace(
+        source_branch="epic-EPIC-1", author="forge", review_id="7"
+    )
+
+    with patch("oompah.server._request_webhook_terminal_transition") as transition:
+        _label_task_merged_from_pr(orch, event, project)
+
+    transition.assert_not_called()
+    tracker.update_issue.assert_not_called()
 
 
 class _ObservableWebhookThread(_REAL_THREAD):

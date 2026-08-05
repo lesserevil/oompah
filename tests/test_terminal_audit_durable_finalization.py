@@ -2691,6 +2691,49 @@ def test_revoked_replacement_result_cancels_exact_finalization(tmp_path) -> None
     store.close()
 
 
+def test_current_evidence_drift_cancels_obsolete_finalization(tmp_path) -> None:
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(store, retry_delay_seconds=0)
+    record = TerminalAuditRecord(
+        audit_id="audit-stale-evidence",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=EvidenceFingerprint("d" * 64),
+        request_state=RequestState.PENDING,
+    )
+    job = workflow.start(
+        record,
+        attempt_id="attempt-stale-evidence",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+    assert job is not None
+    audit_result = _result(record, "attempt-stale-evidence")
+    finalizing = workflow.mark_finalizing(
+        job,
+        record,
+        result=audit_result,
+        attempt_id="attempt-stale-evidence",
+        lease_token=job.lease_token,
+    )
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.terminal_audit_workflow = workflow
+
+    orchestrator._finish_terminal_audit_workflow(
+        Issue(id=TASK_ID, identifier=TASK_ID, title="Task"),
+        audit_result,
+        ResultOutcome(
+            success=False,
+            audit_id=record.audit_id,
+            reason=ResultRejection.CURRENT_EVIDENCE_MISMATCH,
+        ),
+        finalizing,
+    )
+
+    assert store.get(job.job_id).state is WorkflowJobState.CANCELLED
+    store.close()
+
+
 def test_callback_requires_exact_running_entry_and_lease_identity(tmp_path) -> None:
     store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
     workflow = TerminalAuditWorkflow(store)
