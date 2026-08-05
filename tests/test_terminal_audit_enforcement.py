@@ -24,15 +24,19 @@ from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
+    EvidenceFingerprint,
     OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
     Verdict,
     compute_evidence_fingerprint,
+    compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_enforcement import (
+    LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY,
+    LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION,
     LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
     LIFECYCLE_RECONCILIATION_VERSION,
     PendingAudit,
@@ -642,6 +646,55 @@ def _applied_terminal_override(
     return raw
 
 
+def _oompah_660_lifecycle_issue(
+    project_id: str = "proj-14849f1b",
+) -> Issue:
+    issue = Issue(
+        id="OOMPAH-660",
+        identifier="OOMPAH-660",
+        state="Merged",
+        title="Rebase epic-OOMPAH-619 onto main",
+        description=(
+            "The epic branch `epic-OOMPAH-619` is stale: it has fallen behind "
+            "`main`. Rebase the branch onto `origin/main`, resolve any conflicts, "
+            "and force-push with `git push --force-with-lease`.\n\n"
+            "This task was auto-filed because epic OOMPAH-619 was detected as "
+            "stale. Do NOT create a new branch or PR — work directly on "
+            "`epic-OOMPAH-619`."
+        ),
+        parent_id="OOMPAH-619",
+        project_id=project_id,
+        work_branch="epic-OOMPAH-619--task-OOMPAH-660",
+    )
+    issue.integration = IntegrationRecord(
+        state="integrated",
+        attempts=2,
+        task_branch="epic-OOMPAH-619--task-OOMPAH-660",
+        base_branch="epic-OOMPAH-619",
+        base_sha="17658b95e32641e8cf2dbfff06f780c0f6b57916",
+        head_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+        integrated_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+    )
+    return issue
+
+
+def _legacy_done_override(issue: Issue, project_id: str) -> dict[str, object]:
+    variants = compute_integrated_evidence_fingerprint_variants(issue, project_id)
+    assert variants is not None
+    raw = OverrideRecord(
+        override_id="override-6ca80332d3a5",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=variants.legacy_work_branch,
+        authorized_by=ContributorIdentity("lesserevil", "api"),
+        reason="production owner override",
+        created_at="2026-07-31T13:50:42.120929+00:00",
+    ).to_dict()
+    raw["applied"] = True
+    return raw
+
+
 def _v1_exhausted_lifecycle_state(
     identifiers: list[tuple[str, str]],
     started: datetime,
@@ -988,6 +1041,333 @@ def test_lifecycle_done_only_owner_override_repairs_once_but_normal_task_fails_c
     )
     assert repeated == result
     assert tracker.status_updates == [(helper.identifier, "Done")]
+
+
+def test_lifecycle_legacy_equivalence_repairs_exact_production_oompah_660_once(
+    tmp_path,
+):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    variants = compute_integrated_evidence_fingerprint_variants(issue, project_id)
+    assert variants is not None
+    assert variants.integrated.digest.startswith("ab40139d2035")
+    assert variants.legacy_work_branch.digest.startswith("62954f9b5fdc")
+
+    legacy_done = _legacy_done_override(issue, project_id)
+    merged = OverrideRecord(
+        override_id="override-d9ab44234a19",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=variants.legacy_work_branch,
+        authorized_by=ContributorIdentity("oompah-cli", "api"),
+        reason="historical incompatible Merged override",
+    ).to_dict()
+    merged["applied"] = True
+    foreign_merged = dict(merged)
+    foreign_merged["override_id"] = "foreign-merged"
+    foreign_merged["project_id"] = "project-b"
+    state_path = tmp_path / "service_state.json"
+
+    class IntentCheckingTracker(_Tracker):
+        intent_seen = False
+
+        def update_issue(self, identifier: str, **kwargs):
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))[
+                SERVICE_STATE_KEY
+            ]["lifecycle_reconciliation"]["records"][0]
+            assert persisted[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY]["version"] == (
+                LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION
+            )
+            self.intent_seen = True
+            return super().update_issue(identifier, **kwargs)
+
+    tracker = IntentCheckingTracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    legacy_done,
+                    merged,
+                    foreign_merged,
+                ]
+            }
+        ).to_dict()
+    }
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
+
+    assert result["status"] == "complete"
+    assert result["reconciled"] == 1
+    assert result["action_required"] is False
+    assert tracker.intent_seen is True
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+    lifecycle = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]
+    row = lifecycle["records"][0]
+    marker = row[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY]
+    assert row["status"] == "completed"
+    assert row["outcome"] == "reconciled"
+    assert marker["version"] == LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION
+    assert marker["legacy_evidence_fingerprint"] == variants.legacy_work_branch.digest
+    assert marker["current_evidence_fingerprint"] == variants.integrated.digest
+
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    by_id = {
+        raw["override_id"]: raw
+        for raw in stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY]
+    }
+    assert "retired_reason" not in by_id[legacy_done["override_id"]]
+    assert by_id[merged["override_id"]]["lifecycle_reconciled"] is True
+    assert "retired_reason" not in by_id[foreign_merged["override_id"]]
+    reconciliation = stored.unknown_fields["oompah.lifecycle_reconciliations"][0]
+    assert reconciliation[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY] == marker
+
+    writes_before = tracker.set_calls
+    repeated = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=datetime(2026, 8, 6, tzinfo=timezone.utc),
+    )
+    assert repeated == result
+    assert tracker.set_calls == writes_before
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+
+
+def test_lifecycle_current_match_oompah_662_control_needs_no_equivalence(tmp_path):
+    project_id = "proj-14849f1b"
+    issue = _issue("OOMPAH-662", "Merged", "evidence", project_id)
+    issue.title = "Rebase epic-OOMPAH-619 onto main"
+    issue.parent_id = "OOMPAH-619"
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _applied_terminal_override(issue, project_id, TargetState.DONE)
+                ]
+            }
+        ).to_dict()
+    }
+    state_path = tmp_path / "service_state.json"
+    result = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=1
+    )
+
+    assert result["reconciled"] == 1
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY not in row
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "integrated_sha",
+        "base_branch",
+        "task_identity",
+        "target",
+        "authority",
+        "application",
+        "ordinary_task",
+        "ci_fix",
+        "merge_conflict",
+        "retired",
+        "missing_integration",
+        "arbitrary_fingerprint",
+    ],
+)
+def test_lifecycle_legacy_equivalence_one_field_drift_fails_closed(
+    tmp_path,
+    mutation,
+):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    override = _legacy_done_override(issue, project_id)
+    if mutation == "integrated_sha":
+        issue.integration = replace(issue.integration, integrated_sha="f" * 40)
+    elif mutation == "base_branch":
+        issue.integration = replace(issue.integration, base_branch="main")
+    elif mutation == "task_identity":
+        override["task_id"] = "OOMPAH-661"
+    elif mutation == "target":
+        override["target_state"] = TargetState.ARCHIVED.value
+    elif mutation == "authority":
+        override["authorized_by"] = {"version": 1, "identity": ""}
+    elif mutation == "application":
+        override["applied"] = False
+    elif mutation == "ordinary_task":
+        issue.title = "Implement an ordinary feature"
+    elif mutation == "ci_fix":
+        issue.labels = ["ci-fix"]
+    elif mutation == "merge_conflict":
+        issue.labels = ["merge-conflict"]
+    elif mutation == "retired":
+        override["retired_reason"] = "superseded_by_newer_override"
+    elif mutation == "missing_integration":
+        issue.integration = None
+    elif mutation == "arbitrary_fingerprint":
+        override["evidence_fingerprint"] = EvidenceFingerprint("0" * 64).to_dict()
+        override["reason"] = "mentions the exact production SHA and migration"
+
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]}
+        ).to_dict()
+    }
+    result = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=1
+    )
+
+    assert result["reconciled"] == 0
+    assert result["exhausted"] == 1
+    assert tracker.status_updates == []
+
+
+def test_lifecycle_legacy_equivalence_scm_outage_fails_closed(tmp_path):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(issue, project_id)
+                ]
+            }
+        ).to_dict()
+    }
+
+    def unavailable(*_args):
+        raise OSError("SCM unavailable")
+
+    result = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=unavailable,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=1
+    )
+
+    assert result["reconciled"] == 0
+    assert result["exhausted"] == 1
+    assert tracker.status_updates == []
+
+
+def test_lifecycle_legacy_equivalence_recovers_post_write_metadata_failure(
+    tmp_path,
+):
+    project_id = "proj-14849f1b"
+    issue = _oompah_660_lifecycle_issue(project_id)
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _legacy_done_override(issue, project_id)
+                ]
+            }
+        ).to_dict()
+    }
+    state_path = tmp_path / "service_state.json"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    tracker.fail_metadata_updates = True
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=2, now=started
+    )
+
+    assert first["failed"] == 1
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+    intent = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert intent[LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY]["version"] == 1
+
+    tracker.fail_metadata_updates = False
+    recovered = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=2,
+        now=started + timedelta(seconds=30),
+    )
+
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 1
+    assert tracker.status_updates == [(issue.identifier, "Done")]
+
+
+def test_lifecycle_legacy_equivalence_is_project_scoped(tmp_path):
+    task_id = "OOMPAH-660"
+    issue_a = _oompah_660_lifecycle_issue("project-a")
+    issue_b = _oompah_660_lifecycle_issue("project-b")
+    tracker_a = _Tracker([issue_a])
+    tracker_b = _Tracker([issue_b])
+    project_a_override = _legacy_done_override(issue_a, "project-a")
+    tracker_a.metadata[task_id] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [project_a_override]
+            }
+        ).to_dict()
+    }
+    tracker_b.metadata[task_id] = deepcopy(tracker_a.metadata[task_id])
+
+    result = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    ).reconcile_lifecycle_batch(
+        [("project-a", tracker_a), ("project-b", tracker_b)],
+        batch_size=2,
+        max_attempts=1,
+    )
+
+    assert result["reconciled"] == 1
+    assert result["exhausted"] == 1
+    assert tracker_a.status_updates == [(task_id, "Done")]
+    assert tracker_b.status_updates == []
 
 
 @pytest.mark.parametrize(

@@ -46,6 +46,7 @@ from oompah.terminal_audit import (
     TerminalAuditRecord,
     TargetState,
     Verdict,
+    compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -69,6 +70,8 @@ LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 2
 LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION = 2
+LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION = 1
+LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY = "done_override_equivalence"
 DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE = 4
 DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS = 5
 DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS = 30.0
@@ -1708,6 +1711,28 @@ class TerminalAuditEnforcement:
                                                 current_target,
                                             )
                                         )
+                                    recovered_equivalence: Mapping[str, Any] | None = None
+                                    raw_equivalence = row.get(
+                                        LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY
+                                    )
+                                    if (
+                                        current_state == DONE
+                                        and not passed
+                                        and not overrides
+                                        and isinstance(raw_equivalence, Mapping)
+                                    ):
+                                        legacy = (
+                                            self._lifecycle_legacy_done_override_equivalence(
+                                                document,
+                                                issue,
+                                                project_id,
+                                            )
+                                        )
+                                        if legacy is not None and legacy[1] == dict(
+                                            raw_equivalence
+                                        ):
+                                            overrides = [legacy[0]]
+                                            recovered_equivalence = raw_equivalence
                                     if current_state == ARCHIVED and (
                                         passed or overrides
                                     ):
@@ -1722,6 +1747,7 @@ class TerminalAuditEnforcement:
                                         str(row["conflict"]),
                                         passed,
                                         overrides,
+                                        recovered_equivalence,
                                     ):
                                         outcome = "reconciled"
                                     elif current_target is None:
@@ -1808,46 +1834,79 @@ class TerminalAuditEnforcement:
                                                     else "shared_epic_lifecycle_rejected"
                                                 )
                                                 row["conflict"] = conflict_text
-                                                migration_marker = row.pop(
-                                                    "migration_v1_rearm_pending",
-                                                    None,
-                                                )
-                                                migration_started = row.pop(
-                                                    "migration_v1_rearm_started",
-                                                    None,
-                                                )
+                                                legacy_equivalence: (
+                                                    Mapping[str, Any] | None
+                                                ) = None
                                                 try:
-                                                    # Persist the fresh
-                                                    # classification before the
-                                                    # external status write. If
-                                                    # the process dies after the
-                                                    # write, recovery completes
-                                                    # metadata without repeating
-                                                    # the mutation.
-                                                    queue["updated_at"] = (
-                                                        current_time.isoformat()
-                                                    )
-                                                    self._set_lifecycle_state(queue)
-                                                    if not self._persist(
-                                                        self._load_root_state()
-                                                    ):
-                                                        raise RuntimeError(
-                                                            "lifecycle intent was not "
-                                                            "durably persisted"
-                                                        )
+                                                    locked_document = store.read(task_id)
                                                 except Exception as exc:  # noqa: BLE001
-                                                    if migration_marker is True:
-                                                        row[
-                                                            "migration_v1_rearm_pending"
-                                                        ] = True
-                                                    if migration_started is True:
-                                                        row[
-                                                            "migration_v1_rearm_started"
-                                                        ] = True
                                                     error = (
-                                                        "lifecycle_intent_persist_failed:"
+                                                        "lifecycle_authority_read_failed:"
                                                         f"{type(exc).__name__}"
                                                     )
+                                                if (
+                                                    error is None
+                                                    and not locked_document.is_quarantined
+                                                ):
+                                                    legacy = (
+                                                        self._lifecycle_legacy_done_override_equivalence(
+                                                            locked_document,
+                                                            fresh_issue,
+                                                            project_id,
+                                                        )
+                                                    )
+                                                    if legacy is not None:
+                                                        legacy_equivalence = legacy[1]
+                                                        row[
+                                                            LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY
+                                                        ] = copy.deepcopy(legacy[1])
+                                                    else:
+                                                        row.pop(
+                                                            LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY,
+                                                            None,
+                                                        )
+                                                if error is None:
+                                                    migration_marker = row.pop(
+                                                        "migration_v1_rearm_pending",
+                                                        None,
+                                                    )
+                                                    migration_started = row.pop(
+                                                        "migration_v1_rearm_started",
+                                                        None,
+                                                    )
+                                                    try:
+                                                        # Persist the fresh
+                                                        # classification and any
+                                                        # fingerprint-equivalence
+                                                        # version before the external
+                                                        # status write. If the process
+                                                        # dies after the write,
+                                                        # recovery completes metadata
+                                                        # without repeating it.
+                                                        queue["updated_at"] = (
+                                                            current_time.isoformat()
+                                                        )
+                                                        self._set_lifecycle_state(queue)
+                                                        if not self._persist(
+                                                            self._load_root_state()
+                                                        ):
+                                                            raise RuntimeError(
+                                                                "lifecycle intent was not "
+                                                                "durably persisted"
+                                                            )
+                                                    except Exception as exc:  # noqa: BLE001
+                                                        if migration_marker is True:
+                                                            row[
+                                                                "migration_v1_rearm_pending"
+                                                            ] = True
+                                                        if migration_started is True:
+                                                            row[
+                                                                "migration_v1_rearm_started"
+                                                            ] = True
+                                                        error = (
+                                                            "lifecycle_intent_persist_failed:"
+                                                            f"{type(exc).__name__}"
+                                                        )
                                             if error is None and fresh_has_conflict:
                                                 assert fresh_issue is not None
                                                 assert conflict_text is not None
@@ -1860,6 +1919,9 @@ class TerminalAuditEnforcement:
                                                     fresh_issue,
                                                     project_id,
                                                     validated_conflict=conflict_text,
+                                                    done_override_equivalence=(
+                                                        legacy_equivalence
+                                                    ),
                                                 ):
                                                     outcome = "reconciled"
                                                 else:
@@ -2013,6 +2075,96 @@ class TerminalAuditEnforcement:
                 overrides.append(record)
         return passed, overrides
 
+    @classmethod
+    def _lifecycle_legacy_done_override_equivalence(
+        cls,
+        document: TerminalAuditMetadata,
+        issue: Issue,
+        project_id: str,
+    ) -> tuple[OverrideRecord, dict[str, Any]] | None:
+        """Return the one explicitly recognized legacy Done override pair.
+
+        This is deliberately narrower than normal terminal authority.  It
+        accepts exactly one active, applied Done override whose fingerprint is
+        the reconstructed pre-OOMPAH-729 work-branch shape while the issue's
+        current fingerprint is the reconstructed integrated shape.
+        """
+
+        if not cls._lifecycle_done_only_issue(issue):
+            return None
+        variants = compute_integrated_evidence_fingerprint_variants(
+            issue, project_id
+        )
+        if variants is None or variants.integrated == variants.legacy_work_branch:
+            return None
+
+        identifier = str(issue.identifier)
+        candidates: list[OverrideRecord] = []
+        raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+        for raw in raw_overrides if isinstance(raw_overrides, list) else []:
+            if not isinstance(raw, Mapping):
+                continue
+            if (
+                raw.get("project_id") != project_id
+                or raw.get("task_id") != identifier
+                or raw.get("target_state") != TargetState.DONE.value
+                or raw.get("applied") is not True
+                or any(
+                    bool(raw.get(key))
+                    for key in (
+                        "retired_at",
+                        "retired_reason",
+                        "retired_by_reconciliation",
+                        "retired_by_override",
+                        "retired_by_lifecycle",
+                        "lifecycle_retired",
+                        "superseded",
+                        "superseded_at",
+                        "superseded_by",
+                    )
+                )
+            ):
+                continue
+            try:
+                record = OverrideRecord.from_dict(raw)
+            except (TypeError, ValueError):
+                continue
+            if (
+                record.project_id != project_id
+                or record.task_id != identifier
+                or record.target_state != TargetState.DONE
+                or record.evidence_fingerprint
+                != variants.legacy_work_branch
+                or raw.get("evidence_fingerprint")
+                != record.evidence_fingerprint.to_dict()
+                or raw.get("authorized_by") != record.authorized_by.to_dict()
+            ):
+                continue
+            candidates.append(record)
+        if len(candidates) != 1:
+            return None
+
+        record = candidates[0]
+        marker = {
+            "version": LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION,
+            "project_id": project_id,
+            "task_id": identifier,
+            "target_state": TargetState.DONE.value,
+            "override_id": record.override_id,
+            "authorized_by": record.authorized_by.to_dict(),
+            "applied": True,
+            "legacy_evidence_fingerprint": variants.legacy_work_branch.digest,
+            "current_evidence_fingerprint": variants.integrated.digest,
+            "integration": {
+                "state": "integrated",
+                "task_branch": variants.task_branch,
+                "head_sha": variants.head_sha,
+                "base_branch": variants.base_branch,
+                "integrated_sha": variants.integrated_sha,
+            },
+        }
+        return record, marker
+
     def _finalize_incompatible_shared_epic_merged(
         self,
         store: TerminalAuditMetadataStore,
@@ -2022,6 +2174,7 @@ class TerminalAuditEnforcement:
         conflict: str,
         done_records: list[TerminalAuditRecord],
         done_overrides: list[OverrideRecord] | None = None,
+        done_override_equivalence: Mapping[str, Any] | None = None,
     ) -> bool:
         """Finish metadata/audit retirement after a prior status write.
 
@@ -2033,6 +2186,11 @@ class TerminalAuditEnforcement:
         identifier = str(issue.identifier)
         now = datetime.now(timezone.utc).isoformat()
         reconciliation_created = False
+        exact_task_ids = (
+            {identifier}
+            if done_override_equivalence is not None
+            else {identifier, str(getattr(issue, "id", "") or "")}
+        )
 
         def _finalize(current):
             nonlocal reconciliation_created
@@ -2041,7 +2199,7 @@ class TerminalAuditEnforcement:
                 replace(record, request_state=RequestState.SUPERSEDED, updated_at=now)
                 if (
                     record.project_id == project_id
-                    and record.task_id in {identifier, str(getattr(issue, "id", "") or "")}
+                    and record.task_id in exact_task_ids
                     and record.target_state == TargetState.MERGED
                     and record.request_state
                     in {
@@ -2145,6 +2303,15 @@ class TerminalAuditEnforcement:
                         "done_override_ids": [
                             record.override_id for record in (done_overrides or [])
                         ],
+                        **(
+                            {
+                                "done_override_equivalence": copy.deepcopy(
+                                    dict(done_override_equivalence)
+                                )
+                            }
+                            if done_override_equivalence is not None
+                            else {}
+                        ),
                         "created_at": now,
                     }
                 )
@@ -2185,6 +2352,7 @@ class TerminalAuditEnforcement:
         project_id: str,
         *,
         validated_conflict: str | None = None,
+        done_override_equivalence: Mapping[str, Any] | None = None,
     ) -> bool:
         """Restore legacy shared children to audited Done before recovery.
 
@@ -2231,6 +2399,14 @@ class TerminalAuditEnforcement:
             project_id,
             TargetState.DONE,
         )
+        if not done_records and not done_overrides and done_override_equivalence is not None:
+            legacy = self._lifecycle_legacy_done_override_equivalence(
+                document,
+                issue,
+                project_id,
+            )
+            if legacy is not None and legacy[1] == dict(done_override_equivalence):
+                done_overrides = [legacy[0]]
         if not done_records and not (
             done_overrides and self._lifecycle_done_only_issue(issue)
         ):
@@ -2258,6 +2434,7 @@ class TerminalAuditEnforcement:
             conflict,
             done_records,
             done_overrides,
+            done_override_equivalence,
         )
         if finalized:
             logger.warning(
@@ -2946,6 +3123,8 @@ TerminalAuditEnforcementCoordinator = TerminalAuditEnforcement
 
 __all__ = [
     "GrandfatherTuple",
+    "LEGACY_DONE_OVERRIDE_EQUIVALENCE_KEY",
+    "LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION",
     "PendingAudit",
     "SERVICE_STATE_KEY",
     "SERVICE_STATE_VERSION",

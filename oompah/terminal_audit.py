@@ -378,6 +378,142 @@ def compute_evidence_fingerprint(
     )
 
 
+@dataclass(frozen=True)
+class IntegratedEvidenceFingerprintVariants:
+    """The two historical canonical snapshots for one integrated task.
+
+    ``integrated`` is the current landed-task shape introduced by OOMPAH-729.
+    ``legacy_work_branch`` is the earlier normalized/API shape.  The durable
+    integration fields are retained so migration callers can checkpoint and
+    later revalidate the exact evidence used to establish equivalence.
+    """
+
+    integrated: EvidenceFingerprint
+    legacy_work_branch: EvidenceFingerprint
+    task_branch: str
+    head_sha: str
+    base_branch: str
+    integrated_sha: str
+
+
+def compute_integrated_evidence_fingerprint_variants(
+    issue: Any,
+    project_id: str,
+) -> IntegratedEvidenceFingerprintVariants | None:
+    """Reconstruct the bounded pre/post-canonicalization fingerprint pair.
+
+    Both shapes are derived from the same durable ``integrated`` record.  Any
+    explicit normalized issue field that disagrees with that record makes the
+    pair unavailable.  This helper is intentionally not a general fingerprint
+    history or drift-tolerance mechanism; it recognizes only the one landed
+    task canonicalization used by the lifecycle migration.
+    """
+
+    integration = getattr(issue, "integration", None)
+    if str(getattr(integration, "state", None) or "").strip().lower() != "integrated":
+        return None
+
+    durable: dict[str, str] = {}
+    for name in ("task_branch", "head_sha", "base_branch", "integrated_sha"):
+        value = getattr(integration, name, None)
+        if not isinstance(value, str) or not value.strip():
+            return None
+        durable[name] = value.strip()
+
+    # Re-run the exact pre-OOMPAH-729 fallback order, then require every
+    # resolved branch/SHA to agree with the immutable integration record.
+    legacy_source_branch = str(
+        getattr(issue, "source_branch", None)
+        or getattr(issue, "work_branch", None)
+        or durable["task_branch"]
+        or getattr(issue, "branch_name", None)
+        or ""
+    )
+    legacy_source_sha = str(
+        getattr(issue, "source_sha", None) or durable["head_sha"] or ""
+    )
+    legacy_target_branch = str(
+        getattr(issue, "target_branch", None) or durable["base_branch"] or ""
+    )
+    legacy_target_sha = str(
+        getattr(issue, "target_sha", None) or durable["integrated_sha"] or ""
+    )
+    if (
+        legacy_source_branch != durable["task_branch"]
+        or legacy_source_sha != durable["head_sha"]
+        or legacy_target_branch != durable["base_branch"]
+        or legacy_target_sha != durable["integrated_sha"]
+    ):
+        return None
+
+    contributors = getattr(issue, "contributors", ()) or ()
+    if isinstance(contributors, str):
+        contributors = (contributors,)
+    integrated_contributors = contributors or (
+        ContributorIdentity(
+            identity=durable["task_branch"],
+            source="git-branch",
+        ),
+    )
+    child_digests = getattr(issue, "child_audit_digests", ()) or ()
+    if isinstance(child_digests, str):
+        child_digests = (child_digests,)
+
+    common = {
+        "requirements_text": str(getattr(issue, "description", None) or ""),
+        "project_id": str(project_id),
+        "task_id": str(
+            getattr(issue, "identifier", None)
+            or getattr(issue, "id", None)
+            or ""
+        ),
+        "review_id": str(
+            getattr(issue, "review_id", None)
+            or getattr(issue, "review_number", None)
+            or ""
+        ),
+        "review_state": str(getattr(issue, "review_state", None) or ""),
+        "child_audit_digests": child_digests,
+    }
+    try:
+        integrated = compute_evidence_fingerprint(
+            **common,
+            source_branch=durable["base_branch"],
+            source_sha=durable["integrated_sha"],
+            target_branch=durable["base_branch"],
+            target_sha=durable["integrated_sha"],
+            contributors=integrated_contributors,
+        )
+        legacy = compute_evidence_fingerprint(
+            **common,
+            source_branch=legacy_source_branch,
+            source_sha=legacy_source_sha,
+            target_branch=legacy_target_branch,
+            target_sha=legacy_target_sha,
+            contributors=contributors,
+        )
+    except (TypeError, ValueError):
+        return None
+
+    # The current canonical path must still be exactly the reconstructed
+    # integrated shape.  A future canonicalization change must introduce a
+    # new explicit migration rather than silently widening this one.
+    try:
+        current = compute_issue_evidence_fingerprint(issue, project_id)
+    except (TypeError, ValueError):
+        return None
+    if current != integrated:
+        return None
+    return IntegratedEvidenceFingerprintVariants(
+        integrated=integrated,
+        legacy_work_branch=legacy,
+        task_branch=durable["task_branch"],
+        head_sha=durable["head_sha"],
+        base_branch=durable["base_branch"],
+        integrated_sha=durable["integrated_sha"],
+    )
+
+
 def _resolve_epic_branch_names(
     issue_identifier: str,
     parent_id: str | None = None,
@@ -886,6 +1022,7 @@ __all__ = [
     "ContributorIdentity",
     "EvidenceFingerprint",
     "FailureClassification",
+    "IntegratedEvidenceFingerprintVariants",
     "OverrideRecord",
     "RequestState",
     "TargetState",
@@ -893,5 +1030,6 @@ __all__ = [
     "TerminalState",
     "Verdict",
     "compute_evidence_fingerprint",
+    "compute_integrated_evidence_fingerprint_variants",
     "compute_issue_evidence_fingerprint",
 ]
