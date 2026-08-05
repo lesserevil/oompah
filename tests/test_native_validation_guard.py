@@ -27,6 +27,34 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def test_guard_install_skips_missing_path_directories(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3")
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    versioned_python = real_bin / "python3.11"
+    versioned_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    versioned_python.chmod(0o700)
+    missing_bin = tmp_path / "missing-bin"
+
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{missing_bin}{os.pathsep}{real_bin}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    guard_bin = root / "validation-guard-bin"
+    assert (guard_bin / "python3.11").is_symlink()
+    assert guarded["PATH"].endswith(
+        f"{os.pathsep}{missing_bin}{os.pathsep}{real_bin}"
+    )
+
+
 def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     real_bin = tmp_path / "real-bin"

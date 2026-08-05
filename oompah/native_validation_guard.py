@@ -62,8 +62,12 @@ def _python_command_names(search_path: str) -> set[str]:
     for raw_directory in search_path.split(os.pathsep):
         directory = Path(raw_directory or ".")
         try:
-            entries = directory.iterdir()
+            entries = tuple(directory.iterdir())
         except OSError:
+            # PATH commonly retains optional package-manager directories that
+            # are absent on a particular host (for example /snap/bin on a
+            # GitHub runner).  Command discovery must tolerate those stale
+            # entries just like shutil.which does.
             continue
         for entry in entries:
             name = entry.name
