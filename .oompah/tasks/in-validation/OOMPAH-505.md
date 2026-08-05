@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Validation
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:27:10.538151Z'
+updated_at: '2026-08-05T18:27:59.245806Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: null
+oompah.agent_run_id: 1693d481-61b7-461e-a859-27061024a18c
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9681529
@@ -199,6 +199,23 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-04T18:28:16.713563+00:00'
     updated_at: '2026-08-05T00:00:56.552899+00:00'
+  - version: 1
+    audit_id: audit-adbaaac8362f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Progress
+    created_at: '2026-08-05T18:27:54.797137+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-140026660249
@@ -1385,5 +1402,10 @@ created: 2026-08-05 18:27
 Integration could not verify `epic-OOMPAH-502--task-OOMPAH-505`: remote epic branch epic-OOMPAH-502 does not exist
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-05 18:27
+---
+OOMPAH-840 in-flight workaround: parent OOMPAH-502 is Merged and its epic branch was intentionally pruned. Exact task branch/head epic-OOMPAH-502--task-OOMPAH-505 at e1b0f4846054bacac48e667295e2c00733d86d8c is reachable from origin/main b53bdbc77, and the task history records focused/full verification plus deployed live model-tier configuration. Route the already-landed exact evidence to audited Done instead of resubmitting to a deleted terminal container.
 ---
 <!-- COMMENTS:END -->

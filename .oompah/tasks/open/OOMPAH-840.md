@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-05T18:23:53.963510Z'
+updated_at: '2026-08-05T18:27:47.430729Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live reproduction: OOMPAH-523 was re-submitted at unchanged verified head 9ea2b5
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 18:27
+---
+Second live reproduction after project resume: OOMPAH-505 completed its deployment/configuration verification, submitted exact pushed head e1b0f4846, then blocked on the intentionally pruned remote epic-OOMPAH-502 even though that exact head is reachable from origin/main and parent OOMPAH-502 is Merged. This confirms the defect is generic to late/reopened children of terminal epics, not specific to authentication epic OOMPAH-521.
+---
+<!-- COMMENTS:END -->
