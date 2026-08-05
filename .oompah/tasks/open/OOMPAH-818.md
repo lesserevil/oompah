@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T02:43:41.109562Z'
+updated_at: '2026-08-05T02:59:52.597395Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-08-05 02:39
 ---
 Action-time race repair pushed at 3d19d3ff38cc9c1d693c46e3f48303d15c54f03e. Queue-backed reopen now requires complete exact tracker integration identity, revalidates live SCM branch head against the actionable evidence head under shared issue-transition authority, and fails closed on missing metadata, B→A rollback, or tracker generation changes. 151 focused tests pass; awaiting a fresh independent review before resubmission.
+---
+author: oompah
+created: 2026-08-05 02:59
+---
+Corrected forward repair pushed at exact head e3140b65f. Managed tasks with any durable integration-queue row now require the exact row generation for reopen; legacy generation-free decisions are fenced by proven row absence across the tracker mutation. CI/rebase comment fallbacks preserve exact head and generation. Focused watchdog/queue coverage: 247 passed; independent exact-head review is running. Server remains paused until acceptance.
 ---
 <!-- COMMENTS:END -->
