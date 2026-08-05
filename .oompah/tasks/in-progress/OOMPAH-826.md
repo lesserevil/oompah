@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T18:28:46.752140Z'
+updated_at: '2026-08-05T18:48:19.045738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,23 @@ author: oompah
 created: 2026-08-05 18:28
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-05 18:48
+---
+Understanding: Three call sites in oompah/orchestrator.py adopt an existing open review without running the exact-head branch quality gate first:
+
+1. \`_ensure_review_exists\` cached path (~line 21455) - iterates \`_reviews_cache\`, calls \`_mark_task_in_review\` when a matching open review is found.
+2. \`_ensure_review_exists\` live path (~line 21547) - live provider fetch, same pattern.
+3. \`_reconcile_standalone_ready_to_integrate_tasks\` (~line 8959) - calls \`_adopt_standalone_open_review_owned\` for an existing open PR.
+4. \`adopt_open_review_from_webhook\` (line 4139) - updates task to In Review inside the transition mutex, no gate.
+
+The epic path (\`_open_epic_main_prs\` ~line 18313) was already fixed for OOMPAH-520 with the exact pattern I need to replicate: capacity adoption first, then \`_review_quality_gate_passes\`, then mark In Review.
+
+Plan:
+- Insert \`_review_quality_gate_passes\` between capacity adoption and \`_mark_task_in_review\` in the two \`_ensure_review_exists\` paths.
+- Insert the gate call before \`_adopt_standalone_open_review_owned\`.
+- Refactor \`adopt_open_review_from_webhook\` to run the gate on the resolved current head after CAS validation but before the metadata write and In Review update. Gate cache on head SHA keeps unchanged heads single-flight; failure routes through the existing NEEDS_CI_FIX flow via \`_record_quality_gate_failure\`.
+- Tests: update \`test_existing_open_review_is_reused_idempotently\` and add coverage for changed-head gating, unchanged-head PASS reuse, gate failure preserving the review, and webhook adoption gating.
 ---
 <!-- COMMENTS:END -->
