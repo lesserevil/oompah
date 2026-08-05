@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-04T22:06:55.782841Z'
+updated_at: '2026-08-05T15:56:19.710293Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 24s
 - Log: OOMPAH-810__20260804T220544Z.jsonl
+---
+author: oompah
+created: 2026-08-05 15:56
+---
+Additional live worker reproduction (not only auditors): OOMPAH-523 run OOMPAH-523__20260805T141858Z requested approved `make test 2>&1 | tail -50` at 15:18:28, waited fairly for the validation lease, acquired it after OOMPAH-815 exact gate, ran PID 2028835/pytest 2029072, and released the lane around 15:54:03. No ACP tool_result was ever appended. In the same boundary the stall supervisor used 5,726s accumulated no-event age, terminated the otherwise healthy Sonnet worker, and escalated it to deep. Extend OOMPAH-810 acceptance to implementation-worker ACP run_command as well as terminal auditors: child exit/result_pending must suppress the generic stall decision until exactly one bounded result is delivered or a precise delivery timeout is persisted.
 ---
 <!-- COMMENTS:END -->
