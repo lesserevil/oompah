@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T06:07:56.414373Z'
+updated_at: '2026-08-05T06:17:44.190114Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -21,47 +21,14 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-814
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
-  head_sha: 254b131c713bece56500a72408f796c46bfee8d0
-  submitted_at: '2026-08-05T01:25:39.762537+00:00'
-  updated_at: '2026-08-05T01:26:41.744115+00:00'
-  last_error: "Combined-tree quality gate failed: TestForwarderProcessFullLifecycle::test_stop_terminates_all_tracked_processes\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7f930d20b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketRefreshIncludesAuth::test_ws_refresh_includes_http_auth\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-r0e807m_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7a49bf8979c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_event_driven_loop.py::TestRetryTimerResetsInProgressOnRelease::test_does_not_reset_when_running_agent_exists\n\
-    FAILED tests/test_release_delivery_refresh.py::TestTrickleScaleBacklogRegressionOOMPAH251::test_scm_calls_bounded_by_items_with_deleted_branches\n\
-    = 2 failed, 15693 passed, 8 skipped, 1 xfailed, 45 warnings in 785.45s (0:13:05)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 7bf278b09de0a311c1d1050f6733c5fc9f530975
+  submitted_at: '2026-08-05T06:17:37.420216+00:00'
+  updated_at: '2026-08-05T06:17:37.420216+00:00'
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-814
 oompah.duplicate_screening:
@@ -472,5 +439,10 @@ author: oompah
 created: 2026-08-05 06:07
 ---
 Rebased the accepted OOMPAH-814 tests-only patch onto reconciled systemic parent ceafd8e14. New exact clean pushed head is 7bf278b09de0a311c1d1050f6733c5fc9f530975; diff remains confined to tests/test_submit_queue_concurrency.py and tests/test_orchestrator_merged.py. Post-rebase focused verification: 227/227 pass, diff check clean. Holding submission until the two active independent terminal auditors release the four-worker full-test lane, then this exact head will receive the canonical combined-tree gate.
+---
+author: oompah
+created: 2026-08-05 06:17
+---
+Rebased deterministic submit-queue fixtures onto reconciled systemic parent at exact pushed head 7bf278b09de0a311c1d1050f6733c5fc9f530975; 227 focused regressions and required scans pass.
 ---
 <!-- COMMENTS:END -->
