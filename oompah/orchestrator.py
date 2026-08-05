@@ -7169,18 +7169,24 @@ class Orchestrator:
                 self._reconcile_pending_recovery_publications,
             )
 
-        # Enforce mode has one lifecycle owner: the durable workflow runtime.
-        # Return before any legacy dispatch, review, integration, watchdog, or
-        # epic-rollup writer can run.  The runtime performs its own bounded
-        # fact scan, scheduling, and leased worker pass.
+        # Enforce mode has one owner per durable domain. TerminalAuditWorkflow
+        # retains audit launch/finalization ownership; the generic worker must
+        # never claim those rows. All other domains run through the shared
+        # runtime before we return ahead of legacy lifecycle writers.
         if self.workflow_runtime is not None and self.workflow_runtime.enforce:
             if not self.workflow_runtime.started:
                 await self.workflow_runtime.start()
+            # Review decisions must be based on a fresh provider snapshot.
+            # This is a read-only fact refresh; effect ownership remains with
+            # the durable review handlers below.
+            await self._handle_review_check()
+            audit_metrics = await self._dispatch_audit_lane()
             report = await self.workflow_runtime.reconcile_async()
             self._last_tick_metrics = {
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "durable_runtime": True,
                 "workflow_runtime": report,
+                "terminal_audit": audit_metrics,
                 "total_ms": (self._monotonic_clock() - t0) * 1000,
             }
             self._last_tick_timings = dict(self._last_tick_metrics)

@@ -13,12 +13,12 @@ the nested epic.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import re
-from typing import Any
+from typing import Any, Protocol
 
 from oompah.models import Issue
 from oompah.projects import sanitize_branch_identifier
@@ -34,6 +34,15 @@ from oompah.workflow_facts import (
 )
 from oompah.workflow_jobs import WorkflowJob, WorkflowJobSpec, WorkflowJobStore
 from oompah.workflow_scheduler import WorkflowJobScheduler, WorkflowReconcileResult
+from oompah.workflow_worker import (
+    EffectObservation,
+    EffectResult,
+    RevalidationResult,
+    VerificationResult,
+    WorkflowActionDomain,
+    WorkflowActionError,
+    WorkflowJobContext,
+)
 
 
 DEFAULT_EPIC_DECISION_LIMIT = 1000
@@ -417,7 +426,12 @@ class EpicWorkflowController:
         self._latest: dict[str, EpicTaskDecision] = {}
         self._landings: dict[tuple[str, str], LandingFact] = {}
 
-    def evaluate(self, tasks: Sequence[Issue]) -> EpicDecisionBatch:
+    def evaluate(
+        self,
+        tasks: Sequence[Issue],
+        *,
+        persist_evidence: bool = True,
+    ) -> EpicDecisionBatch:
         selected = dict(sorted({task.identifier: task for task in tasks}.items()))
         selected = dict(tuple(selected.items())[: self.decision_limit])
         evaluated: list[EpicTaskDecision] = []
@@ -448,7 +462,7 @@ class EpicWorkflowController:
                 if landing.durable:
                     self._landings[(landing.source, landing.target)] = landing
             durable = [landing.to_dict() for landing in facts.landings if landing.durable]
-            if durable:
+            if durable and persist_evidence:
                 self.store.record_landing_facts(
                     project_id=self.collector.project_id,
                     task_id=task.identifier,
@@ -557,6 +571,82 @@ class EpicWorkflowController:
         )
 
 
+class EpicWorkflowBackend(Protocol):
+    """Task-scoped effect boundary for durable epic actions."""
+
+    def revalidate(
+        self, context: WorkflowJobContext
+    ) -> RevalidationResult | Awaitable[RevalidationResult]: ...
+
+    def inspect(
+        self, context: WorkflowJobContext
+    ) -> EffectObservation | Awaitable[EffectObservation]: ...
+
+    def apply(
+        self, context: WorkflowJobContext
+    ) -> EffectResult | Awaitable[EffectResult]: ...
+
+    def verify(
+        self,
+        context: WorkflowJobContext,
+        effect: EffectResult,
+    ) -> VerificationResult | Awaitable[VerificationResult]: ...
+
+    def build_transition(
+        self,
+        context: WorkflowJobContext,
+        verification: VerificationResult,
+    ) -> Any | Awaitable[Any]: ...
+
+
+async def _resolve_backend(value: Any) -> Any:
+    import inspect
+
+    return await value if inspect.isawaitable(value) else value
+
+
+class EpicWorkflowHandler:
+    """Validate and execute one exact epic-domain action."""
+
+    domain = WorkflowActionDomain.TRACKER
+
+    def __init__(self, backend: EpicWorkflowBackend) -> None:
+        self.backend = backend
+
+    async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
+        result = await _resolve_backend(self.backend.revalidate(context))
+        if not isinstance(result, RevalidationResult):
+            raise WorkflowActionError("epic backend returned invalid revalidation")
+        return result
+
+    async def inspect(self, context: WorkflowJobContext) -> EffectObservation:
+        result = await _resolve_backend(self.backend.inspect(context))
+        if not isinstance(result, EffectObservation):
+            raise WorkflowActionError("epic backend returned invalid observation")
+        return result
+
+    async def apply(self, context: WorkflowJobContext) -> EffectResult:
+        result = await _resolve_backend(self.backend.apply(context))
+        if not isinstance(result, EffectResult):
+            raise WorkflowActionError("epic backend returned invalid effect")
+        return result
+
+    async def verify(
+        self, context: WorkflowJobContext, effect: EffectResult
+    ) -> VerificationResult:
+        result = await _resolve_backend(self.backend.verify(context, effect))
+        if not isinstance(result, VerificationResult):
+            raise WorkflowActionError("epic backend returned invalid verification")
+        return result
+
+    async def build_transition(
+        self, context: WorkflowJobContext, verification: VerificationResult
+    ) -> Any:
+        return await _resolve_backend(
+            self.backend.build_transition(context, verification)
+        )
+
+
 __all__ = [
     "DEFAULT_EPIC_DECISION_LIMIT",
     "EPIC_ACTIONS",
@@ -568,6 +658,8 @@ __all__ = [
     "EpicTargetResolutionError",
     "EpicTaskDecision",
     "EpicWorkflowController",
+    "EpicWorkflowBackend",
+    "EpicWorkflowHandler",
     "epic_branch",
     "resolve_epic_target",
 ]

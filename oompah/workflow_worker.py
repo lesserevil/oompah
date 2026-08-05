@@ -484,13 +484,8 @@ class DurableWorkflowWorker:
 
             saved_effect = resume_checkpoint.get("effect")
             saved_verification = resume_checkpoint.get("verification")
-            if isinstance(saved_effect, Mapping) and isinstance(
-                saved_verification, Mapping
-            ):
+            if isinstance(saved_effect, Mapping):
                 effect = EffectResult(dict(saved_effect))
-                verification = VerificationResult(
-                    True, dict(saved_verification)
-                )
             else:
                 observation = await self._bounded(
                     "inspect", handler.inspect(context)
@@ -516,15 +511,33 @@ class DurableWorkflowWorker:
                         },
                     )
                     effect = await self._bounded("apply", handler.apply(context))
-                    await self._notify("effect_returned", context.job)
-                    context.check_interrupted()
                     if not isinstance(effect, EffectResult):
                         raise WorkflowActionError(
                             "handler returned an invalid effect result",
                             category=WorkflowFailureCategory.PERMANENT,
                             retryable=False,
                         )
+                # Persist the exact returned/observed receipt before asking the
+                # backend to verify it. A process crash in that gap must replay
+                # verification, never the external effect.
+                await self._checkpoint(
+                    context,
+                    phase="effect_returned",
+                    checkpoint={
+                        "revalidation": self._revalidation_checkpoint(
+                            revalidation
+                        ),
+                        "effect": dict(effect.receipt),
+                    },
+                )
+                await self._notify("effect_returned", context.job)
+                context.check_interrupted()
 
+            if isinstance(saved_verification, Mapping):
+                verification = VerificationResult(
+                    True, dict(saved_verification)
+                )
+            else:
                 verification = await self._bounded(
                     "verify", handler.verify(context, effect)
                 )

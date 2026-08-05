@@ -549,6 +549,46 @@ def test_preserved_finalizer_cannot_starve_abandoned_recovery_limit(store):
     assert store.get(ordinary.job_id).state is WorkflowJobState.QUEUED
 
 
+def test_recovery_filters_project_action_and_phase_without_touching_terminal(store):
+    store.enqueue(
+        spec(
+            "implementation",
+            project="project-a",
+            task="TASK-I",
+            action="implementation_start",
+            phase="applying",
+        )
+    )
+    store.enqueue(
+        spec(
+            "terminal",
+            project="project-a",
+            task="TASK-A",
+            action="terminal_audit",
+            phase="finalizing",
+        )
+    )
+    implementation = store.claim_next(
+        lease_owner="old-runtime",
+        lease_seconds=30,
+        actions=("implementation_start",),
+    )
+    terminal = store.claim_next(
+        lease_owner="terminal-audit",
+        lease_seconds=30,
+        actions=("terminal_audit",),
+    )
+
+    assert store.recover_abandoned(
+        lease_owner="old-runtime",
+        project_id="project-a",
+        actions=("implementation_start",),
+        phases=("applying",),
+    ) == 1
+    assert store.get(implementation.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(terminal.job_id).state is WorkflowJobState.RUNNING
+
+
 def test_supersede_revokes_running_lease_and_never_revives_on_enqueue(store):
     original_spec = spec()
     store.enqueue(original_spec)

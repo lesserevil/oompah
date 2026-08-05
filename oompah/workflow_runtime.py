@@ -16,8 +16,10 @@ tracker to the management tracker.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
+import re
 import threading
 import uuid
 from collections.abc import Mapping, Sequence
@@ -25,7 +27,17 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from oompah.integration_workflow import IntegrationWorkflowController
+from oompah.epic_workflow import EPIC_ACTIONS, EpicFactCollector, EpicWorkflowController
+from oompah.implementation_workflow import (
+    IMPLEMENTATION_ACTIONS,
+    ImplementationWorkflowController,
+)
+from oompah.integration_workflow import (
+    INTEGRATION_ACTIONS,
+    IntegrationWorkflowController,
+)
+from oompah.review_workflow import ReviewWorkflowController
+from oompah.statuses import IN_VALIDATION, canonicalize_status
 from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
     TaskTransitionService,
@@ -36,7 +48,6 @@ from oompah.workflow_jobs import (
     WorkflowFailureCategory,
     WorkflowJobStore,
 )
-from oompah.workflow_scheduler import WorkflowJobScheduler
 from oompah.workflow_worker import (
     EffectObservation,
     EffectResult,
@@ -48,7 +59,7 @@ from oompah.workflow_worker import (
     WorkflowJobContext,
     DurableWorkflowWorker,
 )
-from oompah.work_decision import evaluate_task
+from oompah.work_decision import REVIEW_ACTION_JOBS
 
 logger = logging.getLogger(__name__)
 
@@ -56,29 +67,19 @@ LEGACY_PROJECT_ID = "legacy"
 DEFAULT_RUNTIME_DECISION_LIMIT = 100
 DEFAULT_RUNTIME_BATCH_SIZE = 32
 
-# These names are intentionally bounded.  New domain adapters can add their
-# own handler to the bootstrap without changing the worker's composition root.
-_IMPLEMENTATION_ACTIONS = frozenset(
-    {
-        "implementation_start",
-        "direct_owner_claim",
-        "duplicate_screening",
-        "focus_handoff",
-        "worker_exit",
-        "validation_submission",
-        "authority_revocation",
-        "implementation_retry",
-        "implementation_recovery",
-    }
+_DOMAIN_ACTIONS = {
+    "implementation": IMPLEMENTATION_ACTIONS,
+    "review": REVIEW_ACTION_JOBS,
+    "integration": INTEGRATION_ACTIONS,
+    "epic": EPIC_ACTIONS,
+}
+RUNTIME_ACTIONS = frozenset().union(*_DOMAIN_ACTIONS.values())
+_RUNTIME_OWNER_PATTERN = re.compile(
+    r"^workflow-runtime:(?P<pid>[1-9][0-9]*):[0-9a-f]+$"
 )
-_INTEGRATION_ACTIONS = frozenset(
-    {
-        "integration_landing_refresh",
-        "integration_terminal_stage",
-        "standalone_delivery",
-        "epic_branch_reconciliation",
-    }
-)
+
+if sum(len(actions) for actions in _DOMAIN_ACTIONS.values()) != len(RUNTIME_ACTIONS):
+    raise RuntimeError("durable workflow domain action sets overlap")
 
 
 class WorkflowRuntimeError(RuntimeError):
@@ -100,7 +101,10 @@ class WorkflowProjectBinding:
     collector: WorkflowFactCollector
     transition_service: TaskTransitionService
     implementation_controller: Any | None = None
+    review_controller: ReviewWorkflowController | None = None
     integration_controller: IntegrationWorkflowController | None = None
+    epic_collector: EpicFactCollector | None = None
+    epic_controller: EpicWorkflowController | None = None
     terminal_audit_workflow: Any | None = None
     transition_journal: TransitionJournal | None = None
 
@@ -110,7 +114,9 @@ class WorkflowProjectBinding:
             controller
             for controller in (
                 self.implementation_controller,
+                self.review_controller,
                 self.integration_controller,
+                self.epic_controller,
                 self.terminal_audit_workflow,
             )
             if controller is not None
@@ -166,6 +172,60 @@ class _UnavailableHandler:
         return None
 
 
+class _ProjectRoutedHandler:
+    """Route one action to the handler bound to the job's exact project."""
+
+    def __init__(
+        self, action: str, handlers: Mapping[str, WorkflowActionHandler]
+    ) -> None:
+        if not handlers:
+            raise ValueError("project-routed handlers cannot be empty")
+        self.action = action
+        self.handlers = dict(handlers)
+        domains = {
+            WorkflowActionDomain(handler.domain) for handler in handlers.values()
+        }
+        if len(domains) != 1:
+            raise WorkflowRuntimeError(
+                f"workflow action {action} has inconsistent project handler domains"
+            )
+        self.domain = domains.pop()
+
+    def _handler(self, context: WorkflowJobContext) -> WorkflowActionHandler:
+        try:
+            return self.handlers[context.job.project_id]
+        except KeyError as exc:
+            raise WorkflowActionError(
+                "no durable handler registered for workflow action "
+                f"{self.action} in project {context.job.project_id}",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            ) from exc
+
+    async def _call(self, name: str, context: WorkflowJobContext, *args: Any) -> Any:
+        result = getattr(self._handler(context), name)(context, *args)
+        return await result if inspect.isawaitable(result) else result
+
+    async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
+        return await self._call("revalidate", context)
+
+    async def inspect(self, context: WorkflowJobContext) -> EffectObservation:
+        return await self._call("inspect", context)
+
+    async def apply(self, context: WorkflowJobContext) -> EffectResult:
+        return await self._call("apply", context)
+
+    async def verify(
+        self, context: WorkflowJobContext, effect: EffectResult
+    ) -> VerificationResult:
+        return await self._call("verify", context, effect)
+
+    async def build_transition(
+        self, context: WorkflowJobContext, verification: VerificationResult
+    ) -> Any:
+        return await self._call("build_transition", context, verification)
+
+
 class WorkflowRuntime:
     """Own the durable workflow services for the lifetime of one process."""
 
@@ -180,6 +240,8 @@ class WorkflowRuntime:
         decision_limit: int = DEFAULT_RUNTIME_DECISION_LIMIT,
         batch_size: int = DEFAULT_RUNTIME_BATCH_SIZE,
         worker: DurableWorkflowWorker | None = None,
+        handler_coverage: Mapping[str, Sequence[str]] | None = None,
+        abandoned_lease_owners: Sequence[str] = (),
     ) -> None:
         normalized_mode = str(mode or "off").strip().lower()
         if normalized_mode not in {"off", "shadow", "enforce"}:
@@ -201,31 +263,34 @@ class WorkflowRuntime:
         self._latest_decisions: dict[tuple[str, str], Any] = {}
         self._events: list[WorkflowRuntimeEvent] = []
         self._closed = False
-        self._handlers_configured = bool(handlers)
-        supplied = dict(handlers or {})
-        # DurableWorkflowWorker requires a total action map.  Missing actions
-        # are represented explicitly but are never claimed unless a real
-        # handler was supplied for at least one action.
-        all_actions = set(supplied)
-        all_actions.update(
-            {
-                "terminal_audit",
-                "review_monitor",
-                "review_refresh",
-                "review_ci_repair",
-                "review_conflict_repair",
-                "review_closed_repair",
-                "review_head_reconciliation",
-                "review_landing_refresh",
-                "review_terminal_stage",
-                "review_capacity_recheck",
-                *_IMPLEMENTATION_ACTIONS,
-                *_INTEGRATION_ACTIONS,
-            }
+        self._abandoned_lease_owners = frozenset(
+            str(owner).strip() for owner in abandoned_lease_owners if str(owner).strip()
         )
+        supplied = dict(handlers or {})
+        unknown_actions = set(supplied) - RUNTIME_ACTIONS
+        if unknown_actions:
+            raise WorkflowRuntimeError(
+                "handlers were registered outside durable domain ownership: "
+                + ", ".join(sorted(unknown_actions))
+            )
+        normalized_coverage = {
+            action: frozenset(str(project_id) for project_id in projects)
+            for action, projects in (handler_coverage or {}).items()
+        }
+        self._handler_coverage = {
+            action: normalized_coverage.get(
+                action,
+                frozenset(self.project_bindings) if action in supplied else frozenset(),
+            )
+            for action in RUNTIME_ACTIONS
+        }
+        self._handlers_configured = bool(supplied)
+        # Terminal audit jobs are deliberately absent. TerminalAuditWorkflow
+        # owns launch recovery and finalization, including unsafe historical
+        # archives which may leave a queued record after coordinator rejection.
         worker_handlers = {
             action: supplied.get(action, _UnavailableHandler(action))
-            for action in sorted(all_actions)
+            for action in sorted(RUNTIME_ACTIONS)
         }
         self.handlers = supplied
         self.worker = worker or DurableWorkflowWorker(
@@ -235,9 +300,10 @@ class WorkflowRuntime:
                 project_id: binding.transition_service
                 for project_id, binding in self.project_bindings.items()
             },
-            worker_id=f"workflow-runtime-{uuid.uuid4().hex}",
+            worker_id=f"workflow-runtime:{os.getpid()}:{uuid.uuid4().hex}",
             phase_observer=self.record_event,
         )
+        self._validate_enforce_ready()
 
     @classmethod
     def from_orchestrator(
@@ -255,7 +321,11 @@ class WorkflowRuntime:
         projects = list(project_store.list_all())
         if projects:
             project_rows = [
-                (str(project.id), orchestrator._tracker_for_project(str(project.id)), project)
+                (
+                    str(project.id),
+                    orchestrator._tracker_for_project(str(project.id)),
+                    project,
+                )
                 for project in projects
             ]
         else:
@@ -282,6 +352,40 @@ class WorkflowRuntime:
             else None
         )
         store = orchestrator.workflow_job_store
+        terminal_workflow = getattr(orchestrator, "terminal_audit_workflow", None)
+        if terminal_workflow is None:
+            from oompah.terminal_audit_workflow import TerminalAuditWorkflow
+
+            terminal_workflow = TerminalAuditWorkflow(store)
+            orchestrator.terminal_audit_workflow = terminal_workflow
+        if getattr(terminal_workflow, "store", None) is not store:
+            raise WorkflowRuntimeError(
+                "terminal audit workflow must share the production workflow ledger"
+            )
+        configured_mode = mode
+        if configured_mode is None:
+            configured_mode = getattr(
+                orchestrator.config, "workflow_engine_mode", "off"
+            )
+        if not isinstance(configured_mode, str):
+            configured_mode = "off"
+        configured_mode = configured_mode.strip().lower()
+        if configured_mode not in {"off", "shadow", "enforce"}:
+            configured_mode = "off"
+        configured_limit = getattr(
+            orchestrator.config,
+            "workflow_runtime_decision_limit",
+            DEFAULT_RUNTIME_DECISION_LIMIT,
+        )
+        configured_batch = getattr(
+            orchestrator.config,
+            "workflow_runtime_batch_size",
+            DEFAULT_RUNTIME_BATCH_SIZE,
+        )
+        if not isinstance(configured_limit, int) or isinstance(configured_limit, bool):
+            configured_limit = DEFAULT_RUNTIME_DECISION_LIMIT
+        if not isinstance(configured_batch, int) or isinstance(configured_batch, bool):
+            configured_batch = DEFAULT_RUNTIME_BATCH_SIZE
         bindings: dict[str, WorkflowProjectBinding] = {}
         journals = {project_id: journal for project_id, _, _ in project_rows}
 
@@ -294,7 +398,10 @@ class WorkflowRuntime:
 
             def source(issue: Any, domain: FactDomain, *, _holder=holder) -> Any:
                 binding = _holder.get("binding")
-                if domain is FactDomain.IMPLEMENTATION_AUTHORITY and binding is not None:
+                if (
+                    domain is FactDomain.IMPLEMENTATION_AUTHORITY
+                    and binding is not None
+                ):
                     controller = binding.implementation_controller
                     if controller is not None:
                         try:
@@ -330,32 +437,42 @@ class WorkflowRuntime:
                 sources=sources,
                 landing_collector=landing,
             )
-            implementation_controller = None
-            try:
-                from oompah.implementation_workflow import ImplementationWorkflowController
-
-                implementation_controller = ImplementationWorkflowController(
-                    collector=collector,
-                    store=store,
-                    decision_limit=DEFAULT_RUNTIME_DECISION_LIMIT,
-                )
-            except ImportError:
-                # The implementation adapter is delivered independently.  A
-                # shadow/off checkout must remain importable while it is being
-                # integrated; enforce mode reports the missing domain below.
-                logger.info("implementation workflow adapter is not installed")
-
-            terminal_workflow = getattr(orchestrator, "terminal_audit_workflow", None)
+            epic_collector = EpicFactCollector(
+                project_id=project_id,
+                tracker=tracker,
+                default_branch=str(
+                    getattr(project, "default_branch", None)
+                    or getattr(project, "branch", None)
+                    or "main"
+                ),
+                landing_collector=landing,
+                sources=sources,
+            )
             binding = WorkflowProjectBinding(
                 project_id=project_id,
                 tracker=tracker,
                 collector=collector,
                 transition_service=transition_service,
-                implementation_controller=implementation_controller,
+                implementation_controller=ImplementationWorkflowController(
+                    collector=collector,
+                    store=store,
+                    decision_limit=configured_limit,
+                ),
+                review_controller=ReviewWorkflowController(
+                    collector=collector,
+                    store=store,
+                    decision_limit=configured_limit,
+                ),
                 integration_controller=IntegrationWorkflowController(
                     collector=collector,
                     store=store,
-                    decision_limit=DEFAULT_RUNTIME_DECISION_LIMIT,
+                    decision_limit=configured_limit,
+                ),
+                epic_collector=epic_collector,
+                epic_controller=EpicWorkflowController(
+                    collector=epic_collector,
+                    store=store,
+                    decision_limit=configured_limit,
                 ),
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
@@ -363,40 +480,38 @@ class WorkflowRuntime:
             holder["binding"] = binding
             bindings[project_id] = binding
 
-        configured_mode = mode
-        if configured_mode is None:
-            configured_mode = getattr(orchestrator.config, "workflow_engine_mode", "off")
-        if not isinstance(configured_mode, str):
-            configured_mode = "off"
-        configured_mode = configured_mode.strip().lower()
-        if configured_mode not in {"off", "shadow", "enforce"}:
-            configured_mode = "off"
-        configured_limit = getattr(
-            orchestrator.config, "workflow_runtime_decision_limit", DEFAULT_RUNTIME_DECISION_LIMIT
-        )
-        configured_batch = getattr(
-            orchestrator.config, "workflow_runtime_batch_size", DEFAULT_RUNTIME_BATCH_SIZE
-        )
-        if not isinstance(configured_limit, int) or isinstance(configured_limit, bool):
-            configured_limit = DEFAULT_RUNTIME_DECISION_LIMIT
-        if not isinstance(configured_batch, int) or isinstance(configured_batch, bool):
-            configured_batch = DEFAULT_RUNTIME_BATCH_SIZE
         registered_handlers = handlers
+        handler_coverage: dict[str, set[str]] | None = None
         if registered_handlers is None:
             registered_handlers = getattr(
                 orchestrator, "workflow_action_handlers", None
             )
         factory = getattr(orchestrator, "workflow_action_handler_factory", None)
         if registered_handlers is None and callable(factory):
-            collected: dict[str, WorkflowActionHandler] = {}
+            project_handlers: dict[str, dict[str, WorkflowActionHandler]] = {}
             for binding in bindings.values():
                 produced = factory(binding)
                 if not isinstance(produced, Mapping):
                     raise WorkflowRuntimeError(
                         "workflow action handler factory must return a mapping"
                     )
-                collected.update(produced)
-            registered_handlers = collected
+                unknown = set(produced) - RUNTIME_ACTIONS
+                if unknown:
+                    raise WorkflowRuntimeError(
+                        "workflow action handler factory returned unknown actions: "
+                        + ", ".join(sorted(unknown))
+                    )
+                for action, handler in produced.items():
+                    project_handlers.setdefault(action, {})[
+                        binding.project_id
+                    ] = handler
+            registered_handlers = {
+                action: _ProjectRoutedHandler(action, routed)
+                for action, routed in project_handlers.items()
+            }
+            handler_coverage = {
+                action: set(routed) for action, routed in project_handlers.items()
+            }
         return cls(
             project_bindings=bindings,
             store=store,
@@ -405,18 +520,63 @@ class WorkflowRuntime:
             handlers=registered_handlers,
             decision_limit=configured_limit,
             batch_size=configured_batch,
+            handler_coverage=handler_coverage,
+            abandoned_lease_owners=getattr(
+                orchestrator, "workflow_abandoned_lease_owners", ()
+            ),
         )
 
     @property
     def enforce(self) -> bool:
         return self.mode == "enforce"
 
+    def _validate_enforce_ready(self) -> None:
+        if not self.enforce:
+            return
+        incomplete_bindings: list[str] = []
+        for project_id, binding in sorted(self.project_bindings.items()):
+            missing = [
+                name
+                for name, controller in (
+                    ("implementation", binding.implementation_controller),
+                    ("review", binding.review_controller),
+                    ("integration", binding.integration_controller),
+                    ("epic", binding.epic_controller),
+                    ("terminal_audit", binding.terminal_audit_workflow),
+                )
+                if controller is None
+            ]
+            if missing:
+                incomplete_bindings.append(f"{project_id}({','.join(missing)})")
+        if incomplete_bindings:
+            raise WorkflowRuntimeError(
+                "enforce mode requires every durable domain binding: "
+                + ", ".join(incomplete_bindings)
+            )
+        missing_handlers = [
+            f"{project_id}:{action}"
+            for project_id in sorted(self.project_bindings)
+            for action in sorted(RUNTIME_ACTIONS)
+            if project_id not in self._handler_coverage.get(action, ())
+        ]
+        if missing_handlers:
+            raise WorkflowRuntimeError(
+                "enforce mode requires total project-routed handler coverage: "
+                + ", ".join(missing_handlers)
+            )
+
     def set_mode(self, mode: str) -> None:
         normalized = str(mode or "off").strip().lower()
         if normalized not in {"off", "shadow", "enforce"}:
             raise ValueError("workflow runtime mode must be off, shadow, or enforce")
         with self._lock:
+            previous = self.mode
             self.mode = normalized
+            try:
+                self._validate_enforce_ready()
+            except Exception:
+                self.mode = previous
+                raise
 
     @property
     def legacy_lifecycle_writers_enabled(self) -> bool:
@@ -428,6 +588,61 @@ class WorkflowRuntime:
     def started(self) -> bool:
         return self._started
 
+    @staticmethod
+    def _runtime_owner_is_dead(owner: str) -> bool:
+        match = _RUNTIME_OWNER_PATTERN.fullmatch(owner)
+        if match is None:
+            return False
+        pid = int(match.group("pid"))
+        if pid == os.getpid():
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        return False
+
+    def _recover_runtime_jobs(self) -> dict[str, int]:
+        """Recover only expired or proven-dead durable-domain ownership."""
+
+        expired = 0
+        for project_id in self.project_bindings:
+            expired += self.store.recover_expired(
+                project_id=project_id,
+                actions=tuple(RUNTIME_ACTIONS),
+                limit=self.batch_size,
+            )
+        abandoned = 0
+        seen: set[tuple[str, str, str, str]] = set()
+        running = self.store.list_jobs(
+            states=("running",), limit=max(self.batch_size, self.decision_limit)
+        )
+        for job in running:
+            owner = str(job.lease_owner or "")
+            identity = (owner, job.project_id, job.action, job.phase)
+            if identity in seen or job.action not in RUNTIME_ACTIONS:
+                continue
+            if (
+                owner not in self._abandoned_lease_owners
+                and not self._runtime_owner_is_dead(owner)
+            ):
+                continue
+            seen.add(identity)
+            abandoned += self.store.recover_abandoned(
+                lease_owner=owner,
+                project_id=job.project_id,
+                actions=(job.action,),
+                phases=(job.phase,),
+                limit=self.batch_size,
+            )
+        return {
+            "expired": expired,
+            "abandoned": abandoned,
+            "recovered": expired + abandoned,
+        }
+
     async def start(self) -> dict[str, int]:
         """Run integrity checks and recover ownership left by a crash."""
 
@@ -438,18 +653,21 @@ class WorkflowRuntime:
         self.store.integrity_check()
         for journal in set(self.journals.values()):
             journal.integrity_check()
-        recovery = self.store.recover_abandoned(limit=self.batch_size)
-        recovery += self.store.recover_expired(limit=self.batch_size)
+        recovery = (
+            self._recover_runtime_jobs()
+            if self.enforce
+            else {"expired": 0, "abandoned": 0, "recovered": 0}
+        )
         with self._lock:
             self._started = True
-            self._last_reconcile = {"recovery": {"recovered": recovery}}
+            self._last_reconcile = {"recovery": dict(recovery)}
         logger.info(
             "Durable workflow runtime started mode=%s projects=%d recovered=%d",
             self.mode,
             len(self.project_bindings),
-            recovery,
+            recovery["recovered"],
         )
-        return {"recovered": recovery}
+        return recovery
 
     def _issues(self, binding: WorkflowProjectBinding) -> list[Any]:
         operation = getattr(binding.tracker, "fetch_all_issues_enriched", None)
@@ -467,31 +685,13 @@ class WorkflowRuntime:
             or str(issue.project_id) == binding.project_id
         ]
 
-    def _reconcile_decision_lane(
-        self, binding: WorkflowProjectBinding, issues: Sequence[Any]
-    ) -> Any:
-        decisions = []
-        for issue in issues[: self.decision_limit]:
-            facts = binding.collector.collect(issue.identifier)
-            decision = evaluate_task(issue, facts)
-            self._latest_decisions[(binding.project_id, issue.identifier)] = decision
-            actions = tuple(
-                action
-                for action in decision.durable_jobs
-                if action not in _IMPLEMENTATION_ACTIONS
-                and action not in _INTEGRATION_ACTIONS
-            )
-            if actions:
-                # Keep one decision revision for all non-domain-specific
-                # actions; filtering is part of the scheduler projection and
-                # does not change the accepted decision itself.
-                from dataclasses import replace
-
-                decisions.append(replace(decision, durable_jobs=actions, decision_revision=None))
-        scheduler = WorkflowJobScheduler(
-            store=self.store, decision_limit=self.decision_limit
-        )
-        return scheduler.reconcile(decisions)
+    def _remember(self, batch: Any) -> None:
+        with self._lock:
+            for item in getattr(batch, "tasks", ()):
+                decision = item.decision
+                self._latest_decisions[
+                    (decision.project_id, decision.task_id)
+                ] = decision
 
     def reconcile(self) -> dict[str, Any]:
         """Collect facts and materialize durable jobs for every project."""
@@ -505,27 +705,81 @@ class WorkflowRuntime:
             try:
                 issues = self._issues(binding)
                 project_report: dict[str, Any] = {"issues": len(issues)}
-                if binding.implementation_controller is not None:
-                    _, result = binding.implementation_controller.reconcile(issues)
-                    project_report["implementation"] = asdict(result)
-                if binding.integration_controller is not None:
-                    _, result = binding.integration_controller.reconcile(issues)
-                    project_report["integration"] = asdict(result)
-                project_report["decision_lane"] = self._reconcile_decision_lane(
-                    binding, issues
+                with self._lock:
+                    self._latest_decisions = {
+                        key: decision
+                        for key, decision in self._latest_decisions.items()
+                        if key[0] != project_id
+                    }
+                generation = (
+                    self.store.allocate_snapshot_generation() if self.enforce else None
                 )
-                project_report["decision_lane"] = asdict(project_report["decision_lane"])
+                epic_issues = [
+                    issue
+                    for issue in issues
+                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
+                    == "epic"
+                    and canonicalize_status(getattr(issue, "state", None))
+                    != IN_VALIDATION
+                ]
+                task_issues = [
+                    issue
+                    for issue in issues
+                    if str(getattr(issue, "issue_type", "") or "").strip().lower()
+                    != "epic"
+                ]
+                if binding.implementation_controller is not None:
+                    if self.enforce:
+                        batch, result = binding.implementation_controller.reconcile(
+                            task_issues, snapshot_generation=generation
+                        )
+                        result_value = asdict(result)
+                    else:
+                        batch = binding.implementation_controller.evaluate(task_issues)
+                        result_value = {"decisions_seen": len(batch.tasks)}
+                    self._remember(batch)
+                    project_report["implementation"] = result_value
+                if binding.review_controller is not None:
+                    if self.enforce:
+                        batch, result = binding.review_controller.reconcile(
+                            task_issues, snapshot_generation=generation
+                        )
+                        result_value = asdict(result)
+                    else:
+                        batch = binding.review_controller.evaluate(task_issues)
+                        result_value = {"decisions_seen": len(batch.tasks)}
+                    self._remember(batch)
+                    project_report["review"] = result_value
+                if binding.integration_controller is not None:
+                    if self.enforce:
+                        batch, result = binding.integration_controller.reconcile(
+                            task_issues, snapshot_generation=generation
+                        )
+                        result_value = asdict(result)
+                    else:
+                        batch = binding.integration_controller.evaluate(task_issues)
+                        result_value = {"decisions_seen": len(batch.tasks)}
+                    self._remember(batch)
+                    project_report["integration"] = result_value
+                if binding.epic_controller is not None:
+                    if self.enforce:
+                        batch, result = binding.epic_controller.reconcile(
+                            epic_issues, snapshot_generation=generation
+                        )
+                        result_value = asdict(result)
+                    else:
+                        batch = binding.epic_controller.evaluate(
+                            epic_issues, persist_evidence=False
+                        )
+                        result_value = {"decisions_seen": len(batch.tasks)}
+                    self._remember(batch)
+                    project_report["epic"] = result_value
                 report["projects"][project_id] = project_report
             except Exception as exc:  # one project must not hide its peers
                 logger.exception("Durable workflow reconcile failed for %s", project_id)
                 report["projects"][project_id] = {
                     "error": type(exc).__name__,
                 }
-        if self._handlers_configured and self.enforce:
-            batch = awaitable_run_due(
-                self.worker, self.batch_size, tuple(self.handlers)
-            )
-            report["worker"] = batch
         with self._lock:
             self._last_reconcile = report
         return report
@@ -533,7 +787,43 @@ class WorkflowRuntime:
     async def reconcile_async(self) -> dict[str, Any]:
         """Async form used by the orchestrator's event-driven scheduler."""
 
-        return await asyncio.to_thread(self.reconcile)
+        report = await asyncio.to_thread(self.reconcile)
+        if self._handlers_configured and self.enforce:
+            failed_projects = sorted(
+                project_id
+                for project_id, result in report.get("projects", {}).items()
+                if "error" in result
+            )
+            if failed_projects:
+                report["worker"] = {
+                    "skipped": True,
+                    "reason": "project reconciliation failed",
+                    "projects": failed_projects,
+                }
+            else:
+                report["worker"] = await self._run_due()
+            with self._lock:
+                self._last_reconcile = report
+        return report
+
+    async def _run_due(self) -> dict[str, Any]:
+        results: list[Any] = []
+        for _ in range(self.batch_size):
+            result = await self.worker.run_once(
+                actions=tuple(sorted(RUNTIME_ACTIONS)),
+                fair_across_projects=True,
+            )
+            results.append(result)
+            if result.job_id is None:
+                break
+        result = results[-1]
+        return {
+            "disposition": result.disposition.value,
+            "job_id": result.job_id,
+            "state": result.state.value if result.state else None,
+            "reason": result.reason,
+            "processed": sum(item.job_id is not None for item in results),
+        }
 
     async def drain(self, *, timeout_seconds: float = 10.0) -> bool:
         with self._lock:
@@ -551,8 +841,10 @@ class WorkflowRuntime:
 
     def projections(self) -> tuple[dict[str, Any], ...]:
         rows: list[dict[str, Any]] = []
+        with self._lock:
+            decisions = tuple(self._latest_decisions.values())
         for decision in sorted(
-            self._latest_decisions.values(), key=lambda item: (item.project_id, item.task_id)
+            decisions, key=lambda item: (item.project_id, item.task_id)
         ):
             rows.append(decision.to_dict())
         return tuple(rows)
@@ -567,7 +859,9 @@ class WorkflowRuntime:
             "legacy_lifecycle_writers_enabled": self.legacy_lifecycle_writers_enabled,
             "projects": sorted(self.project_bindings),
             "controllers": {
-                project_id: [type(controller).__name__ for controller in binding.controllers]
+                project_id: [
+                    type(controller).__name__ for controller in binding.controllers
+                ]
                 for project_id, binding in sorted(self.project_bindings.items())
             },
             "worker": {
@@ -591,37 +885,6 @@ class WorkflowRuntime:
                 )
             )
             del self._events[:-128]
-
-
-def awaitable_run_due(
-    worker: DurableWorkflowWorker,
-    batch_size: int,
-    actions: Sequence[str],
-) -> dict[str, Any]:
-    """Run a bounded worker batch from a synchronous reconcile thread."""
-
-    async def _run() -> list[Any]:
-        # A temporary loop is deliberate: reconciles are called from the
-        # orchestrator tick pool and must not attach futures to the API loop.
-        results: list[Any] = []
-        for _ in range(max(1, int(batch_size))):
-            result = await worker.run_once(
-                actions=tuple(actions), fair_across_projects=True
-            )
-            results.append(result)
-            if result.job_id is None:
-                break
-        return results
-
-    results = asyncio.run(_run())
-    result = results[-1]
-    return {
-        "disposition": result.disposition.value,
-        "job_id": result.job_id,
-        "state": result.state.value if result.state else None,
-        "reason": result.reason,
-        "processed": sum(item.job_id is not None for item in results),
-    }
 
 
 def build_workflow_runtime(orchestrator: Any, **kwargs: Any) -> WorkflowRuntime:

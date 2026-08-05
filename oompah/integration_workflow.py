@@ -47,6 +47,17 @@ from oompah.workflow_worker import (
 )
 
 DEFAULT_INTEGRATION_DECISION_LIMIT = 1000
+INTEGRATION_ACTIONS = frozenset(
+    {
+        "epic_branch_reconciliation",
+        "historical_audit_replay_batch",
+        "integration_attempt",
+        "integration_landing_refresh",
+        "integration_recovery",
+        "integration_terminal_stage",
+        "standalone_delivery",
+    }
+)
 
 
 class IntegrationRoute(str, Enum):
@@ -304,6 +315,13 @@ class IntegrationWorkflowController:
         snapshot_generation: int | None = None,
     ) -> tuple[IntegrationDecisionBatch, WorkflowReconcileResult]:
         batch = self.evaluate(tasks, landing_requests=landing_requests)
+        for decision in batch.decisions:
+            unknown = set(decision.durable_jobs) - INTEGRATION_ACTIONS
+            if unknown:
+                raise ValueError(
+                    "integration decision produced non-integration durable jobs: "
+                    + ", ".join(sorted(unknown))
+                )
         scheduled = self.scheduler.reconcile(
             batch.decisions, snapshot_generation=snapshot_generation
         )
