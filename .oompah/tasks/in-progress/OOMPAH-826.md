@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T19:42:15.405041Z'
+updated_at: '2026-08-05T19:43:06.736823Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c9fcecf9-e281-49a8-b115-3238c65343c2
+oompah.agent_run_id: 39e5cf5c-2d5b-4653-8298-fc8467545344
 oompah.task_costs:
   total_input_tokens: 140
   total_output_tokens: 5194
