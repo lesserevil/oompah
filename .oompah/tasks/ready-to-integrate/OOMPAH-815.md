@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-815
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Preserve accepted child branch identity across repair dispatch
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T14:16:10.477455Z'
+updated_at: '2026-08-05T14:16:30.907172Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -56,16 +56,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d5851470-838f-4fe1-ad39-99a7a719d023
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-815
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-815
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
-  updated_at: '2026-08-05T00:35:24.666752+00:00'
+  head_sha: ccd1bf4550b67bbaaf21589d15550f31e9f1f6a7
+  submitted_at: '2026-08-05T14:16:21.569153+00:00'
+  updated_at: '2026-08-05T14:16:21.569153+00:00'
 oompah.task_costs:
   total_input_tokens: 48168
   total_output_tokens: 5288
@@ -180,5 +182,10 @@ author: oompah
 created: 2026-08-05 14:16
 ---
 Corrected implementation is clean and pushed at exact head ccd1bf4550b67bbaaf21589d15550f31e9f1f6a7 on exact epic base 22252cc0486e919a657d15e5367ce29476622ce3. It persists and binds accepted submission authority before revocation, contains post-accept assignment cleanup failure, routes natural and scheduled retirement through the accepted fence, preserves the accepted branch across live/restart/forced recovery, and uses accepted branch+SHA for terminal-audit locks/fingerprints. Focused verification: 642 executions on the first correction plus 131 adjacent scheduler/submission/provider executions on the final delta; real scheduled ACP retirement regression passes; terminal mutation scan 8/8, secret and diff checks pass. Independent exact-head review PASS at ccd1bf455 after two blocking review rounds; branch/upstream/base/trailers exact.
+---
+author: oompah
+created: 2026-08-05 14:16
+---
+Preserve accepted branch and submission authority through repair, audit, restart, and retirement
 ---
 <!-- COMMENTS:END -->
