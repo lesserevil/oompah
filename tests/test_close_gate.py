@@ -124,6 +124,13 @@ def event_loop():
 class TestCheckCloseGate:
     """Tests for the pure check_close_gate() function."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_host_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Keep mocked forge checks from consulting the runner's gh CLI."""
+
+        monkeypatch.setenv("GH_TOKEN", "test-token")
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
     def test_epic_skipped(self):
         """Epic issues are always allowed (they have no own branch)."""
         issue = _make_issue(issue_type="epic")
@@ -406,6 +413,7 @@ class TestCheckCloseGate:
         with (
             patch("oompah.close_gate._count_commits_ahead") as mock_git,
             patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+            patch("oompah.close_gate.subprocess.run") as mock_subprocess,
         ):
             mock_git.return_value = (3, ["abc123 feat"], "")
             mock_prs.return_value = (1, 0, [], "")  # 1 open, 0 merged
@@ -418,6 +426,7 @@ class TestCheckCloseGate:
         assert result.allowed is True
         assert result.open_prs == 1
         assert result.merged_prs == 0
+        mock_subprocess.assert_not_called()
 
     def test_merged_pr_allows_close(self):
         """Branch ahead + merged PR → allowed."""
