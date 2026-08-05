@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Validation
+status: Needs Human
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-04T22:56:26.055381Z'
+updated_at: '2026-08-05T00:01:06.657215Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -50,6 +50,31 @@ oompah.task_costs:
     recorded_at: '2026-08-04T22:31:34.068318+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-84ef9133aa36-3: '2026-08-05T00:00:56.553062+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    target_state: Archived
+    evidence_fingerprint: 63cda162ec602371956f484e3244861e3b583d5bc473100ecca2ed8b86256ab6
+    audit_ids:
+    - audit-84ef9133aa36
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:00:56.553073+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-505
+    audit_id: audit-84ef9133aa36
+    attempt_id: no-auditor-audit-84ef9133aa36-3
+    target_state: Archived
+    evidence_fingerprint: 63cda162ec602371956f484e3244861e3b583d5bc473100ecca2ed8b86256ab6
+    status: Needs Human
+    audit_ids:
+    - audit-84ef9133aa36
+    applied: true
+    created_at: '2026-08-05T00:00:56.553090+00:00'
+    applied_at: '2026-08-05T00:01:04.260859+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -57,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-505
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,13 +135,25 @@ oompah.terminal_audit:
       candidate_rotation_count: 2
       ended_at: '2026-08-04T22:56:20.689878+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-84ef9133aa36-3
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 63cda162ec602371956f484e3244861e3b583d5bc473100ecca2ed8b86256ab6
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-05T00:00:56.552899+00:00'
+      completed_at: '2026-08-05T00:00:56.552899+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:28:16.713563+00:00'
-    updated_at: '2026-08-04T22:44:01.444383+00:00'
+    updated_at: '2026-08-05T00:00:56.552899+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-140026660249
@@ -413,5 +450,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 17m 30s
 - Log: OOMPAH-505__20260804T221414Z.jsonl
+---
+author: oompah
+created: 2026-08-05 00:01
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->

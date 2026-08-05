@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-08-04T22:56:40.610825Z'
+updated_at: '2026-08-05T00:01:11.681785Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-507
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -80,13 +80,27 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-04T22:56:39.275748+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-74fdbc960b9c
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 859963d73184aecd00c8c97de76214d2bb41d3ed640dc354a768d7229c5ed4a8
+      created_at: '2026-08-05T00:01:10.394260+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-05T00:01:10.394260+00:00'
+      branch_key: epic-OOMPAH-502
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-04T18:28:34.036972+00:00'
-    updated_at: '2026-08-04T22:44:22.931596+00:00'
+    updated_at: '2026-08-05T00:01:10.394260+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c00c7d4c9d53
@@ -119,6 +133,20 @@ oompah.terminal_audit:
     candidate_rotation_count: 1
     ended_at: '2026-08-04T22:56:39.275748+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-74fdbc960b9c
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 859963d73184aecd00c8c97de76214d2bb41d3ed640dc354a768d7229c5ed4a8
+    created_at: '2026-08-05T00:01:10.394260+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-05T00:01:10.394260+00:00'
+    branch_key: epic-OOMPAH-502
+    candidate_rotation_count: 2
 ---
 ## Summary
 
