@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T04:54:12.129764Z'
+updated_at: '2026-08-05T04:55:26.616504Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 23s
 - Log: OOMPAH-819__20260805T045317Z.jsonl
+---
+author: oompah
+created: 2026-08-05 04:55
+---
+Cleared the automatic-retry blocker: the pre-existing /home/shedwards/.oompah/worktrees/oompah/OOMPAH-819 directory belonged to obsolete standalone branch OOMPAH-819 at already-merged commit f1270e41, while this task now authoritatively targets epic-OOMPAH-768--task-OOMPAH-819. The worktree was clean with no unique commits, so the redundant worktree and local branch were safely removed. The next server retry can create the correct nested worktree; implementation remains held until OOMPAH-820 finishes terminal audit/deployment.
 ---
 <!-- COMMENTS:END -->
