@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T18:18:29.017667Z'
+updated_at: '2026-08-05T18:25:33.732552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,20 +23,53 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 1551768186f6e7b315b12d3550594c1936f9f224777cfb8422e99a4316fd63d5
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-05T18:25:26.053098+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 68e7da61-d250-43d3-adfb-19184b1cb7e3
-  claim_owner: 3a62b7a5-bbb7-4494-ae8d-738d99774e0d
-  claimed_at: '2026-08-05T18:18:03.139523+00:00'
-  claim_expires_at: '2026-08-05T18:48:03.139523+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: No active peer task in the authoritative corpus describes\
+    \ this migration. Closest tasks OOMPAH-156, OOMPAH-162, and OOMPAH-165 are terminal\
+    \ and address different fingerprint-deduplication or epic-merge behaviors.\nFocus\
+    \ handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \n\
+    Matches: none\n\nEvidence: No active peer task in the authoritative corpus describes\
+    \ this migration. Closest tasks OOMPAH-156, OOMPAH-162, and OOMPAH-165 are terminal\
+    \ and address different fingerprint-deduplication or epic-merge behaviors."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 3f9f6276-7026-48e1-aecb-1525456b35a5
+oompah.task_costs:
+  total_input_tokens: 48324
+  total_output_tokens: 274
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 48324
+      output_tokens: 274
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 48324
+    output_tokens: 274
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T18:25:26.042207+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-829__20260805T181841Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: duplicate_detector
+    source_branch: OOMPAH-829
+    source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
+    completed_at: '2026-08-05T18:25:26.100920+00:00'
 ---
 ## Summary
 
@@ -61,5 +94,15 @@ author: oompah
 created: 2026-08-05 18:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 18:25
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 0
+- Tokens: 48.3K in / 274 out [48.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 2s
+- Log: OOMPAH-829__20260805T181841Z.jsonl
 ---
 <!-- COMMENTS:END -->
