@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T16:37:29.952662Z'
+updated_at: '2026-08-05T16:37:49.368721Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1dcfbc20-52b4-4adb-bf62-c113870c2121
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 1145
@@ -293,12 +293,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
-  updated_at: '2026-08-05T15:54:41.748809+00:00'
+  head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+  submitted_at: '2026-08-05T16:37:34.306969+00:00'
+  updated_at: '2026-08-05T16:37:34.306969+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1264,5 +1266,20 @@ author: oompah
 created: 2026-08-05 16:37
 ---
 Completion: OOMPAH-523 remains complete at clean verified head 9ea2b5523. The official full gate passes (15,452 passed), the task branch is up to date with origin, and the required remote epic-OOMPAH-521 parent ref has been restored at the same exact head so combined-tree integration can verify it. No product changes were needed for the prior ACP result-delivery race.
+---
+author: oompah
+created: 2026-08-05 16:37
+---
+Verified unchanged ASGI Basic-auth enforcement at clean head 9ea2b5523; official make test passed 15,452 tests, task and required epic refs are pushed at the exact head.
+---
+author: oompah
+created: 2026-08-05 16:37
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 21
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 43m 15s
+- Log: OOMPAH-523__20260805T155450Z.jsonl
 ---
 <!-- COMMENTS:END -->
