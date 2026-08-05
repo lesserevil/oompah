@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:57:08.509428Z'
+updated_at: '2026-08-05T11:57:36.959813Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -44,18 +44,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-824
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 2701e4eaf3dd9b3fd75638852536efecd3bd04b8657a3c9ff02a3081cb7b5536
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-0c343f36134c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2701e4eaf3dd9b3fd75638852536efecd3bd04b8657a3c9ff02a3081cb7b5536
+      created_at: '2026-08-05T11:57:27.667364+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T11:57:27.667364+00:00'
+      branch_key: OOMPAH-824
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T11:56:58.531869+00:00'
+    updated_at: '2026-08-05T11:57:27.667364+00:00'
   - version: 1
     audit_id: audit-6b3fa26bb2f6
     project_id: proj-14849f1b
@@ -73,7 +87,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T11:56:58.531869+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-0c343f36134c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2701e4eaf3dd9b3fd75638852536efecd3bd04b8657a3c9ff02a3081cb7b5536
+    created_at: '2026-08-05T11:57:27.667364+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T11:57:27.667364+00:00'
+    branch_key: OOMPAH-824
 ---
 ## Summary
 
@@ -140,5 +167,15 @@ author: oompah
 created: 2026-08-05 11:57
 ---
 YOLO: merged PR #720.
+---
+author: oompah
+created: 2026-08-05 11:57
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 11:57
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
