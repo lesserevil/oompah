@@ -20,6 +20,9 @@ ledger. A fresh process can therefore replay exact Git ancestry or
 patch-equivalence evidence after the source ref is deleted. A live source that
 advances does not invalidate proof for an explicitly requested immutable
 revision; a target rewrite that drops Git proof does invalidate replay.
+An unavailable target also fails closed until its current history can be
+observed again; durable source-pruning evidence is not a substitute for a live
+target authority check.
 Bounded reads retain the newest proof window. Maintenance actions such as
 rebase/repair, terminal validation,
 cleanup, and restart recovery use the same generation-fenced job store through

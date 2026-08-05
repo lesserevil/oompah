@@ -10,13 +10,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oompah.epic_workflow import EpicAction, EpicFactCollector, EpicWorkflowController
+from oompah.epic_workflow import (
+    EpicAction,
+    EpicFactCollector,
+    EpicWorkflowController,
+    epic_branch,
+)
 from oompah.models import Issue
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import (
+    EpicTargetResolutionError as OrchestratorEpicTargetResolutionError,
+    Orchestrator,
+)
 from oompah.statuses import DONE, IN_PROGRESS, OPEN
 from oompah.workflow_contract import TaskDisposition
 from oompah.work_decision import evaluate_task
 from oompah.workflow_facts import (
+    FactState,
     GitLandingCollector,
     LandingFact,
     LandingRequest,
@@ -93,6 +102,29 @@ def make_git_fixture(repo: Path) -> None:
     git(repo, "checkout", "-b", "epic-TOP")
     git(repo, "cherry-pick", "epic-MID")
     git(repo, "checkout", "main")
+
+
+def test_epic_branch_uses_the_project_store_sanitization_contract():
+    assert epic_branch(" TEAM/EPIC 1 ") == "epic-TEAM_EPIC_1"
+    assert epic_branch("foo..bar") == "epic-foo_bar"
+    assert epic_branch("foo.lock") == "epic-foo.lock_"
+
+
+def test_nested_target_rejects_a_parent_from_another_project():
+    nested = issue(
+        "NESTED", state=IN_PROGRESS, issue_type="epic", parent_id="FOREIGN"
+    )
+    foreign = issue(
+        "FOREIGN", state=IN_PROGRESS, issue_type="epic", project_id="project-2"
+    )
+
+    facts = EpicFactCollector(
+        project_id="project-1", tracker=Tracker([nested, foreign])
+    ).collect("NESTED")
+
+    containment = facts.fact("containment")
+    assert containment.state is FactState.ERROR
+    assert containment.error_code == "containment_epictargetresolutionerror"
 
 
 def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_path):
@@ -242,6 +274,76 @@ def test_enforce_auto_close_waits_for_the_durable_revalidated_job(tmp_path):
     assert decision.durable_jobs == ("epic_auto_close",)
     assert closed is False
     request_terminal.assert_not_called()
+
+
+def test_enforce_target_resolution_never_falls_back_from_shared_fact_failure():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    project = SimpleNamespace(default_branch="main", branch="main")
+    fake_orchestrator = SimpleNamespace(
+        config=SimpleNamespace(workflow_engine_mode="enforce"),
+        _shared_epic_workflow_decision=MagicMock(
+            side_effect=RuntimeError("shared evidence unavailable")
+        ),
+        _record_epic_target_resolution_failure=MagicMock(),
+        _clear_epic_target_resolution_alert=MagicMock(),
+    )
+
+    with pytest.raises(
+        OrchestratorEpicTargetResolutionError,
+        match="shared target facts are unavailable",
+    ):
+        Orchestrator._resolve_epic_target_branch(fake_orchestrator, top, project)
+    fake_orchestrator._record_epic_target_resolution_failure.assert_called_once()
+
+
+def test_enforce_target_resolution_clears_a_prior_failure_alert():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = EpicFactCollector(
+        project_id="project-1", tracker=Tracker([top])
+    ).collect("TOP")
+    project = SimpleNamespace(default_branch="main", branch="main")
+    fake_orchestrator = SimpleNamespace(
+        config=SimpleNamespace(workflow_engine_mode="enforce"),
+        _shared_epic_workflow_decision=MagicMock(return_value=(None, facts)),
+        _record_epic_target_resolution_failure=MagicMock(),
+        _clear_epic_target_resolution_alert=MagicMock(),
+    )
+
+    target = Orchestrator._resolve_epic_target_branch(
+        fake_orchestrator, top, project
+    )
+
+    assert target == "main"
+    fake_orchestrator._clear_epic_target_resolution_alert.assert_called_once_with(top)
+    fake_orchestrator._record_epic_target_resolution_failure.assert_not_called()
+
+
+def test_target_resolution_alerts_are_isolated_by_project():
+    project_one = issue(
+        "TOP", state=IN_PROGRESS, issue_type="epic", project_id="project-1"
+    )
+    project_two = issue(
+        "TOP", state=IN_PROGRESS, issue_type="epic", project_id="project-2"
+    )
+    fake_orchestrator = Orchestrator.__new__(Orchestrator)
+    fake_orchestrator._alerts = []
+    error = OrchestratorEpicTargetResolutionError("TOP", "PARENT", "is unavailable")
+
+    Orchestrator._record_epic_target_resolution_failure(
+        fake_orchestrator, project_one, error
+    )
+    Orchestrator._record_epic_target_resolution_failure(
+        fake_orchestrator, project_two, error
+    )
+
+    assert {alert["source"] for alert in fake_orchestrator._alerts} == {
+        "epic_target_unresolved:project-1:TOP",
+        "epic_target_unresolved:project-2:TOP",
+    }
+    Orchestrator._clear_epic_target_resolution_alert(fake_orchestrator, project_one)
+    assert [alert["source"] for alert in fake_orchestrator._alerts] == [
+        "epic_target_unresolved:project-2:TOP"
+    ]
 
 
 def test_deleted_source_ref_preserves_durable_landing_fact(tmp_path):

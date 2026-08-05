@@ -4632,7 +4632,7 @@ class TestResolveEpicTargetBranch:
             with pytest.raises(EpicTargetResolutionError, match="not a confirmed"):
                 orch._resolve_epic_target_branch(child_epic, proj)
         assert any(
-            alert["source"] == "epic_target_unresolved:epic-B"
+            alert["source"] == "epic_target_unresolved:proj-1:epic-B"
             for alert in orch._alerts
         )
 
