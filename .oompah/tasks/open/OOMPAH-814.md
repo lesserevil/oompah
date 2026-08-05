@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:28:32.890875Z'
+updated_at: '2026-08-05T00:29:11.046922Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 28s
+---
+author: oompah
+created: 2026-08-05 00:29
+---
+Exact second-gate diagnosis: TestShouldDispatchCompleted._make_orchestrator creates a real OompahMarkdownTracker; all five cases reach _issue_has_children and scan ~282 native task files, while the fixture leaks two pools and five durable stores. Under full-gate load short_description exceeded 5s. Minimal fix: concrete tmp ProjectStore + no-I/O fetch_children tracker boundary, explicit executor/store cleanup, and assertion no real tracker factory runs. Same audit found TestDispatchSerializationByProject dynamically creates a fake Project and caches a real tracker under a MagicMock key; TestBudgetGateFreeTierBypass also uses a real legacy tracker and incompletely closes stores. Fix these direct-dispatch neighboring fixtures within this task, without raising timeouts; read-only diagnosis made no code changes.
 ---
 <!-- COMMENTS:END -->
