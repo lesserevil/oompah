@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:49:15.764721Z'
+updated_at: '2026-08-05T00:54:49.037258Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ created: 2026-08-05 00:49
 6. Tests: concurrent auditor+gate, restart scenarios, cancellation, evidence reuse, no starvation
 
 **Files to modify**: Create `oompah/validation_resource_lease.py`, modify `oompah/api_agent.py` (run_command path), `oompah/quality_gate.py` (gate execution), add `tests/test_validation_resource_lease.py`
+---
+author: oompah
+created: 2026-08-05 00:54
+---
+Acceptance blocker in the initial lease draft: fcntl is imported but the lock file is never opened/locked, so separate processes can both acquire and race/lost-update JSON; restart reloads a durable owner forever with no PID/start-time/heartbeat/expiry/fencing token and never prunes recovered waiters; configured capacity is ignored; strict priority can starve auditors; and sorting with self._waiters.index(x) inside list.sort can raise because the list appears empty during key evaluation. Redesign before integration. Carry exact owner scope: auditor run_command gets audit attempt/audit/project/task from _exec_tool, while BranchQualityGate already has QualityGateOwner. Gate acquire belongs after cache/authority checks but before Popen; lease wait must not consume command timeout and must observe cancellation. Release in the same process-cleanup finally; cancellation removes only its own waiter/lease and never broadly terminates another gate. Add real multiprocess mutual exclusion/lost-update, crash/expiry/fencing, restart/pruning, capacity, fairness, cancellation, and exact-owner regressions.
 ---
 <!-- COMMENTS:END -->
