@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:42:35.323158Z'
+updated_at: '2026-08-05T18:42:47.965789Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-05 18:42
 ---
 Coordinator review of the in-flight repair found one exact-generation requirement to cover before commit: WorkflowFactCollector._overlay_integration_queue currently overlays integrating/blocked solely by project+task. Fence the durable row to the issue/tracker exact head (and relevant generation/lease authority) so a stale blocked or integrating row for H1 cannot block or suppress the required attempt for newer H2. Add the generation-race regression requested in comment #20. Also ensure production construction actually supplies IntegrationQueueStore, and complete the queued/running revisionless terminal-disposition path.
+---
+author: oompah
+created: 2026-08-05 18:42
+---
+Additional exact retry fence: integration.gate_blocked must remain authoritative only absent explicit same-generation retry or repair evidence. Carry retry_forced / matching repair authority into the fact and let that evidence permit the intended recovery/attempt; an unconditional state==blocked ACTION_REQUIRED would ignore OOMPAH-838 explicit retry semantics.
 ---
 <!-- COMMENTS:END -->
