@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:34:32.714966Z'
+updated_at: '2026-08-05T01:35:00.670838Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: d8f55d8c-704b-48f7-8788-b7ff68791070
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9678325
-  total_output_tokens: 34242
+  total_input_tokens: 9678767
+  total_output_tokens: 34398
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 50171
-      output_tokens: 224
+      input_tokens: 50613
+      output_tokens: 380
       cost_usd: 0.0
   runs:
   - profile: default
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 224
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:07:35.168146+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 442
+    output_tokens: 156
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:34:57.744028+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -680,5 +686,15 @@ author: oompah
 created: 2026-08-05 01:34
 ---
 Completion: OOMPAH-505 submitted for integration. The explicit Claude/Codex model-tier feature is complete across backend descriptors, server API, frontend UI, role configuration, dispatch propagation, and telemetry. All 481 focused tests pass; secret scan clean; branch pushed and verified. The feature enables operators to configure distinct model tiers (fast=haiku/luna, standard=sonnet/terra, deep=opus/sol) with manual entry for catalog-less ACP providers, backward-compatible fallback for empty models, and transparent model selection in running-task telemetry.
+---
+author: oompah
+created: 2026-08-05 01:35
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 21
+- Tokens: 442 in / 156 out [598 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 32s
+- Log: OOMPAH-505__20260805T012944Z.jsonl
 ---
 <!-- COMMENTS:END -->
