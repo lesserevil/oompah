@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-822
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Stop failed lifecycle reconciliation from retry-spinning and starving validation
 parent: OOMPAH-763
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T08:03:46.750572Z'
+updated_at: '2026-08-05T08:17:23.689548Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-822
+  head_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
+  submitted_at: '2026-08-05T08:17:16.833275+00:00'
+  updated_at: '2026-08-05T08:17:16.833275+00:00'
 ---
 ## Summary
 
@@ -35,5 +43,10 @@ author: oompah
 created: 2026-08-05 08:03
 ---
 Reviewed logical lifecycle-reconciliation patch is recorded on the systemic parent branch and pushed at exact clean head 6a62d9658ecc5048bd7b26723927b3937d149989. This is the same reviewed bootstrap logic now deployed on main via OOMPAH-823: bounded retry/backoff and exhaustion, pending-first fairness, coalesced persistence/scheduling, lossless rediscovery, and responsive cached state reads. Verification on this parent-based branch: 217 focused tests passed; terminal mutation scan 8/8 passed; check-secrets and git diff checks passed. Holding submit only until the active OOMPAH-823 terminal audit releases the validation lane.
+---
+author: oompah
+created: 2026-08-05 08:17
+---
+Record the reviewed lifecycle reconciliation scheduler repair on the systemic parent branch at exact head 6a62d9658: bounded durable retry/backoff and exhaustion, pending-first fairness, coalesced persistence/scheduling, lossless rediscovery, and responsive state API; 217 focused tests and required scans pass.
 ---
 <!-- COMMENTS:END -->
