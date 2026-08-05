@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-561
 type: chore
-status: Merged
+status: In Validation
 priority: 1
 title: Prune terminal branches and worktrees aggressively
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T22:42:09.007376Z'
+updated_at: '2026-08-05T23:21:15.196119Z'
 work_branch: OOMPAH-561
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/582
@@ -87,6 +87,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/582
 oompah.review_number: '582'
 oompah.work_branch: OOMPAH-561
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cb024b799ce1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-561
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5e76541736c84838892191c0422bc2e3f420f3cc51b49aa9fcd73889509fc036
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T23:21:08.178051+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -179,5 +201,10 @@ author: oompah
 created: 2026-07-29 22:42
 ---
 Deployed on main via PR #582 (merge f82514d0). Live cleanup is running on its independent 60-second cadence with a bounded batch of 100, fetch pruning enabled, and no maintenance error. Protected, active, shared, and unowned refs remain guarded.
+---
+author: oompah
+created: 2026-08-05 23:21
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
