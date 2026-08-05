@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T01:19:00.081209Z'
+updated_at: '2026-08-05T01:19:07.314613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,8 +56,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-2d68a82cf57b
-    applied: false
+    applied: true
     created_at: '2026-08-05T01:18:56.201537+00:00'
+    applied_at: '2026-08-05T01:19:06.024851+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -332,5 +333,20 @@ author: oompah
 created: 2026-08-05 01:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 01:19
+---
+Audit PASS — Done
+
+OOMPAH-813 completion audit passed. Project identity resolution fix is correct and complete. All 7 submission-fencing tests pass plus 60-test focused matrix. Ruff F821 resolved. No NameError. Exact project scope enforced with cross-project rejection and replacement-run race protection via post-preservation CAS. Non-revoked behavior unchanged. Branch clean at eb5d206f2.
+
+Safe evidence:
+- test_results: 7/7 submission_fencing tests PASSED, 60/60 focused test matrix PASSED
+- ruff_f821: All checks passed
+- git_diff_check: No whitespace issues
+- commit: eb5d206f2fc040698808130b2629a997c3c9b953
+- files_changed: oompah/orchestrator.py, tests/test_submission_fencing.py
+- key_fix: project_id resolved at line 34766 before revoked submission handler call at line 34838
 ---
 <!-- COMMENTS:END -->
