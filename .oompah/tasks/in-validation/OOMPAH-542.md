@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:40:49.027099Z'
+updated_at: '2026-08-05T15:22:15.998784Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
@@ -23,6 +23,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/576
 oompah.review_number: '576'
 oompah.work_branch: OOMPAH-542
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-70f345674817
+    project_id: proj-14849f1b
+    task_id: OOMPAH-542
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 333c1ac9b892af6691c0f93d55d0e4df5030e603308c348da128cc93471223d1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T15:22:09.107071+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +79,10 @@ author: oompah
 created: 2026-07-29 14:40
 ---
 YOLO: merged PR #576.
+---
+author: oompah
+created: 2026-08-05 15:22
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
