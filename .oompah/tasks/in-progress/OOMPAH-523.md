@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:49:04.750982Z'
+updated_at: '2026-08-05T04:50:41.686737Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -832,5 +832,10 @@ author: oompah
 created: 2026-08-05 04:49
 ---
 Discovery: the current branch contains commits fb9526679 and 2c090848a. _BasicAuthMiddleware is outermost around FastAPI and mounts, uses strict Basic parsing and raw_path exact exemptions, redacts Authorization downstream, authenticates WebSockets before endpoint execution, and startup wiring exists for both Granian and uvicorn. Existing tests also cover healthz/build identity and protected MCP surfaces. I found no obvious source gap, so verification will determine whether any repair is needed.
+---
+author: oompah
+created: 2026-08-05 04:50
+---
+Implementation: no source repair was necessary because the recovered commits are already in this branch. The audited implementation retains outer ASGI enforcement, strict Basic parsing, exact raw-path exemptions, pre-accept WebSocket checks, Authorization redaction, minimal health/build identity, and both startup credential wiring paths. Existing tests provide the required regression coverage.
 ---
 <!-- COMMENTS:END -->
