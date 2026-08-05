@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T09:42:43.282688Z'
+updated_at: '2026-08-05T09:48:22.979830Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -424,5 +424,10 @@ FAILED tests/test_orchestrator_tick_telemetry.py::TestHandleDispatchNeededTiming
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-05 09:48
+---
+Diagnosed the third gate's two failures as remaining five-second fixture leakage, after all 15,940 other tests passed. The maintenance-future test ran the production archive/cleanup/label sweep merely to count scheduling, and telemetry helpers still ran lifecycle/release-recovery lanes. Pushed test-only isolation at e932a7216: count the future body directly, disable unrelated shared/lifecycle lanes, await owned futures, and drain executors without cancellation. Verification: exact two nodes 40/40 across 20 fresh xdist runs; affected four-file suite 362/362; combined focused/affected matrix 948/948; terminal mutation scan 8/8; secret scan/diff check pass; independent review PASS.
 ---
 <!-- COMMENTS:END -->
