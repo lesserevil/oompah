@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-08-05T23:25:16.865918Z'
+updated_at: '2026-08-05T23:25:23.045814Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -116,8 +116,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-d95664624a64
-    applied: false
+    applied: true
     created_at: '2026-08-05T23:25:13.224533+00:00'
+    applied_at: '2026-08-05T23:25:21.629874+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -412,5 +413,22 @@ author: oompah
 created: 2026-08-05 23:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 23:25
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- main_merge_commit: 9fab41077abdd6d02c19624c9713a144f8c84b9e
+- merge_pr: PR #581 (final); prior PR #580
+- orchestrator_symbol_present: _detect_and_repair_integration_queue_staleness_block at oompah/orchestrator.py:4848 (main)
+- orchestrator_invocation_present: _process_integration_queues at oompah/orchestrator.py:5107 (main)
+- merge_date_utc: 2026-07-29
+- age_days_since_merge: 7
+- aged_merge_auto_archive_reason: Aged Merged auto-archive (closed 7 days ago)
+- live_recovery_confirmation: origin/epic-OOMPAH-459 rebased 0 behind main; OOMPAH-564 claimed at attempt=1 post-merge
 ---
 <!-- COMMENTS:END -->
