@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T09:53:22.148132Z'
+updated_at: '2026-08-05T12:13:24.357044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-08-05 09:53
 ---
 Implemented the authoritative lifecycle-ledger recovery at clean pushed exact head b741e5372. It scopes alias-complete project snapshots, parses strict landing facts, distinguishes forge outage from negative evidence, rejects stale/retired authority, performs fresh under-lock tri-state validation before durable intent/status repair, and makes the one-time v1 migration restart/race safe. Live-shaped 46-row migration coverage proves 44 not-needed + 2 owner-authorized Done repairs; provider, parent-landing, child-state, and persistence races fail closed. Verification: 390 focused tests pass (terminal enforcement 78, SCM 304, compatibility 8); terminal mutation scan 8/8; secret/diff checks pass; independent exact-head review PASS; canonical trailer and remote synchronization verified. Holding submission only to serialize against OOMPAH-816's active canonical gate.
+---
+author: oompah
+created: 2026-08-05 12:13
+---
+Rebased the reviewed lifecycle recovery implementation onto deployed OOMPAH-824 main c14ca03f59078e6df06871488cf78f04477acb11. New exact clean pushed head 74c4b71cfab349bc782fff71188c97651f54f519 has that exact parent, one canonical commit, and the same five-path delta. Rebase had zero conflicts/manual adaptations. Validation lease construction and top-level/health validation_resources projections coexist with lifecycle landing evidence, tri-state SCM observation, locked finality revalidation, and v1 migration; no workflow-shadow/job fields leaked. Nine-file combined lifecycle/SCM/validation/orchestrator suite: 983 passed. Terminal scan 8/8, secret scan, diff checks, trailer, upstream cleanliness all pass. Independent exact-head review is in progress before submission.
 ---
 <!-- COMMENTS:END -->
