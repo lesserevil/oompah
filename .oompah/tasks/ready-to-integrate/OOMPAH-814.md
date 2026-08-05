@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:04:27.777463Z'
+updated_at: '2026-08-05T00:05:07.786213Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-814
+  head_sha: cb1446d4beba7ad83a1b67d94574ad5c01cf8814
+  submitted_at: '2026-08-05T00:05:01.205592+00:00'
+  updated_at: '2026-08-05T00:05:01.205592+00:00'
 ---
 ## Summary
 
@@ -45,5 +53,10 @@ author: oompah
 created: 2026-08-05 00:04
 ---
 Implementation handoff is pushed at cb1446d4beba7ad83a1b67d94574ad5c01cf8814 on epic-OOMPAH-763--task-OOMPAH-814 (exact base 30dc2b2075a48c6c542da55a46ad0285f492d527). Branch is clean and up to date with origin. Focused verification remains green: module serial 62/62, module xdist -n4 62/62, related tracker factory tests 12/12, 40 concurrent repetitions, terminal mutation scan. Per coordination instructions, I did not submit OOMPAH-814 or release its owner claim; landing coordinator should land this ahead of rebasing OOMPAH-807 and run the exact server full gate.
+---
+author: oompah
+created: 2026-08-05 00:05
+---
+Made submit-queue dispatch fixtures deterministic under full-gate load at cb1446d4beba7ad83a1b67d94574ad5c01cf8814. Concrete project/store/tracker boundaries avoid dynamic MagicMock tracker construction and helper resources are closed. Exact+regression 2/2, module serial/xdist 62/62, 40 repetitions at concurrency 8, tracker factory 12/12, terminal scan pass.
 ---
 <!-- COMMENTS:END -->
