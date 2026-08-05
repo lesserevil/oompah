@@ -719,12 +719,26 @@ class DurableWorkflowWorker:
         if current is not None:
             self._active.add(current)
         try:
+            # Default claims are domain-scoped.  Otherwise a worker can lease
+            # a durable action for which it has no handler and exhaust it as a
+            # policy error.  Terminal-audit jobs are especially sensitive:
+            # their dedicated adapter owns typed-result finalization.
+            claim_actions = (
+                tuple(sorted(self.handlers)) if actions is None else tuple(actions)
+            )
+            if not claim_actions:
+                return WorkflowRunResult(
+                    WorkflowRunDisposition.IDLE,
+                    None,
+                    None,
+                    "worker has no registered workflow actions",
+                )
             job = await asyncio.to_thread(
                 self.store.claim_next,
                 lease_owner=self.worker_id,
                 lease_seconds=self.lease_seconds,
                 project_id=project_id,
-                actions=actions,
+                actions=claim_actions,
                 fair_across_projects=fair_across_projects,
             )
             if job is None:
