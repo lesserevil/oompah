@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:11:48.225310Z'
+updated_at: '2026-08-05T11:23:56.503440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,6 +20,14 @@ review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-824
+  head_sha: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+  submitted_at: '2026-08-05T11:23:49.281637+00:00'
+  updated_at: '2026-08-05T11:23:49.281637+00:00'
 ---
 ## Summary
 
@@ -31,3 +39,16 @@ The currently deployed main server at a165ee90e includes the lifecycle hot-loop 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 11:23
+---
+Bootstrapped the complete independently passed OOMPAH-816 validation-arbitration delta onto current main in one clean standalone commit 476cf5514514. Exactly 25 requested paths changed; 19 resulting blobs are byte-identical to OOMPAH-816 final head. The six differences only omit workflow-shadow/job/task-transition resources absent from main while preserving main lifecycle and identical validation lease/gate/classification/liveness/evidence/snapshot semantics. Verification: core 9-file matrix 515/515, containment 4-file matrix 374/374 (889 total), terminal mutation scan 8/8, secret scan and diff check pass; independent exact-head review PASS; branch clean and pushed.
+---
+author: oompah
+created: 2026-08-05 11:23
+---
+Bootstrapped exact heavyweight-validation arbitration onto main; 889 focused/containment tests and required scans pass at independently reviewed head 476cf5514514.
+---
+<!-- COMMENTS:END -->
