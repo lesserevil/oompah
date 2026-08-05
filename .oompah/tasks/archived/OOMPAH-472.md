@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-08-05T19:43:29.209669Z'
+updated_at: '2026-08-05T19:44:36.493433Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: a86ddce7-d5c9-4e13-b42d-8d2db748edf4
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 4329819
-  total_output_tokens: 124573
+  total_input_tokens: 4329837
+  total_output_tokens: 128163
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -71,8 +71,8 @@ oompah.task_costs:
       output_tokens: 7500
       cost_usd: 0.0
     unknown:
-      input_tokens: 21
-      output_tokens: 466
+      input_tokens: 39
+      output_tokens: 4056
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -207,6 +207,12 @@ oompah.task_costs:
     output_tokens: 466
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:32:27.582345+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 3590
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:44:33.117918+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -1432,5 +1438,15 @@ Safe evidence:
 - test_run_duration_seconds: 1.97
 - previous_state: Merged
 - days_since_merge: 7
+---
+author: oompah
+created: 2026-08-05 19:44
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 33, Tool calls: 20
+- Tokens: 18 in / 3.6K out [3.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 58s
+- Log: OOMPAH-472__20260805T193346Z.jsonl
 ---
 <!-- COMMENTS:END -->
