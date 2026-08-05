@@ -360,7 +360,10 @@ class TransitionResult:
     """``True`` when this call confirmed the task in ``In Validation``."""
 
     superseded_audit_id: str | None = None
-    """``audit_id`` of the prior record superseded by changed evidence, if any."""
+    """Last prior audit superseded by changed evidence (compatibility field)."""
+
+    superseded_audit_ids: list[str] = field(default_factory=list)
+    """All prior audits superseded while normalizing the requested chain."""
 
     cancelled_audit_ids: list[str] = field(default_factory=list)
     """Live duplicate records retired while coalescing this request."""
@@ -496,6 +499,7 @@ class _Decision:
         "early_result",
         "new_entries",
         "superseded_id",
+        "superseded_ids",
         "already_posted",
         "cancelled_audit_ids",
     )
@@ -504,6 +508,7 @@ class _Decision:
         self.early_result: TransitionResult | None = None
         self.new_entries: list[TerminalAuditRecord] = []
         self.superseded_id: str | None = None
+        self.superseded_ids: list[str] = []
         self.already_posted: bool = False
         self.cancelled_audit_ids: list[str] = []
 
@@ -816,24 +821,35 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
                 ensure_validation_on_coalesce=True,
             )
-            if outcome.success and not outcome.coalesced:
-                if outcome.superseded_audit_id:
+            if outcome.success:
+                superseded_ids = outcome.superseded_audit_ids or (
+                    [outcome.superseded_audit_id]
+                    if outcome.superseded_audit_id
+                    else []
+                )
+                for superseded_audit_id in superseded_ids:
                     self._record_metric(
                         "record_stale_discarded",
                         project_id,
                         current_issue.identifier,
-                        outcome.superseded_audit_id,
+                        superseded_audit_id,
                     )
-                audit_ids = outcome.audit_ids or (
-                    [outcome.audit_id] if outcome.audit_id else []
-                )
-                for audit_id in audit_ids:
-                    self._record_metric(
-                        "record_queued",
+                    self._clear_retired_alert(
                         project_id,
                         current_issue.identifier,
-                        audit_id,
+                        superseded_audit_id,
                     )
+                if not outcome.coalesced:
+                    audit_ids = outcome.audit_ids or (
+                        [outcome.audit_id] if outcome.audit_id else []
+                    )
+                    for audit_id in audit_ids:
+                        self._record_metric(
+                            "record_queued",
+                            project_id,
+                            current_issue.identifier,
+                            audit_id,
+                        )
             for cancelled_audit_id in outcome.cancelled_audit_ids:
                 self._record_metric(
                     "record_stale_discarded",
@@ -1515,6 +1531,20 @@ class TerminalTransitionCoordinator:
         def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
             """Atomically decide and commit all metadata changes."""
             chain = list(doc.pending_chain)
+            merged_prerequisite_ready = (
+                requested_target != TargetState.MERGED
+                or any(
+                    record.target_state == TargetState.DONE
+                    and record.evidence_fingerprint == evidence_fingerprint
+                    and record.request_state
+                    in (
+                        RequestState.PENDING,
+                        RequestState.IN_PROGRESS,
+                        RequestState.COMPLETED,
+                    )
+                    for record in chain
+                )
+            )
 
             # --- Stale-request rejection (identical target already completed) ---
             for record in chain:
@@ -1522,6 +1552,7 @@ class TerminalTransitionCoordinator:
                     record.target_state == requested_target
                     and record.request_state == RequestState.COMPLETED
                     and record.evidence_fingerprint == evidence_fingerprint
+                    and merged_prerequisite_ready
                 ):
                     duplicate_ids = [
                         existing.audit_id
@@ -1572,6 +1603,7 @@ class TerminalTransitionCoordinator:
                     record.target_state == requested_target
                     and record.request_state
                     in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    and merged_prerequisite_ready
                     and (
                         coalesce_pending_target
                         or record.evidence_fingerprint == evidence_fingerprint
@@ -1579,6 +1611,7 @@ class TerminalTransitionCoordinator:
                 ):
                     updated_chain = chain
                     superseded_id: str | None = None
+                    superseded_ids: list[str] = []
                     if not coalesce_pending_target:
                         updated_chain = []
                         for existing in chain:
@@ -1601,6 +1634,7 @@ class TerminalTransitionCoordinator:
                                     )
                                 )
                                 superseded_id = existing.audit_id
+                                superseded_ids.append(existing.audit_id)
                             else:
                                 updated_chain.append(existing)
                     # A malformed/recovered document can contain duplicate
@@ -1633,6 +1667,7 @@ class TerminalTransitionCoordinator:
                         queued_targets=[requested_target],
                         coalesced=True,
                         superseded_audit_id=superseded_id,
+                        superseded_audit_ids=superseded_ids,
                         cancelled_audit_ids=duplicate_ids,
                     )
                     if superseded_id is None and not duplicate_ids:
@@ -1641,25 +1676,43 @@ class TerminalTransitionCoordinator:
 
             # --- Supersede active/failed record with changed evidence ---
             superseded_id: str | None = None
+            superseded_ids: list[str] = []
             updated_chain: list[TerminalAuditRecord] = []
             for record in chain:
+                invalid_merged_prerequisite = (
+                    requested_target == TargetState.MERGED
+                    and not merged_prerequisite_ready
+                    and record.target_state
+                    in (TargetState.DONE, TargetState.MERGED)
+                )
                 if (
-                    record.target_state == requested_target
+                    (
+                        record.target_state == requested_target
+                        or (
+                            requested_target == TargetState.MERGED
+                            and record.target_state == TargetState.DONE
+                        )
+                    )
                     and record.request_state
                     in (
                         RequestState.PENDING,
                         RequestState.IN_PROGRESS,
                         RequestState.COMPLETED,
                     )
-                    and record.evidence_fingerprint != evidence_fingerprint
+                    and (
+                        record.evidence_fingerprint != evidence_fingerprint
+                        or invalid_merged_prerequisite
+                    )
                 ):
                     updated_chain.append(
                         replace(record, request_state=RequestState.SUPERSEDED)
                     )
                     superseded_id = record.audit_id
+                    superseded_ids.append(record.audit_id)
                 else:
                     updated_chain.append(record)
             decision.superseded_id = superseded_id
+            decision.superseded_ids = superseded_ids
 
             # --- Build new chain entries for the requested target ---
             new_entries = _build_new_entries(
@@ -1763,6 +1816,7 @@ class TerminalTransitionCoordinator:
             queued_targets=[r.target_state for r in decision.new_entries],
             coalesced=False,
             superseded_audit_id=decision.superseded_id,
+            superseded_audit_ids=decision.superseded_ids,
             status_staged=status_staged,
         )
 
@@ -3184,6 +3238,7 @@ def _build_merged_entries(
             r for r in current_chain
             if r.target_state == TargetState.DONE
             and r.request_state == RequestState.COMPLETED
+            and r.evidence_fingerprint == fingerprint
         ),
         None,
     )
@@ -3192,6 +3247,7 @@ def _build_merged_entries(
             r for r in current_chain
             if r.target_state == TargetState.DONE
             and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+            and r.evidence_fingerprint == fingerprint
         ),
         None,
     )

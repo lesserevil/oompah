@@ -4254,9 +4254,9 @@ async def _submission_authority_lock(orch, issue_id: str):
     """Serialize accepted submission writes with implementation dispatch setup."""
     lock_factory = getattr(orch, "issue_transition_lock", None)
     lock = lock_factory(issue_id) if callable(lock_factory) else None
-    # Test doubles and legacy orchestrator adapters do not expose the native
-    # asyncio lock.  They already serialize their mocked writes themselves.
-    if isinstance(lock, asyncio.Lock):
+    # Test doubles and legacy orchestrator adapters may not expose the native
+    # cross-loop lock. They already serialize their mocked writes themselves.
+    if lock is not None and hasattr(lock, "__aenter__"):
         async with lock:
             yield
     else:
@@ -17937,6 +17937,27 @@ def _status_before_label_event(tracker, event, to_status: str) -> str | None:
     return None
 
 
+def _terminal_transition_requester(orch):
+    """Return the owned transition method only when its class implements it.
+
+    Loose mocks and legacy embedders can synthesize arbitrary attributes through
+    ``__getattr__``.  Treating such a fabricated attribute as an async method
+    bypasses their real ``request_terminal_transition`` implementation and makes
+    webhook staging fail before it starts.
+    """
+
+    try:
+        owned = vars(orch).get("request_terminal_transition_owned")
+    except TypeError:
+        owned = None
+    if callable(owned):
+        return owned
+    owned = getattr(type(orch), "request_terminal_transition_owned", None)
+    if callable(owned):
+        return owned.__get__(orch, type(orch))
+    return orch.request_terminal_transition
+
+
 def _stage_authorized_terminal_label_event(
     orch,
     event,
@@ -17968,7 +17989,7 @@ def _stage_authorized_terminal_label_event(
             previous = IN_REVIEW
         issue.state = previous
         result = asyncio.run(
-            orch.request_terminal_transition(
+            _terminal_transition_requester(orch)(
                 current_issue=issue,
                 requested_target=_terminal_target_for_status(
                     label_name_to_status(event.label_name)
@@ -18027,7 +18048,7 @@ def _request_webhook_terminal_transition(
         issue.state = IN_REVIEW
     identity = str(actor or "forge-webhook").strip() or "forge-webhook"
     return asyncio.run(
-        orch.request_terminal_transition(
+        _terminal_transition_requester(orch)(
             current_issue=issue,
             requested_target=target,
             trigger_identity=ContributorIdentity(identity, "forge"),
