@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T23:58:47.234867Z'
+updated_at: '2026-08-05T23:59:13.934172Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-08-05 23:58
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Understanding: Continuing the preserved OOMPAH-826 CI-fix branch. I will reconcile the exact existing branch, inspect the preserved orchestrator patch and actual PR #721 failure evidence, reproduce the directly affected standalone/webhook/review-recovery tests, then make the minimal exact-head gating and regression-test corrections. I will keep existing reviews intact, verify same-head cache reuse and changed-head fencing, commit/push this same branch, and submit the task.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T23:58:55.915132Z'
+updated_at: '2026-08-05T23:59:17.776786Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-05 23:58
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Understanding: the bug is a stale first-stage projection of durable terminal-audit chains. I will identify the authoritative chain/result-intent state, define a truthful current/next/final projection with single-record compatibility, update all server surfaces and event payloads, add focused regression tests, then verify, commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
