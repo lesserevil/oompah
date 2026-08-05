@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-04T23:42:17.542457Z'
+updated_at: '2026-08-05T00:11:22.382668Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -274,5 +274,10 @@ author: oompah
 created: 2026-08-04 23:42
 ---
 Prepared the reviewed serial composition while the global gate is occupied: rebased the six-commit OOMPAH-791 stack onto exact OOMPAH-782 head a3948097f, producing clean pushed head 82f0ffd70e153351135700a215e50a9b06fb678f. Range-diff preserves all six patches; the only contextual adjustment is the expected shared work_decision.py neighborhood. Post-rebase smoke: 15 epic-workflow + 53 workflow-facts/integration-workflow tests passed; diff check clean. Hold submission until OOMPAH-782 lands to the parent.
+---
+author: oompah
+created: 2026-08-05 00:11
+---
+Advanced the prepared domain stack onto OOMPAH-813 exact head 7eada51f6 after OOMPAH-782 landed. Six OOMPAH-791 patches rebased cleanly; new pushed head a1b0c82ef6d67c6c8e20bd3471407a43a4bd0199. Post-rebase epic/workflow/integration/submission-fencing smoke: 74 passed; diff check clean. Hold submission until OOMPAH-813 lands.
 ---
 <!-- COMMENTS:END -->

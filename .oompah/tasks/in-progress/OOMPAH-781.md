@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-04T23:44:10.855161Z'
+updated_at: '2026-08-05T00:11:24.612366Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -425,5 +425,10 @@ author: oompah
 created: 2026-08-04 23:44
 ---
 Prepared final domain-stack order while predecessor gates run: rebased the two-commit OOMPAH-781 stack onto exact OOMPAH-791 head 82f0ffd70, itself based on OOMPAH-782 a3948097f. Resolved only the two independently predicted union conflicts: orchestrator imports preserve LandingState plus terminal job types; WorkflowJobStore.recover_abandoned now supports lease_owner, phase, project_id, and actions together. New clean pushed head: 4aba71a7146b345210407320ea9f3ed170a7aae0. Post-rebase combined domain/audit verification: 565 passed, 1 xfailed; core four-module smoke 106 passed; diff check clean. Hold submission until OOMPAH-791 lands to the parent.
+---
+author: oompah
+created: 2026-08-05 00:11
+---
+Advanced the prepared terminal-audit stack onto new OOMPAH-791 head a1b0c82ef (which contains OOMPAH-813 and OOMPAH-782) using an exact two-commit --onto rebase. No conflicts; new pushed head bc20fd0cade2caf3b794422d5063845fcf777196. Combined terminal/review/epic/workflow/submission-fencing verification: 571 passed, 1 expected xfail; diff check clean. Hold submission until OOMPAH-791 lands.
 ---
 <!-- COMMENTS:END -->
