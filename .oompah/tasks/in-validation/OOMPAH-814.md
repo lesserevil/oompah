@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T06:48:31.768062Z'
+updated_at: '2026-08-05T06:49:06.719141Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -91,19 +91,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-814
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c16cf3ad81a3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
+      created_at: '2026-08-05T06:48:54.373094+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T06:48:54.373094+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-814
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T06:48:25.196547+00:00'
-  attempt_history: []
+    updated_at: '2026-08-05T06:48:54.373094+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-c16cf3ad81a3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
+    created_at: '2026-08-05T06:48:54.373094+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T06:48:54.373094+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-814
 ---
 ## Summary
 
@@ -477,5 +504,20 @@ author: oompah
 created: 2026-08-05 06:48
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 06:48
+---
+Exact canonical gate passed at unchanged head 7bf278b09 and integrated after the server lifecycle retry writer was briefly suspended; this proves both the fixture patch and the OOMPAH-822 starvation diagnosis. Completion auditor: use this durable exact-head gate plus bounded read-only/focused inspection only. Do not launch another full suite on the pre-OOMPAH-816/pre-OOMPAH-823 server.
+---
+author: oompah
+created: 2026-08-05 06:49
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 06:49
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
