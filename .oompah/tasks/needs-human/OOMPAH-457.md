@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-457
 type: epic
-status: In Validation
+status: Needs Human
 priority: 0
 title: Build the terminal-audit state model and transition coordinator
 parent: null
@@ -18,7 +18,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:45.243838Z'
-updated_at: '2026-08-05T00:08:23.575232Z'
+updated_at: '2026-08-05T00:09:07.521728Z'
 work_branch: epic-OOMPAH-457
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/565
@@ -33,6 +33,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-047bed843267: '2026-08-04T22:25:37.271593+00:00'
+    no-auditor-audit-70ee8bf012fa-3: '2026-08-05T00:08:57.625074+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-457
@@ -43,6 +44,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-04T22:25:37.271604+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    target_state: Done
+    evidence_fingerprint: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    audit_ids:
+    - audit-70ee8bf012fa
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:08:57.625089+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-457
@@ -56,6 +66,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T22:25:37.271620+00:00'
     applied_at: '2026-08-04T22:25:45.498551+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-457
+    audit_id: audit-70ee8bf012fa
+    attempt_id: no-auditor-audit-70ee8bf012fa-3
+    target_state: Done
+    evidence_fingerprint: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+    status: Needs Human
+    audit_ids:
+    - audit-70ee8bf012fa
+    applied: true
+    created_at: '2026-08-05T00:08:57.625108+00:00'
+    applied_at: '2026-08-05T00:09:05.132168+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -113,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-457
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -172,13 +194,25 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-457 (tried: origin/epic-OOMPAH-457, origin/OOMPAH-457)'
       next_retry_at: '2026-08-05T00:08:55.966907+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-70ee8bf012fa-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 200a2b6ad737cbd463d050509ef27124c7a977a63f51277dc16974b404699b9c
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-05T00:08:57.624911+00:00'
+      completed_at: '2026-08-05T00:08:57.624911+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:35:36.253495+00:00'
-    updated_at: '2026-08-05T00:08:15.966934+00:00'
+    updated_at: '2026-08-05T00:08:57.624911+00:00'
   - version: 1
     audit_id: audit-04b103e6d430
     project_id: proj-14849f1b
@@ -486,5 +520,12 @@ author: oompah
 created: 2026-08-05 00:08
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-457 (tried: origin/epic-OOMPAH-457, origin/OOMPAH-457). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-05 00:09
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
