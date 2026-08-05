@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-807
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Allow revisionless audits for metadata-only Archived dispositions
 parent: OOMPAH-763
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T16:01:18.477453Z'
+updated_at: '2026-08-05T16:28:49.774717Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -49,14 +49,18 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-807
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-807
   base_branch: epic-OOMPAH-763
-  base_sha: 22252cc0486e919a657d15e5367ce29476622ce3
+  base_sha: 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce
   head_sha: b1c089614b81076b961c7681b6ddad64ca68191e
+  integrated_sha: b1c089614b81076b961c7681b6ddad64ca68191e
   submitted_at: '2026-08-05T16:01:02.263145+00:00'
-  updated_at: '2026-08-05T16:01:02.263145+00:00'
+  updated_at: '2026-08-05T16:28:41.141520+00:00'
+  dependency_heads:
+    OOMPAH-814: 7bf278b09de0a311c1d1050f6733c5fc9f530975
+    OOMPAH-806: 30dc2b2075a48c6c542da55a46ad0285f492d527
 oompah.task_costs:
   total_input_tokens: 47501
   total_output_tokens: 583
@@ -90,6 +94,28 @@ oompah.work_contributors:
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T21:39:15.159731+00:00'
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2153287d0390
+    project_id: proj-14849f1b
+    task_id: OOMPAH-807
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5ac8db707b4c12c147305f9846f4ecca697d453daca243d3ee3e0435bb41211f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T16:28:43.601273+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -347,5 +373,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 30m 51s
 - Log: OOMPAH-807__20260805T153043Z.jsonl
+---
+author: oompah
+created: 2026-08-05 16:28
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
