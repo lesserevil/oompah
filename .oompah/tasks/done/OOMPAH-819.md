@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T06:32:44.401281Z'
+updated_at: '2026-08-05T06:32:57.832518Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-819
 target_branch: null
 review_url: null
@@ -53,8 +53,8 @@ oompah.integration:
   submitted_at: '2026-08-05T05:34:40.842315+00:00'
   updated_at: '2026-08-05T05:54:45.428840+00:00'
 oompah.task_costs:
-  total_input_tokens: 47675
-  total_output_tokens: 3820
+  total_input_tokens: 47740
+  total_output_tokens: 17052
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -62,8 +62,8 @@ oompah.task_costs:
       output_tokens: 254
       cost_usd: 0.0
     unknown:
-      input_tokens: 86
-      output_tokens: 3566
+      input_tokens: 151
+      output_tokens: 16798
       cost_usd: 0.0
   runs:
   - profile: default
@@ -78,6 +78,12 @@ oompah.task_costs:
     output_tokens: 3566
     cost_usd: 0.0
     recorded_at: '2026-08-05T06:23:17.216825+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 65
+    output_tokens: 13232
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T06:32:54.996458+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-819__20260805T045317Z
@@ -341,5 +347,15 @@ Safe evidence:
 - total_focused_tests: 721 passed, 0 failed
 - regression_test: test_oompah_818_old_merged_review_cannot_terminalize_new_submission present and passing
 - key_commits: 742327deb (core fence), ce2526a8b (delivery ownership races)
+---
+author: oompah
+created: 2026-08-05 06:32
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 101, Tool calls: 65
+- Tokens: 65 in / 13.2K out [13.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 13s
+- Log: OOMPAH-819__20260805T062354Z.jsonl
 ---
 <!-- COMMENTS:END -->
