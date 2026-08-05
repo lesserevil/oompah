@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T18:25:19.032749Z'
+updated_at: '2026-08-05T19:25:27.520328Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -21,8 +21,8 @@ merged_at: null
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
-  total_input_tokens: 1145
-  total_output_tokens: 54120
+  total_input_tokens: 1193
+  total_output_tokens: 55388
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -34,8 +34,8 @@ oompah.task_costs:
       output_tokens: 33860
       cost_usd: 0.0
     unknown:
-      input_tokens: 67
-      output_tokens: 2391
+      input_tokens: 115
+      output_tokens: 3659
       cost_usd: 0.0
   runs:
   - profile: default
@@ -86,6 +86,12 @@ oompah.task_costs:
     output_tokens: 1689
     cost_usd: 0.0
     recorded_at: '2026-08-05T15:54:03.075839+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 1268
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:25:17.301154+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -206,7 +212,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-43eb8f8ef310
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -216,13 +222,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T18:24:59.184720+00:00'
       branch_key: epic-OOMPAH-521--task-OOMPAH-523
+      ended_at: '2026-08-05T19:25:20.837906+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-cc64fbe0497e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+      created_at: '2026-08-05T19:25:26.027568+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T19:25:26.027568+00:00'
+      branch_key: epic-OOMPAH-521--task-OOMPAH-523
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Open
     created_at: '2026-08-05T18:22:16.796576+00:00'
-    updated_at: '2026-08-05T18:24:59.184720+00:00'
+    updated_at: '2026-08-05T19:25:26.027568+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
@@ -274,7 +296,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-43eb8f8ef310
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -284,6 +306,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T18:24:59.184720+00:00'
     branch_key: epic-OOMPAH-521--task-OOMPAH-523
+    ended_at: '2026-08-05T19:25:20.837906+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-cc64fbe0497e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+    created_at: '2026-08-05T19:25:26.027568+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T19:25:26.027568+00:00'
+    branch_key: epic-OOMPAH-521--task-OOMPAH-523
+    candidate_rotation_count: 1
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 99a8dad5f6b4614d1ceb98dd44f6fee48b52633ff66fa3c706d9917c8f50ecc5
@@ -1438,5 +1476,15 @@ author: oompah
 created: 2026-08-05 18:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:25
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 25
+- Tokens: 48 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 0m 3s
+- Log: OOMPAH-523__20260805T182522Z.jsonl
 ---
 <!-- COMMENTS:END -->
