@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T01:19:07.314613Z'
+updated_at: '2026-08-05T01:19:31.785807Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,13 +190,13 @@ oompah.terminal_audit:
     branch_key: OOMPAH-813
     candidate_rotation_count: 2
 oompah.task_costs:
-  total_input_tokens: 104
-  total_output_tokens: 2871
+  total_input_tokens: 538
+  total_output_tokens: 14000
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 104
-      output_tokens: 2871
+      input_tokens: 538
+      output_tokens: 14000
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -211,6 +211,12 @@ oompah.task_costs:
     output_tokens: 1057
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:10:43.077672+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 434
+    output_tokens: 11129
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:19:28.794212+00:00'
 ---
 ## Summary
 
@@ -348,5 +354,15 @@ Safe evidence:
 - commit: eb5d206f2fc040698808130b2629a997c3c9b953
 - files_changed: oompah/orchestrator.py, tests/test_submission_fencing.py
 - key_fix: project_id resolved at line 34766 before revoked submission handler call at line 34838
+---
+author: oompah
+created: 2026-08-05 01:19
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 0, Tool calls: 53
+- Tokens: 434 in / 11.1K out [11.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 2s
+- Log: OOMPAH-813__20260805T011136Z.jsonl
 ---
 <!-- COMMENTS:END -->
