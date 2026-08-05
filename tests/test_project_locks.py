@@ -160,7 +160,13 @@ class TestConcurrentWorktreeOperationsAreSerialized:
         barrier = threading.Barrier(2)
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             """Simulate slow git work inside the locked region."""
             call_order.append(f"start:{issue_id}")
@@ -232,7 +238,13 @@ class TestConcurrentWorktreeOperationsAreSerialized:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("start:create")
             time.sleep(0.05)
@@ -275,7 +287,13 @@ class TestDifferentProjectsAreIndependent:
         finished_at: dict[str, float] = {}
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             started_at[project_id] = time.monotonic()
             time.sleep(0.1)  # simulate slow git I/O
@@ -460,7 +478,13 @@ class TestEpicWorktreeLocking:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("start:regular")
             time.sleep(0.05)
@@ -723,7 +747,13 @@ class TestConcurrentMaintenanceAndDispatch:
         call_order: list[str] = []
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_order.append("create:start")
             time.sleep(0.08)
@@ -773,7 +803,13 @@ class TestConcurrentMaintenanceAndDispatch:
             finished_at["remove"] = time.monotonic()
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             started_at["create"] = time.monotonic()
             time.sleep(0.1)
@@ -817,7 +853,13 @@ class TestConcurrentMaintenanceAndDispatch:
         counter_lock = threading.Lock()
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             with counter_lock:
                 current_concurrent[0] += 1
@@ -860,7 +902,13 @@ class TestLockReleasedOnError:
         call_count = [0]
 
         def mock_create_locked(
-            project_id, issue_id, base_branch=None, branch_name=None
+            project_id,
+            issue_id,
+            base_branch=None,
+            branch_name=None,
+            *,
+            prefer_remote_branch=False,
+            expected_head_sha=None,
         ):
             call_count[0] += 1
             if call_count[0] == 1:
