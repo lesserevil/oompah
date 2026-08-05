@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T10:47:37.793346Z'
+updated_at: '2026-08-05T11:04:50.300104Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -49,14 +49,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-816
   base_branch: epic-OOMPAH-763
   base_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
   head_sha: 510d518c17a6a5974ef174b54a3fc15ffca1b96b
+  integrated_sha: 510d518c17a6a5974ef174b54a3fc15ffca1b96b
   submitted_at: '2026-08-05T10:47:30.755142+00:00'
-  updated_at: '2026-08-05T10:47:30.755142+00:00'
+  updated_at: '2026-08-05T11:04:42.013842+00:00'
 oompah.task_costs:
   total_input_tokens: 47030
   total_output_tokens: 474
@@ -89,6 +90,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-816
     source_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
     completed_at: '2026-08-05T00:40:25.929743+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-feb55adc68ff
+    project_id: proj-14849f1b
+    task_id: OOMPAH-816
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e795e1d969c840b9b0087a87ab49b8ac2b760019201cdc748079125258cf6d4f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T11:04:44.494133+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -558,5 +581,10 @@ author: oompah
 created: 2026-08-05 10:47
 ---
 Serialized heavyweight validation and removed the root handler-fixture executor/store leak behind late full-gate flakes; 279 handler tests and 457 expanded leakage tests pass at 510d518c1.
+---
+author: oompah
+created: 2026-08-05 11:04
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
