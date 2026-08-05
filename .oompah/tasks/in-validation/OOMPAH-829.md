@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:35:07.955770Z'
+updated_at: '2026-08-05T19:50:11.107275Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -85,6 +85,31 @@ oompah.target_branch: main
 oompah.review_head: 8c262588c86e873665bc92fe0b885f6d734412bf
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-d4736e35fc68: '2026-08-05T19:50:00.559090+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-829
+    target_state: Done
+    evidence_fingerprint: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+    audit_ids:
+    - audit-d628e5e4235c
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T19:50:00.559098+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-829
+    audit_id: audit-d628e5e4235c
+    attempt_id: attempt-d4736e35fc68
+    target_state: Done
+    evidence_fingerprint: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+    status: In Validation
+    audit_ids:
+    - audit-d628e5e4235c
+    applied: true
+    created_at: '2026-08-05T19:50:00.559108+00:00'
+    applied_at: '2026-08-05T19:50:08.281427+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -92,7 +117,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-829
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -101,7 +126,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d4736e35fc68
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -111,13 +136,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T19:34:46.396368+00:00'
       branch_key: OOMPAH-829
+      verdict: pass
+      completed_at: '2026-08-05T19:50:00.558985+00:00'
+      ended_at: '2026-08-05T19:50:00.558985+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T19:32:10.611419+00:00'
-    updated_at: '2026-08-05T19:34:46.396368+00:00'
+    updated_at: '2026-08-05T19:50:00.558985+00:00'
   - version: 1
     audit_id: audit-fbd06944968b
     project_id: proj-14849f1b
@@ -258,5 +286,21 @@ author: oompah
 created: 2026-08-05 19:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:50
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 8c262588c86e873665bc92fe0b885f6d734412bf
+- target_branch_head: da53569a9
+- pr_merged: true
+- focused_tests: fingerprint=10 enforcement=95 coordinator=135 audit=38 override=28 lifecycle=52 queue=27 executor=16 all_pass
+- commit_scope: oompah/terminal_audit.py, oompah/terminal_audit_enforcement.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_fingerprint_canonicalization.py
+- migration_version: LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION=1
+- acceptance_scenarios: OOMPAH-660 repairs once and is idempotent; OOMPAH-662 control needs no marker; 12 fail-closed drift cases; SCM outage fails closed; post-write recovery; cross-project isolation
 ---
 <!-- COMMENTS:END -->
