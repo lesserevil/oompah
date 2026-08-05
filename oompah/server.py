@@ -72,6 +72,7 @@ from oompah.intake_summary import build_intake_summary
 from oompah.integration import (
     IntegrationRecord,
     is_direct_epic_maintenance_issue,
+    task_submit_required_message,
     validate_submission_branch,
 )
 from oompah.coordination import CoordinationStore
@@ -5412,6 +5413,16 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "validation", "message": "status is required"}},
                     status_code=400,
                 )
+            if canonicalize_status(status) == READY_TO_INTEGRATE:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": task_submit_required_message(identifier),
+                        }
+                    },
+                    status_code=400,
+                )
 
             async def apply_status_transition() -> JSONResponse:
                 # Preserve the existing intake/transition gate for
@@ -5524,8 +5535,19 @@ async def api_task_handoff(request: Request):
             )
         from oompah.label_auth import label_name_to_status
 
+        status_from_label = label_name_to_status(label)
+        if canonicalize_status(status_from_label) == READY_TO_INTEGRATE:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": task_submit_required_message(identifier),
+                    }
+                },
+                status_code=400,
+            )
+
         async def apply_label_mutation() -> JSONResponse:
-            status_from_label = label_name_to_status(label)
             terminal_target = _terminal_target_for_status(status_from_label)
             terminal_payload: dict[str, Any] | None = None
             if terminal_target is not None:

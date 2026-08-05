@@ -62,7 +62,9 @@ from oompah.authority_boundary import (
     check_shell_command,
 )
 from oompah.auditor import is_recoverable_auditor_command_denial
-from oompah.statuses import canonicalize_status
+from oompah.integration import task_submit_required_message
+from oompah.label_auth import label_name_to_status
+from oompah.statuses import READY_TO_INTEGRATE, canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
     TargetState,
@@ -752,6 +754,14 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            if (
+                task_identifier
+                and canonicalize_status(args.status) == READY_TO_INTEGRATE
+            ):
+                return (
+                    "Error: "
+                    + task_submit_required_message(args.identifier)
+                )
             target = _target_for_task_status(args.status)
             if target is not None and terminal_transition_coordinator is not None:
                 try:
@@ -771,11 +781,7 @@ def _exec_oompah_task_command(
                     "ACP tool runner"
                 )
             if task_identifier and target is not None:
-                return (
-                    "Error: spawned workers must use `oompah task submit "
-                    f"{args.identifier} --summary \"...\"` so committed and "
-                    "pushed git evidence is validated before completion"
-                )
+                return "Error: " + task_submit_required_message(args.identifier)
             task_tracker.update_issue(args.identifier, status=args.status)
             observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
             if task_identifier and callable(observer):
@@ -831,6 +837,12 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            if (
+                task_identifier
+                and canonicalize_status(label_name_to_status(args.label))
+                == READY_TO_INTEGRATE
+            ):
+                return "Error: " + task_submit_required_message(args.identifier)
             task_tracker.add_label(args.identifier, args.label)
             observer = getattr(coordination_service, "_observe_task_handoff_mutation", None)
             if task_identifier and callable(observer):
@@ -850,6 +862,12 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
+            if (
+                task_identifier
+                and canonicalize_status(label_name_to_status(args.label))
+                == READY_TO_INTEGRATE
+            ):
+                return "Error: " + task_submit_required_message(args.identifier)
             task_tracker.remove_label(args.identifier, args.label)
             return f"Label removed: {args.label}"
 
