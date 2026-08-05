@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T06:18:51.734543Z'
+updated_at: '2026-08-05T06:19:06.965072Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -266,12 +266,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
-  updated_at: '2026-08-05T05:59:26.273834+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T06:18:59.905738+00:00'
+  updated_at: '2026-08-05T06:18:59.905738+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1188,5 +1190,10 @@ author: oompah
 created: 2026-08-05 06:18
 ---
 Completion: OOMPAH-505 implementation is verified and ready for integration. The explicit Claude and Codex model tiers feature is complete across all components: (1) Backend descriptors expose supports_manual_model_selection independently from has_catalog; (2) UI provides free-text manual model entry for catalog-less ACP backends with SDK-default fallback; (3) Role store validates and persists explicit role candidates; (4) All dispatch tests confirm explicit models propagate correctly. The integration validation error has been resolved by creating the epic-OOMPAH-502 branch. 481 focused tests pass, secrets scan clean, branch pushed and verified at e1b0f4846.
+---
+author: oompah
+created: 2026-08-05 06:19
+---
+Explicit Claude and Codex model tiers implementation complete and verified. Backend descriptors expose supports_manual_model_selection independently from has_catalog. UI supports manual model entry with SDK-default fallback. Role infrastructure supports explicit role candidates. Six explicit mappings (fast=Claude/haiku+Codex/gpt-5.6-luna, standard=Claude/sonnet+Codex/gpt-5.6-terra, deep=Claude/opus+Codex/gpt-5.6-sol) configured and tested. 481 focused tests pass, secrets scan clean.
 ---
 <!-- COMMENTS:END -->
