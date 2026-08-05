@@ -18,10 +18,11 @@ children:
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-766
-labels: []
+labels:
+- rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-05T03:06:29.095843Z'
+updated_at: '2026-08-05T05:35:57.231497Z'
 work_branch: null
 target_branch: null
 review_url: null
