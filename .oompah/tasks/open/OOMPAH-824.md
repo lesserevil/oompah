@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:44:09.890136Z'
+updated_at: '2026-08-05T11:44:27.983882Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -66,5 +66,19 @@ author: oompah
 created: 2026-08-05 11:44
 ---
 YOLO: CI tests failed on MR #720. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-05 11:44
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #33)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+**Evidence head:** `476cf5514514ba70c8641a3a908c0d0eb7ccfe79`
+**Evidence result:** `comment_ci_passing`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
