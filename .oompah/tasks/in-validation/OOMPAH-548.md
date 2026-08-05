@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-548
 type: feature
-status: Merged
+status: In Validation
 priority: 0
 title: Add worker submission handoff and ordered terminal staging
 parent: OOMPAH-545
@@ -13,12 +13,34 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-07-29T18:27:53.952462Z'
+updated_at: '2026-08-05T19:24:36.026875Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-20140d599cba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-548
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7a7e80267386a9b7a5075aff0dae57959cb6c636f5c05732ee536a8edf19e41
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T19:24:29.296582+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -60,5 +82,10 @@ author: oompah
 created: 2026-07-29 18:27
 ---
 Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; focused post-rebase compatibility tests passed.
+---
+author: oompah
+created: 2026-08-05 19:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
