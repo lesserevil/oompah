@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: Open
+status: Ready to Integrate
 priority: 0
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:48:12.596874Z'
+updated_at: '2026-08-05T11:50:03.088083Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -26,9 +26,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-824
-  head_sha: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
-  submitted_at: '2026-08-05T11:23:49.281637+00:00'
-  updated_at: '2026-08-05T11:23:49.281637+00:00'
+  base_branch: main
+  head_sha: 50d19fe5d932421111494403c9b0160d5f2e35f4
+  submitted_at: '2026-08-05T11:49:56.447474+00:00'
+  updated_at: '2026-08-05T11:49:56.447474+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/720
 oompah.review_number: '720'
 oompah.work_branch: OOMPAH-824
@@ -85,5 +86,10 @@ author: oompah
 created: 2026-08-05 11:48
 ---
 GitHub CI exposed a runner-specific bug: PATH may contain a nonexistent optional directory (/snap/bin), while native guard discovery deferred directory iteration beyond its OSError handler. Fixed at exact pushed head 50d19fe5d932421111494403c9b0160d5f2e35f4 by eagerly enumerating each PATH directory inside the guarded block and skipping stale/unreadable entries, matching shutil.which behavior. Added an exact missing-PATH-entry regression. Focused native guard + Codex backend suite: 78 passed; terminal mutation scan and secret scan passed. PR #720 CI is rerunning.
+---
+author: oompah
+created: 2026-08-05 11:50
+---
+Repaired GitHub CI PATH enumeration failure at exact pushed head 50d19fe5d932421111494403c9b0160d5f2e35f4. Native validation guard now skips nonexistent/unreadable PATH directories, with an exact regression; 78 focused tests, terminal scan, secret scan, diff check, and independent review pass.
 ---
 <!-- COMMENTS:END -->
