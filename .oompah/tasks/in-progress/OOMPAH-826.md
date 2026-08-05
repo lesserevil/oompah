@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T18:19:25.048182Z'
+updated_at: '2026-08-05T18:28:33.774042Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3afe0e24-ff78-4f66-a922-91a298edda72
+oompah.agent_run_id: c9fcecf9-e281-49a8-b115-3238c65343c2
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1061
@@ -123,5 +123,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 53s
 - Log: OOMPAH-826__20260805T181747Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:28
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
