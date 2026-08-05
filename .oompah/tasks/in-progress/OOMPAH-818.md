@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:25:09.490191Z'
+updated_at: '2026-08-05T01:26:13.848411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8e226ac5-fe4e-4515-9192-785136e5d367
+oompah.agent_run_id: 039409f9-c1b5-4d94-9c8f-7bcaa808b1b2
 oompah.task_costs:
   total_input_tokens: 48349
   total_output_tokens: 328
@@ -119,5 +119,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 52s
 - Log: OOMPAH-818__20260805T012419Z.jsonl
+---
+author: oompah
+created: 2026-08-05 01:26
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-05 01:26
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
