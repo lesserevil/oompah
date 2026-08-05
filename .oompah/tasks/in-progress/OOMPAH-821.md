@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T14:19:31.788428Z'
+updated_at: '2026-08-05T14:38:26.377128Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -309,5 +309,10 @@ author: oompah
 created: 2026-08-05 14:19
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 14:38
+---
+Understanding: The prior attempt aligned coordinator retry checks but exact-head review found remaining invariants: retry must honor the newest same-fingerprint successful audit, infrastructure retry must be fingerprint-fenced, and the live integrated recovery alert must be truthful, coalesced, and clear after a fresh audit. I will inspect the current branch delta and surrounding coordinator/orchestrator/server tests before making a focused correction.
 ---
 <!-- COMMENTS:END -->
