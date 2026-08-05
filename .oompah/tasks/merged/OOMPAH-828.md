@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-828
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Treat applied Archived audit results as final lifecycle no-ops
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T21:20:27.098679Z'
+updated_at: '2026-08-05T21:23:02.237865Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
@@ -148,6 +148,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0a7fe7ab871b: '2026-08-05T21:19:10.860734+00:00'
+    attempt-e47f3a292e74: '2026-08-05T21:22:58.580516+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-828
@@ -158,6 +159,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-05T21:19:10.860743+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-828
+    target_state: Merged
+    evidence_fingerprint: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+    audit_ids:
+    - audit-e2b51629d2e5
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T21:22:58.580529+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-828
@@ -171,6 +181,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T21:19:10.860755+00:00'
     applied_at: '2026-08-05T21:19:19.465460+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-828
+    audit_id: audit-e2b51629d2e5
+    attempt_id: attempt-e47f3a292e74
+    target_state: Merged
+    evidence_fingerprint: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+    status: Merged
+    audit_ids:
+    - audit-e2b51629d2e5
+    applied: false
+    created_at: '2026-08-05T21:22:58.580543+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -212,7 +233,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-828
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -221,7 +242,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e47f3a292e74
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -231,13 +252,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-05T21:20:17.037491+00:00'
       branch_key: OOMPAH-828
+      verdict: pass
+      completed_at: '2026-08-05T21:22:58.580421+00:00'
+      ended_at: '2026-08-05T21:22:58.580421+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T20:58:39.378513+00:00'
-    updated_at: '2026-08-05T21:20:17.037491+00:00'
+    updated_at: '2026-08-05T21:22:58.580421+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a7fe7ab871b
