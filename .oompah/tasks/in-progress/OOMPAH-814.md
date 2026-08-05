@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:31:50.204272Z'
+updated_at: '2026-08-05T00:37:54.513159Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -245,5 +245,10 @@ author: oompah
 created: 2026-08-05 00:31
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 00:37
+---
+UNDERSTANDING: The quality gate failed on test_orchestrator_merged.py::TestShouldDispatchCompleted::test_short_description_accepted which exceeded the 5s timeout under full-gate load. Root cause (from diagnosis): TestShouldDispatchCompleted._make_orchestrator creates a real OompahMarkdownTracker that scans ~282 native task files, leaking two pools and five durable stores. Plan: (1) Replace incomplete fixtures in TestShouldDispatchCompleted, TestDispatchSerializationByProject, and TestBudgetGateFreeTierBypass with concrete ProjectStore and no-I/O _DispatchTracker similar to the submit_queue_concurrency changes; (2) Add explicit cleanup for orchestrator resources; (3) Verify all tests pass both in isolation and under full-gate load.
 ---
 <!-- COMMENTS:END -->
