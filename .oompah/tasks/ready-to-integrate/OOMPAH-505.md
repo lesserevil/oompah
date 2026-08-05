@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T14:37:57.076246Z'
+updated_at: '2026-08-05T14:38:10.787039Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -272,12 +272,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
-  updated_at: '2026-08-05T14:18:33.359938+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T14:37:55.501617+00:00'
+  updated_at: '2026-08-05T14:37:55.501617+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1251,5 +1253,20 @@ author: oompah
 created: 2026-08-05 14:37
 ---
 Completion: Final synchronization is complete. Both origin/epic-OOMPAH-502 and origin/epic-OOMPAH-502--task-OOMPAH-505 now resolve to e1b0f4846; the task branch is clean and up to date. The explicit ACP model-tier implementation is verified and ready for integration.
+---
+author: oompah
+created: 2026-08-05 14:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 40
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 38s
+- Log: OOMPAH-505__20260805T141852Z.jsonl
+---
+author: oompah
+created: 2026-08-05 14:38
+---
+Verified explicit Claude/Codex ACP model tiers, focused tests, secrets scan, and synchronized task and epic branches.
 ---
 <!-- COMMENTS:END -->
