@@ -189,6 +189,9 @@ from oompah.terminal_audit import (
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
+    DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
+    DEFAULT_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS,
+    DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS,
     TerminalAuditEnforcement,
 )
 from oompah.terminal_audit_observability import (
@@ -1553,6 +1556,7 @@ class Orchestrator:
         # slow tracker mutation per row.  Keep their batch future independent
         # from the scheduler tick and coalesce continuations to one worker.
         self._terminal_lifecycle_future: "asyncio.Future[None] | None" = None
+        self._terminal_lifecycle_timer: "asyncio.TimerHandle | None" = None
         # Dedicated future for epic maintenance (step 5c) so it does not
         # compete for the same coalescing gate as the step-5b heal/cleanup
         # jobs.  Fire-and-forget: a new run starts only when the previous one
@@ -1996,7 +2000,8 @@ class Orchestrator:
 
     def _save_state_for_terminal_audit(self, updates: dict[str, Any]) -> None:
         """Merge the terminal-audit record through the normal state writer."""
-        self._save_state(**updates)
+        if not self._save_state(**updates):
+            raise OSError("terminal-audit service state was not durably persisted")
 
     def _terminal_audit_scopes(self) -> list[tuple[str, TrackerProtocol]]:
         """Return all tracker scopes with project identity attached."""
@@ -2084,6 +2089,16 @@ class Orchestrator:
         """Drain one bounded lifecycle-repair batch off the scheduler loop."""
 
         try:
+            retry_backoff_seconds = max(
+                1.0,
+                float(
+                    getattr(
+                        self.config,
+                        "terminal_lifecycle_reconciliation_retry_backoff_seconds",
+                        DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS,
+                    )
+                ),
+            )
             result = self._terminal_audit_enforcement.reconcile_lifecycle_batch(
                 self._terminal_audit_scopes(),
                 batch_size=max(
@@ -2093,6 +2108,27 @@ class Orchestrator:
                             self.config,
                             "terminal_lifecycle_reconciliation_batch_size",
                             DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
+                        )
+                    ),
+                ),
+                max_attempts=max(
+                    1,
+                    int(
+                        getattr(
+                            self.config,
+                            "terminal_lifecycle_reconciliation_max_attempts",
+                            DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
+                        )
+                    ),
+                ),
+                retry_backoff_seconds=retry_backoff_seconds,
+                retry_max_backoff_seconds=max(
+                    retry_backoff_seconds,
+                    float(
+                        getattr(
+                            self.config,
+                            "terminal_lifecycle_reconciliation_max_backoff_seconds",
+                            DEFAULT_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS,
                         )
                     ),
                 ),
@@ -2122,11 +2158,45 @@ class Orchestrator:
             }
             self._notify_state_only()
 
-    def _schedule_terminal_lifecycle_reconciliation(self) -> None:
+    @staticmethod
+    def _terminal_lifecycle_schedule_delay(
+        status: Mapping[str, Any],
+        *,
+        now: datetime | None = None,
+        floor_seconds: float = 1.0,
+    ) -> float | None:
+        """Return the one bounded continuation delay, or ``None`` when idle."""
+
+        floor = max(float(floor_seconds), 0.1)
+        if int(status.get("pending", 0) or 0) > 0:
+            return floor
+        if int(status.get("retry_pending", 0) or 0) <= 0:
+            return None
+        retry_at = _audit_observability_time(status.get("next_retry_at"))
+        if retry_at is None:
+            return None
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return max(floor, (retry_at - current).total_seconds())
+
+    def _schedule_terminal_lifecycle_reconciliation(
+        self, *, discover_new: bool = False
+    ) -> None:
         """Submit one lifecycle batch and continue only after it completes."""
 
         if self._stopping:
             return
+        timer = self._terminal_lifecycle_timer
+        if timer is not None and not timer.cancelled():
+            if not discover_new:
+                return
+            # A tracker event may have introduced fresh pending work while the
+            # only known rows were waiting on a long retry backoff.  Pre-empt
+            # the timer for one discovery scan; due-at fencing in the ledger
+            # still prevents the failed rows from retrying early.
+            timer.cancel()
+            self._terminal_lifecycle_timer = None
         future = self._terminal_lifecycle_future
         if future is not None and not future.done():
             return
@@ -2145,15 +2215,29 @@ class Orchestrator:
                 completed.result()
             except Exception:  # pragma: no cover - worker method is defensive
                 logger.exception("terminal lifecycle reconciliation future failed")
+            if self._terminal_lifecycle_future is completed:
+                self._terminal_lifecycle_future = None
             status = self._terminal_audit_enforcement.lifecycle_reconciliation_status()
-            if status.get("status") in {"complete", "idle"}:
+            delay = self._terminal_lifecycle_schedule_delay(
+                status,
+                floor_seconds=float(
+                    getattr(
+                        self.config,
+                        "terminal_lifecycle_reconciliation_scheduler_floor_seconds",
+                        1.0,
+                    )
+                ),
+            )
+            if delay is None:
                 return
-            # Give the scheduler loop a chance to service queued events between
-            # batches.  A slow tracker call never occupies this event loop. A
-            # failed row is retried on a deliberate backoff rather than
-            # spinning a worker against an unavailable tracker.
-            delay = 0.01 if int(status.get("pending", 0) or 0) else 5.0
-            loop.call_later(delay, self._schedule_terminal_lifecycle_reconciliation)
+
+            def _resume() -> None:
+                self._terminal_lifecycle_timer = None
+                self._schedule_terminal_lifecycle_reconciliation()
+
+            # One timer is the durable queue's only continuation.  Event-driven
+            # ticks observe it and coalesce rather than bypassing retry due-at.
+            self._terminal_lifecycle_timer = loop.call_later(delay, _resume)
 
         self._terminal_lifecycle_future.add_done_callback(_continue)
 
@@ -3134,7 +3218,7 @@ class Orchestrator:
 
         return reopened
 
-    def _save_state(self, **updates: object) -> None:
+    def _save_state(self, **updates: object) -> bool:
         """Atomically merge updates into the persisted service state.
 
         The lock covers both the read and replace, preventing concurrent
@@ -3151,13 +3235,14 @@ class Orchestrator:
                     "Refusing to overwrite unreadable service state at %s",
                     self._state_path,
                 )
-                return
+                return False
             data.update(updates)
             state_dir = os.path.dirname(self._state_path) or "."
             temp_path = os.path.join(
                 state_dir,
                 f".{os.path.basename(self._state_path)}.{uuid.uuid4().hex}.tmp",
             )
+            saved = False
             try:
                 os.makedirs(state_dir, exist_ok=True)
                 with open(temp_path, "x", encoding="utf-8") as f:
@@ -3167,6 +3252,7 @@ class Orchestrator:
                     f.flush()
                     os.fsync(f.fileno())
                 os.replace(temp_path, self._state_path)
+                saved = True
             except (OSError, TypeError, ValueError) as exc:
                 logger.warning(
                     "Failed to save service state to %s: %s",
@@ -3184,6 +3270,7 @@ class Orchestrator:
                         temp_path,
                         exc,
                     )
+            return saved
 
     def _save_paused_state(self) -> None:
         """Persist paused state to disk."""
@@ -6234,7 +6321,7 @@ class Orchestrator:
         # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
         # from startup.  The service can accept health/state/resume traffic
         # while the durable worker drains its bounded queue.
-        self._schedule_terminal_lifecycle_reconciliation()
+        self._schedule_terminal_lifecycle_reconciliation(discover_new=True)
         await self.startup_cleanup()
         await self._recover_restart_issues()
         await self._restore_persisted_retries()
@@ -6340,6 +6427,12 @@ class Orchestrator:
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
+        if (
+            self._terminal_lifecycle_timer is not None
+            and not self._terminal_lifecycle_timer.cancelled()
+        ):
+            self._terminal_lifecycle_timer.cancel()
+            self._terminal_lifecycle_timer = None
         # Terminate active quality gate process groups before shutdown
         terminated = self._branch_quality_gate.cleanup_active_processes()
         if terminated > 0:
@@ -6870,7 +6963,7 @@ class Orchestrator:
                 self._tick_pool, self._run_terminal_audit_enforcement
             )
 
-        self._schedule_terminal_lifecycle_reconciliation()
+        self._schedule_terminal_lifecycle_reconciliation(discover_new=True)
 
         # Release addendum leases are independent of source-task lifecycle.
         # Run their durable recovery on every event/full-sync tick so a worker

@@ -6,8 +6,11 @@ import json
 import logging
 import threading
 import time
+from copy import deepcopy
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from itertools import permutations
+from types import SimpleNamespace
 
 import pytest
 
@@ -675,8 +678,9 @@ def test_lifecycle_reconciliation_isolates_tracker_failures_and_retries(tmp_path
     )
 
     tracker.fail_status_updates = True
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
     failed = enforcer.reconcile_lifecycle_batch(
-        [("project-a", tracker)], batch_size=3
+        [("project-a", tracker)], batch_size=3, now=started
     )
     assert failed["status"] == "degraded"
     assert failed["failed"] == 3
@@ -685,7 +689,9 @@ def test_lifecycle_reconciliation_isolates_tracker_failures_and_retries(tmp_path
 
     tracker.fail_status_updates = False
     recovered = enforcer.reconcile_lifecycle_batch(
-        [("project-a", tracker)], batch_size=3
+        [("project-a", tracker)],
+        batch_size=3,
+        now=started + timedelta(seconds=30),
     )
     assert recovered["status"] == "complete"
     assert recovered["reconciled"] == 3
@@ -703,8 +709,9 @@ def test_lifecycle_reconciliation_finishes_after_status_write_metadata_failure(t
     )
 
     tracker.fail_metadata_updates = True
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
     failed = enforcer.reconcile_lifecycle_batch(
-        [("project-a", tracker)], batch_size=1
+        [("project-a", tracker)], batch_size=1, now=started
     )
     assert failed["status"] == "degraded"
     assert failed["failed"] == 1
@@ -714,7 +721,9 @@ def test_lifecycle_reconciliation_finishes_after_status_write_metadata_failure(t
     # half; it must not repeat the tracker status mutation.
     tracker.fail_metadata_updates = False
     recovered = enforcer.reconcile_lifecycle_batch(
-        [("project-a", tracker)], batch_size=1
+        [("project-a", tracker)],
+        batch_size=1,
+        now=started + timedelta(seconds=30),
     )
     assert recovered["status"] == "complete"
     assert recovered["reconciled"] == 1
@@ -744,6 +753,405 @@ def test_lifecycle_progress_read_does_not_wait_for_slow_tracker_mutation(tmp_pat
     tracker.release.set()
     worker.join(timeout=5)
     assert not worker.is_alive()
+
+
+def test_lifecycle_legacy_hot_rows_exhaust_once_without_more_writes(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-HOT")
+    tracker.issues[0].state = "Done"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    persisted = {
+        SERVICE_STATE_KEY: TerminalAuditEnforcementState(
+            lifecycle_reconciliation={
+                "version": 1,
+                "status": "degraded",
+                "records": [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "CHILD-HOT",
+                        "status": "failed",
+                        "attempts": 30_001,
+                        "last_error": "lifecycle_metadata_not_finalized",
+                        "conflict": "shared epic parent has not landed",
+                        "updated_at": started.isoformat(),
+                    }
+                ],
+                "cursor": 0,
+                "updated_at": started.isoformat(),
+                "errors": [],
+            }
+        ).to_dict()
+    }
+    writes: list[dict[str, object]] = []
+
+    def load_state():
+        return deepcopy(persisted)
+
+    def save_state(update):
+        writes.append(deepcopy(update))
+        persisted.update(deepcopy(update))
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "unused.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        load_state=load_state,
+        save_state=save_state,
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    exhausted = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], now=started
+    )
+    assert exhausted["status"] == "degraded"
+    assert exhausted["exhausted"] == 1
+    assert exhausted["action_required"] is True
+    assert exhausted["retry_pending"] == 0
+    assert exhausted["next_retry_at"] is None
+    assert len(writes) == 1
+
+    unchanged = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], now=started + timedelta(days=1)
+    )
+    assert unchanged == exhausted
+    assert len(writes) == 1
+    assert tracker.status_updates == []
+
+
+def test_lifecycle_pending_rows_are_not_starved_by_four_failed_rows(tmp_path):
+    tracker = _Tracker([])
+    for number in range(4):
+        _legacy_lifecycle_issue(tracker, f"FAILED-{number}")
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    tracker.fail_metadata_updates = True
+    failed = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=4, now=started
+    )
+    assert failed["failed"] == 4
+    assert failed["retry_due"] == 0
+
+    tracker.fail_metadata_updates = False
+    _legacy_lifecycle_issue(tracker, "LATER-0")
+    _legacy_lifecycle_issue(tracker, "LATER-1")
+    progress = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        batch_size=2,
+        now=started + timedelta(seconds=1),
+    )
+
+    assert progress["processed"] == 2
+    assert progress["pending"] == 0
+    assert progress["failed"] == 4
+    assert tracker.status_updates[-2:] == [("LATER-0", "Done"), ("LATER-1", "Done")]
+
+
+def test_lifecycle_retry_due_time_survives_restart_and_transient_recovers(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-RETRY")
+    state_path = tmp_path / "service_state.json"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    tracker.fail_status_updates = True
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    failed = first.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        now=started,
+        retry_backoff_seconds=10,
+        retry_max_backoff_seconds=40,
+    )
+    assert failed["retry_pending"] == 1
+    assert failed["next_retry_at"] == (started + timedelta(seconds=10)).isoformat()
+
+    tracker.fail_status_updates = False
+    restarted = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    not_due = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        now=started + timedelta(seconds=9),
+        retry_backoff_seconds=10,
+        retry_max_backoff_seconds=40,
+    )
+    assert not_due["retry_due"] == 0
+    assert tracker.status_updates == []
+
+    recovered = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        now=started + timedelta(seconds=10),
+        retry_backoff_seconds=10,
+        retry_max_backoff_seconds=40,
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 1
+    assert tracker.status_updates == [("CHILD-RETRY", "Done")]
+
+
+def test_lifecycle_exhaustion_reopens_after_relevant_operator_change(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-OPERATOR")
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    tracker.fail_status_updates = True
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started,
+    )
+    exhausted = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started + timedelta(seconds=1),
+    )
+    assert exhausted["exhausted"] == 1
+    assert exhausted["action_required"] is True
+
+    tracker.fail_status_updates = False
+    tracker.issues[0].parent_id = "EPIC-REPAIRED"
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=2,
+        retry_backoff_seconds=1,
+        retry_max_backoff_seconds=2,
+        now=started + timedelta(seconds=2),
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["action_required"] is False
+    assert tracker.status_updates == [("CHILD-OPERATOR", "Done")]
+
+
+def test_lifecycle_non_external_failures_checkpoint_once_per_batch(tmp_path):
+    tracker = _Tracker([])
+    for number in range(4):
+        _legacy_lifecycle_issue(tracker, f"VALIDATOR-{number}")
+    persisted: dict[str, object] = {}
+    writes: list[dict[str, object]] = []
+
+    def load_state():
+        return deepcopy(persisted)
+
+    def save_state(update):
+        writes.append(deepcopy(update))
+        persisted.update(deepcopy(update))
+
+    def broken_validator(*_args):
+        raise RuntimeError("validator unavailable")
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "unused.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        load_state=load_state,
+        save_state=save_state,
+        validate_terminal_transition=broken_validator,
+    )
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    failed = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=4, now=started
+    )
+    assert failed["failed"] == 4
+    assert len(writes) == 1
+
+    enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        batch_size=4,
+        now=started + timedelta(seconds=1),
+    )
+    assert len(writes) == 1
+
+
+def test_lifecycle_external_effect_requires_successful_intent_checkpoint(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-INTENT")
+    save_attempts = 0
+
+    def fail_save(_update):
+        nonlocal save_attempts
+        save_attempts += 1
+        raise OSError("disk unavailable")
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "unused.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        load_state=lambda: {},
+        save_state=fail_save,
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        now=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
+
+    assert result["failed"] == 1
+    assert any("lifecycle_intent_persist_failed" in error for error in result["errors"])
+    assert tracker.status_updates == []
+    assert save_attempts == 2  # required intent attempt plus coalesced outcome attempt
+
+
+def test_lifecycle_scheduler_uses_due_time_floor_and_coalesces_timer():
+    now = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    assert Orchestrator._terminal_lifecycle_schedule_delay(
+        {"pending": 2}, now=now, floor_seconds=0.5
+    ) == 0.5
+    assert Orchestrator._terminal_lifecycle_schedule_delay(
+        {
+            "pending": 0,
+            "retry_pending": 1,
+            "next_retry_at": (now + timedelta(seconds=30)).isoformat(),
+        },
+        now=now,
+        floor_seconds=1,
+    ) == 30
+    assert (
+        Orchestrator._terminal_lifecycle_schedule_delay(
+            {"pending": 0, "retry_pending": 0, "exhausted": 4},
+            now=now,
+            floor_seconds=1,
+        )
+        is None
+    )
+
+    class FakeFuture:
+        def __init__(self):
+            self._done = False
+            self.callbacks = []
+
+        def done(self):
+            return self._done
+
+        def add_done_callback(self, callback):
+            self.callbacks.append(callback)
+
+        def result(self):
+            return None
+
+        def complete(self):
+            self._done = True
+            for callback in list(self.callbacks):
+                callback(self)
+
+    class FakeTimer:
+        def __init__(self, delay, callback):
+            self.delay = delay
+            self.callback = callback
+            self._cancelled = False
+
+        def cancelled(self):
+            return self._cancelled
+
+        def cancel(self):
+            self._cancelled = True
+
+    class FakeLoop:
+        def __init__(self):
+            self.futures = []
+            self.timers = []
+
+        def is_running(self):
+            return True
+
+        def run_in_executor(self, *_args):
+            future = FakeFuture()
+            self.futures.append(future)
+            return future
+
+        def call_later(self, delay, callback):
+            timer = FakeTimer(delay, callback)
+            self.timers.append(timer)
+            return timer
+
+    loop = FakeLoop()
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator._stopping = False
+    orchestrator._dispatch_loop = loop
+    orchestrator._tick_pool = None
+    orchestrator._terminal_lifecycle_future = None
+    orchestrator._terminal_lifecycle_timer = None
+    orchestrator._terminal_audit_enforcement = SimpleNamespace(
+        lifecycle_reconciliation_status=lambda: {"pending": 1}
+    )
+    orchestrator.config = SimpleNamespace(
+        terminal_lifecycle_reconciliation_scheduler_floor_seconds=2.0
+    )
+
+    orchestrator._schedule_terminal_lifecycle_reconciliation()
+    orchestrator._schedule_terminal_lifecycle_reconciliation()
+    assert len(loop.futures) == 1
+    loop.futures[0].complete()
+    assert len(loop.timers) == 1
+    assert loop.timers[0].delay == 2.0
+
+    orchestrator._schedule_terminal_lifecycle_reconciliation()
+    assert len(loop.futures) == 1
+    orchestrator._schedule_terminal_lifecycle_reconciliation(discover_new=True)
+    assert len(loop.futures) == 2
+    assert loop.timers[0].cancelled()
+
+
+def test_lifecycle_worker_uses_configured_retry_policy():
+    captured = {}
+
+    def reconcile(scopes, **kwargs):
+        captured["scopes"] = scopes
+        captured.update(kwargs)
+        return {"status": "degraded", "retry_pending": 1}
+
+    enforcer = SimpleNamespace(reconcile_lifecycle_batch=reconcile, last_result={})
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.config = SimpleNamespace(
+        terminal_lifecycle_reconciliation_batch_size=6,
+        terminal_lifecycle_reconciliation_max_attempts=3,
+        terminal_lifecycle_reconciliation_retry_backoff_seconds=7,
+        terminal_lifecycle_reconciliation_max_backoff_seconds=70,
+    )
+    orchestrator._terminal_audit_enforcement = enforcer
+    scopes = [("project-a", object())]
+    orchestrator._terminal_audit_scopes = lambda: scopes
+    orchestrator._maintenance_status = {}
+    orchestrator._notify_state_only = lambda: None
+
+    orchestrator._run_terminal_lifecycle_reconciliation_batch()
+
+    assert captured["scopes"] == scopes
+    assert captured["batch_size"] == 6
+    assert captured["max_attempts"] == 3
+    assert captured["retry_backoff_seconds"] == 7
+    assert captured["retry_max_backoff_seconds"] == 70
+    assert orchestrator._maintenance_status["terminal_lifecycle_reconciliation"] == {
+        "status": "degraded",
+        "retry_pending": 1,
+    }
+
+
+def test_terminal_audit_state_adapter_reports_failed_durable_write():
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator._save_state = lambda **_updates: False
+
+    with pytest.raises(OSError, match="not durably persisted"):
+        orchestrator._save_state_for_terminal_audit({SERVICE_STATE_KEY: {}})
 
 
 def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path):

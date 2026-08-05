@@ -639,6 +639,14 @@ class ServiceConfig:
     # reconciliation turn.  Small batches keep state/health progress visible
     # and bound the tracker work associated with a single scheduler callback.
     terminal_lifecycle_reconciliation_batch_size: int = 4
+    # Failed lifecycle repairs are durable but must not become a service-state
+    # fsync loop.  Retry them exponentially, stop at the bounded attempt
+    # budget, and never schedule maintenance continuations faster than the
+    # nonzero floor (fresh pending rows still retain priority).
+    terminal_lifecycle_reconciliation_max_attempts: int = 5
+    terminal_lifecycle_reconciliation_retry_backoff_seconds: int = 30
+    terminal_lifecycle_reconciliation_max_backoff_seconds: int = 3600
+    terminal_lifecycle_reconciliation_scheduler_floor_seconds: float = 1.0
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
     # Stalled-task remediation watchdog (OOMPAH-398).
@@ -865,6 +873,20 @@ class ServiceConfig:
         )
         self.terminal_lifecycle_reconciliation_batch_size = max(
             int(self.terminal_lifecycle_reconciliation_batch_size), 1
+        )
+        self.terminal_lifecycle_reconciliation_max_attempts = max(
+            int(self.terminal_lifecycle_reconciliation_max_attempts), 1
+        )
+        self.terminal_lifecycle_reconciliation_retry_backoff_seconds = max(
+            int(self.terminal_lifecycle_reconciliation_retry_backoff_seconds), 1
+        )
+        self.terminal_lifecycle_reconciliation_max_backoff_seconds = max(
+            int(self.terminal_lifecycle_reconciliation_max_backoff_seconds),
+            self.terminal_lifecycle_reconciliation_retry_backoff_seconds,
+        )
+        self.terminal_lifecycle_reconciliation_scheduler_floor_seconds = max(
+            float(self.terminal_lifecycle_reconciliation_scheduler_floor_seconds),
+            0.1,
         )
         self.release_pick_max_runtime_seconds = max(
             int(self.release_pick_max_runtime_seconds), 0
@@ -1269,6 +1291,26 @@ class ServiceConfig:
                 "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE",
                 None,
                 4,
+            ),
+            terminal_lifecycle_reconciliation_max_attempts=_env_int(
+                "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS",
+                None,
+                5,
+            ),
+            terminal_lifecycle_reconciliation_retry_backoff_seconds=_env_int(
+                "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS",
+                None,
+                30,
+            ),
+            terminal_lifecycle_reconciliation_max_backoff_seconds=_env_int(
+                "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS",
+                None,
+                3600,
+            ),
+            terminal_lifecycle_reconciliation_scheduler_floor_seconds=_env_float(
+                "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_SCHEDULER_FLOOR_SECONDS",
+                None,
+                1.0,
             ),
             release_pick_max_runtime_seconds=_env_int(
                 "OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", None, 15
