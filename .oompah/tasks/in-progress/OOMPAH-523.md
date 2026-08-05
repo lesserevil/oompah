@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:26:12.904422Z'
+updated_at: '2026-08-05T05:28:04.055230Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -884,5 +884,10 @@ author: oompah
 created: 2026-08-05 05:26
 ---
 Understanding: I will audit the recovered ASGI Basic-auth enforcement against exact HTTP, mounted-route, WebSocket, healthz, and webhook exemption requirements; repair any gaps with focused tests, run project tooling, then commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-05 05:28
+---
+Discovery: current HEAD contains the recovered fb9526679/2c090848a enforcement chain through main integration. _BasicAuthMiddleware is outermost around FastAPI and mounts, uses strict Basic parsing, duplicate-header rejection, literal raw-path exemptions, pre-accept WebSocket checks, and downstream Authorization redaction; startup wiring exists in _service_lifespan and __main__._run. I’m now running focused regression and neighboring suites to determine whether any recovery-specific gap remains.
 ---
 <!-- COMMENTS:END -->
