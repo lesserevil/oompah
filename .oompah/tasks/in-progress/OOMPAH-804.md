@@ -8,6 +8,7 @@ parent: OOMPAH-768
 children:
 - OOMPAH-834
 - OOMPAH-835
+- OOMPAH-836
 blocked_by:
 - OOMPAH-781
 - OOMPAH-782
@@ -21,7 +22,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:38:34.385495Z'
+updated_at: '2026-08-05T16:38:41.265317Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
