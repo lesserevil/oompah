@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:05:09.155697Z'
-updated_at: '2026-08-05T00:05:36.378333Z'
+updated_at: '2026-08-05T00:06:00.166198Z'
 work_branch: epic-OOMPAH-457
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: b7e51dfe-abfa-421e-bb9f-d6378fd42c3a
 oompah.work_branch: epic-OOMPAH-457
 oompah.task_costs:
-  total_input_tokens: 6715704
-  total_output_tokens: 51732
+  total_input_tokens: 6716044
+  total_output_tokens: 59952
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -33,8 +33,8 @@ oompah.task_costs:
       output_tokens: 1623
       cost_usd: 0.0
     unknown:
-      input_tokens: 20
-      output_tokens: 353
+      input_tokens: 360
+      output_tokens: 8573
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +67,12 @@ oompah.task_costs:
     output_tokens: 353
     cost_usd: 0.0
     recorded_at: '2026-08-04T22:32:09.606277+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 340
+    output_tokens: 8220
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T00:05:57.279367+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -635,5 +641,15 @@ Safe evidence:
 - authorization_model: uses is_authorized_status_actor() - respects status_label_authorized_logins, status_actor_login, tracker_owner
 - test_results: 15386 passed (1 unrelated failure in orchestrator), 23 override tests + 147 audit tests verified passing
 - implementation_files: oompah/terminal_audit.py (OverrideRecord), oompah/terminal_transition_coordinator.py (override_transition, OverrideResult), tests/test_terminal_override.py
+---
+author: oompah
+created: 2026-08-05 00:06
+---
+Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 87, Tool calls: 41
+- Tokens: 340 in / 8.2K out [8.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 49s
+- Log: OOMPAH-467__20260804T234629Z.jsonl
 ---
 <!-- COMMENTS:END -->
