@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T17:05:05.407614Z'
+updated_at: '2026-08-05T17:05:33.795806Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 9fc0b24f-7097-46e9-b6f2-b106e5f9b822
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9681529
@@ -272,12 +272,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
-  updated_at: '2026-08-05T16:59:20.776439+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T17:05:18.272726+00:00'
+  updated_at: '2026-08-05T17:05:18.272726+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1308,5 +1310,20 @@ author: oompah
 created: 2026-08-05 17:05
 ---
 Completion: current-head verification is complete. The task branch and restored origin/epic-OOMPAH-502 parent ref both resolve to e1b0f4846054bacac48e667295e2c00733d86d8c; the task branch is clean and up to date. The existing implementation remains unchanged, 728 focused tests pass, and make check-secrets passes. Prior task evidence records the live six-tier round-robin mapping and telemetry rollout; no runtime mutation was needed in this pass.
+---
+author: oompah
+created: 2026-08-05 17:05
+---
+Verified explicit Claude/Codex model tiers; focused ACP/API/UI/role/orchestrator tests pass, secret scan passes, and task/epic refs are synchronized at e1b0f4846.
+---
+author: oompah
+created: 2026-08-05 17:05
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 26
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 21s
+- Log: OOMPAH-505__20260805T165929Z.jsonl
 ---
 <!-- COMMENTS:END -->
