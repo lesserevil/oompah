@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:26:01.448778Z'
+updated_at: '2026-08-05T22:26:14.966824Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -180,13 +180,13 @@ oompah.terminal_audit:
     started_at: '2026-08-05T22:23:50.226548+00:00'
     branch_key: OOMPAH-842
 oompah.task_costs:
-  total_input_tokens: 29
-  total_output_tokens: 7614
+  total_input_tokens: 47
+  total_output_tokens: 11241
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 29
-      output_tokens: 7614
+      input_tokens: 47
+      output_tokens: 11241
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -195,6 +195,12 @@ oompah.task_costs:
     output_tokens: 7614
     cost_usd: 0.0
     recorded_at: '2026-08-05T22:23:30.754261+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 3627
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T22:26:11.959050+00:00'
 ---
 ## Summary
 
@@ -306,5 +312,15 @@ Safe evidence:
 - focused_test_provider_node_bootstrap: tests/test_native_validation_guard.py:108 test_trusted_provider_node_bootstrap_does_not_lease_entire_session
 - focused_test_managed_native_cli_fence: tests/test_acp_codex_backend.py:938 test_managed_native_cli_fences_exact_provider_bootstrap
 - prior_full_gate: 15721 passed 7 skipped 1 xfailed exit 0 in 649.5s (recorded 2026-08-05 22:07)
+---
+author: oompah
+created: 2026-08-05 22:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 17, Tool calls: 12
+- Tokens: 18 in / 3.6K out [3.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 19s
+- Log: OOMPAH-842__20260805T222406Z.jsonl
 ---
 <!-- COMMENTS:END -->
