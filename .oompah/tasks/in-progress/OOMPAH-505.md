@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T14:35:12.694253Z'
+updated_at: '2026-08-05T14:37:30.252836Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1241,5 +1241,10 @@ author: oompah
 created: 2026-08-05 14:35
 ---
 Implementation: No source changes are needed in this recovery pass. The landed implementation already separates ACP catalog discovery from manual selection, provides catalog-less manual controls with SDK-default fallback, preserves role validation and round-robin behavior, and carries explicit provider/model values into ACP session and telemetry paths.
+---
+author: oompah
+created: 2026-08-05 14:37
+---
+Verification: Current-head checks pass: 310 provider/API/role/UI tests, 7 explicit ACP handoff/default-model tests, and 7 orchestrator candidate/model-routing tests. make check-secrets passed; it emitted only the existing null-byte scanner warning. The first ACP attempt failed solely because the default agent-log directory is read-only in this sandbox, and passed unchanged with a private OOMPAH_AGENT_LOG_DIR. Working tree remains source-clean.
 ---
 <!-- COMMENTS:END -->
