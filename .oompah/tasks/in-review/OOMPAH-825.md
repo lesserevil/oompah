@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -13,12 +13,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:55:37.216356Z'
+updated_at: '2026-08-05T12:56:19.896613Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
 review_number: '721'
-review_head: 74c4b71cfab349bc782fff71188c97651f54f519
+review_head: 11c75e6c1b86f16837c13efb32938f814f362b79
 merged_at: null
 oompah.integration:
   version: 2
@@ -33,7 +33,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/721
 oompah.review_number: '721'
 oompah.work_branch: OOMPAH-825
 oompah.target_branch: main
-oompah.review_head: 74c4b71cfab349bc782fff71188c97651f54f519
+oompah.review_head: 11c75e6c1b86f16837c13efb32938f814f362b79
 ---
 ## Summary
 
