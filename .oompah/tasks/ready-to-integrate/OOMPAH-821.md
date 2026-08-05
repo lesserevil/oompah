@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:58:54.103660Z'
+updated_at: '2026-08-05T06:00:29.571202Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.integration:
   submitted_at: '2026-08-05T05:58:49.648883+00:00'
   updated_at: '2026-08-05T05:58:49.648883+00:00'
 oompah.task_costs:
-  total_input_tokens: 46470
-  total_output_tokens: 272
+  total_input_tokens: 47118
+  total_output_tokens: 19991
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46470
-      output_tokens: 272
+      input_tokens: 47118
+      output_tokens: 19991
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +70,12 @@ oompah.task_costs:
     output_tokens: 272
     cost_usd: 0.0
     recorded_at: '2026-08-05T05:39:01.604420+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 648
+    output_tokens: 19719
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T06:00:25.699832+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-821__20260805T053846Z
@@ -186,5 +192,15 @@ author: oompah
 created: 2026-08-05 05:58
 ---
 Implemented canonical retry-eligibility functions that check terminal attempt classification only. Fixed OOMPAH-745 regression where mixed attempt histories blocked infrastructure retry. Alert/action parity ensured: retry_failed_audit() now uses deterministic eligibility logic for both infrastructure and evidence recovery modes.
+---
+author: oompah
+created: 2026-08-05 06:00
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 77
+- Tokens: 648 in / 19.7K out [20.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 46s
+- Log: OOMPAH-821__20260805T053954Z.jsonl
 ---
 <!-- COMMENTS:END -->
