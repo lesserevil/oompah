@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-828
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Treat applied Archived audit results as final lifecycle no-ops
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:49:43.303450Z'
+updated_at: '2026-08-05T20:49:57.069585Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
 review_number: '724'
-review_head: null
+review_head: a5545b61a8db17a99655f81dfdafa7f5741c243c
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -133,6 +133,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/724
 oompah.review_number: '724'
 oompah.work_branch: OOMPAH-828
 oompah.target_branch: main
+oompah.review_head: a5545b61a8db17a99655f81dfdafa7f5741c243c
 ---
 ## Summary
 
