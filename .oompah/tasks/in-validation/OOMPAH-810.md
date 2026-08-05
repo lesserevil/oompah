@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T19:18:09.854201Z'
+updated_at: '2026-08-05T19:18:25.953590Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -101,7 +101,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-810
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -122,13 +122,27 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-763--task-OOMPAH-810
       ended_at: '2026-08-05T19:18:05.116942+00:00'
       failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-1c65288aa415
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c37b3647f25b881d76c64e2ca782c859944ed97f1235879018cb0f69c93b7d90
+      created_at: '2026-08-05T19:18:24.587978+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T19:18:24.587978+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-810
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T18:14:08.249508+00:00'
-    updated_at: '2026-08-05T18:16:10.681061+00:00'
+    updated_at: '2026-08-05T19:18:24.587978+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4d0bf58a6399
@@ -145,6 +159,20 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-763--task-OOMPAH-810
     ended_at: '2026-08-05T19:18:05.116942+00:00'
     failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-1c65288aa415
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c37b3647f25b881d76c64e2ca782c859944ed97f1235879018cb0f69c93b7d90
+    created_at: '2026-08-05T19:18:24.587978+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T19:18:24.587978+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-810
+    candidate_rotation_count: 1
 ---
 ## Summary
 
