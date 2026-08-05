@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-521
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Add optional htpasswd authentication to the Oompah service
 parent: null
@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-08-05T00:25:39.273197Z'
+updated_at: '2026-08-05T00:30:15.958189Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -65,6 +65,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-4b7d627f11bc: '2026-08-05T00:20:21.531524+00:00'
     attempt-6547eedb6c98: '2026-08-05T00:24:29.591453+00:00'
+    attempt-1ee9e40fc451: '2026-08-05T00:30:12.386380+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-521
@@ -84,6 +85,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-05T00:24:29.591471+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-521
+    target_state: Merged
+    evidence_fingerprint: 4064f1def222c29d08a7a51f584cdd185a90755d6d415a48ec48861efc74ed48
+    audit_ids:
+    - audit-01046260fd67
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T00:30:12.386399+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-521
@@ -109,6 +119,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T00:24:29.591491+00:00'
     applied_at: '2026-08-05T00:24:41.140761+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-521
+    audit_id: audit-01046260fd67
+    attempt_id: attempt-1ee9e40fc451
+    target_state: Merged
+    evidence_fingerprint: 4064f1def222c29d08a7a51f584cdd185a90755d6d415a48ec48861efc74ed48
+    status: Merged
+    audit_ids:
+    - audit-01046260fd67
+    applied: false
+    created_at: '2026-08-05T00:30:12.386420+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -216,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-521
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -225,7 +246,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1ee9e40fc451
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -235,13 +256,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T00:25:26.798520+00:00'
       branch_key: epic-OOMPAH-521
+      verdict: pass
+      completed_at: '2026-08-05T00:30:12.386204+00:00'
+      ended_at: '2026-08-05T00:30:12.386204+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-08-04T21:43:59.803331+00:00'
-    updated_at: '2026-08-05T00:25:26.798520+00:00'
+    updated_at: '2026-08-05T00:30:12.386204+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2340da143f49
