@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-545
 type: epic
-status: In Validation
+status: Archived
 priority: 0
 title: Make task dependencies finish-order constraints
 parent: null
@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-08-05T19:39:50.079070Z'
+updated_at: '2026-08-05T20:00:32.833475Z'
 work_branch: epic-OOMPAH-545
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/579
@@ -27,6 +27,30 @@ oompah.work_branch: epic-OOMPAH-545
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-be621b408a9a: '2026-08-05T20:00:26.687418+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-545
+    target_state: Archived
+    evidence_fingerprint: add0e4e090f73f0d9b572c9b1a50e5f64e1f2ddc60b05e43464871e9107eecfa
+    audit_ids:
+    - audit-668f8211da16
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T20:00:26.687425+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-545
+    audit_id: audit-668f8211da16
+    attempt_id: attempt-be621b408a9a
+    target_state: Archived
+    evidence_fingerprint: add0e4e090f73f0d9b572c9b1a50e5f64e1f2ddc60b05e43464871e9107eecfa
+    status: Archived
+    audit_ids:
+    - audit-668f8211da16
+    applied: false
+    created_at: '2026-08-05T20:00:26.687435+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-545
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -62,7 +86,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-be621b408a9a
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -73,13 +97,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T19:39:35.475470+00:00'
       branch_key: epic-OOMPAH-545
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-05T20:00:26.687326+00:00'
+      ended_at: '2026-08-05T20:00:26.687326+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T19:23:58.398298+00:00'
-    updated_at: '2026-08-05T19:39:35.475470+00:00'
+    updated_at: '2026-08-05T20:00:26.687326+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4f0c841efb2a
