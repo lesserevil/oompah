@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: Backlog
+status: In Progress
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:40:09.582719Z'
+updated_at: '2026-08-05T17:06:07.033383Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
