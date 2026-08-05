@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Needs Human
+status: Open
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-04T16:52:09.404416Z'
+updated_at: '2026-08-05T04:23:32.173529Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
