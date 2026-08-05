@@ -29,6 +29,17 @@ INTEGRATION_STATES = frozenset(
 ACCEPTED_SUBMISSION_STATES = INTEGRATION_STATES - {"working"}
 
 
+def task_submit_required_message(identifier: object) -> str:
+    """Return the common worker diagnostic for submission-owned lifecycle states."""
+
+    task_identifier = str(identifier or "").strip() or "<task>"
+    return (
+        "spawned workers must use `oompah task submit "
+        f'{task_identifier} --summary "..."` so committed and pushed git '
+        "evidence is validated before completion"
+    )
+
+
 def _optional_text(value: object) -> str | None:
     text = str(value or "").strip()
     return text or None
