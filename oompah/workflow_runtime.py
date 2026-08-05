@@ -498,7 +498,17 @@ class WorkflowRuntime:
                     controller = binding.implementation_controller
                     if controller is not None:
                         try:
-                            return controller.implementation_authority(issue)
+                            authority = controller.implementation_authority(issue)
+                            refresh = getattr(
+                                orchestrator,
+                                "_refresh_durable_implementation_authority",
+                                None,
+                            )
+                            return (
+                                refresh(issue, authority)
+                                if callable(refresh)
+                                else authority
+                            )
                         except Exception:  # evidence boundary: preserve a fact error
                             raise
                 legacy_sources = getattr(orchestrator, "_workflow_shadow_sources", None)
@@ -787,12 +797,19 @@ class WorkflowRuntime:
             raise WorkflowRuntimeError(
                 f"tracker for project {binding.project_id!r} returned a non-sequence"
             )
-        return [
-            issue
-            for issue in issues
-            if not getattr(issue, "project_id", None)
-            or str(issue.project_id) == binding.project_id
-        ]
+        scoped: list[Any] = []
+        for issue in issues:
+            issue_project = str(getattr(issue, "project_id", None) or "")
+            if issue_project and issue_project != binding.project_id:
+                continue
+            # Tracker-native rows do not all persist the managed project ID.
+            # Normalize it before any controller hashes authority evidence so
+            # the production handler and transition service observe the same
+            # project-scoped revision when they re-fetch the task.
+            if not issue_project:
+                issue.project_id = binding.project_id
+            scoped.append(issue)
+        return scoped
 
     def _remember(self, batch: Any) -> None:
         with self._lock:

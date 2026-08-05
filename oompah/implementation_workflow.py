@@ -27,7 +27,7 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
-from oompah.task_transition_service import TransitionIntent
+from oompah.task_transition_service import TransitionIntent, issue_authority_version
 from oompah.work_decision import (
     IMPLEMENTATION_ACTION_JOBS,
     WorkDecision,
@@ -157,6 +157,7 @@ def _event_revision(
     task_id: str,
     action: str,
     payload: Mapping[str, Any],
+    expected_evidence_revision: str | None,
     expected_head_sha: str | None,
 ) -> str:
     semantic = {
@@ -164,6 +165,7 @@ def _event_revision(
         "task_id": task_id,
         "action": action,
         "payload": payload,
+        "expected_evidence_revision": _optional_text(expected_evidence_revision),
         "expected_head_sha": _optional_text(expected_head_sha),
     }
     return hashlib.sha256(_canonical_json(semantic).encode()).hexdigest()
@@ -269,7 +271,7 @@ class ImplementationDisposition:
         required_state = {
             ImplementationAction.START: ImplementationState.ACTIVE,
             ImplementationAction.DIRECT_OWNER_CLAIM: ImplementationState.ACTIVE,
-            ImplementationAction.DUPLICATE_SCREENING: ImplementationState.COMPLETED,
+            ImplementationAction.DUPLICATE_SCREENING: ImplementationState.ACTIVE,
             ImplementationAction.FOCUS_HANDOFF: ImplementationState.HANDED_OFF,
             ImplementationAction.WORKER_EXIT: ImplementationState.COMPLETED,
             ImplementationAction.VALIDATION_SUBMISSION: ImplementationState.SUBMITTED,
@@ -569,6 +571,7 @@ class ImplementationWorkflowController:
                 if isinstance(configured_payload, Mapping)
                 else {}
             )
+            payload.setdefault("expected_status", item.task.state)
             if item.task.work_branch and "work_branch" not in payload:
                 payload["work_branch"] = item.task.work_branch
             if item.task.head_sha and "head_sha" not in payload:
@@ -594,6 +597,20 @@ class ImplementationWorkflowController:
                 )
             else:
                 action = actions[0]
+                if action == ImplementationAction.RECOVERY.value:
+                    retry_payload = self._latest_retry_payload(
+                        project_id=item.decision.project_id,
+                        task_id=item.decision.task_id,
+                    )
+                    for key in (
+                        "attempt",
+                        "profile",
+                        "workspace_path",
+                        "incomplete_sessions",
+                        "focus",
+                    ):
+                        if key in retry_payload:
+                            payload.setdefault(key, retry_payload[key])
                 expected_head = _optional_text(
                     payload.get("head_sha") or item.task.head_sha
                 )
@@ -602,6 +619,7 @@ class ImplementationWorkflowController:
                     task_id=item.decision.task_id,
                     action=action,
                     payload=payload,
+                    expected_evidence_revision=issue_authority_version(item.task),
                     expected_head_sha=expected_head,
                 )
                 write = self.store.materialize_event(
@@ -616,7 +634,7 @@ class ImplementationWorkflowController:
                     source_revision=item.decision.decision_revision,
                     protected_scheduling_lanes=(IMPERATIVE_IMPLEMENTATION_LANE,),
                     payload=payload,
-                    expected_evidence_revision=None,
+                    expected_evidence_revision=issue_authority_version(item.task),
                     expected_head_sha=expected_head,
                     reason="superseded by a newer implementation decision",
                 )
@@ -640,6 +658,42 @@ class ImplementationWorkflowController:
         )
         return batch, scheduled
 
+    def _latest_retry_payload(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+    ) -> dict[str, Any]:
+        """Carry one verified retry's exact launch context into recovery."""
+
+        for job in self.store.list_jobs(
+            project_id=project_id,
+            task_id=task_id,
+            states=("completed", "running", "retry_wait", "exhausted"),
+            limit=self.decision_limit,
+            newest_first=True,
+        ):
+            checkpoint = job.checkpoint or {}
+            verification = checkpoint.get("verification")
+            raw_disposition = (
+                verification.get("disposition")
+                if isinstance(verification, Mapping)
+                else None
+            )
+            if not isinstance(raw_disposition, Mapping):
+                continue
+            try:
+                disposition = ImplementationDisposition.from_dict(raw_disposition)
+            except (TypeError, ValueError):
+                continue
+            if disposition.matches(job, allow_incomplete=True):
+                return (
+                    _canonical_payload(job.payload)
+                    if job.action == ImplementationAction.RETRY.value
+                    else {}
+                )
+        return {}
+
     def schedule_event(
         self,
         *,
@@ -647,6 +701,7 @@ class ImplementationWorkflowController:
         task_id: str,
         action: ImplementationAction | str,
         payload: Mapping[str, Any] | None = None,
+        expected_evidence_revision: str | None = None,
         expected_head_sha: str | None = None,
         priority: int = 100,
         max_attempts: int = 5,
@@ -663,6 +718,7 @@ class ImplementationWorkflowController:
             task_id=task,
             action=normalized_action.value,
             payload=normalized_payload,
+            expected_evidence_revision=expected_evidence_revision,
             expected_head_sha=head,
         )
         source_generation = self.store.allocate_snapshot_generation()
@@ -678,7 +734,7 @@ class ImplementationWorkflowController:
             source_revision=revision,
             supersede_scheduling_lanes=(FACT_IMPLEMENTATION_LANE,),
             payload=normalized_payload,
-            expected_evidence_revision=None,
+            expected_evidence_revision=_optional_text(expected_evidence_revision),
             expected_head_sha=head,
             priority=priority,
             max_attempts=max_attempts,
@@ -942,16 +998,14 @@ class ImplementationWorkflowHandler:
             disposition = ImplementationDisposition.from_dict(raw)
             if disposition.state is ImplementationState.INCOMPLETE:
                 return None
-            if (
-                disposition.state is ImplementationState.RETRY_WAIT
-                and context.job.attempts == 1
-            ):
+            if disposition.state is ImplementationState.RETRY_WAIT:
                 retry_epoch = _timestamp_epoch(disposition.retry_at, "retry_at")
                 delay = max(0.0, retry_epoch - context.job.updated_at)
-                raise WorkflowActionError(
-                    "implementation retry timer armed",
-                    category=WorkflowFailureCategory.TRANSIENT,
-                    retryable=True,
-                    retry_delay_seconds=delay,
-                )
+                if delay > 0:
+                    raise WorkflowActionError(
+                        "implementation retry timer armed",
+                        category=WorkflowFailureCategory.TRANSIENT,
+                        retryable=True,
+                        retry_delay_seconds=delay,
+                    )
         return await _resolve(self.backend.build_transition(context, verification))

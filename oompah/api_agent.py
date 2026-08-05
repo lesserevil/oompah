@@ -1570,6 +1570,7 @@ def _execute_tool(
     submission_handler: Any = None,
     publish_rebase_handler: Any = None,
     isolate_remote_write: bool = False,
+    coordination_service: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1706,6 +1707,7 @@ def _execute_tool(
                 project_id,
                 action_policy,
                 task_identifier,
+                coordination_service=coordination_service,
                 workspace_path=workspace,
                 project_store=project_store,
                 submission_handler=submission_handler,
@@ -2112,6 +2114,7 @@ class ApiAgentSession:
         publish_rebase_handler: Any = None,
         before_transport_contact: Callable[[], str | None] | None = None,
         isolate_remote_write: bool = False,
+        coordination_service: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -2190,6 +2193,7 @@ class ApiAgentSession:
         self._transport_contact_lock = threading.Lock()
         self._transport_contacted = False
         self._transport_admission_denial: str | None = None
+        self.coordination_service = coordination_service
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -2667,6 +2671,7 @@ class ApiAgentSession:
                             submission_handler=self.submission_handler,
                             publish_rebase_handler=self.publish_rebase_handler,
                             isolate_remote_write=self.isolate_remote_write,
+                            coordination_service=self.coordination_service,
                         )
 
                     tool_failed = result_str.startswith("Error")
