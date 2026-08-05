@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:28:09.605027Z'
+updated_at: '2026-08-05T00:28:32.890875Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -35,13 +35,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9e31034e-8ef2-4665-a57f-0012956634f5
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-05T00:27:35.117323+00:00'
-  claim_expires_at: '2026-08-05T00:57:35.117323+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-814 is on
+    OOMPAH-814, not expected branch epic-OOMPAH-763--task-OOMPAH-814; refusing to
+    reset it
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-05T00:29:24.198457+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -163,5 +165,14 @@ author: oompah
 created: 2026-08-05 00:27
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-05 00:28
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 28s
 ---
 <!-- COMMENTS:END -->
