@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:25:12.068107Z'
+updated_at: '2026-08-05T09:32:32.380002Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -296,5 +296,10 @@ author: oompah
 created: 2026-08-05 06:25
 ---
 Exact-head review of submitted cb1006c54 rejects this head as acceptance-incomplete. The delta from rejected bdbe4ba2 changes only orchestrator alert selection/tests; terminal_transition_coordinator.py is unchanged, so retry_failed_audit can still scan backward past a newer same-fingerprint PASS to an older retryable failure, and infrastructure retry remains unfenced from the current evidence fingerprint. The required integrated reflow -> truthful live alert/action -> owner retry -> fresh pending audit -> task-scoped alert clear, restart/sweep coalescing, and classification matrix are also still absent. Do not resubmit until those coordinator invariants and end-to-end alert lifecycle regressions pass; bounded focused tests only while OOMPAH-814 owns the gate lane.
+---
+author: oompah
+created: 2026-08-05 09:32
+---
+Read-only live reproduction on 2026-08-05: OOMPAH-745 is Ready to Integrate while its integration row is already integrated at exact b08a12057 on epic-OOMPAH-740. Audit audit-e1f46d62a09b is completed FAIL/no_auditor with mixed abandoned/finalization-failure/synthetic history; a later same-head resubmit re-entered Ready, and terminal staging rejected the fingerprint as already completed. The active alert incorrectly prescribes audit_retry_evidence_addendum, which is only valid for missing_evidence, while current mixed-attempt retry eligibility returns 409. This is the task's exact alert/action-parity and retryability regression. Recovery must preserve exact-fingerprint and successful-audit finality, then infrastructure-rearm target Done only once a genuinely independent auditor candidate exists; do not use another normal resubmit or a missing-evidence addendum.
 ---
 <!-- COMMENTS:END -->
