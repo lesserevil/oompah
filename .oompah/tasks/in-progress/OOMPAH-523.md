@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:34:30.333691Z'
+updated_at: '2026-08-05T04:47:23.796513Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 2fd326ff-2a3c-4bbe-a048-30fb980ed0d7
+oompah.agent_run_id: c2e3a433-30bb-4cb5-8c80-c66fab3f9c54
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 500
@@ -812,5 +812,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 45s
 - Log: OOMPAH-523__20260805T042804Z.jsonl
+---
+author: oompah
+created: 2026-08-05 04:47
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
