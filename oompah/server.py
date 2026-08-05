@@ -14156,17 +14156,23 @@ async def api_agent_activity(identifier: str):
                     "profile": entry.agent_profile_name,
                     "provider_name": entry.provider_name,
                     "model_name": entry.model_name,
-                    "work_kind": (
-                        "duplicate_screening"
-                        if getattr(entry, "duplicate_preflight", False)
-                        else "implementation"
-                    ),
+                    "work_kind": entry.classify_work_kind(),
                     "duplicate_preflight": bool(
                         getattr(entry, "duplicate_preflight", False)
                     ),
                     "started_at": entry.started_at.isoformat(),
                     "activity": [a.to_dict() for a in entry.activity_log],
                 }
+                # Add safe audit identity fields
+                if getattr(entry, "is_auditor", False):
+                    payload["is_auditor"] = True
+                    if getattr(entry, "audit_id", None):
+                        payload["audit_id"] = entry.audit_id
+                    if getattr(entry, "audit_attempt_id", None):
+                        payload["audit_attempt_id"] = entry.audit_attempt_id
+                # Add retirement state
+                if getattr(entry, "retirement_pending", False):
+                    payload["retiring"] = True
                 if terminal_audit_summary is not None:
                     payload["terminal_audit_summary"] = terminal_audit_summary
                 return JSONResponse(payload)

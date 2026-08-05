@@ -31976,6 +31976,14 @@ class Orchestrator:
             )
 
         # Emit agent dispatched event on EventBus
+        # Use authoritative work_kind classifier: audit > duplicate_screening > implementation
+        dispatch_work_kind = (
+            "audit"
+            if auditor_plan is not None
+            else "duplicate_screening"
+            if duplicate_preflight
+            else "implementation"
+        )
         self.event_bus.emit(
             EventType.AGENT_DISPATCHED,
             {
@@ -31983,9 +31991,7 @@ class Orchestrator:
                 "identifier": issue.identifier,
                 "profile": profile_name,
                 "attempt": attempt,
-                "work_kind": (
-                    "duplicate_screening" if duplicate_preflight else "implementation"
-                ),
+                "work_kind": dispatch_work_kind,
             },
         )
         self._notify_observers()
@@ -39703,13 +39709,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
                 "focus_role": entry.focus_role,
-                "work_kind": (
-                    "audit"
-                    if entry.is_auditor
-                    else "duplicate_screening"
-                    if getattr(entry, "duplicate_preflight", False)
-                    else "implementation"
-                ),
+                "work_kind": entry.classify_work_kind(),
                 "duplicate_preflight": bool(
                     getattr(entry, "duplicate_preflight", False)
                 ),

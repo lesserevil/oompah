@@ -1517,6 +1517,26 @@ class RunningEntry:
     # the revoked worker fully exits and its final worktree state is validated.
     accepted_submission_record: IntegrationRecord | None = None
 
+    def classify_work_kind(self) -> str:
+        """Classify the authoritative work_kind for this entry.
+        
+        Returns one of:
+            "audit"               - is_auditor is True
+            "duplicate_screening" - duplicate_preflight is True
+            "implementation"      - ordinary implementation work
+        
+        This classifier is the single source of truth for work_kind across
+        all observability surfaces (state snapshots, activity responses,
+        dispatch events). The precedence order matches the semantics: an
+        audit cannot be duplicate screening, and duplicate screening cannot
+        be ordinary implementation.
+        """
+        if self.is_auditor:
+            return "audit"
+        if getattr(self, "duplicate_preflight", False):
+            return "duplicate_screening"
+        return "implementation"
+
 
 @dataclass
 class OwnerClaim:
