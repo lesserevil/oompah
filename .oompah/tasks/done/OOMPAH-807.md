@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T16:47:29.192664Z'
+updated_at: '2026-08-05T16:47:37.993152Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -118,8 +118,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-2153287d0390
-    applied: false
+    applied: true
     created_at: '2026-08-05T16:47:25.533154+00:00'
+    applied_at: '2026-08-05T16:47:36.764878+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -442,5 +443,26 @@ author: oompah
 created: 2026-08-05 16:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 16:47
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: b1c089614b81076b961c7681b6ddad64ca68191e
+- commit_subject: OOMPAH-807: audit metadata-only archives without revisions
+- epic_parent_head: 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce
+- files_changed: 10
+- insertions: 960
+- deletions: 12
+- focused_tests_result: pass
+- archived_evidence_collector_tests: 57 passed
+- terminal_audit_workspace_recovery_tests: 10 passed
+- done_merged_archived_lifecycle_tests: 53 passed
+- orchestrator_handlers_tests: 279 passed
+- trailer: canonical (oompah <lesserevil@users.noreply.github.com>)
 ---
 <!-- COMMENTS:END -->
