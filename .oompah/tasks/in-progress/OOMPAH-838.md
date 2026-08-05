@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-838
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Preserve forced quality-gate retry through integration claim
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T16:45:22.390746Z'
+updated_at: '2026-08-05T16:45:27.481115Z'
 work_branch: null
 target_branch: null
 review_url: null
