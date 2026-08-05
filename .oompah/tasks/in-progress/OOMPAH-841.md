@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T19:23:43.407740Z'
+updated_at: '2026-08-05T19:41:35.521747Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,5 +45,10 @@ author: oompah
 created: 2026-08-05 19:23
 ---
 Focused verification passed after the review repairs: 221/221 tests across native validation guard, validation-resource lease, and Codex backend. This includes exact Node/Codex identity pinning, task-writable and PATH lookalike rejection, entrypoint inode replacement, parent PID/start-tick fencing, provider descendant command leasing, legacy provider-root health classification, and recovery metadata. Static compile and diff checks remain clean. Awaiting a fresh independent post-repair review before commit.
+---
+author: oompah
+created: 2026-08-05 19:41
+---
+Repaired the two independent-review blockers. Legacy worker bootstrap health now publishes a concrete POST owner-claim request containing the exact project/task/authority generation plus process identity; the existing authenticated owner-claim route revalidates that exact flagged durable lease, rejects auditor/cross-task/stale generation recovery, cancels only that generation, preserves the worktree, and verifies retirement before granting direct ownership. Codex executable detection now reads only a bounded 128-byte prefix. Added regression coverage including an end-to-end two-generation process test proving the flagged orphan is retired, the unrelated generation survives, and direct ownership is granted. Static compile and diff checks pass; focused runtime tests remain pending until the currently busy shared validation lane becomes idle.
 ---
 <!-- COMMENTS:END -->

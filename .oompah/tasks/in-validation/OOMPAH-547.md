@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:09.212852Z'
-updated_at: '2026-08-05T19:41:09.162079Z'
+updated_at: '2026-08-05T19:41:41.698422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-547
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -51,13 +51,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-05T19:41:10.478799+00:00'
+    - version: 1
+      attempt_id: attempt-4f67416d79d3
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c8b328d5d2241833249df78e198cc72eebc38bf733d4beb50d190fb371a20d52
+      created_at: '2026-08-05T19:41:31.886033+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T19:41:31.886033+00:00'
+      branch_key: OOMPAH-547
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T19:24:20.053853+00:00'
-    updated_at: '2026-08-05T19:41:00.478829+00:00'
+    updated_at: '2026-08-05T19:41:31.886033+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bf8b6e697d8d
@@ -78,6 +92,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-05T19:41:10.478799+00:00'
+  - version: 1
+    attempt_id: attempt-4f67416d79d3
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8b328d5d2241833249df78e198cc72eebc38bf733d4beb50d190fb371a20d52
+    created_at: '2026-08-05T19:41:31.886033+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T19:41:31.886033+00:00'
+    branch_key: OOMPAH-547
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 57
   total_output_tokens: 1975
@@ -165,5 +193,10 @@ author: oompah
 created: 2026-08-05 19:41
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-05 19:41
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
