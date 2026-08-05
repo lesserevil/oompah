@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-08-05T16:34:02.212388Z'
+updated_at: '2026-08-05T16:34:21.740139Z'
 work_branch: OOMPAH-543
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/577
@@ -98,6 +98,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T16:29:32.502938+00:00'
     branch_key: OOMPAH-543
+oompah.task_costs:
+  total_input_tokens: 25
+  total_output_tokens: 5213
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 25
+      output_tokens: 5213
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 25
+    output_tokens: 5213
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T16:34:18.731090+00:00'
 ---
 ## Summary
 
@@ -179,5 +195,15 @@ Safe evidence:
 - tests_github_tracker: tests/test_github_tracker.py (3852,3878,3895)
 - tests_gitlab_tracker: tests/test_gitlab_tracker.py (868,880)
 - tests_authority_boundary: tests/test_authority_boundary.py:681
+---
+author: oompah
+created: 2026-08-05 16:34
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 28, Tool calls: 19
+- Tokens: 25 in / 5.2K out [5.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 44s
+- Log: OOMPAH-543__20260805T162949Z.jsonl
 ---
 <!-- COMMENTS:END -->
