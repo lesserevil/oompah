@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T13:15:33.700429Z'
+updated_at: '2026-08-05T13:24:55.013056Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-05 13:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 13:24
+---
+Post-deploy live acceptance found two narrower production-shape gaps not covered by the reviewed migration fixture. The key exhaustion/action_required migration succeeded (exhausted=0, action_required=false) and OOMPAH-662 repaired to Done, but OOMPAH-452/453/455/456 retry as lifecycle_metadata_not_finalized and OOMPAH-660 retries as lifecycle_repair_not_applied. Exact diagnosis: Archived audits use disposition fingerprints from request_archived_audit, which cannot equal _lifecycle_terminal_authorities' issue fingerprint despite completed PASS + applied result intent; filed OOMPAH-828. OOMPAH-660 is the original OOMPAH-663 legacy canonicalization pair: current/integration audit ab40139d2035 versus applied Done override 62954f9b5fdc; the live-shaped OOMPAH-825 fixture incorrectly modeled equality; filed OOMPAH-829 for bounded equivalence migration. No service_state/task metadata was hand-edited. Both bugs are Open; project remains paused.
 ---
 <!-- COMMENTS:END -->
