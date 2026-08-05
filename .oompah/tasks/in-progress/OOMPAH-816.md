@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:43:39.762412Z'
+updated_at: '2026-08-05T00:49:15.764721Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -123,5 +123,22 @@ author: oompah
 created: 2026-08-05 00:43
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 00:49
+---
+**Understanding**: The issue requires implementing a process-safe, restart-safe resource lease mechanism to serialize heavyweight validation commands (like 'make test', 'make test-serial') between BranchQualityGate and auditor MCP run_command execution.
+
+**Problem**: When both run concurrently, host CPU/disk resources become exhausted, causing I/O blocking (jbd2_log_wait_commit) and fixture timeouts.
+
+**Solution approach**: 
+1. Create a resource lease manager (ValidationResourceLease) with process-safe locking and durable state persistence
+2. Classify full Makefile gates/test commands as heavyweight, allow focused/bounded checks to bypass
+3. Integrate with api_agent._exec_run_command() and quality_gate.py subprocess execution
+4. Implement fair queueing: exact gates get priority, auditor work waits with informational status
+5. Add status exposure (current owner, waiter count/age, capacity) without actionable warnings
+6. Tests: concurrent auditor+gate, restart scenarios, cancellation, evidence reuse, no starvation
+
+**Files to modify**: Create `oompah/validation_resource_lease.py`, modify `oompah/api_agent.py` (run_command path), `oompah/quality_gate.py` (gate execution), add `tests/test_validation_resource_lease.py`
 ---
 <!-- COMMENTS:END -->
