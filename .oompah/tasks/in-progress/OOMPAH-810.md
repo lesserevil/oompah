@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:17:54.610528Z'
+updated_at: '2026-08-05T17:27:39.415016Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-05 17:17
 ---
 Discovery: _exec_run_command waits on communicate() and clears ToolLivenessMonitor in finally, while the monitor uses Popen.poll(). A shell may exit before descendants close inherited stdout/stderr, making reconciliation see no live child and retire the ACP session while the handler is still draining output. There is no result_pending/durable-delivery state, so the liveness owner can disappear before an ACP tool_result is emitted. I am tracing backend event delivery and will close this race with bounded, exactly-once result state.
+---
+author: oompah
+created: 2026-08-05 17:27
+---
+Implementation: added a race-safe ToolLivenessMonitor handoff lifecycle with running/result_pending/result_delivered/provider_stalled phases, a fixed 30-second result-delivery deadline, precise timeout classification, and bounded lifecycle metrics. Real API/ACP tool bridges defer cleanup until their bounded tool_result is persisted/emitted; child exit during communicate() is treated as pending. Exposed per-run and aggregate opaque liveness metrics, and added large-output, silent-interval, pass/fail, deadline, exactly-once, and continuation regressions.
 ---
 <!-- COMMENTS:END -->
