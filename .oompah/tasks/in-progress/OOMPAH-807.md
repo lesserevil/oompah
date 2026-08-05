@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T15:30:39.719787Z'
+updated_at: '2026-08-05T15:31:41.254725Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -300,5 +300,10 @@ author: oompah
 created: 2026-08-05 15:30
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 15:31
+---
+Recovery-review handoff for the escalated run: preserved checkpoint 238f07f5c is not a valid product fix. Its runtime delta is comments/log formatting only, its two tests merely re-prove already-existing behavior with heavy mocks, and it carries trailing whitespace. Drop that checkpoint after confirming recovery, then rebase the accepted product commit 069633eeb patch-equivalently onto current origin/epic-OOMPAH-763 at 22252cc0486e (which contains landed OOMPAH-814/816/817). Resolve real overlap, run the existing production-shaped revisionless/archive/restart tests plus canonical make test, and resubmit a clean exact head. Do not retain no-op runtime churn or overmocked duplicate tests.
 ---
 <!-- COMMENTS:END -->
