@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:10:11.011710Z'
+updated_at: '2026-08-05T06:11:04.135987Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1055,5 +1055,10 @@ author: oompah
 created: 2026-08-05 06:10
 ---
 Understanding: verify the recovered ASGI Basic-auth implementation against every stated HTTP, WebSocket, health, webhook, redaction, and disabled-mode requirement; repair any concrete gaps, run focused Makefile-backed checks, then commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-05 06:11
+---
+Discovery: audited oompah/server.py and oompah/__main__.py. _BasicAuthMiddleware is outermost over FastAPI/mounts, checks HTTP and WebSocket handshakes before application dispatch, uses strict Basic parsing and literal raw_path exemptions, redacts Authorization downstream, and startup wiring covers both lifespan and uvicorn. Existing focused tests cover the required auth, health, WebSocket, webhook, and redaction cases; no source gap is evident in the integrated head.
 ---
 <!-- COMMENTS:END -->
