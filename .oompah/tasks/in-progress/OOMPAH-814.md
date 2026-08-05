@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T01:29:55.101742Z'
+updated_at: '2026-08-05T06:07:56.414373Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -467,5 +467,10 @@ created: 2026-08-05 01:28
 **Evidence:** current CI evidence is passing; safe to reopen the stalled task.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 06:07
+---
+Rebased the accepted OOMPAH-814 tests-only patch onto reconciled systemic parent ceafd8e14. New exact clean pushed head is 7bf278b09de0a311c1d1050f6733c5fc9f530975; diff remains confined to tests/test_submit_queue_concurrency.py and tests/test_orchestrator_merged.py. Post-rebase focused verification: 227/227 pass, diff check clean. Holding submission until the two active independent terminal auditors release the four-worker full-test lane, then this exact head will receive the canonical combined-tree gate.
 ---
 <!-- COMMENTS:END -->
