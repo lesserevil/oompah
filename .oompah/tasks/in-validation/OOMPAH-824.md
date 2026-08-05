@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T12:05:42.427911Z'
+updated_at: '2026-08-05T12:05:59.369017Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -129,6 +129,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T11:57:27.667364+00:00'
     branch_key: OOMPAH-824
+oompah.task_costs:
+  total_input_tokens: 32
+  total_output_tokens: 5828
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 32
+      output_tokens: 5828
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 32
+    output_tokens: 5828
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T12:05:55.916965+00:00'
 ---
 ## Summary
 
@@ -229,5 +245,15 @@ Safe evidence:
 - total_focused_passes: 890
 - prior_full_gate_seconds: 637.2
 - prior_full_gate_head: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+---
+author: oompah
+created: 2026-08-05 12:05
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 36, Tool calls: 26
+- Tokens: 32 in / 5.8K out [5.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 24s
+- Log: OOMPAH-824__20260805T115740Z.jsonl
 ---
 <!-- COMMENTS:END -->
