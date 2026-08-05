@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-841
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep native validation guards off provider bootstrap processes
 parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T18:45:00.989284Z'
+updated_at: '2026-08-05T18:46:20.207594Z'
 work_branch: null
 target_branch: null
 review_url: null
