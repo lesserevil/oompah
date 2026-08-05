@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-838
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Preserve forced quality-gate retry through integration claim
 parent: null
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T16:45:30.340188Z'
+updated_at: '2026-08-05T16:58:28.743053Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-838
+  head_sha: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
+  submitted_at: '2026-08-05T16:58:22.388278+00:00'
+  updated_at: '2026-08-05T16:58:22.388278+00:00'
 ---
 ## Summary
 
@@ -29,3 +37,16 @@ Live regression from OOMPAH-523: an explicit same-head resubmission correctly ca
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 16:58
+---
+Implemented one-shot forced gate retry handoff with exact SQLite claim fencing. The durable retry flag is consumed atomically at claim, an ephemeral claimed authority reaches the executor, crash recovery cannot loop, and the returned head/lease cannot race with another connection's replacement. Independent re-review found no blockers. Verification: 43 focused queue/executor tests passed; terminal mutation scan passed 8/8.
+---
+author: oompah
+created: 2026-08-05 16:58
+---
+Preserved one-shot forced quality-gate retry through exact fenced integration claims; 43 focused tests and terminal mutation scan pass.
+---
+<!-- COMMENTS:END -->
