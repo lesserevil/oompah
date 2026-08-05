@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-820
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bootstrap exact-head review-generation fence on main
 parent: null
@@ -11,13 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T04:22:01.181691Z'
+updated_at: '2026-08-05T04:25:12.000589Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-820
+  head_sha: f3b9f9bc5dad4cae876f081b45a6cece2eb72341
+  submitted_at: '2026-08-05T04:25:04.476905+00:00'
+  updated_at: '2026-08-05T04:25:04.476905+00:00'
 ---
 ## Summary
 
@@ -62,5 +70,15 @@ author: oompah
 created: 2026-08-05 04:22
 ---
 Final concurrency-review repairs pushed at f3b9f9bc5dad4cae876f081b45a6cece2eb72341. Added task-owned open/reopen webhook adoption with fresh tracker generation CAS, signed webhook head parsing, exact live forge review identity/source/target/head validation, strict grouped metadata persistence, and In Review only after persisted evidence verifies. Terminal staging now runs in a shielded inner lock owner; bridge timeout no longer cancels it, so submit cannot cross outstanding to_thread/coordinator work. Authority-owned metadata failures now fail closed, and native Markdown mirrors oompah.review_head to review_head. Verification: 749 affected workflow/concurrency/webhook tests passed; 383 terminal-audit/native tracker tests passed; full standalone 56/56; terminal mutation scan 8/8; check-secrets, compile, and diff-check passed. Branch remains unsubmitted for independent final review.
+---
+author: oompah
+created: 2026-08-05 04:25
+---
+Independent exact-head re-review ACCEPTED f3b9f9bc5dad4cae876f081b45a6cece2eb72341. Concurrency reviewer verified task-owned signed-head open/reopen webhook adoption and cancellation-safe bridge ownership (344 exact/webhook tests). Tracker/audit reviewer verified strict metadata failure ordering, native review_head compatibility, and exact webhook persistence (518 targeted/impacted tests). Combined implementation matrices and scans remain green; submitting this exact clean head for the configured server gate.
+---
+author: oompah
+created: 2026-08-05 04:25
+---
+Implemented exact-head standalone review-generation fencing, cross-loop task ownership, cancellation-safe terminal staging, fingerprint-correct Done→Merged audit recovery, strict review metadata persistence, and signed-head webhook adoption. Independent reviews accepted exact head f3b9f9bc; affected matrices and scans pass.
 ---
 <!-- COMMENTS:END -->
