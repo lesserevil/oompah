@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,13 +12,13 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T17:14:53.091061Z'
+updated_at: '2026-08-05T18:15:53.229054Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 239f8a6e-0ac5-4399-ab69-2c90112b82f9
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-521--task-OOMPAH-523
 oompah.task_costs:
   total_input_tokens: 1145
@@ -293,12 +293,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
-  updated_at: '2026-08-05T16:59:48.478469+00:00'
+  head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+  submitted_at: '2026-08-05T18:15:44.050273+00:00'
+  updated_at: '2026-08-05T18:15:44.050273+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1364,5 +1366,10 @@ author: oompah
 created: 2026-08-05 17:14
 ---
 Direct-owner recovery fence is active on the unchanged clean head 9ea2b5523. The scheduler's premature redispatch and queued duplicate validation were retired before execution. OOMPAH-838 is now in its exact full gate; after that fix is deployed, this same head will be resubmitted once to bypass the stale cached gate result.
+---
+author: oompah
+created: 2026-08-05 18:15
+---
+Re-submit the unchanged, fully verified exact head 9ea2b5523 once after deploying OOMPAH-838; consume the explicit one-shot forced gate retry instead of the stale cached failure.
 ---
 <!-- COMMENTS:END -->
