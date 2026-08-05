@@ -1153,6 +1153,8 @@ def _execute_tool(
     validation_lease: ValidationResourceLease | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
     successful_validation_handler: Callable[[str, Path], object] | None = None,
+    project_store: Any = None,
+    submission_handler: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1238,6 +1240,8 @@ def _execute_tool(
                 action_policy,
                 task_identifier,
                 workspace_path=workspace,
+                project_store=project_store,
+                submission_handler=submission_handler,
             )
             if direct is not None:
                 return direct
@@ -1581,6 +1585,8 @@ class ApiAgentSession:
         policy_denial_handler: Any = None,
         validation_lease: ValidationResourceLease | None = None,
         successful_validation_handler: Callable[[str, Path], object] | None = None,
+        project_store: Any = None,
+        submission_handler: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1642,6 +1648,8 @@ class ApiAgentSession:
         self.policy_denial_handler = policy_denial_handler
         self.validation_lease = validation_lease
         self.successful_validation_handler = successful_validation_handler
+        self.project_store = project_store
+        self.submission_handler = submission_handler
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -2035,21 +2043,25 @@ class ApiAgentSession:
                             self.workspace,
                             tool_name,
                             tool_args,
-                            self.command_timeout,
-                            env_overrides,
-                            self.read_only,
-                            self.task_tracker,
-                            self.project_id,
-                            self.task_identifier,
-                            self.action_policy,
-                            self.audit_target,
-                            self.audit_result_handler,
-                            self.tool_liveness,
-                            self.policy_denial_handler,
-                            self.command_output_store,
-                            self.validation_lease,
-                            is_cancelled,
-                            self.successful_validation_handler,
+                            cmd_timeout=self.command_timeout,
+                            env_overrides=env_overrides,
+                            read_only=self.read_only,
+                            task_tracker=self.task_tracker,
+                            project_id=self.project_id,
+                            task_identifier=self.task_identifier,
+                            action_policy=self.action_policy,
+                            audit_target=self.audit_target,
+                            audit_result_handler=self.audit_result_handler,
+                            tool_liveness=self.tool_liveness,
+                            policy_denial_handler=self.policy_denial_handler,
+                            command_output_store=self.command_output_store,
+                            validation_lease=self.validation_lease,
+                            lease_cancelled=is_cancelled,
+                            successful_validation_handler=(
+                                self.successful_validation_handler
+                            ),
+                            project_store=self.project_store,
+                            submission_handler=self.submission_handler,
                         )
 
                     tool_failed = result_str.startswith("Error")

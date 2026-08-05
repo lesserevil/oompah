@@ -177,6 +177,60 @@ def test_submission_git_authority_rejects_remote_head_and_base_mismatch(tmp_path
         )
 
 
+def test_submission_git_authority_rechecks_task_after_parent_proof(tmp_path):
+    store, source, _managed, _epic_sha, task_sha = (
+        _submission_authority_store(tmp_path)
+    )
+    original_run_network_git = store._run_network_git
+    parent_reads = 0
+    replaced = False
+
+    def run_network_git(project, args, **kwargs):
+        nonlocal parent_reads, replaced
+        result = original_run_network_git(project, args, **kwargs)
+        if (
+            args[1:4] == ["ls-remote", "--heads", "origin"]
+            and args[4:] == ["refs/heads/epic-OOMPAH-763"]
+        ):
+            parent_reads += 1
+            if parent_reads == 2:
+                # Replace the task authority after its first fetch/re-read and
+                # after the parent fetch, but before the verifier returns.
+                subprocess.run(
+                    [
+                        "git",
+                        "push",
+                        "--force",
+                        "origin",
+                        "epic-OOMPAH-763:OOMPAH-814",
+                    ],
+                    cwd=source,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                replaced = True
+        return result
+
+    with patch.object(
+        store,
+        "_run_network_git",
+        side_effect=run_network_git,
+    ):
+        with pytest.raises(
+            ProjectError,
+            match="origin/OOMPAH-814 moved while submission was being verified",
+        ):
+            store.verify_submission_git_authority(
+                "proj-authority",
+                task_branch="OOMPAH-814",
+                head_sha=task_sha,
+                base_branch="epic-OOMPAH-763",
+            )
+
+    assert replaced is True
+
+
 def test_fresh_dispatch_ignores_stale_same_named_remote_branch(tmp_path):
     store, _source, _managed, epic_sha, task_sha = _submission_authority_store(
         tmp_path

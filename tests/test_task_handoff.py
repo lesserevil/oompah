@@ -275,6 +275,35 @@ class TestTaskCliHandoff:
 
 
 class TestTaskScopeDirectPath:
+    @staticmethod
+    def _authoritative_submission_handler(
+        tracker,
+        *,
+        project_store=None,
+        coordination=None,
+        direct_completion=None,
+    ):
+        from oompah.server import _accept_worker_submission
+
+        orch = MagicMock()
+        orch.project_store = project_store
+        orch.config.parallel_epic_children_enabled = False
+        orch.issue_transition_lock.side_effect = lambda _issue_id: asyncio.Lock()
+        if coordination is not None:
+            orch.coordination_checkpoint = coordination.coordination_checkpoint
+            orch.coordination_send = coordination.coordination_send
+        if direct_completion is not None:
+            orch.complete_direct_epic_maintenance_submission = AsyncMock(
+                return_value=direct_completion
+            )
+
+        def accept(**kwargs):
+            return asyncio.run(
+                _accept_worker_submission(orch, **kwargs)
+            )
+
+        return accept, orch
+
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
         from oompah.acp_tools import _exec_oompah_task_command
 
@@ -349,6 +378,10 @@ class TestTaskScopeDirectPath:
             work_branch="epic-TASK-0--task-TASK-1",
         )
         coordination = MagicMock()
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            coordination=coordination,
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -367,6 +400,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="TASK-1",
                 coordination_service=coordination,
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: TASK-1"
@@ -392,6 +426,9 @@ class TestTaskScopeDirectPath:
             title="Task",
             work_branch="epic-TASK-0--task-TASK-1",
         )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -407,6 +444,7 @@ class TestTaskScopeDirectPath:
                 "proj-a",
                 task_identifier="TASK-1",
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result.startswith("Error: submitted branch 'main'")
@@ -452,6 +490,11 @@ class TestTaskScopeDirectPath:
                     base_sha="b" * 40,
                 )
 
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+        )
+
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -468,6 +511,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="OOMPAH-814",
                 project_store=Store(),
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: OOMPAH-814"
@@ -521,6 +565,11 @@ class TestTaskScopeDirectPath:
                     base_sha=kwargs["base_sha"],
                 )
 
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+        )
+
         evidence = {
             "task_branch": "OOMPAH-814",
             "head_sha": "a" * 40,
@@ -538,6 +587,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="OOMPAH-814",
                 project_store=Store(),
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
             second = _exec_oompah_task_command(
                 "oompah task submit OOMPAH-814 --summary 'Retry again'",
@@ -546,6 +596,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="OOMPAH-814",
                 project_store=Store(),
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert first == "Submitted for integration: OOMPAH-814"
@@ -598,6 +649,19 @@ class TestTaskScopeDirectPath:
                     base_sha=None,
                 )
 
+        completed_record = IntegrationRecord(
+            state="integrated",
+            task_branch="epic-EPIC-PARENT",
+            base_branch="epic-EPIC-PARENT",
+            head_sha="b" * 40,
+            integrated_sha="b" * 40,
+        )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=Store(),
+            direct_completion=(True, "reconciled", completed_record),
+        )
+
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -614,6 +678,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="DIRECT-TASK",
                 project_store=Store(),
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: DIRECT-TASK"
@@ -639,7 +704,14 @@ class TestTaskScopeDirectPath:
         class RejectingStore:
             @staticmethod
             def verify_submission_git_authority(_project_id, **_kwargs):
-                raise RuntimeError("origin/TASK-1 moved")
+                from oompah.projects import ProjectError
+
+                raise ProjectError("origin/TASK-1 moved")
+
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            project_store=RejectingStore(),
+        )
 
         with patch(
             "oompah.task_cli._git_submission_evidence",
@@ -657,6 +729,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="TASK-1",
                 project_store=RejectingStore(),
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert "submission Git authority rejected" in result
@@ -680,6 +753,10 @@ class TestTaskScopeDirectPath:
         coordination.coordination_checkpoint.side_effect = RuntimeError(
             "coordination database temporarily unavailable"
         )
+        submission_handler, _orch = self._authoritative_submission_handler(
+            tracker,
+            coordination=coordination,
+        )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
@@ -698,6 +775,7 @@ class TestTaskScopeDirectPath:
                 task_identifier="TASK-1",
                 coordination_service=coordination,
                 workspace_path=tmp_path,
+                submission_handler=submission_handler,
             )
 
         assert result == "Submitted for integration: TASK-1"
@@ -727,6 +805,192 @@ class TestTaskScopeDirectPath:
         tracker.add_comment.assert_called_once_with(
             "TASK-1", "api progress", author="oompah"
         )
+
+    @pytest.mark.asyncio
+    async def test_direct_acp_submit_rechecks_replaced_branch_authority_under_lock(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command_async
+        from oompah.server import _accept_worker_submission
+
+        stale = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="branch-a",
+        )
+        current = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            work_branch="branch-b",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.side_effect = [stale, current]
+        orch = MagicMock()
+        orch.project_store = None
+        orch.config.parallel_epic_children_enabled = False
+        authority_lock = asyncio.Lock()
+        orch.issue_transition_lock.return_value = authority_lock
+
+        async def accept_worker_submission(**kwargs):
+            return await _accept_worker_submission(orch, **kwargs)
+
+        coordination = SimpleNamespace(
+            accept_worker_submission=accept_worker_submission
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "branch-a",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = await _exec_oompah_task_command_async(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        assert "expected work branch 'branch-b'" in result
+        assert tracker.fetch_issue_detail.call_count == 2
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_direct_acp_submit_cancels_selected_retry_before_single_enqueue(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command_async
+        from oompah.server import _accept_worker_submission
+
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            state="In Progress",
+            project_id="proj-a",
+            parent_id="EPIC-1",
+            work_branch="TASK-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.get_metadata.return_value = {
+            "oompah.agent_run_id": "selected-retry-run"
+        }
+        events: list[str] = []
+        retry_authority = {"active": True}
+        tracker.set_metadata_field.side_effect = (
+            lambda _identifier, field, _value: events.append(field)
+        )
+
+        orch = MagicMock()
+        orch.project_store = None
+        orch.config.parallel_epic_children_enabled = True
+        authority_lock = asyncio.Lock()
+        orch.issue_transition_lock.return_value = authority_lock
+
+        def cancel_retry(**_kwargs):
+            events.append("cancel-retry")
+            retry_authority["active"] = False
+
+        def enqueue(**_kwargs):
+            assert retry_authority["active"] is False
+            assert "oompah.agent_run_id" in events
+            events.append("enqueue")
+
+        orch._cancel_retry_for_issue.side_effect = cancel_retry
+        orch.integration_queue.enqueue.side_effect = enqueue
+
+        async def accept_worker_submission(**kwargs):
+            return await _accept_worker_submission(orch, **kwargs)
+
+        coordination = SimpleNamespace(
+            accept_worker_submission=accept_worker_submission
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = await _exec_oompah_task_command_async(
+                "oompah task submit TASK-1 --summary 'Done'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        duplicate_workers = 0
+        async with authority_lock:
+            if retry_authority["active"]:
+                duplicate_workers += 1
+
+        assert result == "Submitted for integration: TASK-1"
+        assert events.index("cancel-retry") < events.index("oompah.agent_run_id")
+        assert events.index("oompah.agent_run_id") < events.index("enqueue")
+        orch.integration_queue.enqueue.assert_called_once()
+        assert duplicate_workers == 0
+
+    def test_api_agent_submit_forwards_store_and_authoritative_handler(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _execute_tool
+
+        tracker = MagicMock()
+        store = MagicMock()
+        store.get.return_value = SimpleNamespace(
+            access_token="project-token",
+            forge_kind="gitlab",
+        )
+        submission_handler = MagicMock(
+            return_value=SimpleNamespace(direct_failure_message=None)
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ) as evidence:
+            result = _execute_tool(
+                tmp_path,
+                "run_command",
+                {"command": "oompah task submit TASK-1 --summary 'Done'"},
+                task_tracker=tracker,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                project_store=store,
+                submission_handler=submission_handler,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        store.get.assert_called_once_with("proj-a")
+        assert evidence.call_args.kwargs["access_token"] == "project-token"
+        assert evidence.call_args.kwargs["forge_kind"] == "gitlab"
+        assert submission_handler.call_args.kwargs["tracker"] is tracker
+        assert submission_handler.call_args.kwargs["body"]["summary"] == "Done"
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
 
 class TestTaskHandoffEndpoint:

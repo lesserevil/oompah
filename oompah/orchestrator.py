@@ -4325,6 +4325,28 @@ class Orchestrator:
                 tracker.update_issue(identifier, status=IN_REVIEW)
             return True, ""
 
+    async def accept_worker_submission(
+        self,
+        *,
+        tracker,
+        identifier: str,
+        project_id: str,
+        body: dict[str, Any],
+    ):
+        """Route an in-process agent submit through server lifecycle authority."""
+
+        # Import lazily: server owns the HTTP-facing lifecycle service and
+        # imports Orchestrator while constructing the application process.
+        from oompah.server import _accept_worker_submission
+
+        return await _accept_worker_submission(
+            self,
+            tracker,
+            identifier,
+            project_id,
+            body,
+        )
+
     def _running_items_snapshot(self) -> tuple[tuple[str, RunningEntry], ...]:
         """Return a stable runtime snapshot across API and scheduler threads.
 
@@ -33823,12 +33845,37 @@ class Orchestrator:
             # method on the running dispatch loop via
             # asyncio.run_coroutine_threadsafe — safe because _execute_tool
             # is always run in a thread-pool thread (asyncio.to_thread).
+            _api_dispatch_loop = asyncio.get_running_loop()
+            _api_submission_handler = None
+            if not read_only_preflight and focus.name.lower() != AUDITOR_FOCUS_NAME:
+
+                def _api_submission_handler(
+                    *,
+                    tracker,
+                    identifier,
+                    project_id,
+                    body,
+                    _loop=_api_dispatch_loop,
+                ):
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.accept_worker_submission(
+                            tracker=tracker,
+                            identifier=identifier,
+                            project_id=project_id,
+                            body=body,
+                        ),
+                        _loop,
+                    )
+                    # Match HTTP semantics: do not return an ambiguous tool
+                    # failure while the fenced transaction is still running
+                    # and may durably accept the submission moments later.
+                    return future.result()
+
             _api_audit_handler = None
             if focus.name.lower() == AUDITOR_FOCUS_NAME and audit_target is not None:
                 _api_coord = self.terminal_transition_coordinator
                 _api_issue = issue
                 _api_project_id = issue.project_id or ""
-                _api_dispatch_loop = asyncio.get_running_loop()
 
                 def _api_audit_handler(
                     result,
@@ -33945,6 +33992,8 @@ class Orchestrator:
                 policy_denial_handler=api_policy_denial_handler,
                 validation_lease=self.validation_resource_lease,
                 successful_validation_handler=api_validation_success_handler,
+                project_store=self.project_store,
+                submission_handler=_api_submission_handler,
             )
             logger.info(
                 "Agent log for %s -> %s",

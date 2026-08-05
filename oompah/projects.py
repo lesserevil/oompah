@@ -5325,25 +5325,33 @@ class ProjectStore:
             if checked.returncode != 0:
                 raise ProjectError(f"invalid submission branch {name!r}")
 
-        def _remote_head(name: str) -> str:
+        def _remote_heads(names: tuple[str, ...]) -> dict[str, str]:
+            refs = [f"refs/heads/{name}" for name in names]
             result = self._run_network_git(
                 project,
-                ["git", "ls-remote", "--heads", "origin", f"refs/heads/{name}"],
+                ["git", "ls-remote", "--heads", "origin", *refs],
                 timeout=30,
             )
             if result.returncode != 0:
                 raise ProjectError(
-                    f"could not verify origin/{name}: {result.stderr.strip()[:500]}"
+                    "could not verify origin submission refs: "
+                    f"{result.stderr.strip()[:500]}"
                 )
-            matches = [
-                line.split()
-                for line in result.stdout.splitlines()
-                if len(line.split()) >= 2
-                and line.split()[1] == f"refs/heads/{name}"
-            ]
-            if len(matches) != 1:
-                raise ProjectError(f"origin/{name} is not published")
-            return matches[0][0].strip().lower()
+            advertised: dict[str, str] = {}
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if len(fields) < 2 or fields[1] not in refs:
+                    continue
+                advertised[fields[1].removeprefix("refs/heads/")] = (
+                    fields[0].strip().lower()
+                )
+            for name in names:
+                if name not in advertised:
+                    raise ProjectError(f"origin/{name} is not published")
+            return advertised
+
+        def _remote_head(name: str) -> str:
+            return _remote_heads((name,))[name]
 
         def _fetch(name: str) -> str:
             remote_ref = f"refs/remotes/origin/{name}"
@@ -5449,6 +5457,29 @@ class ProjectStore:
                 raise ProjectError(
                     f"recorded base {resolved_base} is not an ancestor of "
                     f"submitted head {head}"
+                )
+
+            # Parent fetches and ancestry proof can take long enough for the
+            # already-checked task ref to be force-pushed.  Re-read every
+            # authoritative remote ref together after all proof and before
+            # the caller is allowed to mutate tracker lifecycle state.
+            final_names = (
+                (branch, parent_branch)
+                if parent_branch and parent_branch != branch
+                else (branch,)
+            )
+            final_heads = _remote_heads(final_names)
+            if final_heads[branch] != head:
+                raise ProjectError(
+                    f"origin/{branch} moved while submission was being verified"
+                )
+            if (
+                parent_branch
+                and parent_branch != branch
+                and final_heads[parent_branch] != parent_head
+            ):
+                raise ProjectError(
+                    f"origin/{parent_branch} moved while submission was being verified"
                 )
 
         return SubmissionGitAuthority(

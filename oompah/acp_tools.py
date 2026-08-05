@@ -47,10 +47,9 @@ raising.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
-import os
-import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -63,7 +62,6 @@ from oompah.authority_boundary import (
     check_shell_command,
 )
 from oompah.auditor import is_recoverable_auditor_command_denial
-from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
@@ -99,6 +97,40 @@ def _auditor_validation_success_handler(
         )
 
     return record
+
+
+def _agent_submission_body(
+    args: Any,
+    workspace_path: str | Path | None,
+    *,
+    access_token: str | None,
+    forge_kind: str,
+) -> dict[str, Any] | str:
+    """Collect immutable workspace evidence for authoritative acceptance."""
+
+    from oompah.task_cli import _git_submission_evidence
+
+    if workspace_path is None:
+        return "Error: task submission requires the assigned git workspace"
+    evidence = _git_submission_evidence(
+        cwd=workspace_path,
+        access_token=access_token,
+        forge_kind=forge_kind,
+    )
+    body = dict(evidence)
+    body["summary"] = str(getattr(args, "summary", None) or "").strip()
+    return body
+
+
+def _agent_submission_result(identifier: str, accepted: Any) -> str:
+    """Render the common lifecycle-service result for an agent tool call."""
+
+    failure = str(
+        getattr(accepted, "direct_failure_message", None) or ""
+    ).strip()
+    if failure:
+        return f"Error: {failure}"
+    return f"Submitted for integration: {identifier}"
 
 
 def _read_file_input_schema() -> dict[str, Any]:
@@ -559,6 +591,7 @@ def _exec_oompah_task_command(
     workspace_path: str | Path | None = None,
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
+    submission_handler: Any = None,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -761,180 +794,34 @@ def _exec_oompah_task_command(
             return f"Status set to: {args.status}"
 
         if args.subcommand == "submit":
-            from datetime import datetime, timezone
-
-            from oompah.integration import (
-                IntegrationRecord,
-                validate_submission_branch,
-            )
-            from oompah.statuses import READY_TO_INTEGRATE
-            from oompah.task_cli import _git_submission_evidence
-
-            if workspace_path is None:
-                return (
-                    "Error: task submission requires the assigned git "
-                    "workspace"
-                )
-            evidence = _git_submission_evidence(
-                cwd=workspace_path,
+            body = _agent_submission_body(
+                args,
+                workspace_path,
                 access_token=project_access_token,
                 forge_kind=project_forge_kind,
             )
-            issue = task_tracker.fetch_issue_detail(args.identifier)
-            if issue is None:
-                return f"Error: Issue {args.identifier!r} not found"
-            existing = getattr(issue, "integration", None)
-            try:
-                branch = validate_submission_branch(
-                    issue,
-                    evidence.get("task_branch"),
-                )
-            except ValueError as exc:
-                return f"Error: {exc}"
-            head_sha = str(evidence.get("head_sha") or "").strip().lower()
-            remote_head_sha = str(
-                evidence.get("remote_head_sha") or ""
-            ).strip().lower()
-            if not branch or not head_sha:
+            if isinstance(body, str):
+                return body
+            if not callable(submission_handler):
                 return (
-                    "Error: task submission requires a checked-out branch "
-                    "with a committed HEAD"
+                    "Error: authoritative task submission service is unavailable"
                 )
-            if not remote_head_sha:
+            if not project_id:
+                return "Error: task submission requires a managed project"
+            accepted = submission_handler(
+                tracker=task_tracker,
+                identifier=args.identifier,
+                project_id=project_id,
+                body=body,
+            )
+            if inspect.isawaitable(accepted):
+                if inspect.iscoroutine(accepted):
+                    accepted.close()
                 return (
-                    "Error: push the task branch to origin before submission"
+                    "Error: asynchronous task submission must be awaited through "
+                    "the ACP tool runner"
                 )
-            if remote_head_sha != head_sha:
-                return (
-                    "Error: the pushed remote task branch does not match "
-                    "the local HEAD"
-                )
-            if not re.fullmatch(r"[0-9a-f]{40,64}", head_sha):
-                return "Error: task submission requires a full committed HEAD"
-            if evidence.get("worktree_clean") is not True:
-                return (
-                    "Error: the worktree must be clean before task submission"
-                )
-            base_sha = (
-                str(evidence.get("base_sha") or "").strip().lower()
-                or (
-                    str(getattr(existing, "base_sha", "") or "").strip().lower()
-                    if existing is not None
-                    else ""
-                )
-                or None
-            )
-            base_branch = (
-                str(evidence.get("base_branch") or "").strip()
-                or (
-                    str(getattr(existing, "base_branch", "") or "").strip()
-                    if existing is not None
-                    else ""
-                )
-                or getattr(issue, "target_branch", None)
-            )
-            if base_sha and not re.fullmatch(r"[0-9a-f]{40,64}", base_sha):
-                return "Error: task submission requires a full base commit"
-            verifier = (
-                getattr(project_store, "verify_submission_git_authority", None)
-                if getattr(
-                    type(project_store),
-                    "verify_submission_git_authority",
-                    None,
-                )
-                is not None
-                else None
-            )
-            if callable(verifier) and project_id:
-                parent_id = str(getattr(issue, "parent_id", None) or "").strip()
-                if parent_id:
-                    try:
-                        base_branch = project_store.epic_branch_name(parent_id)
-                    except Exception as exc:  # noqa: BLE001
-                        return f"Error: could not resolve parent branch: {exc}"
-                try:
-                    authority = verifier(
-                        project_id,
-                        task_branch=branch,
-                        head_sha=head_sha,
-                        base_branch=base_branch,
-                        # Direct epic rebase helpers rewrite the branch that
-                        # contained their old base. Their dedicated completion
-                        # reconciliation validates that rewrite; this shared
-                        # verifier still proves exact remote branch=head.
-                        base_sha=(
-                            None
-                            if is_direct_epic_maintenance_issue(issue)
-                            else base_sha
-                        ),
-                    )
-                except Exception as exc:  # noqa: BLE001 - fail closed to worker
-                    return f"Error: submission Git authority rejected: {exc}"
-                branch = authority.task_branch
-                head_sha = authority.head_sha
-                base_branch = authority.base_branch or base_branch
-                base_sha = authority.base_sha or base_sha
-            reuses_existing_record = (
-                existing is not None
-                and existing.state in {"ready", "queued", "integrating"}
-                and existing.task_branch == branch
-                and existing.head_sha == head_sha
-            )
-            if reuses_existing_record:
-                record = existing
-            else:
-                now = datetime.now(timezone.utc).isoformat()
-                record = IntegrationRecord(
-                    state="ready",
-                    task_branch=branch,
-                    base_sha=base_sha,
-                    base_branch=base_branch,
-                    head_sha=head_sha,
-                    submitted_at=now,
-                    updated_at=now,
-                )
-                task_tracker.set_metadata_field(
-                    args.identifier,
-                    "oompah.integration",
-                    record.to_dict(),
-                )
-            if str(getattr(issue, "work_branch", "") or "").strip() != branch:
-                task_tracker.set_metadata_field(
-                    args.identifier,
-                    "oompah.work_branch",
-                    branch,
-                )
-                issue.work_branch = branch
-            already_ready = canonicalize_status(
-                getattr(issue, "state", None)
-            ) == READY_TO_INTEGRATE
-            if not already_ready:
-                task_tracker.update_issue(
-                    args.identifier,
-                    status=READY_TO_INTEGRATE,
-                )
-            if args.summary and not (reuses_existing_record and already_ready):
-                task_tracker.add_comment(
-                    args.identifier,
-                    args.summary,
-                    author="oompah",
-                )
-            if coordination_service is not None and project_id:
-                try:
-                    coordination_service.coordination_checkpoint(
-                        project_id=project_id,
-                        identifier=args.identifier,
-                        changed_paths=evidence.get("changed_paths"),
-                        commit_sha=head_sha,
-                        summary=args.summary,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Submission coordination publication failed for %s: %s",
-                        args.identifier,
-                        exc,
-                    )
-            return f"Submitted for integration: {args.identifier}"
+            return _agent_submission_result(args.identifier, accepted)
 
         if args.subcommand == "add-label":
             denial = check_action(
@@ -1047,6 +934,7 @@ async def _exec_oompah_task_command_async(
     workspace_path: str | Path | None = None,
     project_store: Any = None,
     terminal_transition_coordinator: Any = None,
+    submission_handler: Any = None,
 ) -> str | None:
     """Async direct-task router used by ACP tool handlers.
 
@@ -1101,6 +989,51 @@ async def _exec_oompah_task_command_async(
         if args.subcommand == "comment" and args.author != "oompah":
             return "Error: task handoff comments must use author='oompah'"
 
+    if args.subcommand == "submit":
+        managed_project = None
+        if project_store is not None and project_id:
+            try:
+                managed_project = project_store.get(project_id)
+            except Exception:  # noqa: BLE001 - lifecycle service fails closed
+                managed_project = None
+        access_token = getattr(managed_project, "access_token", None)
+        if not isinstance(access_token, str):
+            access_token = None
+        forge_kind = getattr(managed_project, "forge_kind", "github")
+        if not isinstance(forge_kind, str):
+            forge_kind = "github"
+        try:
+            body = _agent_submission_body(
+                args,
+                workspace_path,
+                access_token=access_token,
+                forge_kind=forge_kind,
+            )
+            if isinstance(body, str):
+                return body
+            handler = submission_handler or getattr(
+                coordination_service,
+                "accept_worker_submission",
+                None,
+            )
+            if not callable(handler):
+                return (
+                    "Error: authoritative task submission service is unavailable"
+                )
+            if not project_id:
+                return "Error: task submission requires a managed project"
+            accepted = handler(
+                tracker=task_tracker,
+                identifier=args.identifier,
+                project_id=project_id,
+                body=body,
+            )
+            if inspect.isawaitable(accepted):
+                accepted = await accepted
+            return _agent_submission_result(args.identifier, accepted)
+        except Exception as exc:  # noqa: BLE001 - fail closed to worker
+            return f"Error: {exc}"
+
     if (
         args.subcommand == "set-status"
         and _target_for_task_status(args.status) is not None
@@ -1136,6 +1069,7 @@ async def _exec_oompah_task_command_async(
         workspace_path,
         project_store,
         terminal_transition_coordinator,
+        submission_handler,
     )
 
 

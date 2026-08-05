@@ -4363,13 +4363,17 @@ async def _verify_submission_git_authority(
         )
     except (ProjectError, OSError, subprocess.SubprocessError) as exc:
         raise ValueError(f"submission Git authority rejected: {exc}") from exc
-    return replace(
+    verified_record = replace(
         record,
         task_branch=authority.task_branch,
         head_sha=authority.head_sha,
         base_branch=authority.base_branch or record.base_branch,
         base_sha=authority.base_sha or record.base_sha,
     )
+    # Preserve object identity when verification merely confirms the durable
+    # generation. _persist_worker_submission uses that identity to keep an
+    # accepted same-head retry free of duplicate metadata/comment writes.
+    return record if verified_record == record else verified_record
 
 
 @contextlib.asynccontextmanager
@@ -4503,6 +4507,119 @@ def _publish_submission_coordination(
         )
 
 
+@dataclass(frozen=True)
+class AcceptedWorkerSubmission:
+    """Result of the single authoritative worker-submission transaction."""
+
+    issue: Any
+    record: IntegrationRecord
+    direct_maintenance: bool = False
+    direct_failure_message: str | None = None
+
+
+async def _accept_worker_submission(
+    orch,
+    tracker,
+    identifier: str,
+    project_id: str,
+    body: dict[str, Any],
+    *,
+    initial_issue: Any = None,
+) -> AcceptedWorkerSubmission:
+    """Accept one submitted generation under the dispatch authority fence.
+
+    HTTP, scoped handoff, ACP, and API-agent submissions all enter here.  The
+    tracker issue is re-read under the same per-issue lock used by dispatch so
+    branch authority, retry withdrawal, assignment clearing, durable lifecycle
+    writes, and queue ownership form one ordered transaction.
+    """
+
+    issue = initial_issue
+    if issue is None:
+        issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
+    if issue is None:
+        raise ValueError(f"Issue {identifier!r} not found")
+
+    async with _submission_authority_lock(orch, issue.id):
+        fresh_issue = await _run_api_io(
+            tracker.fetch_issue_detail,
+            identifier,
+        )
+        if fresh_issue is None:
+            raise ValueError(
+                f"Issue {identifier!r} disappeared during submission"
+            )
+        issue = fresh_issue
+        record = _submission_record(issue, body)
+        record = await _verify_submission_git_authority(
+            orch,
+            issue,
+            project_id,
+            record,
+        )
+        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+        if callable(cancel_retry):
+            cancel_retry(
+                issue_id=issue.id,
+                identifier=issue.identifier,
+                project_id=project_id,
+                reason="task submitted for integration",
+            )
+        await _clear_submission_assignment(tracker, issue)
+
+        direct_maintenance = is_direct_epic_maintenance_issue(issue)
+        direct_failure_message: str | None = None
+        if direct_maintenance:
+            complete = getattr(
+                orch,
+                "complete_direct_epic_maintenance_submission",
+                None,
+            )
+            if not callable(complete):
+                raise ValueError(
+                    "direct epic maintenance completion service is unavailable"
+                )
+            direct_completion = await complete(
+                issue,
+                record,
+                project_id,
+                summary=str(body.get("summary") or "").strip(),
+            )
+            if direct_completion is None:
+                raise ValueError(
+                    "direct epic maintenance classification changed during submission"
+                )
+            completed, message, completed_record = direct_completion
+            if not completed:
+                direct_failure_message = message
+            elif completed_record is not None:
+                record = completed_record
+        else:
+            record = await _persist_worker_submission(
+                tracker,
+                issue,
+                body,
+                record=record,
+            )
+            _enqueue_worker_submission(orch, project_id, issue, record)
+
+        if direct_failure_message is None:
+            _publish_submission_coordination(
+                orch,
+                project_id,
+                issue,
+                record,
+                body,
+            )
+
+        return AcceptedWorkerSubmission(
+            issue=issue,
+            record=record,
+            direct_maintenance=direct_maintenance,
+            direct_failure_message=direct_failure_message,
+        )
+
+
 @app.post("/api/v1/issues/{identifier}/submit")
 async def api_submit_issue(identifier: str, request: Request):
     """Stage committed task work for dependency-ordered integration."""
@@ -4568,78 +4685,20 @@ async def api_submit_issue(identifier: str, request: Request):
         # per-task lock is shared with the dispatcher's final In Progress
         # transition, so a callback selected before this request cannot write
         # stale lifecycle state after the accepted submission wins.
-        direct_completion = None
-        direct_failure_message: str | None = None
-        async with _submission_authority_lock(orch, issue.id):
-            # Re-read and revalidate inside the same authority fence used by
-            # dispatch.  Two concurrent submissions may both have fetched an
-            # older projection before entering this block; only the current
-            # accepted generation is allowed to choose the branch.
-            fresh_issue = await _run_api_io(
-                tracker.fetch_issue_detail,
-                resolved_identifier,
-            )
-            if fresh_issue is None:
-                raise ValueError(
-                    f"Issue {resolved_identifier!r} disappeared during submission"
-                )
-            issue = fresh_issue
-            record = _submission_record(issue, body)
-            record = await _verify_submission_git_authority(
-                orch,
-                issue,
-                project_id,
-                record,
-            )
-            cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-            if callable(cancel_retry):
-                cancel_retry(
-                    issue_id=issue.id,
-                    identifier=issue.identifier,
-                    project_id=project_id,
-                    reason="task submitted for integration",
-                )
-            await _clear_submission_assignment(tracker, issue)
-            if is_direct_epic_maintenance_issue(issue):
-                complete = getattr(
-                    orch,
-                    "complete_direct_epic_maintenance_submission",
-                    None,
-                )
-                if not callable(complete):
-                    raise ValueError(
-                        "direct epic maintenance completion service is unavailable"
-                    )
-                direct_completion = await complete(
-                    issue,
-                    record,
-                    project_id,
-                    summary=str(body.get("summary") or "").strip(),
-                )
-                if direct_completion is None:
-                    raise ValueError(
-                        "direct epic maintenance classification changed during submission"
-                    )
-                completed, message, completed_record = direct_completion
-                if not completed:
-                    direct_failure_message = message
-                elif completed_record is not None:
-                    record = completed_record
-            else:
-                record = await _persist_worker_submission(
-                    tracker, issue, body, record=record
-                )
-                _enqueue_worker_submission(orch, project_id, issue, record)
-            if direct_failure_message is None:
-                _publish_submission_coordination(
-                    orch, project_id, issue, record, body
-                )
+        accepted = await _accept_worker_submission(
+            orch,
+            tracker,
+            resolved_identifier,
+            project_id,
+            body,
+            initial_issue=issue,
+        )
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
             status_code=400,
         )
-    if direct_failure_message is not None:
+    if accepted.direct_failure_message is not None:
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         orch.request_refresh()
@@ -4648,7 +4707,7 @@ async def api_submit_issue(identifier: str, request: Request):
             {
                 "error": {
                     "code": "direct_epic_maintenance_blocked",
-                    "message": direct_failure_message,
+                    "message": accepted.direct_failure_message,
                 }
             },
             status_code=409,
@@ -4658,13 +4717,13 @@ async def api_submit_issue(identifier: str, request: Request):
     orch.request_refresh()
     await broadcast_issues()
     response_state = (
-        IN_VALIDATION if direct_completion is not None else READY_TO_INTEGRATE
+        IN_VALIDATION if accepted.direct_maintenance else READY_TO_INTEGRATE
     )
     return JSONResponse(
         {
             "ok": True,
             "state": response_state,
-            "integration": record.to_dict(),
+            "integration": accepted.record.to_dict(),
         },
         status_code=201,
     )
@@ -5310,43 +5369,16 @@ async def api_task_handoff(request: Request):
         if action == "submit":
             try:
                 async def persist_submission() -> Any:
-                    async with _submission_authority_lock(orch, issue.id):
-                        fresh_issue = await _run_api_io(
-                            tracker.fetch_issue_detail,
-                            identifier,
-                        )
-                        if fresh_issue is None:
-                            raise ValueError(
-                                f"Issue {identifier!r} disappeared during submission"
-                            )
-                        record = _submission_record(fresh_issue, body)
-                        record = await _verify_submission_git_authority(
-                            orch,
-                            fresh_issue,
-                            project_id,
-                            record,
-                        )
-                        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-                        if callable(cancel_retry):
-                            cancel_retry(
-                                issue_id=getattr(fresh_issue, "id", None),
-                                identifier=identifier,
-                                project_id=project_id,
-                                reason="task submitted for integration",
-                            )
-                        await _clear_submission_assignment(tracker, fresh_issue)
-                        record = await _persist_worker_submission(
-                            tracker, fresh_issue, body, record=record
-                        )
-                        _enqueue_worker_submission(
-                            orch, project_id, fresh_issue, record
-                        )
-                        _publish_submission_coordination(
-                            orch, project_id, fresh_issue, record, body
-                        )
-                    return record
+                    return await _accept_worker_submission(
+                        orch,
+                        tracker,
+                        identifier,
+                        project_id,
+                        body,
+                        initial_issue=issue,
+                    )
 
-                record = await run_mutation(persist_submission)
+                accepted = await run_mutation(persist_submission)
             except ValueError as exc:
                 record_task_handoff_failure(
                     token, "task handoff submission validation failed"
@@ -5358,7 +5390,19 @@ async def api_task_handoff(request: Request):
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
             await broadcast_issues()
-            return JSONResponse({"ok": True, "integration": record.to_dict()})
+            if accepted.direct_failure_message is not None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "direct_epic_maintenance_blocked",
+                            "message": accepted.direct_failure_message,
+                        }
+                    },
+                    status_code=409,
+                )
+            return JSONResponse(
+                {"ok": True, "integration": accepted.record.to_dict()}
+            )
 
         if action == "set-status":
             status = body.get("status")
