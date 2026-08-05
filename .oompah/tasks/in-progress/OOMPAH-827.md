@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T22:26:59.400258Z'
+updated_at: '2026-08-05T23:59:06.424553Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1b6f2722-3aa3-4f55-a683-755407d7e9e4
+oompah.agent_run_id: 9e6523b3-f527-4866-af63-c61f5f4eede7
 oompah.task_costs:
   total_input_tokens: 47532
   total_output_tokens: 584
@@ -172,5 +172,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 48s
 - Log: OOMPAH-827__20260805T194428Z.jsonl
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

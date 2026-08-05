@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-830
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Project the active terminal-audit stage in multi-target chains
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T22:27:01.490670Z'
+updated_at: '2026-08-05T23:58:55.915132Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9f555090-ae68-4b5b-8c15-c6f8d2a89c6a
+oompah.agent_run_id: efe27cc0-2b8c-4a7f-ab0c-4ef65b2ef6c2
 oompah.task_costs:
   total_input_tokens: 46476
   total_output_tokens: 303
@@ -127,5 +127,15 @@ author: oompah
 created: 2026-08-05 18:57
 ---
 Temporary direct-owner fence applied after verifying the worktree was clean: the native Codex provider bootstrap itself was waiting on/holding heavyweight validation capacity due OOMPAH-841, so allowing this session to start would reproduce the live whole-session lease deadlock. No implementation work was discarded. Keep fenced until standalone deployment OOMPAH-842 is live, then release back to normal server dispatch.
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->

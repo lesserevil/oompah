@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T22:26:57.324176Z'
+updated_at: '2026-08-05T23:58:47.234867Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 39e5cf5c-2d5b-4653-8298-fc8467545344
+oompah.agent_run_id: 082b1497-b53c-4b2d-a9f0-a69ca79d8d4b
 oompah.task_costs:
   total_input_tokens: 140
   total_output_tokens: 5194
@@ -202,5 +202,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 15s
 - Log: OOMPAH-826__20260805T194411Z.jsonl
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-05 23:58
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
