@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-08-05T13:16:17.242393Z'
+updated_at: '2026-08-05T13:16:24.590786Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -84,8 +84,11 @@ oompah.terminal_audit:
     audit_ids:
     - audit-f0f4f01732f7
     kind: override
-    applied: true
+    applied: false
     retired_at: '2026-08-02T18:22:54.840453+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-662
@@ -135,6 +138,23 @@ oompah.terminal_audit:
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:22:48.296330+00:00'
     applied: true
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-05T13:16:19.851607+00:00'
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-662
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: OOMPAH-662 is an auto-filed epic maintenance/rebase child; its successful
+      terminal target is audited Done. It must not be promoted to Merged merely because
+      it changed the epic branch.
+    done_audit_ids: []
+    done_override_ids:
+    - override-4bb7f09ddc26
+    created_at: '2026-08-05T13:16:19.851607+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -385,5 +405,10 @@ author: oompah
 created: 2026-08-02 19:08
 ---
 Post-terminal cleanup evidence (2026-08-02): retained clean worktree head 61546199b contains one test-only OOMPAH-660 commit not patch-identical to main, but accepted OOMPAH-660 commit db203bae9 is an ancestor of current main and implements the same test isolation. The only final-tree difference in the affected files is main's safer CLIENT_AUTH_DISABLED_ENV named constant versus the old branch's literal string. The remote epic branch is deleted and OOMPAH-619/OOMPAH-660/OOMPAH-662 are Merged. The superseded local worktree/branch can therefore be pruned without losing accepted work; OOMPAH-699 tracks automatic evidence recovery.
+---
+author: oompah
+created: 2026-08-05 13:16
+---
+Lifecycle reconciliation restored OOMPAH-662 to authorized Done: OOMPAH-662 is an auto-filed epic maintenance/rebase child; its successful terminal target is audited Done. It must not be promoted to Merged merely because it changed the epic branch.
 ---
 <!-- COMMENTS:END -->
