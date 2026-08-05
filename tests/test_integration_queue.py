@@ -651,8 +651,8 @@ def test_explicit_retry_sets_retry_forced_flag(tmp_path):
     assert retried.retry_forced is True
 
 
-def test_retry_forced_cleared_when_claimed(tmp_path):
-    """retry_forced flag should be cleared when item is claimed."""
+def test_retry_forced_is_returned_once_and_consumed_by_claim(tmp_path):
+    """A claim returns cache-bypass authority without leaving it pending."""
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     original = _enqueue(store, "A")
     claimed = store.claim_next(
@@ -682,7 +682,9 @@ def test_retry_forced_cleared_when_claimed(tmp_path):
     )
     assert retried.retry_forced is True
 
-    # Claim should clear retry_forced
+    # Claim must carry the force bit to its executor while atomically clearing
+    # the durable pending flag.  Returning only the post-update row loses the
+    # explicit retry; retaining the flag durably can loop after a crash.
     claimed_again = store.claim_next(
         project_id="p1",
         epic_id="E-1",
@@ -692,6 +694,161 @@ def test_retry_forced_cleared_when_claimed(tmp_path):
     )
     assert claimed_again is not None
     assert claimed_again.retry_forced is False
+    assert claimed_again.claimed_retry_forced is True
+    integrating = store.get("p1", "A")
+    assert integrating is not None
+    assert integrating.state == "integrating"
+    assert integrating.retry_forced is False
+
+    # The row remains unforced after the attempt records its outcome.
+    assert store.complete("p1", "A", lease_owner="worker-2")
+    completed = store.get("p1", "A")
+    assert completed is not None
+    assert completed.retry_forced is False
+
+
+def test_retry_forced_does_not_repeat_after_lease_recovery(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="cached transient failure",
+        retryable=False,
+    )
+    retried = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+    )
+    assert retried.retry_forced is True
+
+    retry_claim = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-2",
+        dependency_map={"A": []},
+        satisfied=set(),
+        lease_seconds=1,
+        now=100.0,
+    )
+    assert retry_claim is not None
+    assert retry_claim.retry_forced is False
+    assert retry_claim.claimed_retry_forced is True
+
+    integrating = store.get("p1", "A")
+    assert integrating is not None
+    assert integrating.retry_forced is False
+
+    # The first claim consumed the one-shot retry.  If that executor crashes,
+    # lease recovery must not force the gate again indefinitely.
+    assert store.recover_expired(now=102.0) == 1
+    recovered = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-3",
+        dependency_map={"A": []},
+        satisfied=set(),
+        now=102.0,
+    )
+    assert recovered is not None
+    assert recovered.retry_forced is False
+    assert recovered.claimed_retry_forced is False
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-3",
+        error="fresh gate failed",
+        retryable=False,
+    )
+    failed = store.get("p1", "A")
+    assert failed is not None
+    assert failed.retry_forced is False
+
+
+def test_claim_returns_exact_generation_when_another_connection_cancels(tmp_path):
+    """The claim snapshot is read inside the same SQLite write fence."""
+
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    observer = IntegrationQueueStore(str(path))
+    original = _enqueue(store, "A")
+    first = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert first is not None
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="cached failure",
+        retryable=False,
+    )
+    store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+    )
+
+    real_connection = store._conn
+
+    class CancelAfterCommit:
+        def __init__(self):
+            self.cancelled = False
+
+        def execute(self, *args, **kwargs):
+            return real_connection.execute(*args, **kwargs)
+
+        def commit(self):
+            real_connection.commit()
+            if not self.cancelled:
+                self.cancelled = True
+                assert observer.cancel(
+                    "p1",
+                    "A",
+                    reason="newer controller decision",
+                    expected_head_sha=original.head_sha,
+                    expected_state="integrating",
+                )
+
+        def rollback(self):
+            return real_connection.rollback()
+
+    store._conn = CancelAfterCommit()
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-2",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+
+    assert claimed is not None
+    assert claimed.state == "integrating"
+    assert claimed.lease_owner == "worker-2"
+    assert claimed.head_sha == original.head_sha
+    assert claimed.retry_forced is False
+    assert claimed.claimed_retry_forced is True
+    assert observer.get("p1", "A").state == "cancelled"
 
 
 def test_new_head_on_explicit_retry_row_clears_retry_forced(tmp_path):

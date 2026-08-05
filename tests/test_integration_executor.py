@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import shlex
 import subprocess
 import time
 from unittest import mock
@@ -8,6 +9,7 @@ from unittest import mock
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import execute_integration
+from oompah.integration_queue import IntegrationQueueStore
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
@@ -358,6 +360,91 @@ def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
     assert result.status == "ci_failure"
     assert result.rebased_task_sha
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
+
+
+def test_claimed_explicit_retry_bypasses_cached_gate_failure(tmp_path):
+    """OOMPAH-523: the queue claim must deliver its retry intent to the gate."""
+
+    remote, epic, task, task_head = _repo(tmp_path)
+    gate = _gate(tmp_path / "quality.json", task)
+    transient_failure = tmp_path / "transient-failure"
+    transient_failure.write_text("fail\n", encoding="utf-8")
+    command = f"test ! -f {shlex.quote(str(transient_failure))}"
+
+    cached_failure = gate.run(
+        repo_path=str(task),
+        repo_identity=str(remote),
+        target_branch="epic-E-1",
+        work_branch="epic-E-1--task-T-1",
+        command=command,
+        expected_head_sha=task_head,
+    )
+    assert cached_failure.status == "failed"
+    transient_failure.unlink()
+
+    queue = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queue.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="T-1",
+        task_branch="epic-E-1--task-T-1",
+        head_sha=task_head,
+    )
+    initial = queue.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"T-1": []},
+        satisfied=set(),
+    )
+    assert initial is not None
+    assert queue.fail(
+        "p1",
+        "T-1",
+        lease_owner="worker-1",
+        error="cached gate failure",
+        retryable=False,
+    )
+    queue.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="T-1",
+        task_branch="epic-E-1--task-T-1",
+        head_sha=task_head,
+        explicit_retry=True,
+    )
+    claimed_retry = queue.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-2",
+        dependency_map={"T-1": []},
+        satisfied=set(),
+    )
+    assert claimed_retry is not None
+    assert claimed_retry.retry_forced is False
+    assert claimed_retry.claimed_retry_forced is True
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=gate,
+        quality_command=command,
+        repo_identity=str(remote),
+        retry_forced=claimed_retry.claimed_retry_forced,
+    )
+
+    assert result.integrated
+    assert result.quality is not None
+    assert result.quality.status == "passed"
+    assert result.quality.cached is False
+    assert queue.complete("p1", "T-1", lease_owner="worker-2")
+    completed = queue.get("p1", "T-1")
+    assert completed is not None
+    assert completed.retry_forced is False
 
 
 def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):

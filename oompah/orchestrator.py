@@ -11056,7 +11056,7 @@ class Orchestrator:
             repo_identity=project.repo_url or project.repo_path or project.id,
             access_token=getattr(project, "access_token", None),
             forge_kind=getattr(project, "forge_kind", "github"),
-            retry_forced=item.retry_forced,
+            retry_forced=item.claimed_retry_forced,
             gate_generation=(
                 f"integration:{item.project_id}:{item.task_id}:"
                 f"{item.head_sha}:{item.lease_owner or ''}"
