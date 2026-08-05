@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T18:56:59.548155Z'
+updated_at: '2026-08-05T18:57:26.399440Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -27,13 +27,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8b61f5e1-553a-43fb-bd83-0c471b69eda9
-  claim_owner: 3a62b7a5-bbb7-4494-ae8d-738d99774e0d
-  claimed_at: '2026-08-05T18:31:00.837781+00:00'
-  claim_expires_at: '2026-08-05T19:17:10.897728+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-08-05T18:57:18.936937+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -104,5 +104,15 @@ author: oompah
 created: 2026-08-05 18:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 18:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 41s
+- Log: OOMPAH-831__20260805T183157Z.jsonl
 ---
 <!-- COMMENTS:END -->
