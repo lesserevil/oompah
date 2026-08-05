@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:36:40.437178Z'
+updated_at: '2026-08-05T00:45:43.413265Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-08-05 00:36
 ---
 Understanding: This task fixes a bug where accepted child branch identity is not preserved across repair dispatch. Root cause: when a direct-owner submits an epic child task on a plain branch (e.g., OOMPAH-814), the submission records task_branch=OOMPAH-814 in oompah.integration but leaves issue work_branch as null. On CI repair, workspace setup recomputes the canonical branch name (epic-OOMPAH-763--task-OOMPAH-814), which differs from the accepted branch (OOMPAH-814), causing a conflict with the registered worktree. Fix: persist the accepted branch identity at submission time and reuse it on repair/retry dispatch, never recomputing it. Starting with code exploration to find root cause.
+---
+author: oompah
+created: 2026-08-05 00:45
+---
+Independent read-only audit found the exact contract: OOMPAH-576 safety guards work; its legacy expected_submission_branch fallback accepts identifier when work_branch is null. _persist_worker_submission then writes integration but never work_branch. Later _create_workspace_for_issue unconditionally derives the hierarchical child branch and overwrites accepted authority. Once IntegrationRecord has task_branch+head_sha, that pair must win and Issue.work_branch is only a projection; submission should atomically reconcile it, retry/workspace/audit must reuse it, and fresh unsubmitted dispatch may still derive hierarchy. Centralize the resolver across server normal/scoped/ACP submit, _create_workspace_for_issue, _retry_issue_branch, and audit branch key. OOMPAH-813 is the live regression shape (accepted OOMPAH-813 at eb5d with null work_branch); preserve OOMPAH-814's current hierarchical workaround. Add zero-mutation mismatch/concurrency/restart/no-reset regressions; do not weaken ProjectStore/integration-executor safety.
 ---
 <!-- COMMENTS:END -->
