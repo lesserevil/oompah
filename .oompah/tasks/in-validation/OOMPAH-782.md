@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-05T00:07:46.888563Z'
+updated_at: '2026-08-05T00:07:59.491820Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -372,5 +372,15 @@ author: oompah
 created: 2026-08-05 00:07
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 00:07
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 00:07
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
