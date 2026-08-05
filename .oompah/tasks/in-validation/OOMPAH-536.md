@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-536
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Route implementation away from completed duplicate preflight focus
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-07-29T00:01:37.885779Z'
+updated_at: '2026-08-05T00:41:31.004773Z'
 work_branch: OOMPAH-536
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/570
@@ -22,6 +22,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/570
 oompah.review_number: '570'
 oompah.work_branch: OOMPAH-536
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-41803391d996
+    project_id: proj-14849f1b
+    task_id: OOMPAH-536
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecaee7ad6c6c3a07543aba0466f343c7dc9329c8f8ac97c2b9a1edcaa6dd42b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T00:41:21.197322+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +76,10 @@ author: oompah
 created: 2026-07-28 23:52
 ---
 Claimed directly during production verification of OOMPAH-535. The misfocused OOMPAH-469 run was stopped before any worktree change; the oompah project remains paused while this follow-up is implemented and tested.
+---
+author: oompah
+created: 2026-08-05 00:41
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
