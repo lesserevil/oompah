@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-08-05T20:36:20.963026Z'
+updated_at: '2026-08-05T20:36:28.135830Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -84,8 +84,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-54e0c72206d5
-    applied: false
+    applied: true
     created_at: '2026-08-05T20:36:17.523438+00:00'
+    applied_at: '2026-08-05T20:36:26.552728+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -398,5 +399,26 @@ author: oompah
 created: 2026-08-05 20:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 20:36
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: f05f550672dd3118372507df0d2d47c342011003
+- merge_subject: Merge pull request #578 from lesserevil/epic-OOMPAH-458
+- merge_date: 2026-07-29T12:51:35-05:00
+- merge_on_main: true
+- audit_queued: 2026-08-05T18:21
+- days_since_merge: 7
+- previous_state: Merged
+- auto_archive_reason: aged_merged_7d
+- docstring_reference: oompah/work_contributors.py:259 (example identifier only)
+- test_reference: tests/test_unpushed_gate.py:639 (fixture branch string)
+- epic_branch: epic-OOMPAH-458
+- pr_number: 578
 ---
 <!-- COMMENTS:END -->
