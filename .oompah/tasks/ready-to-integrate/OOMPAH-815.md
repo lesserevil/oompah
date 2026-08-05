@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-815
 type: task
-status: Needs CI Fix
+status: Ready to Integrate
 priority: null
 title: Preserve accepted child branch identity across repair dispatch
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T14:33:54.132353Z'
+updated_at: '2026-08-05T15:20:41.493321Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -60,48 +60,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-815
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-815
   base_branch: epic-OOMPAH-763
   base_sha: 22252cc0486e919a657d15e5367ce29476622ce3
-  head_sha: ccd1bf4550b67bbaaf21589d15550f31e9f1f6a7
-  submitted_at: '2026-08-05T14:16:21.569153+00:00'
-  updated_at: '2026-08-05T14:33:46.255209+00:00'
-  last_error: "Combined-tree quality gate failed: /lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_includes_service_instance_id\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-mu2awcfx/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x71afca4b39c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_project_locks.py::TestConcurrentWorktreeOperationsAreSerialized::test_create_and_remove_same_project_are_serialized\n\
-    FAILED tests/test_project_locks.py::TestDifferentProjectsAreIndependent::test_two_projects_create_worktree_concurrently\n\
-    FAILED tests/test_project_locks.py::TestConcurrentWorktreeOperationsAreSerialized::test_two_create_worktree_calls_same_project_are_serialized\n\
-    FAILED tests/test_project_locks.py::TestEpicWorktreeLocking::test_create_epic_and_create_regular_same_project_are_serialized\n\
-    FAILED tests/test_project_locks.py::TestConcurrentMaintenanceAndDispatch::test_maintenance_remove_and_dispatch_create_are_serialized\n\
-    FAILED tests/test_project_locks.py::TestConcurrentMaintenanceAndDispatch::test_maintenance_and_dispatch_different_projects_run_concurrently\n\
-    FAILED tests/test_project_locks.py::TestConcurrentMaintenanceAndDispatch::test_thread_pool_concurrent_operations_same_project_serialized\n\
-    FAILED tests/test_project_locks.py::TestLockReleasedOnError::test_lock_released_after_create_worktree_raises\n\
-    = 8 failed, 15999 passed, 8 skipped, 1 xfailed, 55 warnings in 999.09s (0:16:39)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce
+  submitted_at: '2026-08-05T15:20:34.216015+00:00'
+  updated_at: '2026-08-05T15:20:34.216015+00:00'
 oompah.task_costs:
   total_input_tokens: 48168
   total_output_tokens: 5288
@@ -280,5 +246,15 @@ FAILED tests/test_project_locks.py::TestLockReleasedOnError::test_lock_released_
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-05 15:20
+---
+Independent incremental review PASS at exact head 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce. Delta from previously approved ccd1bf455 is test-only: exactly eight project-lock mock side effects accept the two keyword-only ProjectStore arguments; runtime and assertions are unchanged, and the real per-project lock remains exercised. Verification: five full lock-suite repetitions (130/130), 188 focused projects/recovery tests, terminal scan 8/8, secret scan, diff check, canonical trailer, clean exact upstream.
+---
+author: oompah
+created: 2026-08-05 15:20
+---
+Fixed the eight stale project-lock test doubles exposed by the canonical full gate; repeated focused verification and independent exact-head review pass at 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce.
 ---
 <!-- COMMENTS:END -->
