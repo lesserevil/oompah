@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:50:41.686737Z'
+updated_at: '2026-08-05T04:52:45.587402Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -837,5 +837,10 @@ author: oompah
 created: 2026-08-05 04:50
 ---
 Implementation: no source repair was necessary because the recovered commits are already in this branch. The audited implementation retains outer ASGI enforcement, strict Basic parsing, exact raw-path exemptions, pre-accept WebSocket checks, Authorization redaction, minimal health/build identity, and both startup credential wiring paths. Existing tests provide the required regression coverage.
+---
+author: oompah
+created: 2026-08-05 04:52
+---
+Verification: auth-specific tests pass (73 before synchronization, 73 in the synchronized auth subset; 109 combined startup/favicon/build/docs checks), the directly affected server/WebSocket/webhook suite passes 998 tests on the synchronized head, and make check-secrets passes with only the existing null-byte shell warning. make setup remains unavailable because uv fails its DBus transient-scope check in this environment.
 ---
 <!-- COMMENTS:END -->
