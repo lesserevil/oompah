@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: In Validation
+status: Done
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T18:58:00.386626Z'
+updated_at: '2026-08-05T19:27:48.824231Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -76,6 +76,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-d04490732e74-3: '2026-08-05T00:02:28.136636+00:00'
+    attempt-5f47f6b2b29e: '2026-08-05T19:27:45.135612+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-526
@@ -86,6 +87,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-05T00:02:28.136645+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    target_state: Done
+    evidence_fingerprint: cd0bb5fea6e035fef4632b3b93e88c8092080de83fd46e5cdfeb77a2880e8de6
+    audit_ids:
+    - audit-102eb40c0244
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T19:27:45.135630+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-526
@@ -99,6 +109,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-05T00:02:28.136655+00:00'
     applied_at: '2026-08-05T00:02:38.183569+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    audit_id: audit-102eb40c0244
+    attempt_id: attempt-5f47f6b2b29e
+    target_state: Done
+    evidence_fingerprint: cd0bb5fea6e035fef4632b3b93e88c8092080de83fd46e5cdfeb77a2880e8de6
+    status: Done
+    audit_ids:
+    - audit-102eb40c0244
+    applied: false
+    created_at: '2026-08-05T19:27:45.135650+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -183,7 +204,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-526
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -211,7 +232,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5f47f6b2b29e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -222,13 +243,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T18:57:43.017231+00:00'
       branch_key: epic-OOMPAH-521--task-OOMPAH-526
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-05T19:27:45.135436+00:00'
+      ended_at: '2026-08-05T19:27:45.135436+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-05T18:23:18.899055+00:00'
-    updated_at: '2026-08-05T18:57:43.017231+00:00'
+    updated_at: '2026-08-05T19:27:45.135436+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc08a582ec99
