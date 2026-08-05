@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:59:22.662189Z'
+updated_at: '2026-08-05T00:59:38.527735Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -261,5 +261,10 @@ author: oompah
 created: 2026-08-05 00:50
 ---
 Acceptance blocker in the current live diff: TestDispatchSerializationByProject still passes projects=None with a MagicMock store. issue.project_id='proj-1'; store.get returns None, then unset MagicMock.find_by_name dynamically returns a fake Project and _tracker_for_project can still construct/cache a real OompahMarkdownTracker. Patching only Orchestrator._new_tracker covers the legacy tracker, not _new_tracker_for_project. The 5-case class taking 7.58s is consistent with remaining real I/O. Replace this with a concrete tmp ProjectStore containing a concrete Project and preseed/constrain the exact project tracker boundary; add an assertion/raising spy proving _new_tracker_for_project is never invoked. Do the same concrete empty-store boundary for TestShouldDispatchCompleted, and remove currently unused Project/ProjectStore imports only if not used. Keep explicit cleanup. Do not submit based only on focused pass while the accidental real tracker path remains.
+---
+author: oompah
+created: 2026-08-05 00:59
+---
+Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not persist recovery ref for OOMPAH-814: fatal: update_ref failed for ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0': cannot update ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0': trying to write ref 'refs/oompah/recovery/OOMPAH-814-2d1c3b305041c4f0' with nonexistent object 515cbc2c84ef6bf955468534a163b7fc77b33f2a
 ---
 <!-- COMMENTS:END -->
