@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T18:01:38.772879Z'
+updated_at: '2026-08-05T18:21:48.216549Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -60,6 +60,28 @@ oompah.task_costs:
     output_tokens: 9888
     cost_usd: 0.0
     recorded_at: '2026-07-29T17:45:35.844289+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-54e0c72206d5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-458
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da0b8ad8f8a7c5d3a56b5cb91e5bcb7e15fd228fd8e21e6949ce1f3108aac4cc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:21:46.172941+00:00'
+  attempt_history: []
 ---
 ## Summary
 

@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T18:16:28.937464Z'
+updated_at: '2026-08-05T18:21:37.041098Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -263,5 +263,10 @@ author: oompah
 created: 2026-08-05 18:16
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 18:21
+---
+Understanding (attempt #1 continuation): Reviewing previous implementation (commit 7cdc30f36) against the pre-landing audit blockers. The three required fixes are: (1) _integration_decision must treat a blocked exact-head gate as action_required instead of scheduling integration_attempt; (2) WorkflowFactCollector/facts overlay must consult durable IntegrationQueueStore to prevent duplicate active integrations; (3) Terminal-audit facts must preserve queued/running revisionless metadata dispositions and route unsafe evidence to action_required. Now investigating current code to locate exact repair points.
 ---
 <!-- COMMENTS:END -->
