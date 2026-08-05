@@ -7,12 +7,10 @@ title: Use resolved project identity in duplicate-screening task details
 parent: null
 children: []
 blocked_by: []
-labels:
-- needs:backend
-- needs:test
+labels: []
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-08-05T03:04:04.486958Z'
+updated_at: '2026-08-05T03:04:17.326830Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -110,5 +108,10 @@ author: oompah
 created: 2026-08-05 03:04
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 03:04
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
