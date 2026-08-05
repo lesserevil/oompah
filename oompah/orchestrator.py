@@ -21158,12 +21158,112 @@ class Orchestrator:
         decision: Any,
         comment_body: str,
     ) -> bool:
-        """Apply a reopen only while its exact durable evidence is unchanged."""
+        """Bridge a maintenance-thread reopen into shared task authority."""
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                logger.warning(
+                    "Refusing synchronous stalled-task reopen on the dispatch loop"
+                )
+                return False
+            return bool(
+                asyncio.run_coroutine_threadsafe(
+                    self._execute_stalled_watchdog_reopen_under_authority(
+                        project_id,
+                        issue,
+                        tracker,
+                        decision,
+                        comment_body,
+                    ),
+                    loop,
+                ).result()
+            )
+        if self._running_loop() is not None:
+            logger.warning(
+                "Refusing stalled-task reopen without a synchronous authority bridge"
+            )
+            return False
+        return bool(
+            asyncio.run(
+                self._execute_stalled_watchdog_reopen_under_authority(
+                    project_id,
+                    issue,
+                    tracker,
+                    decision,
+                    comment_body,
+                )
+            )
+        )
+
+    async def _execute_stalled_watchdog_reopen_under_authority(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Execute the blocking watchdog CAS under shared issue authority."""
+
+        issue_id = str(
+            getattr(issue, "id", None)
+            or getattr(issue, "identifier", "")
+            or ""
+        ).strip()
+        if not issue_id:
+            return False
+        async with self.issue_transition_lock(issue_id):
+            return await asyncio.to_thread(
+                self._execute_stalled_watchdog_reopen_locked,
+                project_id,
+                issue,
+                tracker,
+                decision,
+                comment_body,
+            )
+
+    def _stalled_watchdog_branch_head(
+        self,
+        project_id: str,
+        task_branch: str,
+    ) -> str:
+        """Return the current forge head for one actionable task branch."""
+
+        pid = str(project_id or "").strip()
+        branch = str(task_branch or "").strip()
+        if not pid or not branch or self.project_store is None:
+            return ""
+        project = self.project_store.get(pid)
+        if project is None:
+            return ""
+        provider = detect_provider(
+            str(getattr(project, "repo_url", "") or ""),
+            access_token=getattr(project, "access_token", None),
+        )
+        if provider is None or not provider.is_available():
+            return ""
+        repo = extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+        return str(provider.get_branch_head_sha(repo, branch) or "").strip().lower()
+
+    def _execute_stalled_watchdog_reopen_locked(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Apply a reopen while issue, queue, tracker, and SCM evidence agree."""
 
         identifier = str(getattr(issue, "identifier", "") or "").strip()
         expected_status = canonicalize_status(
             str(getattr(decision, "stalled_status", "") or "")
         )
+        decision_head = str(
+            getattr(decision, "evidence_head", "") or ""
+        ).strip().lower()
+        pid = str(project_id or "").strip()
 
         def _apply(_row: Any | None = None) -> bool:
             current = tracker.fetch_issue_detail(identifier)
@@ -21171,21 +21271,35 @@ class Orchestrator:
                 return False
             if _row is not None:
                 integration = getattr(current, "integration", None)
+                if integration is None:
+                    return False
                 if isinstance(integration, Mapping):
                     integration_head = integration.get("head_sha")
                     integration_branch = integration.get("task_branch")
                 else:
                     integration_head = getattr(integration, "head_sha", "")
                     integration_branch = getattr(integration, "task_branch", "")
-                accepted_head = str(
-                    integration_head if integration is not None else ""
-                ).strip().lower()
-                accepted_branch = str(
-                    integration_branch if integration is not None else ""
-                ).strip()
-                if accepted_head and accepted_head != str(_row.head_sha).lower():
+                accepted_head = str(integration_head or "").strip().lower()
+                accepted_branch = str(integration_branch or "").strip()
+                if not accepted_head or accepted_head != str(_row.head_sha).lower():
                     return False
-                if accepted_branch and accepted_branch != str(_row.task_branch):
+                if not accepted_branch or accepted_branch != str(_row.task_branch):
+                    return False
+                if not decision_head:
+                    return False
+                try:
+                    branch_head = self._stalled_watchdog_branch_head(
+                        pid,
+                        accepted_branch,
+                    )
+                except Exception as exc:  # noqa: BLE001 - evidence fails closed
+                    logger.warning(
+                        "Could not revalidate stalled-task branch %s: %s",
+                        accepted_branch,
+                        exc,
+                    )
+                    return False
+                if branch_head != decision_head:
                     return False
             tracker.add_comment(identifier, comment_body, author="oompah")
             tracker.update_issue(identifier, status=OPEN)
@@ -21194,7 +21308,6 @@ class Orchestrator:
         generation = str(
             getattr(decision, "evidence_generation", "") or ""
         ).strip().lower()
-        pid = str(project_id or "").strip()
         queue_prefix = "integration-queue-v1:"
         if pid and generation.startswith(queue_prefix):
             return self.integration_queue.run_if_generation(

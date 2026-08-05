@@ -15,7 +15,9 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import os
+import threading
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -1200,17 +1202,337 @@ class TestGateFailureFencesWatchdogReopen:
             ),
         )
 
-        executed = orch._execute_stalled_watchdog_reopen(
-            "project-1",
-            issue,
-            tracker,
-            decision,
-            build_watchdog_comment(decision),
-        )
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
 
         assert executed is True
         tracker.add_comment.assert_called_once()
         tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
+
+    def test_action_time_queue_cas_rejects_missing_tracker_integration(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=None,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("task_branch", "head_sha"),
+        [
+            (None, _OOMPAH_814_HEAD),
+            ("OOMPAH-814", None),
+        ],
+    )
+    def test_action_time_queue_cas_rejects_incomplete_tracker_integration(
+        self,
+        tmp_path,
+        task_branch,
+        head_sha,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch=task_branch,
+                head_sha=head_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_action_time_queue_cas_rejects_branch_rollback_to_failed_head(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_OOMPAH_814_HEAD,
+        ):
+            executed = orch._execute_stalled_watchdog_reopen(
+                "project-1",
+                issue,
+                tracker,
+                decision,
+                build_watchdog_comment(decision),
+            )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tracker_generation_change_waiting_on_shared_authority_fails_closed(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        replacement = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="new generation",
+            state="Ready to Integrate",
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_REPAIR_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        authority = orch.issue_transition_lock(issue.id)
+        await authority.acquire()
+        try:
+            reopen = asyncio.create_task(
+                orch._execute_stalled_watchdog_reopen_under_authority(
+                    "project-1",
+                    issue,
+                    tracker,
+                    decision,
+                    build_watchdog_comment(decision),
+                )
+            )
+            await asyncio.sleep(0)
+            tracker.fetch_issue_detail.assert_not_called()
+            tracker.fetch_issue_detail.return_value = replacement
+        finally:
+            authority.release()
+
+        executed = await reopen
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tracker_generation_change_during_action_waits_for_authority(
+        self,
+        tmp_path,
+    ):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        fetch_entered = threading.Event()
+        release_fetch = threading.Event()
+        order: list[str] = []
+
+        def fetch_current(_identifier):
+            fetch_entered.set()
+            assert release_fetch.wait(timeout=3)
+            return issue
+
+        tracker.fetch_issue_detail.side_effect = fetch_current
+        tracker.update_issue.side_effect = lambda *_a, **_k: order.append(
+            "watchdog-open"
+        )
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        with patch.object(
+            orch,
+            "_stalled_watchdog_branch_head",
+            return_value=_REPAIR_HEAD,
+        ):
+            reopen = asyncio.create_task(
+                orch._execute_stalled_watchdog_reopen_under_authority(
+                    "project-1",
+                    issue,
+                    tracker,
+                    decision,
+                    build_watchdog_comment(decision),
+                )
+            )
+            assert await asyncio.to_thread(fetch_entered.wait, 3)
+
+            async def replace_tracker_generation():
+                async with orch.issue_transition_lock(issue.id):
+                    order.append("replacement-generation")
+
+            replacement = asyncio.create_task(replace_tracker_generation())
+            await asyncio.sleep(0)
+            assert "replacement-generation" not in order
+            release_fetch.set()
+            executed = await reopen
+            await replacement
+
+        assert executed is True
+        assert order == ["watchdog-open", "replacement-generation"]
 
     def test_gate_failure_immediately_before_watchdog_classification(self):
         """Gate completes with failures → next watchdog tick must not reopen."""
