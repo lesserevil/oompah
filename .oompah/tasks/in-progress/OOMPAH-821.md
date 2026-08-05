@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:40:41.390445Z'
+updated_at: '2026-08-05T05:43:58.944483Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -134,5 +134,17 @@ Planned approach:
 5. Ensure alert/action parity for all terminal failure classifications
 
 Relevant files: terminal_transition_coordinator.py, orchestrator.py, server.py
+---
+author: oompah
+created: 2026-08-05 05:43
+---
+Discovery: Found the root cause in terminal_transition_coordinator.py retry_failed_audit() method. The issue is in the exhausted record selection logic (around line 1350-1370). Currently requires ALL attempts to have only retryable classifications (NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY). But when a task has mixed attempt history (e.g., ABANDONED + FINALIZATION_FAILURE + terminal NO_AUDITOR), the all() check fails because earlier attempts aren't retryable classifications. This causes a 409 'No matching exhausted audit' error even though the terminal state is retryable.
+
+Solution approach:
+1. Create canonical is_audit_retryable() function that checks if a COMPLETED record is retryable based on its TERMINAL attempt classification only
+2. Use same function in both retry_failed_audit() and recovery alert emission
+3. Ensures alert/action parity: only emit recovery alert if retry will actually succeed
+
+Key insight: Retryability should be determined from the TERMINAL exhaustion outcome while preserving prior attempt history. The mixed history itself is not a barrier to retry if the terminal state is retryable.
 ---
 <!-- COMMENTS:END -->
