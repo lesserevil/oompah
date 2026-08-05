@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-08-05T18:38:27.968710Z'
+updated_at: '2026-08-05T18:39:09.353599Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,8 +55,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: a8ddfecf-2b22-48af-84ed-0975532fa13c
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 153432837
-  total_output_tokens: 449606
+  total_input_tokens: 153432874
+  total_output_tokens: 456722
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -70,6 +70,10 @@ oompah.task_costs:
     opus:
       input_tokens: 5973824
       output_tokens: 18789
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 37
+      output_tokens: 7116
       cost_usd: 0.0
   runs:
   - profile: default
@@ -444,6 +448,12 @@ oompah.task_costs:
     output_tokens: 1137
     cost_usd: 0.0
     recorded_at: '2026-07-29T14:24:01.394216+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 37
+    output_tokens: 7116
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T18:39:06.810696+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -4164,5 +4174,15 @@ Safe evidence:
 - test_files_on_main: tests/test_auditor_candidate_selector.py, tests/test_auditor_contract.py, tests/test_auditor_focus.py, tests/test_auditor_result_api.py
 - worktree_status: clean, detached HEAD at main tip
 - aged_archive_gap_days: 7
+---
+author: oompah
+created: 2026-08-05 18:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 40, Tool calls: 31
+- Tokens: 37 in / 7.1K out [7.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 57s
+- Log: OOMPAH-470__20260805T182423Z.jsonl
 ---
 <!-- COMMENTS:END -->
