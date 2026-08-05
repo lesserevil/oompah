@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T19:20:33.669468Z'
+updated_at: '2026-08-05T19:22:05.224530Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,13 +20,13 @@ merged_at: null
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9681529
-  total_output_tokens: 40024
+  total_input_tokens: 9681600
+  total_output_tokens: 51048
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 9628154
-      output_tokens: 34018
+      input_tokens: 9628225
+      output_tokens: 45042
       cost_usd: 0.0
     haiku:
       input_tokens: 53375
@@ -93,6 +93,12 @@ oompah.task_costs:
     output_tokens: 129
     cost_usd: 0.0
     recorded_at: '2026-08-05T06:19:21.808289+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 71
+    output_tokens: 11024
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:22:01.719643+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -1487,5 +1493,15 @@ Safe evidence:
 - ui_manual_input: oompah/templates/providers.html: providerSupportsManualModels() gated on desc.supports_manual_model_selection; fetch_note documents SDK-default fallback
 - role_store_shape: oompah/roles.py: Role(strategy in {priority, round_robin}, candidates=[Candidate(provider_id, model)]); legacy single-candidate format promoted to one-candidate priority role for backward compat
 - description_deviation_note: Fast Claude candidate is haiku (not fable) per documented live-verification correction; sonnet/opus and Codex trio unchanged
+---
+author: oompah
+created: 2026-08-05 19:22
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 83, Tool calls: 65
+- Tokens: 71 in / 11.0K out [11.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 1s
+- Log: OOMPAH-505__20260805T185707Z.jsonl
 ---
 <!-- COMMENTS:END -->
