@@ -568,6 +568,25 @@ def _worktree_pending_recovery_ref(issue_identifier: str) -> str:
     )
 
 
+def _worktree_consumed_recovery_ref(
+    issue_identifier: str,
+    snapshot_head: str,
+) -> str:
+    """Return the immutable authoritative tombstone for one generation."""
+
+    snapshot = str(snapshot_head or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", snapshot):
+        raise ProjectError("consumed recovery snapshot must be a full object id")
+    return f"{_worktree_consumed_recovery_prefix(issue_identifier)}{snapshot}"
+
+
+def _worktree_consumed_recovery_prefix(issue_identifier: str) -> str:
+    """Return the namespace holding immutable task generation tombstones."""
+
+    task_component = _worktree_recovery_ref(issue_identifier).rsplit("/", 1)[-1]
+    return f"refs/oompah/recovery-consumed/{task_component}/"
+
+
 def _validate_supported_release_branches(
     supported: list,
     branches_patterns: list[str],
@@ -2967,6 +2986,83 @@ class ProjectStore:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(f"git status failed for worktree {wt_path}: {exc}") from exc
 
+    @staticmethod
+    def _recovery_consumption_state(
+        project: Project,
+        issue_identifier: str,
+        snapshot_head: str,
+    ) -> str:
+        """Return consumed/available/unknown for one immutable generation."""
+
+        consumed_ref = _worktree_consumed_recovery_ref(
+            issue_identifier,
+            snapshot_head,
+        )
+        try:
+            probe = subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", consumed_ref],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "unknown"
+        if probe.returncode == 1:
+            return "available"
+        if probe.returncode != 0:
+            return "unknown"
+        try:
+            resolved = subprocess.run(
+                ["git", "show-ref", "--verify", "--hash", consumed_ref],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "unknown"
+        expected = str(snapshot_head or "").strip().lower()
+        if resolved.returncode != 0 or resolved.stdout.strip().lower() != expected:
+            return "unknown"
+        return "consumed"
+
+    @staticmethod
+    def _discard_consumed_pending_ref(
+        issue_identifier: str,
+        wt_path: str,
+        snapshot_head: str,
+    ) -> None:
+        """Best-effort cleanup; the authoritative tombstone is the fence."""
+
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "update-ref",
+                    "-d",
+                    _worktree_pending_recovery_ref(issue_identifier),
+                    snapshot_head,
+                ],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            logger.debug(
+                "Could not discard tombstoned pending recovery issue=%s head=%s",
+                issue_identifier,
+                snapshot_head,
+                exc_info=True,
+            )
+
     def _recovery_context_from_ref(
         self,
         project: Project,
@@ -2993,6 +3089,35 @@ class ProjectStore:
             return None
 
         snapshot_head = resolved.stdout.strip().lower()
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot_head,
+        )
+        if consumption == "unknown":
+            raise ProjectError(
+                f"could not verify recovery consumption fence for {issue_identifier}"
+            )
+        if consumption == "consumed":
+            try:
+                subprocess.run(
+                    ["git", "update-ref", "-d", recovery_ref, snapshot_head],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                logger.debug(
+                    "Could not discard tombstoned authoritative recovery "
+                    "issue=%s head=%s",
+                    issue_identifier,
+                    snapshot_head,
+                    exc_info=True,
+                )
+            return None
         context = self._recovery_context_from_commit(
             project,
             issue_identifier,
@@ -3239,10 +3364,44 @@ class ProjectStore:
                 if pending_after.returncode != 1:
                     return "unknown"
 
+        consumed_ref = _worktree_consumed_recovery_ref(
+            issue_identifier,
+            snapshot,
+        )
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot,
+        )
+        if consumption == "unknown":
+            return "unknown"
+        if consumption == "available":
+            try:
+                recorded = subprocess.run(
+                    ["git", "update-ref", consumed_ref, snapshot, ""],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown"
+            if recorded.returncode != 0:
+                return "unknown"
+            if self._recovery_consumption_state(
+                project,
+                issue_identifier,
+                snapshot,
+            ) != "consumed":
+                return "unknown"
+
         # Delete the authoritative generation last. If pending cleanup fails,
         # the authoritative ref remains discoverable and the retry is safely
-        # idempotent; no source-local copy can resurrect a reported-consumed
-        # generation after this exact CAS succeeds.
+        # idempotent. The immutable consumed-generation ref is published before
+        # this CAS, so even a source clone recreating its pending ref after the
+        # final absence probe can never resurrect this generation.
         consumed = subprocess.run(
             ["git", "update-ref", "-d", recovery_ref, snapshot],
             cwd=project.repo_path,
@@ -3356,6 +3515,23 @@ class ProjectStore:
             if resolved.returncode != 0 or not resolved.stdout.strip():
                 continue
             snapshot_head = resolved.stdout.strip().lower()
+            consumption = self._recovery_consumption_state(
+                project,
+                issue_identifier,
+                snapshot_head,
+            )
+            if consumption == "unknown":
+                raise ProjectError(
+                    f"could not verify pending recovery consumption fence for "
+                    f"{issue_identifier}"
+                )
+            if consumption == "consumed":
+                self._discard_consumed_pending_ref(
+                    issue_identifier,
+                    wt_path,
+                    snapshot_head,
+                )
+                continue
             context = self._recovery_context_from_commit(
                 project,
                 issue_identifier,
@@ -3390,6 +3566,26 @@ class ProjectStore:
                 "pending_ref": pending_ref,
             }
         )
+        consumption = self._recovery_consumption_state(
+            project,
+            issue_identifier,
+            snapshot_head,
+        )
+        if consumption == "unknown":
+            raise RecoveryPublicationError(
+                f"could not verify recovery consumption fence for "
+                f"{issue_identifier}",
+                context=context,
+            )
+        if consumption == "consumed":
+            self._discard_consumed_pending_ref(
+                issue_identifier,
+                wt_path,
+                snapshot_head,
+            )
+            context["publication_state"] = "consumed"
+            context["consumed"] = True
+            return context
 
         def _publication_git(
             args: list[str],
@@ -3618,6 +3814,21 @@ class ProjectStore:
                                 identifier or "unknown",
                             )
                             continue
+                        consumption = self._recovery_consumption_state(
+                            project,
+                            identifier,
+                            snapshot_head.lower(),
+                        )
+                        if consumption != "available":
+                            if consumption == "unknown":
+                                logger.warning(
+                                    "Skipping recovery with unavailable consumed "
+                                    "generation proof project=%s issue=%s head=%s",
+                                    project.id,
+                                    identifier,
+                                    snapshot_head,
+                                )
+                            continue
                         context.update(
                             {
                                 "project_id": project.id,
@@ -3738,6 +3949,28 @@ class ProjectStore:
                                 expected_path,
                                 entry.path,
                             )
+                            continue
+                        consumption = self._recovery_consumption_state(
+                            project,
+                            identifier,
+                            snapshot_head,
+                        )
+                        if consumption != "available":
+                            if consumption == "consumed":
+                                self._discard_consumed_pending_ref(
+                                    identifier,
+                                    entry.path,
+                                    snapshot_head,
+                                )
+                            else:
+                                logger.warning(
+                                    "Skipping pending recovery with unavailable "
+                                    "consumed-generation proof project=%s issue=%s "
+                                    "head=%s",
+                                    project.id,
+                                    identifier,
+                                    snapshot_head,
+                                )
                             continue
                         pending_ref = _worktree_pending_recovery_ref(identifier)
                         if source_ref is not None and source_ref != pending_ref:
@@ -3904,8 +4137,9 @@ class ProjectStore:
         # A prior publish may have completed, or a transient publication
         # failure may have left a source-local pending ref (or an ordinary
         # checkpoint at HEAD).  Reconcile that exact checkpoint before making
-        # another commit.  This is the restart-safe retry path used by both
-        # owner takeover and normal worktree reuse.
+        # another commit.  Consumption requires an independently accepted
+        # submission head; ordinary worktree reuse has no such authority and
+        # must preserve the current checkpoint generation.
         published = self._recovery_context_from_ref(project, issue_identifier)
         if published is not None:
             if consume_incorporated_recovery:
@@ -5204,7 +5438,6 @@ class ProjectStore:
             recovery_identifier,
             wt_path,
             branch_name=branch_name,
-            consume_incorporated_recovery=True,
         )
         if recovery and recovery.get("snapshot_head"):
             logger.info(
@@ -6257,6 +6490,41 @@ class ProjectStore:
                         "could not remove terminal recovery ref: "
                         f"{removed_ref.stderr.strip()[:500]}"
                     )
+                consumed_refs = subprocess.run(
+                    [
+                        "git",
+                        "for-each-ref",
+                        "--format=%(refname)",
+                        _worktree_consumed_recovery_prefix(issue_identifier),
+                    ],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                    env=_recovery_git_env(),
+                )
+                if consumed_refs.returncode != 0:
+                    raise ProjectError(
+                        "could not list terminal consumed recovery refs: "
+                        f"{consumed_refs.stderr.strip()[:500]}"
+                    )
+                for consumed_ref in consumed_refs.stdout.splitlines():
+                    removed_consumed = subprocess.run(
+                        ["git", "update-ref", "-d", consumed_ref],
+                        cwd=project.repo_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                    if removed_consumed.returncode != 0:
+                        raise ProjectError(
+                            "could not remove terminal consumed recovery ref "
+                            f"{consumed_ref}: "
+                            f"{removed_consumed.stderr.strip()[:500]}"
+                        )
         return worktree_removed or branch_removed or repair_removed, skip_reason
 
     def cleanup_stale_worktree_dirs(
