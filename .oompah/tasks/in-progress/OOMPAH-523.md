@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:28:04.055230Z'
+updated_at: '2026-08-05T05:30:19.645146Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -889,5 +889,10 @@ author: oompah
 created: 2026-08-05 05:28
 ---
 Discovery: current HEAD contains the recovered fb9526679/2c090848a enforcement chain through main integration. _BasicAuthMiddleware is outermost around FastAPI and mounts, uses strict Basic parsing, duplicate-header rejection, literal raw-path exemptions, pre-accept WebSocket checks, and downstream Authorization redaction; startup wiring exists in _service_lifespan and __main__._run. I’m now running focused regression and neighboring suites to determine whether any recovery-specific gap remains.
+---
+author: oompah
+created: 2026-08-05 05:30
+---
+Verification: scripts/run-tests.sh serial with the directly affected server/WebSocket/webhook/MCP/auth/build/startup targets passed 1,043 tests (5 pre-existing deprecation warnings). make check-secrets passed; it emitted only the existing null-byte shell warning. The worktree remains clean.
 ---
 <!-- COMMENTS:END -->
