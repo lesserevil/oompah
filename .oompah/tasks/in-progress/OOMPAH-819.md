@@ -6,12 +6,13 @@ priority: 1
 title: Fence Ready reconciliation against stale merged-review generations
 parent: OOMPAH-768
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-820
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:06:28.414558Z'
-updated_at: '2026-08-05T03:08:05.217106Z'
+updated_at: '2026-08-05T03:10:08.175144Z'
 work_branch: null
 target_branch: null
 review_url: null
