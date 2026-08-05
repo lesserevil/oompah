@@ -224,6 +224,51 @@ def test_pending_delete_failure_cannot_resurrect_consumed_generation(tmp_path):
     assert restarted.pending_worktree_recoveries() == []
 
 
+def test_pending_probe_failure_retains_authoritative_generation(tmp_path):
+    store, project, checkout = _standalone_task(tmp_path)
+    issue = "TASK-RECOVERY"
+    (checkout / "checkpoint.txt").write_text("checkpoint\n", encoding="utf-8")
+    checkpoint = store.preserve_worktree_changes(
+        project.id, issue, str(checkout), issue
+    )
+    assert checkpoint is not None
+    snapshot = str(checkpoint["snapshot_head"])
+    pending_ref = _worktree_pending_recovery_ref(issue)
+    recovery_ref = _worktree_recovery_ref(issue)
+    _git(checkout, "update-ref", pending_ref, snapshot)
+    (checkout / "successor.txt").write_text("accepted\n", encoding="utf-8")
+    _git(checkout, "add", "successor.txt")
+    _git(checkout, "commit", "-m", "accepted successor")
+    successor = _resolve(checkout, "HEAD")
+    real_run = subprocess.run
+
+    def fail_pending_probe(args, *positional, **kwargs):
+        command = list(args)
+        if command[:5] == [
+            "git",
+            "show-ref",
+            "--verify",
+            "--quiet",
+            pending_ref,
+        ]:
+            return subprocess.CompletedProcess(command, 128, "", "probe failed")
+        return real_run(args, *positional, **kwargs)
+
+    with patch("oompah.projects.subprocess.run", side_effect=fail_pending_probe):
+        result = store.consume_worktree_recovery_if_incorporated(
+            project.id,
+            issue,
+            successor,
+            accepted_branch=issue,
+            wt_path=str(checkout),
+            expected_snapshot=snapshot,
+        )
+
+    assert result == "unknown"
+    assert _resolve(project.repo_path, f"{recovery_ref}^{{commit}}") == snapshot
+    assert _resolve(checkout, f"{pending_ref}^{{commit}}") == snapshot
+
+
 def test_restart_consumes_successor_from_authoritative_branch(tmp_path):
     store, project, checkout = _standalone_task(tmp_path)
     issue = "TASK-RECOVERY"
