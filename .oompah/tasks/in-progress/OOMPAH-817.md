@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:18:34.647970Z'
+updated_at: '2026-08-05T02:32:20.179086Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -240,5 +240,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 32s
 - Log: OOMPAH-817__20260805T011123Z.jsonl
+---
+author: oompah
+created: 2026-08-05 02:32
+---
+Forward repair pushed at ad74eb6dd675af261b238d66740316583b8fec41. Added an exact-SHA Git ancestry generation boundary: incorporated checkpoints are consumed by CAS-deleting only their exact authoritative recovery ref; current/divergent or unknown evidence remains fail-closed. Restart reconciliation distinguishes consumed accepted submissions from current late/active-operation recovery. Added standalone successor/restart/active-operation and worker-exit regressions; 209 related tests pass. Independent re-review is in progress.
 ---
 <!-- COMMENTS:END -->

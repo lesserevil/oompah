@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T01:11:04.753539Z'
+updated_at: '2026-08-05T02:32:22.883677Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 35m 21s
 - Log: OOMPAH-815__20260805T003530Z.jsonl
+---
+author: oompah
+created: 2026-08-05 02:32
+---
+Review found a remaining Ready-to-Integrate set-status/status-label bypass around the unified submit transaction. Forward repair is pushed at 3b96e04bb03da5da724199945997c5ba15c831b7: task-scoped ACP/API and scoped HTTP now reject Ready aliases and label equivalents with the must-use-submit diagnostic before mutation. 34 focused tests pass; awaiting independent re-review.
 ---
 <!-- COMMENTS:END -->
