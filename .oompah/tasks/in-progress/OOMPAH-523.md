@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T05:36:21.205048Z'
+updated_at: '2026-08-05T05:47:02.955752Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -936,5 +936,19 @@ author: oompah
 created: 2026-08-05 05:36
 ---
 Understanding: Verifying the ASGI Basic-auth enforcement implementation already in place. Previous agents confirmed middleware, startup wiring, and WebSocket pre-accept checks are implemented. Now running focused tests to verify all acceptance criteria are met.
+---
+author: oompah
+created: 2026-08-05 05:47
+---
+Discovery: ASGI Basic-auth middleware (_BasicAuthMiddleware) is implemented in oompah/server.py at line 615. Key features verified:
+- Outermost ASGI middleware wrapping FastAPI and mounts
+- Strict Basic header parsing with duplicate-header rejection  
+- Exact raw-path exemptions for GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab
+- Pre-accept WebSocket auth checks (rejects before _ws_clients registration with code 1008)
+- Authorization header redaction in all downstream paths
+- Minimal /healthz endpoint with only status/instance_id/build_id
+- Startup wiring via _service_lifespan and set_http_credentials()
+- GitHub/GitLab webhook signature/token validation preserved
+- When auth is disabled, all current behavior is preserved exactly
 ---
 <!-- COMMENTS:END -->
