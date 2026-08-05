@@ -300,6 +300,74 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
 
 
 @pytest.mark.asyncio
+async def test_revoked_submission_preserves_against_accepted_branch_when_projection_is_stale(
+    tmp_path,
+):
+    """Late-exit recovery uses accepted evidence, not a stale hierarchy branch."""
+
+    stale_branch = "epic-OOMPAH-763--task-OOMPAH-814"
+    accepted_branch = "OOMPAH-814"
+    issue = _issue(
+        issue_id="OOMPAH-814",
+        identifier="OOMPAH-814",
+        work_branch=stale_branch,
+        head_sha="",
+    )
+    workspace = _create_test_worktree(tmp_path)
+    accepted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    record = IntegrationRecord(
+        state="ready",
+        task_branch=accepted_branch,
+        head_sha=accepted_head,
+    )
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        workspace_path=workspace,
+        accepted_submission_record=record,
+        authority_revoked=True,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    store = MagicMock()
+    store.preserve_worktree_changes.return_value = None
+    orch = _orchestrator(tmp_path)
+    orch.state.running[issue.id] = entry
+
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", store),
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+
+    store.preserve_worktree_changes.assert_called_once_with(
+        issue.project_id,
+        issue.identifier,
+        workspace,
+        accepted_branch,
+    )
+    tracker.update_issue.assert_called_once_with(
+        issue.identifier,
+        status=READY_TO_INTEGRATE,
+    )
+
+
+@pytest.mark.asyncio
 async def test_consumed_prior_checkpoint_does_not_reopen_successor_submission(tmp_path):
     """A checkpoint already contained by the accepted head is historical."""
 
@@ -413,6 +481,64 @@ def test_restart_reconciliation_distinguishes_consumed_and_current_recovery(
             issue.identifier,
             status=expected_status,
         )
+
+
+def test_restart_recovery_preserves_against_accepted_branch_when_projection_is_stale(
+    tmp_path,
+):
+    stale_branch = "epic-OOMPAH-763--task-OOMPAH-814"
+    accepted_branch = "OOMPAH-814"
+    accepted_head = "a" * 40
+    issue = _issue(
+        issue_id="OOMPAH-814",
+        identifier="OOMPAH-814",
+        work_branch=stale_branch,
+        head_sha="",
+    )
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=accepted_branch,
+        head_sha=accepted_head,
+    )
+    context = {
+        "project_id": issue.project_id,
+        "issue_identifier": issue.identifier,
+        "snapshot_head": "b" * 40,
+        "recovery_ref": "refs/oompah/recovery/OOMPAH-814",
+        "worktree_path": str(tmp_path / "accepted-checkout"),
+        "publication_state": "published",
+    }
+    store = MagicMock()
+    store.pending_worktree_recoveries.return_value = [context]
+    store.preserve_worktree_changes.return_value = context
+    store.consume_worktree_recovery_if_incorporated.return_value = "consumed"
+    orch = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path="WORKFLOW.md",
+        project_store=store,
+        state_path=str(tmp_path / "restart-state.json"),
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch._project_trackers[issue.project_id] = tracker
+
+    result = orch._reconcile_pending_recovery_publications(discover=True)
+
+    store.preserve_worktree_changes.assert_called_once_with(
+        issue.project_id,
+        issue.identifier,
+        context["worktree_path"],
+        accepted_branch,
+    )
+    consume_call = store.consume_worktree_recovery_if_incorporated.call_args
+    assert consume_call.args[:3] == (
+        issue.project_id,
+        issue.identifier,
+        accepted_head,
+    )
+    assert consume_call.kwargs["accepted_branch"] == accepted_branch
+    assert result["manual"] == 0
+    assert result["pending"] == 0
 
 
 @pytest.mark.asyncio
