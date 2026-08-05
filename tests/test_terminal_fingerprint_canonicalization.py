@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from oompah.models import Issue
+from oompah.integration import IntegrationRecord
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
@@ -35,6 +36,7 @@ from oompah.terminal_audit import (
     RequestState,
     TerminalAuditRecord,
     TargetState,
+    compute_integrated_evidence_fingerprint_variants,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
@@ -112,6 +114,73 @@ class _MockProject:
     status_label_authorized_logins: list[str] | None = None
     status_actor_login: str | None = None
     tracker_owner: str | None = None
+
+
+def _oompah_660_issue() -> Issue:
+    issue = Issue(
+        id="OOMPAH-660",
+        identifier="OOMPAH-660",
+        state="Merged",
+        title="Rebase epic-OOMPAH-619 onto main",
+        description=(
+            "The epic branch `epic-OOMPAH-619` is stale: it has fallen behind "
+            "`main`. Rebase the branch onto `origin/main`, resolve any conflicts, "
+            "and force-push with `git push --force-with-lease`.\n\n"
+            "This task was auto-filed because epic OOMPAH-619 was detected as "
+            "stale. Do NOT create a new branch or PR — work directly on "
+            "`epic-OOMPAH-619`."
+        ),
+        parent_id="OOMPAH-619",
+        work_branch="epic-OOMPAH-619--task-OOMPAH-660",
+    )
+    issue.integration = IntegrationRecord(
+        state="integrated",
+        attempts=2,
+        task_branch="epic-OOMPAH-619--task-OOMPAH-660",
+        base_branch="epic-OOMPAH-619",
+        base_sha="17658b95e32641e8cf2dbfff06f780c0f6b57916",
+        head_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+        integrated_sha="793bcc7969d39634dab560ed0a10b9dcad7a9716",
+    )
+    return issue
+
+
+def test_integrated_fingerprint_variants_reconstruct_exact_oompah_660_pair():
+    variants = compute_integrated_evidence_fingerprint_variants(
+        _oompah_660_issue(), "proj-14849f1b"
+    )
+
+    assert variants is not None
+    assert variants.integrated.digest == (
+        "ab40139d20357c96bd12885b6e5d66faa752c6e577b3dc2c5bf215c2d3646e02"
+    )
+    assert variants.legacy_work_branch.digest == (
+        "62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28"
+    )
+    assert variants.integrated == compute_issue_evidence_fingerprint(
+        _oompah_660_issue(), "proj-14849f1b"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("work_branch", "different-work-branch"),
+        ("target_branch", "different-base-branch"),
+        ("source_sha", "different-head"),
+        ("target_sha", "different-integrated-head"),
+    ],
+)
+def test_integrated_fingerprint_variants_reject_projection_drift(field, value):
+    issue = _oompah_660_issue()
+    setattr(issue, field, value)
+
+    assert (
+        compute_integrated_evidence_fingerprint_variants(
+            issue, "proj-14849f1b"
+        )
+        is None
+    )
 
 
 @pytest.fixture
