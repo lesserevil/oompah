@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T06:19:36.080245Z'
+updated_at: '2026-08-05T06:19:49.336869Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -281,12 +281,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
-  updated_at: '2026-08-05T06:16:48.715974+00:00'
+  head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+  submitted_at: '2026-08-05T06:19:42.751016+00:00'
+  updated_at: '2026-08-05T06:19:42.751016+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1112,5 +1114,10 @@ author: oompah
 created: 2026-08-05 06:19
 ---
 Resolution: Created and pushed missing epic branch epic-OOMPAH-521 at current integrated HEAD 9ea2b5523. The task branch epic-OOMPAH-521--task-OOMPAH-523 is clean and up to date with origin. ASGI Basic-auth enforcement is verified with 570+ tests passing. Ready for integration.
+---
+author: oompah
+created: 2026-08-05 06:19
+---
+OOMPAH-523 Complete: ASGI Basic authentication enforcement implemented and verified. Middleware protects all HTTP, mounted routes, and WebSocket surfaces with exact exemptions for GET /healthz, POST /api/v1/webhooks/github, and POST /api/v1/webhooks/gitlab. WebSocket auth checked before accept(). Authorization headers redacted throughout. 570+ focused tests pass. Disabled deployments preserve current behavior. Created missing epic branch reference for integration.
 ---
 <!-- COMMENTS:END -->
