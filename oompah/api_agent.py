@@ -776,6 +776,7 @@ def _exec_run_command(
     validation_owner: ValidationLeaseOwner | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
     require_validation_lease: bool = False,
+    successful_validation_handler: Callable[[str, Path], object] | None = None,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -884,6 +885,19 @@ def _exec_run_command(
         except subprocess.TimeoutExpired:
             _terminate_process_tree(process)
             return f"Error: command timed out after {timeout}s"
+
+        if (
+            heavyweight_validation
+            and process.returncode == 0
+            and callable(successful_validation_handler)
+        ):
+            try:
+                successful_validation_handler(command, workspace)
+            except Exception as exc:  # noqa: BLE001 - evidence is an optimization
+                logger.warning(
+                    "Unable to record auditor validation evidence: %s",
+                    exc,
+                )
 
         parts: list[str] = []
         if stdout:
@@ -1088,6 +1102,7 @@ def _execute_tool(
     command_output_store: CommandOutputStore | None = None,
     validation_lease: ValidationResourceLease | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
+    successful_validation_handler: Callable[[str, Path], object] | None = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -1199,6 +1214,10 @@ def _execute_tool(
                 or getattr(action_policy, "auditor_session", False) is True
             ):
                 command_kwargs["require_validation_lease"] = True
+            if successful_validation_handler is not None:
+                command_kwargs["successful_validation_handler"] = (
+                    successful_validation_handler
+                )
             return handler(workspace, args, **command_kwargs)
         return handler(workspace, args)
     except ValueError as exc:
@@ -1511,6 +1530,7 @@ class ApiAgentSession:
         tool_liveness: Any = None,
         policy_denial_handler: Any = None,
         validation_lease: ValidationResourceLease | None = None,
+        successful_validation_handler: Callable[[str, Path], object] | None = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1571,6 +1591,7 @@ class ApiAgentSession:
         self.tool_liveness = tool_liveness
         self.policy_denial_handler = policy_denial_handler
         self.validation_lease = validation_lease
+        self.successful_validation_handler = successful_validation_handler
         self._force_audit_finalization = False
         # Auditor command output continuations are session-local and stay in
         # the approved tool channel. Normal workers do not need a continuation
@@ -1978,6 +1999,7 @@ class ApiAgentSession:
                             self.command_output_store,
                             self.validation_lease,
                             is_cancelled,
+                            self.successful_validation_handler,
                         )
 
                     tool_failed = result_str.startswith("Error")

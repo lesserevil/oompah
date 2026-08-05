@@ -257,6 +257,7 @@ from oompah.auth_health import (
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
+    auditor_target_contract,
     is_recoverable_auditor_command_denial,
     pending_auditor_target,
 )
@@ -286,6 +287,7 @@ from oompah.prompt import (
     render_prompt,
 )
 from oompah.quality_gate import (
+    AuditorQualityEvidenceProof,
     BranchQualityGate,
     QualityGateOwner,
     QualityGateResult,
@@ -15852,6 +15854,106 @@ class Orchestrator:
             if isinstance(raw, str) and raw.strip():
                 return raw.strip()
         return ""
+
+    def record_auditor_quality_evidence(
+        self,
+        *,
+        audit_target: object,
+        workspace_path: str | os.PathLike[str],
+        command: str,
+    ) -> bool:
+        """Reuse a successful auditor gate only for the exact submitted head.
+
+        The detached workspace, current tracker fingerprint, configured full
+        command, authoritative branch head, and all normal cache-key fields
+        must agree. Any uncertainty simply leaves the ordinary exact gate to
+        execute later.
+        """
+
+        try:
+            target = auditor_target_contract(audit_target)
+            project = self.project_store.get(target.project_id)
+            if project is None:
+                return False
+            configured_command = self._quality_gate_command(project)
+            if not configured_command or str(command).strip() != configured_command:
+                return False
+            tracker = self._tracker_for_project(target.project_id)
+            issue = tracker.fetch_issue_detail(target.task_id)
+            if issue is None:
+                return False
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                issue,
+                target.project_id,
+            ).digest
+            if current_fingerprint != target.evidence_fingerprint:
+                return False
+
+            integration = getattr(issue, "integration", None)
+            if (
+                str(getattr(integration, "state", "") or "").casefold()
+                == "integrated"
+            ):
+                return False
+            head_sha = str(
+                getattr(integration, "head_sha", "")
+                or getattr(issue, "source_sha", "")
+                or ""
+            ).strip().lower()
+            work_branch = str(
+                getattr(integration, "task_branch", "")
+                or getattr(issue, "source_branch", "")
+                or getattr(issue, "work_branch", "")
+                or getattr(issue, "branch_name", "")
+                or ""
+            ).strip()
+            target_branch = str(
+                getattr(integration, "base_branch", "")
+                or getattr(issue, "target_branch", "")
+                or project.default_branch
+                or ""
+            ).strip()
+            workspace_head = self._worktree_head(str(workspace_path)).lower()
+            branch_head = self._quality_gate_branch_head(project, work_branch).lower()
+            if not head_sha or branch_head != head_sha:
+                return False
+            detached = subprocess.run(
+                ["git", "symbolic-ref", "-q", "HEAD"],
+                cwd=str(workspace_path),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            ).returncode != 0
+            clean = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=str(workspace_path),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if clean.returncode != 0 or clean.stdout.strip():
+                return False
+            return self._branch_quality_gate.record_compatible_auditor_pass(
+                AuditorQualityEvidenceProof(
+                    repo_identity=(
+                        project.repo_url or project.repo_path or str(project.id)
+                    ),
+                    target_branch=target_branch,
+                    work_branch=work_branch,
+                    head_sha=head_sha,
+                    workspace_head_sha=workspace_head,
+                    command=str(command).strip(),
+                    configured_command=configured_command,
+                    evidence_fingerprint=target.evidence_fingerprint,
+                    expected_evidence_fingerprint=current_fingerprint,
+                    detached_workspace=detached,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - reuse must fail closed
+            logger.debug("Auditor quality evidence was not reusable: %s", exc)
+            return False
 
     @staticmethod
     def _worktree_head(path: str) -> str:
@@ -33343,6 +33445,7 @@ class Orchestrator:
 
             api_tool_liveness = ToolLivenessMonitor()
             api_policy_denial_handler = None
+            api_validation_success_handler = None
             if focus.name.lower() == AUDITOR_FOCUS_NAME:
 
                 def api_policy_denial_handler(denial: str) -> None:
@@ -33351,6 +33454,20 @@ class Orchestrator:
                         run_id,
                         denial,
                     )
+
+                if audit_target is not None:
+
+                    def api_validation_success_handler(
+                        command: str,
+                        command_workspace: Path,
+                        *,
+                        _target=audit_target,
+                    ) -> bool:
+                        return self.record_auditor_quality_evidence(
+                            audit_target=_target,
+                            workspace_path=command_workspace,
+                            command=command,
+                        )
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -33412,6 +33529,7 @@ class Orchestrator:
                 tool_liveness=api_tool_liveness,
                 policy_denial_handler=api_policy_denial_handler,
                 validation_lease=self.validation_resource_lease,
+                successful_validation_handler=api_validation_success_handler,
             )
             logger.info(
                 "Agent log for %s -> %s",

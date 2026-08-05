@@ -7,6 +7,7 @@ from importlib import metadata
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import socket
@@ -140,6 +141,27 @@ class QualityGateResult:
     @property
     def passed(self) -> bool:
         return self.status in {"passed", "not_configured"}
+
+
+@dataclass(frozen=True)
+class AuditorQualityEvidenceProof:
+    """Proof that an auditor ran the configured gate on the exact candidate.
+
+    Every compatibility dimension used by the normal evidence key is explicit,
+    and the independently observed detached-worktree head/fingerprint prevent a
+    caller from relabeling a successful but different auditor command.
+    """
+
+    repo_identity: str
+    target_branch: str
+    work_branch: str
+    head_sha: str
+    workspace_head_sha: str
+    command: str
+    configured_command: str
+    evidence_fingerprint: str
+    expected_evidence_fingerprint: str
+    detached_workspace: bool
 
 
 @dataclass(frozen=True)
@@ -1284,6 +1306,74 @@ class BranchQualityGate:
                 self._save(entries)
             except OSError as exc:
                 logger.warning("Failed to persist branch quality evidence: %s", exc)
+
+    def record_compatible_auditor_pass(
+        self,
+        proof: AuditorQualityEvidenceProof,
+        *,
+        duration_seconds: float = 0.0,
+        output_tail: str = "",
+    ) -> bool:
+        """Persist independently-run auditor evidence only when exactly equal.
+
+        This is deliberately stricter than ordinary cache lookup.  Missing or
+        mismatched command, head, branch, repository, fingerprint, or detached
+        workspace proof returns ``False`` and leaves the exact gate to run.
+        """
+
+        values = (
+            proof.repo_identity,
+            proof.target_branch,
+            proof.work_branch,
+            proof.head_sha,
+            proof.workspace_head_sha,
+            proof.command,
+            proof.configured_command,
+            proof.evidence_fingerprint,
+            proof.expected_evidence_fingerprint,
+        )
+        if not proof.detached_workspace or not all(
+            str(value or "").strip() for value in values
+        ):
+            return False
+        head = proof.head_sha.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            return False
+        if proof.workspace_head_sha.strip().lower() != head:
+            return False
+        command = proof.command.strip()
+        if command != proof.configured_command.strip():
+            return False
+        if (
+            proof.evidence_fingerprint.strip()
+            != proof.expected_evidence_fingerprint.strip()
+        ):
+            return False
+
+        key = self._evidence_key(
+            repo_identity=proof.repo_identity,
+            target_branch=proof.target_branch,
+            work_branch=proof.work_branch,
+            head_sha=head,
+            command=command,
+        )
+        result = QualityGateResult(
+            status="passed",
+            head_sha=head,
+            command=command,
+            duration_seconds=max(float(duration_seconds), 0.0),
+            output_tail=str(output_tail or ""),
+        )
+        with self._key_lock(key):
+            self._store_result(
+                {},
+                key,
+                result,
+                repo_identity=proof.repo_identity,
+                target_branch=proof.target_branch,
+                work_branch=proof.work_branch,
+            )
+        return True
 
     @contextmanager
     def _key_lock(self, key: str):

@@ -13,6 +13,7 @@ import threading
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,6 +23,7 @@ from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import (
+    AuditorQualityEvidenceProof,
     BranchQualityGate,
     QualityGateOwner,
     QualityGateResult,
@@ -32,6 +34,7 @@ from oompah.quality_gate import (
     _validate_trusted_runtime_source,
 )
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
+from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
@@ -62,6 +65,151 @@ def _gate(state_path, repo_path, **kwargs):
         kwargs["safety_head"] = safety_head
     kwargs["sandbox_launcher"] = _passthrough_sandbox
     return BranchQualityGate(str(state_path), **kwargs)
+
+
+def test_exact_gate_reuses_compatible_successful_auditor_evidence(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    marker = tmp_path / "executed"
+    command = f"touch {shlex.quote(str(marker))}"
+    gate = _gate(tmp_path / "quality.json", repo)
+    proof = AuditorQualityEvidenceProof(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        workspace_head_sha=head,
+        command=command,
+        configured_command=command,
+        evidence_fingerprint="fingerprint",
+        expected_evidence_fingerprint="fingerprint",
+        detached_workspace=True,
+    )
+
+    assert gate.record_compatible_auditor_pass(proof) is True
+    result = gate.run(
+        repo_path=str(repo),
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        command=command,
+        expected_head_sha=head,
+    )
+
+    assert result.status == "passed"
+    assert result.cached is True
+    assert marker.exists() is False
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"configured_command": "different"},
+        {"workspace_head_sha": "b" * 40},
+        {"expected_evidence_fingerprint": "different"},
+        {"detached_workspace": False},
+        {"work_branch": ""},
+    ],
+)
+def test_auditor_evidence_reuse_rejects_incompatible_proof(tmp_path, change):
+    proof = AuditorQualityEvidenceProof(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha="a" * 40,
+        workspace_head_sha="a" * 40,
+        command="make test",
+        configured_command="make test",
+        evidence_fingerprint="fingerprint",
+        expected_evidence_fingerprint="fingerprint",
+        detached_workspace=True,
+    )
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    assert gate.record_compatible_auditor_pass(replace(proof, **change)) is False
+    assert (tmp_path / "quality.json").exists() is False
+
+
+def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    audit_workspace = tmp_path / "audit"
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(audit_workspace), head],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path=str(repo),
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        description="requirements",
+        project_id="project",
+        branch_name="work",
+        target_branch="main",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha=head,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.get.return_value = project
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._branch_quality_gate = _gate(
+        tmp_path / "quality.json",
+        repo,
+    )
+    target = {
+        "audit_id": "audit",
+        "task_id": "TASK-1",
+        "project_id": "project",
+        "target_state": "Done",
+        "evidence_fingerprint": fingerprint,
+    }
+
+    assert orchestrator.record_auditor_quality_evidence(
+        audit_target=target,
+        workspace_path=audit_workspace,
+        command="make test",
+    ) is True
+
+    (audit_workspace / "source.txt").write_text("dirty\n", encoding="utf-8")
+    orchestrator._branch_quality_gate = _gate(
+        tmp_path / "dirty-quality.json",
+        repo,
+    )
+    assert orchestrator.record_auditor_quality_evidence(
+        audit_target=target,
+        workspace_path=audit_workspace,
+        command="make test",
+    ) is False
 
 
 def _git_repo(tmp_path):

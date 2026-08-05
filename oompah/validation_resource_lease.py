@@ -193,25 +193,42 @@ def _command_tokens(tokens: list[str]) -> list[str]:
     index = 0
     while index < len(tokens):
         assignment = tokens[index].partition("=")
-        if not assignment[1] or not assignment[0].replace("_", "a").isalnum():
-            break
-        index += 1
-    if index < len(tokens) and os.path.basename(tokens[index]) == "env":
-        index += 1
-        env_value_options = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
-        while index < len(tokens):
-            if tokens[index] in env_value_options:
-                index += 2
-            elif tokens[index].startswith("-") or "=" in tokens[index]:
-                index += 1
-            else:
-                break
-    while index < len(tokens):
+        if assignment[1] and assignment[0].replace("_", "a").isalnum():
+            index += 1
+            continue
+
         executable = os.path.basename(tokens[index])
+        if executable == "env":
+            index += 1
+            env_value_options = {
+                "-u",
+                "--unset",
+                "-C",
+                "--chdir",
+                "-S",
+                "--split-string",
+            }
+            while index < len(tokens):
+                option = tokens[index]
+                if option in env_value_options:
+                    index += 2
+                elif option.startswith("-") or "=" in option:
+                    index += 1
+                else:
+                    break
+            continue
         if executable == "command":
             index += 1
             while index < len(tokens) and tokens[index].startswith("-"):
                 index += 1
+            continue
+        if executable == "exec":
+            index += 1
+            while index < len(tokens) and tokens[index].startswith("-"):
+                option = tokens[index]
+                index += 1
+                if option in {"-a", "--argv0"}:
+                    index += 1
             continue
         if executable in {"nice", "ionice", "stdbuf"}:
             index += 1
@@ -219,6 +236,18 @@ def _command_tokens(tokens: list[str]) -> list[str]:
                 option = tokens[index]
                 index += 1
                 if option in {"-n", "--adjustment", "-c", "--class", "-p", "--pid"}:
+                    index += 1
+            continue
+        if executable == "time":
+            index += 1
+            time_value_options = {"-f", "--format", "-o", "--output"}
+            while index < len(tokens) and tokens[index].startswith("-"):
+                option = tokens[index]
+                index += 1
+                if (
+                    option.partition("=")[0] in time_value_options
+                    and "=" not in option
+                ):
                     index += 1
             continue
         if executable == "timeout":
@@ -237,19 +266,45 @@ def _command_tokens(tokens: list[str]) -> list[str]:
                 index += 1
             continue
         break
-    if (
-        index + 1 < len(tokens)
-        and os.path.basename(tokens[index]) == "uv"
-        and tokens[index + 1] == "run"
-    ):
-        index += 2
+    if index < len(tokens) and os.path.basename(tokens[index]) == "uv":
+        index += 1
+        uv_global_value_options = {
+            "--allow-insecure-host",
+            "--cache-dir",
+            "--color",
+            "--config-file",
+            "--directory",
+            "--project",
+            "--python-preference",
+        }
+        while index < len(tokens) and tokens[index] != "run":
+            option = tokens[index]
+            if not option.startswith("-"):
+                return tokens[index - 1 :]
+            index += 1
+            if (
+                option.partition("=")[0] in uv_global_value_options
+                and "=" not in option
+            ):
+                index += 1
+        if index >= len(tokens):
+            return tokens[index:]
+        index += 1
         uv_value_options = {
             "--directory",
             "--env-file",
+            "--extra",
+            "--group",
             "--index",
+            "--no-extra",
+            "--no-group",
+            "--only-group",
+            "--package",
             "--python",
             "--project",
             "--with",
+            "--with-editable",
+            "--with-requirements",
         }
         while index < len(tokens) and tokens[index].startswith("-"):
             option = tokens[index].partition("=")[0]
@@ -301,13 +356,35 @@ def _pytest_invocation(tokens: list[str]) -> tuple[int, int] | None:
         return None
     if os.path.basename(command_tokens[0]) in {"pytest", "py.test"}:
         return 0, 1
-    if (
-        os.path.basename(command_tokens[0]).startswith("python")
-        and len(command_tokens) >= 3
-        and command_tokens[1] == "-m"
-        and command_tokens[2] == "pytest"
+    python_executable = os.path.basename(command_tokens[0])
+    if python_executable == "python" or (
+        python_executable.startswith("python")
+        and python_executable[6:].replace(".", "").isdigit()
     ):
-        return 2, 3
+        index = 1
+        value_options = {"-W", "-X", "--check-hash-based-pycs"}
+        while index < len(command_tokens):
+            option = command_tokens[index]
+            if option == "-m":
+                if (
+                    index + 1 < len(command_tokens)
+                    and command_tokens[index + 1] == "pytest"
+                ):
+                    return index + 1, index + 2
+                return None
+            if option in value_options:
+                index += 2
+                continue
+            if (
+                option.startswith(("-W", "-X"))
+                and option not in {"-W", "-X"}
+            ) or option.startswith("--check-hash-based-pycs="):
+                index += 1
+                continue
+            if option.startswith("-") and option != "--":
+                index += 1
+                continue
+            return None
     return None
 
 
@@ -318,10 +395,7 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
         return False
     _, first_argument = invocation
     arguments = command_tokens[first_argument:]
-    if any(
-        argument in {"--collect-only", "--co", "--help", "-h", "--version"}
-        for argument in arguments
-    ):
+    if any(argument in {"--help", "-h", "--version"} for argument in arguments):
         return False
     positionals: list[str] = []
     skip_next = False
@@ -362,6 +436,108 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
     return len(positionals) > 1
 
 
+def _npm_segment_is_heavy(tokens: list[str]) -> bool:
+    """Return whether one segment invokes an npm test script."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens or os.path.basename(command_tokens[0]) != "npm":
+        return False
+    index = 1
+    value_options = {
+        "--cache",
+        "--loglevel",
+        "--prefix",
+        "--registry",
+        "--userconfig",
+        "--workspace",
+        "-C",
+        "-w",
+    }
+    while index < len(command_tokens) and command_tokens[index].startswith("-"):
+        option = command_tokens[index]
+        index += 1
+        if option.partition("=")[0] in value_options and "=" not in option:
+            index += 1
+    if index >= len(command_tokens):
+        return False
+    subcommand = command_tokens[index]
+    if subcommand in {"t", "test", "tst"}:
+        return True
+    return (
+        subcommand in {"run", "run-script"}
+        and index + 1 < len(command_tokens)
+        and (
+            command_tokens[index + 1] == "test"
+            or command_tokens[index + 1].startswith("test:")
+        )
+    )
+
+
+def _cargo_segment_is_heavy(tokens: list[str]) -> bool:
+    """Return whether one segment invokes Cargo's test runner."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens or os.path.basename(command_tokens[0]) != "cargo":
+        return False
+    index = 1
+    if index < len(command_tokens) and command_tokens[index].startswith("+"):
+        index += 1
+    value_options = {
+        "--color",
+        "--config",
+        "--lockfile-path",
+        "--manifest-path",
+        "--target-dir",
+        "-C",
+    }
+    while index < len(command_tokens) and command_tokens[index].startswith("-"):
+        option = command_tokens[index]
+        index += 1
+        if option.partition("=")[0] in value_options and "=" not in option:
+            index += 1
+    if index >= len(command_tokens):
+        return False
+    if command_tokens[index] == "test":
+        return True
+    return (
+        command_tokens[index] == "nextest"
+        and index + 1 < len(command_tokens)
+        and command_tokens[index + 1] in {"run", "test"}
+    )
+
+
+def _nested_shell_command(tokens: list[str]) -> str | None:
+    """Return a command passed to a POSIX shell's ``-c`` option."""
+
+    command_tokens = _command_tokens(tokens)
+    if not command_tokens or os.path.basename(command_tokens[0]) not in {
+        "bash",
+        "dash",
+        "sh",
+        "zsh",
+    }:
+        return None
+    index = 1
+    value_options = {"-O", "+O", "-o", "+o", "--init-file", "--rcfile"}
+    while index < len(command_tokens):
+        option = command_tokens[index]
+        if option in value_options:
+            index += 2
+            continue
+        if option == "-c" or (
+            option.startswith(("-", "+"))
+            and not option.startswith("--")
+            and "c" in option[1:]
+        ):
+            if index + 1 < len(command_tokens):
+                return command_tokens[index + 1]
+            return None
+        if not option.startswith(("-", "+")):
+            return None
+        index += 1
+    return None
+
+
 def is_heavyweight_validation_command(command: str) -> bool:
     """Classify auditor shell input, with heavyweight evidence winning.
 
@@ -378,21 +554,24 @@ def is_heavyweight_validation_command(command: str) -> bool:
         segments = _shell_segments(raw)
     except ValueError:
         lowered = raw.casefold()
-        return any(marker in lowered for marker in ("pytest", "py.test", "make test"))
+        return any(
+            marker in lowered
+            for marker in ("pytest", "py.test", "make test", "npm test", "cargo test")
+        )
     for tokens in segments:
-        if _make_segment_is_heavy(tokens) or _pytest_segment_is_heavy(tokens):
+        if (
+            _make_segment_is_heavy(tokens)
+            or _pytest_segment_is_heavy(tokens)
+            or _npm_segment_is_heavy(tokens)
+            or _cargo_segment_is_heavy(tokens)
+        ):
             return True
         command_tokens = _command_tokens(tokens)
-        if command_tokens and os.path.basename(command_tokens[0]) in {
-            "bash",
-            "dash",
-            "sh",
-            "zsh",
-        }:
-            for index, argument in enumerate(command_tokens[1:], start=1):
-                if argument in {"-c", "-lc"} and index + 1 < len(command_tokens):
-                    if is_heavyweight_validation_command(command_tokens[index + 1]):
-                        return True
+        nested_command = _nested_shell_command(command_tokens)
+        if nested_command is not None and is_heavyweight_validation_command(
+            nested_command
+        ):
+            return True
         if command_tokens and os.path.basename(command_tokens[0]) in {"tox", "nox"}:
             return True
     return False
@@ -541,6 +720,53 @@ class ValidationResourceLease:
         return connection
 
     def _initialize(self) -> None:
+        """Initialize atomically, quarantining unreadable SQLite state.
+
+        The slot flocks remain the execution fence, so replacing corrupt
+        metadata cannot grant a slot that a surviving validation process still
+        owns. A separate bootstrap flock prevents two restarting service
+        processes from racing the quarantine/creation sequence.
+        """
+
+        init_path = self.state_path.with_suffix(
+            self.state_path.suffix + ".initialize.lock"
+        )
+        init_fd = os.open(init_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(init_fd, fcntl.LOCK_EX)
+            try:
+                self._initialize_schema()
+                return
+            except sqlite3.DatabaseError as exc:
+                quarantine = self.state_path.with_name(
+                    f"{self.state_path.name}.corrupt-{time.time_ns()}-{uuid.uuid4().hex}"
+                )
+                moved = False
+                for suffix in ("", "-wal", "-shm", "-journal"):
+                    source = Path(f"{self.state_path}{suffix}")
+                    if not source.exists():
+                        continue
+                    os.replace(source, Path(f"{quarantine}{suffix}"))
+                    moved = True
+                if not moved:
+                    raise
+                directory_fd = os.open(self.state_path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                logger.error(
+                    "Quarantined corrupt validation lease database at %s: %s",
+                    quarantine,
+                    exc,
+                )
+                self._initialize_schema()
+        finally:
+            with contextlib.suppress(OSError):
+                fcntl.flock(init_fd, fcntl.LOCK_UN)
+            os.close(init_fd)
+
+    def _initialize_schema(self) -> None:
         with self._connect() as connection:
             connection.executescript(
                 """
@@ -947,6 +1173,16 @@ class ValidationResourceLease:
                 "task_id": str(row["task_id"]),
                 "authority_generation": str(row["authority_generation"]),
                 "age_seconds": max(now - float(row["acquired_at"]), 0.0),
+                "requester_pid": int(row["requester_pid"]),
+                "requester_start_ticks": int(row["requester_start_ticks"]),
+                "child_pid": (
+                    int(row["child_pid"]) if row["child_pid"] is not None else None
+                ),
+                "child_start_ticks": (
+                    int(row["child_start_ticks"])
+                    if row["child_start_ticks"] is not None
+                    else None
+                ),
                 "deadline_at": row["deadline_at"],
             }
 

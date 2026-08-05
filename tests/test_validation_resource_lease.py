@@ -78,7 +78,20 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q", True),
         ("timeout 10s python -m pytest tests/", True),
         ("bash -lc 'python -m pytest tests/'", True),
+        ("exec pytest", True),
+        ("exec -a validation pytest", True),
+        ("time -p pytest", True),
+        ("/usr/bin/time -f %E pytest", True),
+        ("bash -ce 'pytest'", True),
+        ("sh -ec 'pytest tests/'", True),
+        ("bash --noprofile -O extglob -c 'make test'", True),
+        ("bash -o errexit -ce 'cargo test'", True),
+        ("uv --directory . run pytest -q", True),
+        ("uv --allow-insecure-host example.com run --group test pytest", True),
+        ("uv --project=. run python -m pytest tests/", True),
         ("python -m pytest tests/", True),
+        ("python -I -m pytest tests/", True),
+        ("python3.12 -X dev -W error -m pytest -q", True),
         (
             "python -m pytest -q tests/test_acp_backends.py tests/test_providers.py "
             "tests/test_providers_ui.py tests/test_acp_agent.py "
@@ -91,8 +104,26 @@ def _worker_owner(project: str, task: str) -> ValidationLeaseOwner:
         ("pytest tests/test_one.py::test_case", False),
         ("pytest -k exact_case", True),
         ("pytest tests/test_one.py -k exact_case", False),
-        ("pytest --collect-only", False),
+        ("pytest --collect-only", True),
+        ("pytest --collect-only tests/test_one.py", False),
+        (
+            "pytest --collect-only tests/test_one.py tests/test_two.py",
+            True,
+        ),
+        ("npm test", True),
+        ("npm --prefix web test -- --runInBand", True),
+        ("npm --workspace web t", True),
+        ("npm run test:unit", True),
+        ("npm run build", False),
+        ("cargo test", True),
+        ("cargo +nightly --color always test --workspace", True),
+        ("cargo --config net.retry=2 test", True),
+        ("cargo nextest run", True),
+        ("cargo build", False),
         ("rg pytest tests", False),
+        ("exec rg pytest tests", False),
+        ("time git status --short", False),
+        ("bash -ce 'echo pytest'", False),
         ("echo make test", False),
         ("git status --short", False),
     ],
@@ -424,3 +455,171 @@ os._exit(0)
         wait_timeout_seconds=1,
     ):
         assert restarted.status().owner_count == 1
+
+
+def test_corrupt_database_is_quarantined_before_fresh_initialization(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    state_path.write_bytes(b"not a sqlite database")
+
+    lease = ValidationResourceLease(state_path, poll_seconds=0.01)
+
+    quarantined = list(tmp_path.glob("lease.sqlite3.corrupt-*"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_bytes() == b"not a sqlite database"
+    with lease.acquire(_gate_owner("p", "after-corruption")):
+        assert lease.status().owner_count == 1
+
+
+def test_capacity_greater_than_one_allows_exact_number_of_owners(tmp_path):
+    lease = ValidationResourceLease(
+        tmp_path / "lease.sqlite3",
+        capacity=2,
+        poll_seconds=0.01,
+    )
+    first = lease.acquire(_gate_owner("p1", "one"))
+    second = lease.acquire(_gate_owner("p2", "two"))
+    acquired = threading.Event()
+
+    def take_third() -> None:
+        with lease.acquire(_gate_owner("p3", "three")):
+            acquired.set()
+
+    waiter = threading.Thread(target=take_third)
+    waiter.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    assert lease.status().owner_count == 2
+    assert acquired.is_set() is False
+    first.release()
+    waiter.join(timeout=3)
+    assert waiter.is_alive() is False
+    assert acquired.is_set() is True
+    second.release()
+
+
+def test_expired_attached_process_group_is_terminated(tmp_path):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    handle = lease.acquire(_gate_owner("p", "expiring"))
+    child = subprocess.Popen(
+        ["sleep", "30"],
+        pass_fds=handle.pass_fds,
+        start_new_session=True,
+    )
+    handle.attach_process(child, timeout_seconds=0.05)
+
+    _wait_for(
+        lambda: (
+            lease.status().owner_count >= 0
+            and child.poll() is not None
+        ),
+        timeout=3,
+    )
+
+    assert child.returncode is not None
+    handle.release()
+
+
+def test_simultaneous_multiprocess_acquisition_has_no_lost_owner_update(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    script = """
+import sys, time
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], poll_seconds=0.005)
+owner = ValidationLeaseOwner.worker(project_id='p', task_id=sys.argv[2], authority_generation=sys.argv[2])
+with lease.acquire(owner, wait_timeout_seconds=5):
+    started = time.time()
+    time.sleep(0.08)
+    ended = time.time()
+print(f'{started},{ended}', flush=True)
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, str(state_path), f"worker-{index}"],
+            cwd=Path(__file__).parents[1],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for index in range(4)
+    ]
+    intervals: list[tuple[float, float]] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 0, stderr
+        start, end = stdout.strip().split(",")
+        intervals.append((float(start), float(end)))
+
+    ordered = sorted(intervals)
+    assert all(
+        current[1] <= following[0]
+        for current, following in zip(ordered, ordered[1:])
+    )
+    assert ValidationResourceLease(state_path).status().owner_count == 0
+
+
+def test_restart_observes_waiter_and_allows_it_to_continue(tmp_path):
+    state_path = tmp_path / "lease.sqlite3"
+    held = ValidationResourceLease(state_path, poll_seconds=0.01).acquire(
+        _gate_owner("p1", "held")
+    )
+    script = """
+import sys
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+lease = ValidationResourceLease(sys.argv[1], poll_seconds=0.01)
+owner = ValidationLeaseOwner.worker(project_id='p2', task_id='waiting', authority_generation='waiting')
+with lease.acquire(owner, wait_timeout_seconds=5):
+    print('acquired', flush=True)
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])}
+    waiter = subprocess.Popen(
+        [sys.executable, "-c", script, str(state_path)],
+        cwd=Path(__file__).parents[1],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    _wait_for(lambda: ValidationResourceLease(state_path).status().waiter_count == 1)
+
+    restarted = ValidationResourceLease(state_path, poll_seconds=0.01)
+    assert restarted.status().owner_count == 1
+    assert restarted.status().waiter_count == 1
+    held.release()
+    stdout, stderr = waiter.communicate(timeout=5)
+    assert waiter.returncode == 0, stderr
+    assert stdout.strip() == "acquired"
+
+
+def test_successful_heavy_command_reports_auditor_evidence(tmp_path):
+    (tmp_path / "Makefile").write_text(
+        "test:\n\t@true\nfail:\n\t@false\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    observed: list[tuple[str, Path]] = []
+
+    success = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "audit"),
+        successful_validation_handler=lambda command, workspace: observed.append(
+            (command, workspace)
+        ),
+    )
+    failure = _exec_run_command(
+        tmp_path,
+        {"command": "make fail"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "audit"),
+        successful_validation_handler=lambda command, workspace: observed.append(
+            (command, workspace)
+        ),
+    )
+
+    assert "exit_code: 0" in success
+    assert "exit_code: 2" in failure
+    assert observed == [("make test", tmp_path)]

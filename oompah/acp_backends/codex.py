@@ -83,7 +83,7 @@ import contextlib
 import logging
 import os
 import shutil
-import sqlite3
+import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, TYPE_CHECKING
@@ -96,17 +96,14 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
+from oompah.native_validation_guard import install_native_validation_guard
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
 )
 from oompah.agent import AgentEvent
-from oompah.validation_resource_lease import (
-    ValidationLeaseCancelled,
-    ValidationLeaseError,
-    managed_agent_validation_owner,
-)
+from oompah.validation_resource_lease import managed_agent_validation_owner
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -329,6 +326,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         self._comment_queue: asyncio.Queue[str] | None = options.comment_queue
         # Track temporary worker runtime directory for cleanup (OOMPAH-686)
         self._worker_runtime_dir: str | None = None
+        self._validation_guard_dir: str | None = None
 
     def _resolve_billing_model(self) -> str:
         """Resolve the billing model that selects the execution path.
@@ -803,6 +801,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
         )
+        self._worker_runtime_dir = cli_env.get("OOMPAH_WORKER_RUNTIME_DIR")
         if self._options.task_handoff_token:
             cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
@@ -810,6 +809,53 @@ class CodexAcpBackendSession(AcpBackendSession):
             if self._options.task_identifier:
                 cli_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
         cli_env.pop("CODEX_API_KEY", None)
+
+        # The subscription CLI owns a native shell surface below the SDK
+        # process. Install command shims that acquire capacity only around an
+        # actual heavyweight validation process. The shim execs that process
+        # with the flock descriptor inherited, so a service/SDK crash cannot
+        # release the lane while validation is still running.
+        coordination_service = self._options.coordination_service
+        if coordination_service is not None:
+            validation_lease = getattr(
+                coordination_service,
+                "validation_resource_lease",
+                None,
+            )
+            validation_owner = managed_agent_validation_owner(
+                self._options.action_policy,
+                self._options.audit_target,
+                project_id=self._options.project_id,
+                task_id=self._options.task_identifier,
+                authority_generation=self._native_cli_validation_generation,
+            )
+            if validation_lease is None or validation_owner is None:
+                self._last_error = (
+                    "Codex CLI validation capacity is unavailable because "
+                    "trusted managed-agent lease configuration is incomplete"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
+            try:
+                runtime_root = tempfile.mkdtemp(prefix="oompah-codex-validation-")
+                self._validation_guard_dir = runtime_root
+                cli_env, _ = install_native_validation_guard(
+                    cli_env,
+                    runtime_root=runtime_root,
+                    validation_lease=validation_lease,
+                    owner=validation_owner,
+                    timeout_seconds=self._options.turn_timeout_s,
+                )
+            except Exception as exc:
+                self._cleanup_worker_runtime_dir()
+                self._last_error = (
+                    "unable to install Codex CLI validation guard: "
+                    f"{exc}"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
 
         # Detect git worktrees: the Codex ``workspace-write`` sandbox only
         # allows writes inside the workspace directory, but git worktree
@@ -839,71 +885,11 @@ class CodexAcpBackendSession(AcpBackendSession):
                 )
             )
         except Exception as exc:
+            self._cleanup_worker_runtime_dir()
             self._last_error = f"Codex CLI init failed: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
             return
-
-        # The subscription CLI owns a native shell surface that cannot be
-        # intercepted by oompah's MCP run_command catalog.  A managed CLI
-        # session therefore holds the conservative worker/auditor lane for its
-        # entire turn.  This is intentionally broader than command-level
-        # classification: allowing an unobserved native pytest command to race
-        # an exact gate would defeat the host-capacity fence.
-        validation_handle = None
-        coordination_service = self._options.coordination_service
-        if coordination_service is not None:
-            validation_lease = getattr(
-                coordination_service,
-                "validation_resource_lease",
-                None,
-            )
-            validation_owner = managed_agent_validation_owner(
-                self._options.action_policy,
-                self._options.audit_target,
-                project_id=self._options.project_id,
-                task_id=self._options.task_identifier,
-                authority_generation=self._native_cli_validation_generation,
-            )
-            if validation_lease is None or validation_owner is None:
-                self._last_error = (
-                    "Codex CLI validation capacity is unavailable because "
-                    "trusted managed-agent lease configuration is incomplete"
-                )
-                logger.error(self._last_error)
-                self._status = "errored"
-                return
-
-            tool_liveness = self._options.tool_liveness
-
-            def lease_cancelled() -> bool:
-                if self._stop_requested:
-                    return True
-                callback = getattr(tool_liveness, "is_cancelled", None)
-                if not callable(callback):
-                    return False
-                try:
-                    return bool(callback())
-                except Exception:
-                    return True
-
-            try:
-                validation_handle = await asyncio.to_thread(
-                    validation_lease.acquire,
-                    validation_owner,
-                    is_cancelled=lease_cancelled,
-                )
-            except ValidationLeaseCancelled as exc:
-                self._last_error = str(exc)
-                self._status = "interrupted"
-                return
-            except (OSError, sqlite3.Error, ValidationLeaseError) as exc:
-                self._last_error = (
-                    f"unable to acquire Codex CLI validation capacity: {exc}"
-                )
-                logger.error(self._last_error)
-                self._status = "errored"
-                return
 
         try:
             yield self._emit(
@@ -979,8 +965,6 @@ class CodexAcpBackendSession(AcpBackendSession):
                 self._status = "errored"
         finally:
             self._cli_abort = None
-            if validation_handle is not None:
-                validation_handle.release()
             # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
             self._cleanup_worker_runtime_dir()
 
@@ -992,28 +976,30 @@ class CodexAcpBackendSession(AcpBackendSession):
         cleaned up from inside the sandbox (it's read-only), so cleanup happens
         from the orchestrator process. Failures are logged but not fatal.
         """
-        if not self._worker_runtime_dir:
-            return
-
-        try:
-            if os.path.isdir(self._worker_runtime_dir):
-                shutil.rmtree(self._worker_runtime_dir, ignore_errors=True)
-                logger.debug(
-                    "Cleaned up temporary worker runtime directory: %s",
-                    self._worker_runtime_dir,
+        for label, directory in (
+            ("worker runtime", self._worker_runtime_dir),
+            ("validation guard", self._validation_guard_dir),
+        ):
+            if not directory:
+                continue
+            try:
+                if os.path.isdir(directory):
+                    shutil.rmtree(directory, ignore_errors=True)
+                    logger.debug(
+                        "Cleaned up temporary %s directory: %s",
+                        label,
+                        directory,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to clean up %s directory %s: %s; "
+                    "administrator may need to manually remove",
+                    label,
+                    directory,
+                    exc,
                 )
-            else:
-                logger.debug(
-                    "Worker runtime directory already removed: %s",
-                    self._worker_runtime_dir,
-                )
-        except Exception as exc:
-            logger.warning(
-                "Failed to clean up worker runtime directory %s: %s; "
-                "administrator may need to manually remove",
-                self._worker_runtime_dir,
-                exc,
-            )
+        self._worker_runtime_dir = None
+        self._validation_guard_dir = None
 
     def _absorb_cli_usage(self, usage: Any) -> None:
         """Roll a Codex CLI ``Usage`` object into our counters.

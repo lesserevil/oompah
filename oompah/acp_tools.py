@@ -73,6 +73,32 @@ from oompah.validation_resource_lease import managed_agent_validation_owner
 logger = logging.getLogger(__name__)
 
 
+def _auditor_validation_success_handler(
+    coordination_service: Any,
+    *,
+    auditor_mode: bool,
+    audit_target: Any,
+):
+    """Return a fail-closed bridge to exact auditor gate evidence reuse."""
+
+    recorder = getattr(
+        coordination_service,
+        "record_auditor_quality_evidence",
+        None,
+    )
+    if not auditor_mode or audit_target is None or not callable(recorder):
+        return None
+
+    def record(command: str, workspace: Path) -> object:
+        return recorder(
+            audit_target=audit_target,
+            workspace_path=workspace,
+            command=command,
+        )
+
+    return record
+
+
 def _read_file_input_schema() -> dict[str, Any]:
     """Return the shared optional-chunk schema for MCP read_file tools."""
 
@@ -1145,6 +1171,11 @@ def build_tool_catalog(
         task_id=task_identifier,
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
+    validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1280,6 +1311,7 @@ def build_tool_catalog(
                 validation_owner=validation_owner,
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
+                successful_validation_handler=validation_success_handler,
             )
         )
 
@@ -1548,6 +1580,11 @@ def build_codex_tool_catalog(
         task_id=task_identifier,
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
+    validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -1660,6 +1697,7 @@ def build_codex_tool_catalog(
             validation_owner=validation_owner,
             lease_cancelled=lease_cancelled,
             require_validation_lease=(validation_lease is not None or auditor_mode),
+            successful_validation_handler=validation_success_handler,
         )
 
     @function_tool
@@ -1898,6 +1936,11 @@ def build_opencode_tool_catalog(
         task_id=task_identifier,
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
+    validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
 
     def _record_policy_denial(denial: str) -> None:
         if (
@@ -2033,6 +2076,7 @@ def build_opencode_tool_catalog(
                 validation_owner=validation_owner,
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
+                successful_validation_handler=validation_success_handler,
             )
         )
 
