@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-813
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Fence revoked accepted-submission worker exits with the resolved project
 parent: OOMPAH-768
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:04:11.593716Z'
+updated_at: '2026-08-05T00:19:26.333025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,5 +59,10 @@ author: oompah
 created: 2026-08-05 00:04
 ---
 Fixed revoked accepted-submission exit project fencing at exact head 7eada51f6fe7ea384c02317654c0b376183fb7af, directly based on OOMPAH-782 a3948097f. Wrapper/cross-project/non-revoked regressions included; 100 focused tests, terminal scan 8/8, Ruff F821 and diff checks pass.
+---
+author: oompah
+created: 2026-08-05 00:19
+---
+Independent exact-head review found a second-order run-fencing race, reproduced in memory: _handle_revoked_submission_exit awaits preserve_worktree_changes; if a replacement RunningEntry is installed during that await, _remove_running_entry correctly returns false but the helper ignores it, clears replacement shared-claim state, and applies the retired run accepted record to the tracker. Reproduction at 7eada51f6: replacement entry preserved, both replacement claims cleared, one stale tracker update. Task returned to In Progress and claimed for repair. Add an interleaving regression and revalidate exact current run after the await/before every shared-state or tracker mutation; stale retired work must return with zero side effects.
 ---
 <!-- COMMENTS:END -->
