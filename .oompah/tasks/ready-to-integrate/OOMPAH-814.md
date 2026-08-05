@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T06:17:44.190114Z'
+updated_at: '2026-08-05T06:23:02.488703Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -444,5 +444,10 @@ author: oompah
 created: 2026-08-05 06:17
 ---
 Rebased deterministic submit-queue fixtures onto reconciled systemic parent at exact pushed head 7bf278b09de0a311c1d1050f6733c5fc9f530975; 227 focused regressions and required scans pass.
+---
+author: oompah
+created: 2026-08-05 06:23
+---
+Operator correction: while protecting the heavyweight lane, I initially misidentified two concurrent process trees and terminated this exact gate's sandbox root instead of the redundant OOMPAH-819 audit tree. Process ancestry/cwd evidence corrected the mistake immediately; the verified OOMPAH-819 make-test root has now been terminated. Treat this OOMPAH-814 gate interruption as operator-caused infrastructure failure, not candidate evidence. I will requeue unchanged exact head 7bf278b09de0a311c1d1050f6733c5fc9f530975 for a clean canonical gate once the interrupted row settles.
 ---
 <!-- COMMENTS:END -->

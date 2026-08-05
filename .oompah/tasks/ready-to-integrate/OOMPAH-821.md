@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:21:16.131392Z'
+updated_at: '2026-08-05T06:23:00.355911Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -46,12 +46,14 @@ oompah.agent_run_id: bffee147-af98-4524-bc20-3c2a67aceb8b
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-05T06:04:17.932388+00:00'
+  head_sha: cb1006c5464bcab4b085ab44d541ea2902a6e9fd
+  submitted_at: '2026-08-05T06:22:52.022339+00:00'
+  updated_at: '2026-08-05T06:22:52.022339+00:00'
 oompah.task_costs:
   total_input_tokens: 47118
   total_output_tokens: 19991
@@ -249,5 +251,10 @@ Alert/Action Parity Verified:
 - Non-retryable terminal states don't generate alerts
 
 Tests Added: 9 comprehensive tests in TestRetryEligibilityFunctions verifying all retryable/non-retryable classifications and mixed-attempt scenarios. All 143 terminal transition coordinator tests pass.
+---
+author: oompah
+created: 2026-08-05 06:23
+---
+Aligned terminal-audit recovery alerts with retryable mixed-attempt histories. Implemented canonical retry-eligibility consumer in orchestrator to ensure alert/action parity: recovery alerts only suggest actions that will actually succeed based on TERMINAL attempt classification.
 ---
 <!-- COMMENTS:END -->
