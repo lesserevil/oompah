@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T16:58:28.743053Z'
+updated_at: '2026-08-05T16:58:53.239328Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,23 @@ author: oompah
 created: 2026-08-05 16:58
 ---
 Preserved one-shot forced quality-gate retry through exact fenced integration claims; 43 focused tests and terminal mutation scan pass.
+---
+author: oompah
+created: 2026-08-05 16:58
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-838`
+Target: `main`
+Head: `005e9e717de8cf1d77b4c3331df20ecc64c421e9`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-k34subi4/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-838. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
