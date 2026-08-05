@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T21:20:12.009402Z'
+updated_at: '2026-08-05T21:20:27.098679Z'
 work_branch: OOMPAH-828
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/724
@@ -212,18 +212,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-828
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e47f3a292e74
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+      created_at: '2026-08-05T21:20:17.037491+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T21:20:17.037491+00:00'
+      branch_key: OOMPAH-828
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T20:58:39.378513+00:00'
+    updated_at: '2026-08-05T21:20:17.037491+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a7fe7ab871b
@@ -237,6 +251,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-05T21:00:19.022270+00:00'
+    branch_key: OOMPAH-828
+  - version: 1
+    attempt_id: attempt-e47f3a292e74
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6e2851fd5bda7534dd3af0bdc4a37f84564f09d1af392bd5c63e2f2481777ebf
+    created_at: '2026-08-05T21:20:17.037491+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T21:20:17.037491+00:00'
     branch_key: OOMPAH-828
 ---
 ## Summary
@@ -475,5 +502,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 19m 47s
 - Log: OOMPAH-828__20260805T210031Z.jsonl
+---
+author: oompah
+created: 2026-08-05 21:20
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-05 21:20
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
