@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T19:40:25.269385Z'
+updated_at: '2026-08-05T20:20:25.861964Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-08-05 19:40
 ---
 Understanding (attempt #3 continuation, deep profile): Reviewing the recovery-checkpoint changes and audit feedback. Prior work landed integration.gate_blocked, quarantined/unsafe audit routing, and the IntegrationQueueStore overlay skeleton. Outstanding blockers per audit comments #20/#30/#31/#32: (1) exact-head fence for _overlay_integration_queue (stale H1 rows must not suppress required attempts for H2); (2) retry_forced bypass for gate_blocked; (3) live_claim_precedes_history must be emitted from production facts and evaluated ahead of tracker action_required in _integration_decision; (4) production WorkflowFactCollector construction sites must pass IntegrationQueueStore; (5) generation-race and restart-convergence regressions. Plan: fence overlay by head_sha, emit retry_forced+live_claim_precedes_history in fact, reorder _integration_decision, wire orchestrator.py, add tests.
+---
+author: oompah
+created: 2026-08-05 20:20
+---
+Implementation: All audit blockers repaired. (1) workflow_facts.py: _overlay_integration_queue now fences the queue row to the tracker's exact head_sha - stale rows for older heads (H1) do not suppress attempts for newer heads (H2); emits retry_forced flag from durable queue authority into the fact; emits live_claim_precedes_history when the queue holds a valid integrating lease and the tracker still shows ready/queued. (2) work_decision.py: _integration_decision now evaluates live_claim_precedes_history BEFORE tracker action_required (so historical operator escalations do not evict a live owner); gate_blocked yields to retry_forced=True (OOMPAH-838 same-generation retry authority). (3) work_decision.py: terminal_audit unsafe/quarantined evidence routes to ACTION_REQUIRED with operator.action_required and its own action_code, while plain queued/running dispositions are preserved. (4) orchestrator.py: both WorkflowFactCollector construction sites now pass self.integration_queue so the overlay reaches production. Test additions: 7 tests in test_workflow_facts.py (overlay: integrating/blocked/retry_forced/stale H1 for both blocked and integrating/read-error/expired-lease/live-claim), 5 tests in test_work_decision.py (gate_blocked/retry_forced/live-claim-precedes/audit-unsafe/audit-queued-running preserved), 6 tests in test_workflow_controller.py (end-to-end gate_blocked/retry_forced/live-claim/generation-race stale H1/live-claim signaled/restart-convergence idempotent).
 ---
 <!-- COMMENTS:END -->
