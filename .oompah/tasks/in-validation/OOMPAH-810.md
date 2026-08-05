@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T19:18:25.953590Z'
+updated_at: '2026-08-05T19:18:44.208764Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -295,5 +295,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1h 1m 42s
 - Log: OOMPAH-810__20260805T181639Z.jsonl
+---
+author: oompah
+created: 2026-08-05 19:18
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
