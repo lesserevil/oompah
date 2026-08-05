@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-08-05T01:04:55.289643Z'
+updated_at: '2026-08-05T01:05:00.847675Z'
 work_branch: OOMPAH-535
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/569
@@ -75,8 +75,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-1f5fb9f467fc
-    applied: false
+    applied: true
     created_at: '2026-08-05T01:04:51.834461+00:00'
+    applied_at: '2026-08-05T01:04:59.649659+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -207,5 +208,24 @@ author: oompah
 created: 2026-08-05 00:42
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 01:04
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 1d7735f35a4a14976456fd029e46b1811ea1f42d
+- merge_pr: #569
+- merge_date: 2026-07-28 18:46:53 -0500
+- implementation_commit: 20dd1e42be7c99e7e9044021ebb0c05a852006b8
+- files_changed: 15 files, +864 -58
+- ancestry_check: 20dd1e42b is-ancestor HEAD (main)
+- core_files: oompah/orchestrator.py, oompah/agent.py, oompah/duplicate_screening.py, oompah/acp_tools.py, oompah/acp_backends/codex.py, oompah/focus.py, oompah/api_agent.py
+- regression_test_file: tests/test_duplicate_preflight.py (40+ tests including reconcile/termination/markdown/restart cases)
+- read_only_test_files: tests/test_acp_project_tools.py, tests/test_acp_codex_backend.py (read_only tool catalogs)
+- age_days_since_merge: ~7
 ---
 <!-- COMMENTS:END -->
