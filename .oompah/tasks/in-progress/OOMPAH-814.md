@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-04T23:56:49.525083Z'
+updated_at: '2026-08-05T00:03:57.549859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-04 23:56
 ---
 Claimed implementation in /home/shedwards/.oompah/worktrees/oompah/OOMPAH-814 on epic-OOMPAH-763--task-OOMPAH-814 at exact parent 30dc2b2075a48c6c542da55a46ad0285f492d527. Reproducing the submit-queue fixture path and auditing neighboring project/tracker doubles before a tests-only patch; submission and owner-claim release remain with the landing coordinator.
+---
+author: oompah
+created: 2026-08-05 00:03
+---
+Implemented deterministic submit-queue fixtures: real Project and ProjectStore objects replace incomplete MagicMock project/store doubles, Orchestrator construction is bounded by concrete no-I/O tracker instances, and every helper-owned executor/store plus the API TestClient is closed. Added regression proving an unset default_branch cannot invoke _new_tracker_for_project during _should_dispatch. Checks passed: exact regression + original failure (2), full module serial (62), full module xdist -n4 (62), 40 repetitions in 8 concurrent processes, related tracker factory tests (12), and make terminal-audit-scan. Preparing the commit/push; exact server full gate and task submission remain with the landing coordinator.
 ---
 <!-- COMMENTS:END -->
