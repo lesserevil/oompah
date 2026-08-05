@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T18:30:49.618626Z'
+updated_at: '2026-08-05T18:33:27.534570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ author: oompah
 created: 2026-08-05 18:30
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 18:33
+---
+**Understanding:** Issue is about centralizing work-kind classification across observability surfaces. Root cause: /api/v1/state uses Orchestrator.get_snapshot which correctly classifies (audit → duplicate_screening → implementation), while /api/v1/agents/:agent_id/activity uses a separate classifier that ignores is_auditor. Goal: Create one authoritative classifier for RunningEntry with precedence order, use it for state/activity/dispatch events, add safe audit identity fields, and ensure comprehensive test coverage. Starting code exploration.
 ---
 <!-- COMMENTS:END -->
