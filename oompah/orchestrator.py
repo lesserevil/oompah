@@ -38207,9 +38207,30 @@ class Orchestrator:
         integration failures by ensuring late changes are captured and
         explicitly re-submitted rather than silently integrated.
         """
-        tracker = (
-            self._tracker_for_project(project_id) if project_id else self.tracker
-        )
+        resolved_project_id = str(project_id or "").strip()
+        entry_project_id = str(
+            getattr(getattr(entry, "issue", None), "project_id", "") or ""
+        ).strip()
+        if not resolved_project_id or entry_project_id != resolved_project_id:
+            logger.error(
+                "Refusing revoked submission recovery outside its exact project "
+                "issue_id=%s issue_identifier=%s resolved_project=%s "
+                "entry_project=%s",
+                issue_id,
+                entry.identifier,
+                resolved_project_id or "missing",
+                entry_project_id or "missing",
+            )
+            self._remove_running_entry(issue_id, entry)
+            self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
+            self.state.completed.discard(issue_id)
+            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
+            self._notify_observers()
+            return
+
+        tracker = self._tracker_for_project(resolved_project_id)
+        project_id = resolved_project_id
         workspace_path = entry.workspace_path
         late_changes_detected = False
         recovery_context = None
@@ -38219,14 +38240,13 @@ class Orchestrator:
         # Preserve any dirty changes to recovery checkpoint before validation.
         # This must happen even if HEAD matches — any generated files or
         # transient changes must be captured so they're not lost.
-        project_id_val = entry.issue.project_id if entry.issue else project_id
         project_store = getattr(self, "project_store", None)
-        if project_id_val and workspace_path and project_store:
+        if workspace_path and project_store:
             try:
                 recovery_context = await asyncio.get_event_loop().run_in_executor(
                     self._tick_pool,
                     lambda: project_store.preserve_worktree_changes(
-                        project_id_val,
+                        project_id,
                         entry.identifier,
                         workspace_path,
                         (
@@ -38380,7 +38400,60 @@ class Orchestrator:
             )
             self._notify_observers()
             return
-        
+
+        try:
+            current_issue = tracker.fetch_issue_detail(entry.identifier)
+        except Exception as exc:  # noqa: BLE001 - recovery remains fail-closed
+            logger.error(
+                "Could not re-read revoked submission in its exact project "
+                "issue_id=%s issue_identifier=%s project_id=%s: %s",
+                issue_id,
+                entry.identifier,
+                project_id,
+                type(exc).__name__,
+            )
+            self.state.completed.discard(issue_id)
+            self._notify_observers()
+            return
+        if current_issue is None:
+            logger.error(
+                "Could not re-read revoked submission in its exact project "
+                "issue_id=%s issue_identifier=%s project_id=%s: task missing",
+                issue_id,
+                entry.identifier,
+                project_id,
+            )
+            self.state.completed.discard(issue_id)
+            self._notify_observers()
+            return
+
+        current_project_id = str(current_issue.project_id or "").strip()
+        current_identifier = str(current_issue.identifier or "").strip()
+        current_issue_id = str(current_issue.id or "").strip()
+        if (
+            (current_project_id and current_project_id != project_id)
+            or current_identifier != entry.identifier
+            or current_issue_id != str(issue_id)
+        ):
+            logger.error(
+                "Refusing revoked submission recovery for mismatched task "
+                "issue_id=%s issue_identifier=%s project_id=%s "
+                "fetched_issue_id=%s fetched_identifier=%s "
+                "fetched_project_id=%s",
+                issue_id,
+                entry.identifier,
+                project_id,
+                current_issue_id or "missing",
+                current_identifier or "missing",
+                current_project_id or "missing",
+            )
+            self.state.completed.discard(issue_id)
+            self._notify_observers()
+            return
+        # Native task records do not persist managed-project identity. Attach
+        # the already-fenced dispatch scope after rejecting any explicit
+        # conflicting identity.
+        current_issue.project_id = project_id
         if late_changes_detected and recovery_context:
             # Late changes detected — don't integrate the stale submission.
             # Instead, reopen the task with recovery context so the next
@@ -38388,7 +38461,6 @@ class Orchestrator:
             # This prevents silent integration of unreviewed content and
             # ensures the preservation system gets one actionable retry.
             try:
-                current_issue = tracker.fetch_issue_detail(entry.identifier)
                 if current_issue:
                     # Reopen the task, removing it from completed state
                     tracker.update_issue(
@@ -38442,7 +38514,6 @@ class Orchestrator:
             # integration eligibility. Mark the task as Ready to Integrate so
             # the integration executor can process it.
             try:
-                current_issue = tracker.fetch_issue_detail(entry.identifier)
                 if current_issue:
                     tracker.update_issue(
                         current_issue.identifier,
@@ -39285,9 +39356,16 @@ class Orchestrator:
             )
             return
 
+        # Resolve the dispatch scope before any cleanup can yield or any
+        # revoked-submission branch can run.  This is the project identity
+        # attached to the exact live run above; later exit handling must not
+        # re-read a changed issue record or fall back to an unscoped tracker.
+        project_id = (
+            str(getattr(entry.issue, "project_id", "") or "").strip() or None
+        )
+
         generation = getattr(entry, "authority_generation", None)
         revoked = bool(getattr(entry, "authority_revoked", False))
-        project_id = entry.issue.project_id if entry.issue else None
         if generation:
             with self._retry_authority_lock:
                 revoked = revoked or generation in self._revoked_authority_generations
