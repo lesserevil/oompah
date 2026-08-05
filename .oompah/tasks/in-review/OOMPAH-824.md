@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -13,12 +13,12 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:50:03.088083Z'
+updated_at: '2026-08-05T11:50:46.805413Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
 review_number: '720'
-review_head: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+review_head: 50d19fe5d932421111494403c9b0160d5f2e35f4
 merged_at: null
 oompah.start_blocked_by: *id001
 oompah.integration:
@@ -34,7 +34,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/720
 oompah.review_number: '720'
 oompah.work_branch: OOMPAH-824
 oompah.target_branch: main
-oompah.review_head: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+oompah.review_head: 50d19fe5d932421111494403c9b0160d5f2e35f4
 ---
 ## Summary
 
