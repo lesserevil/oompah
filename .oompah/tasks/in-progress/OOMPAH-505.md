@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:40:05.834350Z'
+updated_at: '2026-08-05T01:40:28.759762Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -721,5 +721,10 @@ author: oompah
 created: 2026-08-05 01:40
 ---
 Verification: directly affected ACP/provider/UI/role/orchestrator suites pass (570 tests); neighboring auth, authorization, JSON-boundary, dashboard mutation, websocket, and label-auth suites pass (485 tests, only existing Passlib deprecation warnings); make check-secrets passes. No repository changes were needed in this recovery pass.
+---
+author: oompah
+created: 2026-08-05 01:40
+---
+Completion: OOMPAH-505 is ready for integration at clean, pushed head e1b0f4846. The landed implementation exposes manual ACP model selection independently from catalog discovery, validates and persists explicit role candidates with SDK-default fallback, propagates Claude/Codex models through dispatch and telemetry, documents operator entry, and retains provider health/credentials/whitelist behavior. Verification: 570 focused feature tests + 485 auth/access-control neighbor tests passed; secret scan clean.
 ---
 <!-- COMMENTS:END -->
