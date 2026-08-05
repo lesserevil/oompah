@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:42:28.443801Z'
+updated_at: '2026-08-05T17:46:28.510814Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-05 17:42
 ---
 Verification: focused liveness/output/ACP/project-tool suites pass (87 tests); API-budget/auditor/console suites pass (212 tests, only pre-existing tempfile warnings); event-driven/orchestrator reconciliation suites pass (504 tests); state/API/WebSocket-adjacent checks pass (40 tests); compileall and diff checks pass. An ACP handoff-model subset remains environment-blocked before session construction because its fixture writes the read-only global agent-log directory, unrelated to this change.
+---
+author: oompah
+created: 2026-08-05 17:46
+---
+Completion: pushed bb42de1e7. Approved ACP/API commands now retain liveness through bounded result preparation and provider-visible delivery, transition to precise provider_stalled on the fixed handoff deadline, and expose result lifecycle metrics without provider-private paths. Large make-shaped output remains bounded/pageable, pass/fail and race regressions are covered, and focused plus reconciliation/state suites pass. Canonical make test/terminal-audit targets were attempted but task-private uv bootstrap is blocked by the environment DBus transient-scope error; make check-secrets passes.
 ---
 <!-- COMMENTS:END -->
