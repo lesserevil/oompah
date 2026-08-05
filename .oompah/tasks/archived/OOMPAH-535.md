@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-535
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Prevent orphaned duplicate-preflight workers and phantom claims
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:18:01.725169Z'
-updated_at: '2026-08-05T00:42:35.845967Z'
+updated_at: '2026-08-05T01:04:55.289643Z'
 work_branch: OOMPAH-535
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/569
@@ -53,6 +53,30 @@ oompah.work_branch: OOMPAH-535
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-934bb11fc658: '2026-08-05T01:04:51.834437+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-535
+    target_state: Archived
+    evidence_fingerprint: 732538e0d13f16f1c5520e87466005bcaf2552949b4390708ff36d5bd33d9101
+    audit_ids:
+    - audit-1f5fb9f467fc
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T01:04:51.834447+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-535
+    audit_id: audit-1f5fb9f467fc
+    attempt_id: attempt-934bb11fc658
+    target_state: Archived
+    evidence_fingerprint: 732538e0d13f16f1c5520e87466005bcaf2552949b4390708ff36d5bd33d9101
+    status: Archived
+    audit_ids:
+    - audit-1f5fb9f467fc
+    applied: false
+    created_at: '2026-08-05T01:04:51.834461+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -60,7 +84,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-535
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,7 +93,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-934bb11fc658
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -79,13 +103,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T00:42:20.608601+00:00'
       branch_key: OOMPAH-535
+      verdict: pass
+      completed_at: '2026-08-05T01:04:51.834213+00:00'
+      ended_at: '2026-08-05T01:04:51.834213+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T00:41:07.984647+00:00'
-    updated_at: '2026-08-05T00:42:20.608601+00:00'
+    updated_at: '2026-08-05T01:04:51.834213+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-934bb11fc658
