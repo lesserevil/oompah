@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:04:22.682553Z'
+updated_at: '2026-08-05T06:05:54.614306Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-05 06:04
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 06:05
+---
+Additional exact-head review blockers for the replacement implementation: (1) successful-audit finality is not preserved across history: retry_failed_audit scans backward until any eligible old failure and can skip a newer same-fingerprint PASS; the PASS-only test misses [old exhausted NO_AUDITOR, newer PASS]. (2) infrastructure rearm is not current-fingerprint fenced: fingerprint refresh/comparison runs only for evidence_addendum and the server infra path supplies none, so an alternate/currently changed fingerprint can rearm old evidence. (3) required end-to-end integrated reflow -> truthful alert/action -> owner retry -> fresh pending audit -> live task-scoped alert clear, all terminal classification parity, and restart/sweep coalescing coverage are absent. Also remove trailing whitespace in the prior tests and update the stale all-attempts docstring. Preserve owner auth, coalescing, evidence-addendum restriction, and successful finality.
 ---
 <!-- COMMENTS:END -->
