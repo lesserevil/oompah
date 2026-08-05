@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:38:41.102806Z'
+updated_at: '2026-08-05T00:50:17.698298Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -255,5 +255,10 @@ author: oompah
 created: 2026-08-05 00:38
 ---
 Systemic concurrent-load evidence filed as OOMPAH-816: during OOMPAH-813's exact four-worker gate, the OOMPAH-508 completion auditor launched a second full serial suite; both trees entered filesystem journal waits. Continue this task's concrete fixture isolation/cleanup, but if the new exact gate loses another unrelated test under concurrent full-suite load, classify that as OOMPAH-816 validation-resource arbitration rather than weakening assertions or increasing global timeouts.
+---
+author: oompah
+created: 2026-08-05 00:50
+---
+Acceptance blocker in the current live diff: TestDispatchSerializationByProject still passes projects=None with a MagicMock store. issue.project_id='proj-1'; store.get returns None, then unset MagicMock.find_by_name dynamically returns a fake Project and _tracker_for_project can still construct/cache a real OompahMarkdownTracker. Patching only Orchestrator._new_tracker covers the legacy tracker, not _new_tracker_for_project. The 5-case class taking 7.58s is consistent with remaining real I/O. Replace this with a concrete tmp ProjectStore containing a concrete Project and preseed/constrain the exact project tracker boundary; add an assertion/raising spy proving _new_tracker_for_project is never invoked. Do the same concrete empty-store boundary for TestShouldDispatchCompleted, and remove currently unused Project/ProjectStore imports only if not used. Keep explicit cleanup. Do not submit based only on focused pass while the accidental real tracker path remains.
 ---
 <!-- COMMENTS:END -->
