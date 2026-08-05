@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T17:00:42.992415Z'
+updated_at: '2026-08-05T17:03:56.871551Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -1293,5 +1293,15 @@ author: oompah
 created: 2026-08-05 17:00
 ---
 Discovery: the current head is e1b0f4846 and both origin/epic-OOMPAH-502 and origin/epic-OOMPAH-502--task-OOMPAH-505 are present at that head. The relevant implementation is in oompah/acp_backends/{base,claude,codex}.py, oompah/server.py, oompah/roles.py, oompah/orchestrator.py, and templates/providers.html; regression coverage is present in the ACP/provider/UI/role/orchestrator suites, with manual-selection capability separate from catalog discovery and explicit candidate models carried into ACP/telemetry paths.
+---
+author: oompah
+created: 2026-08-05 17:03
+---
+Implementation: no source edits were necessary in this recovery pass. The existing head already contains the manual ACP capability descriptors/API/UI, catalog-less model entry with SDK-default fallback, RoleStore validation/persistence, explicit Claude/Codex candidate propagation, and running-state telemetry coverage. I retained the source unchanged.
+---
+author: oompah
+created: 2026-08-05 17:03
+---
+Verification: corrected focused suite passed 728 tests in 98.18s across ACP backends, providers/API/UI, provider role matrix, RoleStore, roles API, ACP agent handoff, and orchestrator handlers. make check-secrets passed; it emitted only the existing null-byte scanner warning. The initial stale-path invocation ran zero tests and was discarded.
 ---
 <!-- COMMENTS:END -->
