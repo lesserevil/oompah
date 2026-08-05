@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:28:13.809222Z'
+updated_at: '2026-08-05T18:57:05.338035Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -204,18 +204,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-505
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6a14937f6aa1
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
+      created_at: '2026-08-05T18:56:53.691422+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T18:56:53.691422+00:00'
+      branch_key: epic-OOMPAH-502--task-OOMPAH-505
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: In Progress
     created_at: '2026-08-05T18:27:54.797137+00:00'
+    updated_at: '2026-08-05T18:56:53.691422+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-140026660249
@@ -264,6 +278,19 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-04T22:56:20.689878+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-6a14937f6aa1
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1c2a8d09f1410d1654cdaccdbd88f801e3e299cab9d0c35eb291306ee005ca94
+    created_at: '2026-08-05T18:56:53.691422+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T18:56:53.691422+00:00'
+    branch_key: epic-OOMPAH-502--task-OOMPAH-505
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d5c3f8b67283deb1233212324e73ed0c069cec7ed1395c3914d5439917e290f7
@@ -1407,5 +1434,15 @@ author: oompah
 created: 2026-08-05 18:27
 ---
 OOMPAH-840 in-flight workaround: parent OOMPAH-502 is Merged and its epic branch was intentionally pruned. Exact task branch/head epic-OOMPAH-502--task-OOMPAH-505 at e1b0f4846054bacac48e667295e2c00733d86d8c is reachable from origin/main b53bdbc77, and the task history records focused/full verification plus deployed live model-tier configuration. Route the already-landed exact evidence to audited Done instead of resubmitting to a deleted terminal container.
+---
+author: oompah
+created: 2026-08-05 18:57
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-05 18:57
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
