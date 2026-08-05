@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import faulthandler
 import hashlib
+import importlib
 import logging
 import os
 import re
@@ -1327,6 +1328,7 @@ class Orchestrator:
             load_state=self._load_state_for_terminal_audit,
             save_state=self._save_state_for_terminal_audit,
             validate_terminal_transition=self._validate_terminal_transition,
+            lifecycle_landing_evidence=self._terminal_lifecycle_landing_evidence,
         )
         self._terminal_audit_started = False
         self._terminal_audit_last_scan: float = 0.0
@@ -16796,6 +16798,152 @@ class Orchestrator:
             return None
         return "shared"
 
+    def _terminal_lifecycle_landing_evidence(
+        self,
+        issue: Issue,
+        project_id: str,
+        snapshot: Mapping[str, Issue],
+    ) -> Mapping[str, Any]:
+        """Return target-relative durable evidence for retry fingerprinting.
+
+        Lifecycle reconciliation owns the retry budget, while the orchestrator
+        owns branch targets and (when enabled) immutable ``LandingFact`` rows.
+        Keeping this callback read-only lets a changed landing proof rearm an
+        exhausted row without treating a provider outage as new evidence.
+        """
+
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if not parent_id:
+            return {
+                "version": 1,
+                "project_id": str(project_id),
+                "kind": "top_level",
+                "facts": [],
+            }
+        parent = snapshot.get(parent_id)
+        if parent is None:
+            return {
+                "version": 1,
+                "project_id": str(project_id),
+                "kind": "parent_missing",
+                "parent_id": parent_id,
+                "facts": [],
+            }
+        parent_state = canonicalize_status(getattr(parent, "state", ""))
+        if parent_state in {MERGED, ARCHIVED}:
+            return {
+                "version": 1,
+                "project_id": str(project_id),
+                "kind": "terminal_parent",
+                "parent_id": str(parent.identifier),
+                "parent_state": parent_state,
+                "facts": [],
+            }
+
+        project = self.project_store.get(project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {project_id}")
+        if (getattr(issue, "issue_type", "") or "").strip().lower() == "epic":
+            source_branch = self._epic_branch_for_issue(issue)
+            target_branch = self._epic_branch_for_issue(parent)
+            evidence_task_id = str(issue.identifier)
+        else:
+            source_branch = self._epic_branch_for_issue(parent)
+            grandparent_id = str(
+                getattr(parent, "parent_id", None) or ""
+            ).strip()
+            if grandparent_id:
+                grandparent = snapshot.get(grandparent_id)
+                if grandparent is None:
+                    raise EpicTargetResolutionError(
+                        parent.identifier,
+                        grandparent_id,
+                        "is absent from the canonical project snapshot",
+                    )
+                target_branch = self._epic_branch_for_issue(grandparent)
+            else:
+                target_branch = str(
+                    getattr(project, "default_branch", None)
+                    or getattr(project, "branch", None)
+                    or "main"
+                ).strip()
+            evidence_task_id = str(parent.identifier)
+
+        durable: list[dict[str, Any]] = []
+        landing_fact_type: Any = None
+        try:
+            landing_fact_type = importlib.import_module(
+                "oompah.workflow_facts"
+            ).LandingFact
+        except (AttributeError, ImportError):
+            # This hotfix can deploy before the systemic workflow-facts
+            # module.  Raw mappings are never treated as durable proof in
+            # that configuration; the strict SCM observation below remains
+            # available as the fail-closed compatibility path.
+            landing_fact_type = None
+        store = getattr(self, "workflow_job_store", None)
+        landing_facts = getattr(store, "landing_facts", None)
+        if callable(landing_facts) and landing_fact_type is not None:
+            for raw in landing_facts(
+                project_id=str(project_id),
+                task_id=evidence_task_id,
+            ):
+                if not isinstance(raw, Mapping):
+                    continue
+                try:
+                    fact = landing_fact_type.from_dict(raw)
+                except (TypeError, ValueError):
+                    # LandingFact validates the schema, proof object, and
+                    # content-derived evidence_revision.  An incomplete or
+                    # tampered row is not historical landing authority.
+                    continue
+                state = getattr(fact, "state", None)
+                state_value = getattr(state, "value", state)
+                if (
+                    str(getattr(fact, "project_id", "")) == str(project_id)
+                    and str(getattr(fact, "source", "")) == source_branch
+                    and str(getattr(fact, "target", "")) == target_branch
+                    and getattr(fact, "durable", False) is True
+                    and str(state_value or "") == "landed"
+                    and str(getattr(fact, "evidence_revision", "") or "").strip()
+                ):
+                    durable.append(fact.to_dict())
+        durable.sort(
+            key=lambda value: str(value.get("evidence_revision") or "")
+        )
+        observation = "landed" if durable else "unavailable"
+        if not durable:
+            repo_url = str(getattr(project, "repo_url", None) or "").strip()
+            provider = None
+            slug = ""
+            if repo_url:
+                provider = detect_provider(
+                    repo_url,
+                    access_token=getattr(project, "access_token", None),
+                )
+                slug = extract_repo_slug(repo_url) if provider is not None else ""
+            if provider is None or not slug:
+                raise OSError("target-relative landing evidence unavailable")
+            landed = self._epic_branch_landing_observation(
+                provider,
+                slug,
+                source_branch,
+                target_branch,
+            )
+            if landed is None:
+                raise OSError("target-relative landing evidence unavailable")
+            observation = "landed" if landed else "not_landed"
+        return {
+            "version": 1,
+            "project_id": str(project_id),
+            "kind": "target_relative",
+            "source": source_branch,
+            "target": target_branch,
+            "evidence_task_id": evidence_task_id,
+            "observation": observation,
+            "facts": durable,
+        }
+
     def _validate_terminal_transition(
         self,
         issue: Issue,
@@ -16882,7 +17030,11 @@ class Orchestrator:
                 target_branch = self._epic_branch_for_issue(parent)
             else:
                 source_branch = self._epic_branch_for_issue(parent)
-                target_branch = self._resolve_epic_target_branch(parent, project)
+                target_branch = self._resolve_epic_target_branch(
+                    parent,
+                    project,
+                    snapshot=snapshot,
+                )
         except Exception as exc:  # fail closed with an actionable conflict
             return (
                 f"Cannot transition shared-epic child {issue.identifier} to "
@@ -16890,6 +17042,25 @@ class Orchestrator:
                 f"({exc}). The parent review must land on its configured target "
                 "branch first."
             )
+
+        if snapshot is not None:
+            try:
+                recovery_landing = self._terminal_lifecycle_landing_evidence(
+                    issue,
+                    project_id,
+                    snapshot,
+                )
+            except Exception:
+                # Lifecycle recovery must retain the row when its exact
+                # target-relative evidence is unavailable.  Falling through
+                # to the legacy boolean probe would collapse an SCM outage
+                # into "not landed" and authorize a false demotion.
+                raise
+            if (
+                isinstance(recovery_landing, Mapping)
+                and recovery_landing.get("observation") == "landed"
+            ):
+                return None
 
         provider = None
         slug = ""
@@ -18404,40 +18575,43 @@ class Orchestrator:
         epic_branch: str,
         target_branch: str,
     ) -> bool:
-        """True when ``epic_branch`` has a merged review to ``target_branch``."""
+        """True when ``epic_branch`` has a merged review to ``target_branch``.
+
+        This compatibility path retains the historical boolean review APIs
+        for ordinary workflow gating.  Lifecycle recovery uses the separate
+        tri-state observation below because it must distinguish an outage
+        from an authoritative negative before mutating terminal status.
+        """
+
         source = str(epic_branch or "").strip()
         target = str(target_branch or "").strip()
         if provider is None or not slug or not source or not target:
             return False
 
         def matches(review: Any) -> bool:
-            if review is None:
-                return False
-            return (
-                str(getattr(review, "state", "") or "").lower() == "merged"
-                and str(getattr(review, "source_branch", "") or "").strip() == source
-                and str(getattr(review, "target_branch", "") or "").strip() == target
+            return bool(
+                review is not None
+                and str(getattr(review, "state", "") or "").lower() == "merged"
+                and str(getattr(review, "source_branch", "") or "").strip()
+                == source
+                and str(getattr(review, "target_branch", "") or "").strip()
+                == target
             )
 
-        list_merged_reviews = getattr(provider, "list_merged_reviews", None)
-        if callable(list_merged_reviews):
-            try:
-                reviews = list_merged_reviews(slug) or []
-            except Exception as exc:  # noqa: BLE001 - best effort
-                logger.debug(
-                    "list_merged_reviews failed for %s branch %s: %s",
-                    slug,
-                    source,
-                    exc,
-                )
-            else:
-                for review in reviews:
-                    if matches(review):
-                        return True
-
         try:
-            review = provider.find_pr_for_branch(slug, source)
-        except Exception as exc:  # noqa: BLE001 - best effort
+            for review in provider.list_merged_reviews(slug) or []:
+                if matches(review):
+                    return True
+        except Exception as exc:  # noqa: BLE001 - compatibility probe
+            logger.debug(
+                "list_merged_reviews failed for %s branch %s: %s",
+                slug,
+                source,
+                exc,
+            )
+        try:
+            return matches(provider.find_pr_for_branch(slug, source))
+        except Exception as exc:  # noqa: BLE001 - compatibility probe
             logger.debug(
                 "find_pr_for_branch failed while checking merged epic %s/%s: %s",
                 slug,
@@ -18445,7 +18619,41 @@ class Orchestrator:
                 exc,
             )
             return False
-        return matches(review)
+
+    def _epic_branch_landing_observation(
+        self,
+        provider: Any,
+        slug: str,
+        epic_branch: str,
+        target_branch: str,
+    ) -> bool | None:
+        """Return landed, not-landed, or unavailable forge evidence.
+
+        Only the dedicated tri-state provider contract is safe here.  Legacy
+        list/find methods intentionally collapse ordinary remote failures into
+        empty values and therefore cannot authorize lifecycle repair.
+        """
+
+        source = str(epic_branch or "").strip()
+        target = str(target_branch or "").strip()
+        if provider is None or not slug or not source or not target:
+            return None
+
+        observer = getattr(provider, "observe_branch_landing", None)
+        if not callable(observer):
+            return None
+        try:
+            observation = observer(slug, source, target)
+        except Exception as exc:  # noqa: BLE001 - best effort
+            logger.debug(
+                "observe_branch_landing failed while checking %s/%s -> %s: %s",
+                slug,
+                source,
+                target,
+                exc,
+            )
+            return None
+        return observation if isinstance(observation, bool) else None
 
     @staticmethod
     def _review_matches_open_branch(review: Any, branch: str) -> bool:
