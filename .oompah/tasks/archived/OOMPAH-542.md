@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-08-05T15:44:28.132341Z'
+updated_at: '2026-08-05T16:14:28.259279Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
@@ -23,6 +23,30 @@ oompah.work_branch: OOMPAH-542
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-82811d6af521: '2026-08-05T16:14:24.993399+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-542
+    target_state: Archived
+    evidence_fingerprint: 333c1ac9b892af6691c0f93d55d0e4df5030e603308c348da128cc93471223d1
+    audit_ids:
+    - audit-70f345674817
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T16:14:24.993408+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-542
+    audit_id: audit-70f345674817
+    attempt_id: attempt-82811d6af521
+    target_state: Archived
+    evidence_fingerprint: 333c1ac9b892af6691c0f93d55d0e4df5030e603308c348da128cc93471223d1
+    status: Archived
+    audit_ids:
+    - audit-70f345674817
+    applied: false
+    created_at: '2026-08-05T16:14:24.993420+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -30,7 +54,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-542
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -78,7 +102,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-82811d6af521
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -89,13 +113,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T15:36:13.529103+00:00'
       branch_key: OOMPAH-542
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-05T16:14:24.993326+00:00'
+      ended_at: '2026-08-05T16:14:24.993326+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T15:22:09.107071+00:00'
-    updated_at: '2026-08-05T15:36:13.529103+00:00'
+    updated_at: '2026-08-05T16:14:24.993326+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4487aeaef2e4
