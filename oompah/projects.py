@@ -3172,7 +3172,7 @@ class ProjectStore:
         if wt_path and os.path.isdir(wt_path):
             try:
                 pending = subprocess.run(
-                    ["git", "rev-parse", "--verify", f"{pending_ref}^{{commit}}"],
+                    ["git", "show-ref", "--verify", "--quiet", pending_ref],
                     cwd=wt_path,
                     capture_output=True,
                     text=True,
@@ -3182,9 +3182,29 @@ class ProjectStore:
                 )
             except (OSError, subprocess.TimeoutExpired):
                 return "unknown"
-            pending_head = (
-                pending.stdout.strip().lower() if pending.returncode == 0 else ""
-            )
+            # show-ref --quiet has an explicit tri-state contract: 0 exists,
+            # 1 is proven absent, and every other result is an inspection
+            # failure.
+            # Only proven absence may authorize deleting the durable copy.
+            if pending.returncode not in {0, 1}:
+                return "unknown"
+            pending_head = ""
+            if pending.returncode == 0:
+                try:
+                    pending_value = subprocess.run(
+                        ["git", "show-ref", "--verify", "--hash", pending_ref],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                        env=_recovery_git_env(),
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    return "unknown"
+                if pending_value.returncode != 0 or not pending_value.stdout.strip():
+                    return "unknown"
+                pending_head = pending_value.stdout.strip().lower()
             if pending_head and pending_head != snapshot:
                 return "changed"
             if pending_head:
