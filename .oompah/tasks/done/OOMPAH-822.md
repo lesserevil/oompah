@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T08:44:57.918249Z'
+updated_at: '2026-08-05T08:45:06.136101Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,8 +53,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-8764a6c3f4a9
-    applied: false
+    applied: true
     created_at: '2026-08-05T08:44:54.479675+00:00'
+    applied_at: '2026-08-05T08:45:03.656246+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,5 +143,30 @@ author: oompah
 created: 2026-08-05 08:31
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 08:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
+- remote_head_match: origin/OOMPAH-822==HEAD
+- merge_base_main: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+- focused_tests_terminal_audit_enforcement: 63/63 pass
+- focused_tests_state_api_responsiveness: 20/20 pass
+- focused_tests_config: 117/117 pass
+- focused_tests_checkpoint_coalescing: 62/62 pass
+- focused_tests_terminal_audit_meta: 57/57 pass
+- focused_tests_orchestrator_handlers_group: 317/317 pass
+- config_batch_size_default: 4
+- config_max_attempts_default: 5
+- config_retry_backoff_seconds_default: 30
+- config_max_backoff_seconds_default: 3600
+- config_scheduler_floor_seconds_default: 1.0
+- lifecycle_fix_also_on_main_via_OOMPAH_823: d509c0821+2f9984c6a
+- diff_stat_lifecycle_change_touches: oompah/config.py, oompah/orchestrator.py, oompah/terminal_audit_enforcement.py, tests
 ---
 <!-- COMMENTS:END -->
