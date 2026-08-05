@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:19:26.333025Z'
+updated_at: '2026-08-05T00:21:24.214984Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,5 +64,10 @@ author: oompah
 created: 2026-08-05 00:19
 ---
 Independent exact-head review found a second-order run-fencing race, reproduced in memory: _handle_revoked_submission_exit awaits preserve_worktree_changes; if a replacement RunningEntry is installed during that await, _remove_running_entry correctly returns false but the helper ignores it, clears replacement shared-claim state, and applies the retired run accepted record to the tracker. Reproduction at 7eada51f6: replacement entry preserved, both replacement claims cleared, one stale tracker update. Task returned to In Progress and claimed for repair. Add an interleaving regression and revalidate exact current run after the await/before every shared-state or tracker mutation; stale retired work must return with zero side effects.
+---
+author: oompah
+created: 2026-08-05 00:21
+---
+Acceptance-blocker repair implemented: revoked submission recovery now uses the identity-safe running-entry removal as its final post-preservation compare-and-remove and returns without clearing claims or touching tracker task data when a replacement generation owns the slot. Added deterministic executor interleaving regression that installs a replacement during preserve_worktree_changes and verifies running/claimed/claimed_issues remain intact with no stale tracker fetch/update. Focused matrix passes 101 tests; Ruff F821, git diff --check, and terminal mutation scan 8/8 pass. Preparing commit/push; task remains unsubmitted and claimed for coordinator re-audit.
 ---
 <!-- COMMENTS:END -->
