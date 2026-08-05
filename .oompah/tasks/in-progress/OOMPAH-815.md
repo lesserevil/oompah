@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T02:32:22.883677Z'
+updated_at: '2026-08-05T14:16:10.477455Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-08-05 02:32
 ---
 Review found a remaining Ready-to-Integrate set-status/status-label bypass around the unified submit transaction. Forward repair is pushed at 3b96e04bb03da5da724199945997c5ba15c831b7: task-scoped ACP/API and scoped HTTP now reject Ready aliases and label equivalents with the must-use-submit diagnostic before mutation. 34 focused tests pass; awaiting independent re-review.
+---
+author: oompah
+created: 2026-08-05 14:16
+---
+Corrected implementation is clean and pushed at exact head ccd1bf4550b67bbaaf21589d15550f31e9f1f6a7 on exact epic base 22252cc0486e919a657d15e5367ce29476622ce3. It persists and binds accepted submission authority before revocation, contains post-accept assignment cleanup failure, routes natural and scheduled retirement through the accepted fence, preserves the accepted branch across live/restart/forced recovery, and uses accepted branch+SHA for terminal-audit locks/fingerprints. Focused verification: 642 executions on the first correction plus 131 adjacent scheduler/submission/provider executions on the final delta; real scheduled ACP retirement regression passes; terminal mutation scan 8/8, secret and diff checks pass. Independent exact-head review PASS at ccd1bf455 after two blocking review rounds; branch/upstream/base/trailers exact.
 ---
 <!-- COMMENTS:END -->
