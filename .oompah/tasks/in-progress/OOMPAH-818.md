@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:26:13.848411Z'
+updated_at: '2026-08-05T01:35:13.852218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-08-05 01:26
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-05 01:35
+---
+Understanding: Root cause is in \`oompah/stalled_task_watchdog.py::_current_evidence_decision\`. For \`NEEDS_CI_FIX\`, the classifier trusts \`signals["ci_status"] in {passed,green,...}\` — which comes from \`provider.get_branch_ci_status(repo, branch)\` in \`orchestrator._collect_stalled_watchdog_evidence\`. That is the SCM's remote CI verdict at the current branch tip; the combined-tree quality gate is a local run whose failure sets NEEDS_CI_FIX. The two can disagree, so the watchdog reopened OOMPAH-814 seconds after the authoritative gate failed at 254b131c. Plan: (1) enrich evidence with accepted_head_sha (issue.integration.head_sha), latest authoritative gate outcome from _quality_gate_outcomes, and delivery-authority generation; (2) rewrite NEEDS_CI_FIX/NEEDS_REBASE path in _current_evidence_decision to require exact-head match and let a failing exact-head gate result dominate; (3) surface head/result/generation in StalledTaskDecision, watchdog comment, and to_dict() event; (4) add deterministic interleaving tests.
 ---
 <!-- COMMENTS:END -->
