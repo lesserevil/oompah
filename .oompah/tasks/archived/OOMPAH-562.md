@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: In Validation
+status: Archived
 priority: 0
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-08-05T23:22:33.534936Z'
+updated_at: '2026-08-05T23:25:16.865918Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -94,6 +94,30 @@ oompah.work_branch: OOMPAH-562
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-79cc69b09a9d: '2026-08-05T23:25:13.224504+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-562
+    target_state: Archived
+    evidence_fingerprint: eab46c682b0aea9b4fc396798ce54a6e0c9a7049a44a75305e2e9a048a889cb7
+    audit_ids:
+    - audit-d95664624a64
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T23:25:13.224516+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-562
+    audit_id: audit-d95664624a64
+    attempt_id: attempt-79cc69b09a9d
+    target_state: Archived
+    evidence_fingerprint: eab46c682b0aea9b4fc396798ce54a6e0c9a7049a44a75305e2e9a048a889cb7
+    status: Archived
+    audit_ids:
+    - audit-d95664624a64
+    applied: false
+    created_at: '2026-08-05T23:25:13.224533+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +125,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-562
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,7 +134,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-79cc69b09a9d
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -120,13 +144,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T23:22:24.281839+00:00'
       branch_key: OOMPAH-562
+      verdict: pass
+      completed_at: '2026-08-05T23:25:13.224330+00:00'
+      ended_at: '2026-08-05T23:25:13.224330+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T23:21:17.468751+00:00'
-    updated_at: '2026-08-05T23:22:24.281839+00:00'
+    updated_at: '2026-08-05T23:25:13.224330+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-79cc69b09a9d
