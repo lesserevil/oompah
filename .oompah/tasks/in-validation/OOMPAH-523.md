@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T18:22:22.250373Z'
+updated_at: '2026-08-05T18:25:00.537877Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -197,18 +197,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-523
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-43eb8f8ef310
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+      created_at: '2026-08-05T18:24:59.184720+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T18:24:59.184720+00:00'
+      branch_key: epic-OOMPAH-521--task-OOMPAH-523
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Open
     created_at: '2026-08-05T18:22:16.796576+00:00'
+    updated_at: '2026-08-05T18:24:59.184720+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
@@ -257,6 +271,19 @@ oompah.terminal_audit:
     candidate_rotation_count: 2
     ended_at: '2026-08-04T22:57:03.854527+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-43eb8f8ef310
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+    created_at: '2026-08-05T18:24:59.184720+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T18:24:59.184720+00:00'
+    branch_key: epic-OOMPAH-521--task-OOMPAH-523
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 99a8dad5f6b4614d1ceb98dd44f6fee48b52633ff66fa3c706d9917c8f50ecc5

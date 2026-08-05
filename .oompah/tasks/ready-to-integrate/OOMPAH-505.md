@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T18:24:31.064606Z'
+updated_at: '2026-08-05T18:24:54.918681Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 512433a3-1eda-4aab-876d-ba1605ab5867
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9681529
@@ -272,12 +272,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
-  updated_at: '2026-08-05T18:17:03.512384+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T18:24:39.987714+00:00'
+  updated_at: '2026-08-05T18:24:39.987714+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1360,5 +1362,10 @@ author: oompah
 created: 2026-08-05 18:24
 ---
 Completion: no source changes were needed in this recovery pass. The explicit Claude/Codex tiers, manual catalog-less ACP model entry, validation/fallback, round-robin role selection, ACP handoff, and telemetry coverage are present at e1b0f4846. Focused tests and secrets scan pass; task and restored epic refs both point to the pushed clean head.
+---
+author: oompah
+created: 2026-08-05 18:24
+---
+Verified explicit Claude and Codex ACP model tiers, manual model selection, routing, telemetry, focused tests, and synchronized clean branch
 ---
 <!-- COMMENTS:END -->
