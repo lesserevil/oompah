@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T23:51:54.516163Z'
-updated_at: '2026-08-05T00:54:24.114587Z'
+updated_at: '2026-08-05T00:54:30.404490Z'
 work_branch: OOMPAH-536
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/570
@@ -44,8 +44,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-41803391d996
-    applied: false
+    applied: true
     created_at: '2026-08-05T00:54:20.586920+00:00'
+    applied_at: '2026-08-05T00:54:28.517552+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -143,5 +144,22 @@ author: oompah
 created: 2026-08-05 00:42
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 00:54
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 5e378f1b4b2d2513a861ad66b191c11d2b784346
+- merged_pr: #570
+- merged_at: 2026-07-28
+- days_since_merge: 8
+- focus_py_hook_line: oompah/focus.py:783 assess_screening(issue).implementation_eligible
+- tests_added: tests/test_focus.py::TestDuplicateDetectorFocus at lines around 1193
+- focus_tests_result: 141 passed
+- duplicate_screening_tests_result: 9 passed
 ---
 <!-- COMMENTS:END -->
