@@ -15,6 +15,10 @@ blocked_by:
 - OOMPAH-782
 - OOMPAH-791
 - OOMPAH-793
+- OOMPAH-834
+- OOMPAH-835
+- OOMPAH-836
+- OOMPAH-837
 start_blocked_by: &id001
 - OOMPAH-781
 - OOMPAH-782
@@ -23,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:38:47.369876Z'
+updated_at: '2026-08-05T16:39:36.722964Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null

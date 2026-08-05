@@ -6,12 +6,13 @@ priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-781
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-05T16:38:27.595461Z'
+updated_at: '2026-08-05T16:39:04.228205Z'
 work_branch: null
 target_branch: null
 review_url: null

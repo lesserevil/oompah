@@ -6,12 +6,13 @@ priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-781
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-05T16:38:33.085889Z'
+updated_at: '2026-08-05T16:39:07.961011Z'
 work_branch: null
 target_branch: null
 review_url: null
