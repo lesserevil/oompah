@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:06:07.476394Z'
-updated_at: '2026-08-05T00:19:38.948796Z'
+updated_at: '2026-08-05T00:19:47.100189Z'
 work_branch: epic-OOMPAH-502
 target_branch: null
 review_url: null
@@ -58,8 +58,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-f827c1e91924
-    applied: false
+    applied: true
     created_at: '2026-08-05T00:19:35.441408+00:00'
+    applied_at: '2026-08-05T00:19:44.554774+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -293,5 +294,20 @@ author: oompah
 created: 2026-08-05 00:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 00:19
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- test_pass_count: 15387 passed, 7 skipped, 1 xfailed
+- implementation_commit: 7bce3acbd (feat: make normal restarts drain agents)
+- config_var: OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS (default 3600s)
+- api_endpoints: /api/v1/orchestrator/restart, /api/v1/orchestrator/quiesce
+- makefile_targets: restart (drains), graceful (alias), force-restart (emergency)
+- files_changed: Makefile, oompah/config.py, oompah/orchestrator.py, oompah/server.py, docs/operator-runbook.md, AGENTS.md, tests/*.py
 ---
 <!-- COMMENTS:END -->
