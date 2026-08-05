@@ -649,6 +649,10 @@ class TestSanitizeIdentifier:
     def test_preserves_dots(self):
         assert _sanitize_identifier("v1.2.3") == "v1.2.3"
 
+    def test_rewrites_git_ref_forbidden_dot_sequences_and_lock_suffix(self):
+        assert _sanitize_identifier("foo..bar") == "foo_bar"
+        assert _sanitize_identifier("foo.lock") == "foo.lock_"
+
 
 class TestBootstrapLFS:
     def test_success_path_does_not_dirty_repo(self, tmp_path):

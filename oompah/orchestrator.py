@@ -21966,30 +21966,52 @@ class Orchestrator:
         ``project.default_branch`` (typically ``main``).
         """
         if self.config.workflow_engine_mode == "enforce":
+            parent_id = str(epic.parent_id or "<top-level>")
+
+            def shared_resolution_error(reason: str) -> EpicTargetResolutionError:
+                error = EpicTargetResolutionError(
+                    epic.identifier,
+                    parent_id,
+                    reason,
+                )
+                self._record_epic_target_resolution_failure(epic, error)
+                return error
+
             try:
                 shared = self._shared_epic_workflow_decision(epic, schedule=False)
-                if shared is not None:
-                    _decision, facts = shared
-                    containment = facts.fact(FactDomain.CONTAINMENT)
-                    if (
-                        containment.state.value == "known"
-                        and isinstance(containment.value, Mapping)
-                    ):
-                        target = str(
-                            containment.value.get("target_branch") or ""
-                        ).strip()
-                        if target:
-                            return target
-            except Exception as exc:  # noqa: BLE001 - legacy resolver remains fail-closed
+            except Exception as exc:  # noqa: BLE001 - target evidence boundary
                 logger.debug(
                     "Shared target facts unavailable for %s: %s",
                     epic.identifier,
                     exc,
                 )
+                raise shared_resolution_error(
+                    f"shared target facts are unavailable ({type(exc).__name__})"
+                ) from exc
+            if shared is None:
+                raise shared_resolution_error(
+                    "shared target facts are incomplete",
+                )
+            _decision, facts = shared
+            containment = facts.fact(FactDomain.CONTAINMENT)
+            if (
+                containment.state.value != "known"
+                or not isinstance(containment.value, Mapping)
+            ):
+                raise shared_resolution_error(
+                    "shared containment evidence is unavailable",
+                )
+            target = str(containment.value.get("target_branch") or "").strip()
+            if not target:
+                raise shared_resolution_error(
+                    "shared target evidence is empty",
+                )
+            self._clear_epic_target_resolution_alert(epic)
+            return target
         parent_id = (epic.parent_id or "").strip()
         if not parent_id:
             target = str(getattr(project, "default_branch", "") or "main").strip()
-            self._clear_epic_target_resolution_alert(epic.identifier)
+            self._clear_epic_target_resolution_alert(epic)
             return target or "main"
 
         try:
@@ -22030,7 +22052,7 @@ class Orchestrator:
             )
             self._record_epic_target_resolution_failure(epic, resolution_error)
             raise resolution_error
-        self._clear_epic_target_resolution_alert(epic.identifier)
+        self._clear_epic_target_resolution_alert(epic)
         return target
 
     def _record_epic_target_resolution_failure(
@@ -22039,7 +22061,7 @@ class Orchestrator:
         error: EpicTargetResolutionError,
     ) -> None:
         """Expose an unresolved hierarchy as a retryable dashboard alert."""
-        source = f"epic_target_unresolved:{epic.identifier}"
+        source = self._epic_target_resolution_alert_source(epic)
         self._alerts = [a for a in self._alerts if a.get("source") != source]
         self._alerts.append(
             {
@@ -22054,8 +22076,13 @@ class Orchestrator:
         )
         logger.warning("%s", error)
 
-    def _clear_epic_target_resolution_alert(self, epic_identifier: str) -> None:
-        source = f"epic_target_unresolved:{epic_identifier}"
+    @staticmethod
+    def _epic_target_resolution_alert_source(epic: Issue) -> str:
+        project_id = str(epic.project_id or "unknown-project").strip()
+        return f"epic_target_unresolved:{project_id}:{epic.identifier}"
+
+    def _clear_epic_target_resolution_alert(self, epic: Issue) -> None:
+        source = self._epic_target_resolution_alert_source(epic)
         self._alerts = [a for a in self._alerts if a.get("source") != source]
 
     def _remote_branch_exists(

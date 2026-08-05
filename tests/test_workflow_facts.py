@@ -364,6 +364,22 @@ def test_git_durable_prior_does_not_survive_target_rewrite(tmp_path):
     assert refreshed.evidence_revision != prior.evidence_revision
 
 
+def test_git_durable_prior_does_not_survive_unavailable_target(tmp_path):
+    repo, _, task = _git_repo(tmp_path)
+    _git(repo, "merge", "--no-ff", "task", "-m", "merge")
+    collector = GitLandingCollector(repo, project_id="project-1", clock=lambda: NOW)
+    prior = collector.collect(LandingRequest("task", "main", task))
+    assert prior.state is LandingState.LANDED
+
+    _git(repo, "checkout", "task")
+    _git(repo, "branch", "-D", "main")
+    refreshed = collector.collect(LandingRequest("task", "main", task, prior=prior))
+
+    assert refreshed.state is LandingState.UNKNOWN
+    assert refreshed.proof["kind"] == LandingProofKind.TARGET_UNAVAILABLE.value
+    assert refreshed.evidence_revision != prior.evidence_revision
+
+
 def test_git_observation_failure_becomes_unknown_fact(tmp_path):
     missing_repo = tmp_path / "does-not-exist"
 

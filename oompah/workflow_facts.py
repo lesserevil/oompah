@@ -639,12 +639,13 @@ class GitLandingCollector:
 
         A durable fact survives source-ref pruning and normal target advances;
         it is not permission to ignore a force-push that removed the landing.
-        If the target ref itself is gone, the immutable historical proof is
-        still the best available terminal evidence.
+        The target must remain observable: a missing target is
+        indistinguishable from deletion during a rewrite and therefore fails
+        closed until Git can prove the target history again.
         """
 
         if target_revision is None:
-            return True
+            return False
         proven_target = str(prior.proof.get("target_sha") or "").strip().lower()
         if not re.fullmatch(r"[0-9a-f]{7,64}", proven_target):
             # External durable evidence may not expose a Git target SHA.  It
