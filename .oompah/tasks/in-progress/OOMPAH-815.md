@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:45:43.413265Z'
+updated_at: '2026-08-05T00:46:03.910820Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-05 00:45
 ---
 Independent read-only audit found the exact contract: OOMPAH-576 safety guards work; its legacy expected_submission_branch fallback accepts identifier when work_branch is null. _persist_worker_submission then writes integration but never work_branch. Later _create_workspace_for_issue unconditionally derives the hierarchical child branch and overwrites accepted authority. Once IntegrationRecord has task_branch+head_sha, that pair must win and Issue.work_branch is only a projection; submission should atomically reconcile it, retry/workspace/audit must reuse it, and fresh unsubmitted dispatch may still derive hierarchy. Centralize the resolver across server normal/scoped/ACP submit, _create_workspace_for_issue, _retry_issue_branch, and audit branch key. OOMPAH-813 is the live regression shape (accepted OOMPAH-813 at eb5d with null work_branch); preserve OOMPAH-814's current hierarchical workaround. Add zero-mutation mismatch/concurrency/restart/no-reset regressions; do not weaken ProjectStore/integration-executor safety.
+---
+author: oompah
+created: 2026-08-05 00:46
+---
+Containment detail: _git_submission_evidence uses merge-base only for changed paths and does not return base_sha; _submission_record only syntax-checks inherited/supplied base_sha and does not verify ancestry. If accepting/reusing a parented null-metadata branch, add server-authoritative read-only proof that origin/<submitted branch> exists at submitted head and the head is compatible with/descends from the expected recorded parent base before any tracker/queue write. Otherwise reject pre-mutation. The executor's later fetch/rebase guard is necessary but does not meet this task's pre-mutation acceptance.
 ---
 <!-- COMMENTS:END -->
