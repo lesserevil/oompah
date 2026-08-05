@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T06:19:24.564160Z'
+updated_at: '2026-08-05T06:20:24.874972Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -272,14 +272,15 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 2
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
   head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   submitted_at: '2026-08-05T06:18:59.905738+00:00'
-  updated_at: '2026-08-05T06:18:59.905738+00:00'
+  updated_at: '2026-08-05T06:20:16.671564+00:00'
+  last_error: remote epic branch epic-OOMPAH-502 does not exist
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -1211,5 +1212,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 20m 5s
 - Log: OOMPAH-505__20260805T055933Z.jsonl
+---
+author: oompah
+created: 2026-08-05 06:20
+---
+Integration could not verify `epic-OOMPAH-502--task-OOMPAH-505`: remote epic branch epic-OOMPAH-502 does not exist
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
