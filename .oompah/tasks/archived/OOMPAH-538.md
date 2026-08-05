@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-538
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Make spawned-agent task handoffs authenticate without exposing service credentials
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-08-05T01:42:59.403818Z'
+updated_at: '2026-08-05T01:51:41.242854Z'
 work_branch: OOMPAH-538
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/574
@@ -104,6 +104,30 @@ oompah.work_branch: OOMPAH-538
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-11c7f9faf24c: '2026-08-05T01:51:36.422638+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-538
+    target_state: Archived
+    evidence_fingerprint: a10e26ae1f9c1dc6e23b8adddab26f9585759d1725c5adc493118129981a0827
+    audit_ids:
+    - audit-99e8894c032b
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T01:51:36.422645+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-538
+    audit_id: audit-99e8894c032b
+    attempt_id: attempt-11c7f9faf24c
+    target_state: Archived
+    evidence_fingerprint: a10e26ae1f9c1dc6e23b8adddab26f9585759d1725c5adc493118129981a0827
+    status: Archived
+    audit_ids:
+    - audit-99e8894c032b
+    applied: false
+    created_at: '2026-08-05T01:51:36.422657+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -111,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-538
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,7 +144,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-11c7f9faf24c
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -130,13 +154,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T01:42:47.157440+00:00'
       branch_key: OOMPAH-538
+      verdict: pass
+      completed_at: '2026-08-05T01:51:36.422537+00:00'
+      ended_at: '2026-08-05T01:51:36.422537+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T01:42:16.980543+00:00'
-    updated_at: '2026-08-05T01:42:47.157440+00:00'
+    updated_at: '2026-08-05T01:51:36.422537+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11c7f9faf24c

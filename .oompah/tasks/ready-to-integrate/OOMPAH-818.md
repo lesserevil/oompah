@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:50:54.100224Z'
+updated_at: '2026-08-05T01:51:35.298538Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,6 +85,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-818
     source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
     completed_at: '2026-08-05T01:24:52.489993+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-818
+  head_sha: f361f5dfe831ff336f961aa27b7d0598cb1f45a0
+  submitted_at: '2026-08-05T01:51:27.475575+00:00'
+  updated_at: '2026-08-05T01:51:27.475575+00:00'
 ---
 ## Summary
 
@@ -154,5 +162,10 @@ author: oompah
 created: 2026-08-05 01:50
 ---
 Verification: 106 tests pass in tests/test_stalled_task_watchdog.py (90 original + 16 new); 307 pass across stalled/watchdog/integration_executor/quality_gate; 472 pass across the wider orchestrator/quality-gate suite. Spot-checked the exact OOMPAH-814 shape (integration.head_sha=254b131c, branch head unchanged, ci=passed, gate=failed at same head): classifier now returns insufficient_evidence with evidence_head=254b131c...faee, evidence_result=failed, evidence_generation=auth-gen and no tracker.update_issue call, so no downstream integration-row cancellation. Legacy path (no integration record) still permits the historical passing-CI reopen for backwards compatibility. Repair-advanced path (branch head SHA past accepted head) still reopens. Comment and to_dict expose evidence head/result/generation.
+---
+author: oompah
+created: 2026-08-05 01:51
+---
+Fenced stalled-task watchdog reopen against exact failing gate evidence: authoritative combined-tree gate result at the exact accepted head now dominates any softer merge/audit/branch/CI signal; integration-record state=blocked at unchanged branch head also dominates; StalledTaskDecision, watchdog comment, and structured event now expose evidence_head/result/generation. 16 new deterministic tests cover the OOMPAH-814 interleaving, older-pass+newer-fail, pass/fail on different heads, duplicate runs, and restart reconciliation. 106/106 stalled_task_watchdog tests pass, 472/472 across the wider orchestrator/quality-gate suite.
 ---
 <!-- COMMENTS:END -->
