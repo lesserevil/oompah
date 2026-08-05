@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import BlockerRef, Issue, RunningEntry
+from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.projects import github_work_branch_name
+from oompah.projects import ProjectStore, github_work_branch_name
 from oompah.scm import ReviewRequest
 from oompah.statuses import (
     DONE,
@@ -47,6 +47,40 @@ def _make_issue(identifier: str, state: str = "closed", labels: list | None = No
         labels=labels or [],
         branch_name=branch_name,
     )
+
+
+class _DispatchTracker:
+    """Concrete no-I/O tracker slice used by dispatch-policy tests."""
+
+    def __init__(self) -> None:
+        self.children_requested_for: list[str] = []
+
+    def fetch_children(self, parent_id: str) -> list[Issue]:
+        self.children_requested_for.append(parent_id)
+        return []
+
+
+_OWNED_ORCHESTRATORS: list[Orchestrator] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_owned_orchestrators():
+    """Close stores and executors opened by this module's test helpers."""
+
+    first_owned = len(_OWNED_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        owned = _OWNED_ORCHESTRATORS[first_owned:]
+        del _OWNED_ORCHESTRATORS[first_owned:]
+        for orchestrator in reversed(owned):
+            orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+            orchestrator.coordination_store.close()
+            orchestrator.integration_queue.close()
+            orchestrator.review_capacity_store.close()
+            orchestrator.workflow_job_store.close()
+            orchestrator.task_transition_journal.close()
 
 
 def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.com/org/repo",
@@ -1979,12 +2013,22 @@ class TestShouldDispatchCompleted:
     def _make_orchestrator(self, tmp_path, projects=None):
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
-        orch = Orchestrator(
-            config=_make_config(),
-            workflow_path="WORKFLOW.md",
-            project_store=project_store,
-            state_path=str(tmp_path / "state.json"),
+        legacy_tracker = _DispatchTracker()
+        with patch.object(
+            Orchestrator,
+            "_new_tracker",
+            return_value=legacy_tracker,
+        ):
+            orch = Orchestrator(
+                config=_make_config(),
+                workflow_path="WORKFLOW.md",
+                project_store=project_store,
+                state_path=str(tmp_path / "state.json"),
+            )
+        orch._project_trackers.update(
+            {project.id: _DispatchTracker() for project in (projects or [])}
         )
+        _OWNED_ORCHESTRATORS.append(orch)
         return orch
 
     def test_completed_issue_not_dispatched(self, tmp_path):
@@ -2852,12 +2896,22 @@ class TestDispatchSerializationByProject:
         project_store.get.side_effect = lambda pid: next(
             (p for p in (projects or []) if p.id == pid), None
         )
-        orch = Orchestrator(
-            config=_make_config(),
-            workflow_path="WORKFLOW.md",
-            project_store=project_store,
-            state_path=str(tmp_path / "state.json"),
+        legacy_tracker = _DispatchTracker()
+        with patch.object(
+            Orchestrator,
+            "_new_tracker",
+            return_value=legacy_tracker,
+        ):
+            orch = Orchestrator(
+                config=_make_config(),
+                workflow_path="WORKFLOW.md",
+                project_store=project_store,
+                state_path=str(tmp_path / "state.json"),
+            )
+        orch._project_trackers.update(
+            {project.id: _DispatchTracker() for project in (projects or [])}
         )
+        _OWNED_ORCHESTRATORS.append(orch)
         return orch
 
     def _make_project_issue(
@@ -3437,11 +3491,17 @@ class TestBudgetGateFreeTierBypass:
         provider_store._providers = {prov.id: prov}
         project_store = MagicMock()
         project_store.list_all.return_value = []
-        orch = Orchestrator(
-            config=cfg, workflow_path="WORKFLOW.md",
-            provider_store=provider_store, project_store=project_store,
-            state_path=str(tmp_path / "state.json"),
-        )
+        legacy_tracker = _DispatchTracker()
+        with patch.object(
+            Orchestrator,
+            "_new_tracker",
+            return_value=legacy_tracker,
+        ):
+            orch = Orchestrator(
+                config=cfg, workflow_path="WORKFLOW.md",
+                provider_store=provider_store, project_store=project_store,
+                state_path=str(tmp_path / "state.json"),
+            )
         self._owned_orchestrators.append(orch)
         return orch
 
