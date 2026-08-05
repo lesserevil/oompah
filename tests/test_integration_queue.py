@@ -735,3 +735,61 @@ def test_new_head_on_explicit_retry_row_clears_retry_forced(tmp_path):
     )
     assert new_head.state == "ready"
     assert new_head.retry_forced is False  # Flag is cleared for new submissions
+
+
+def test_authority_generation_survives_restart_and_changes_with_row(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    store = IntegrationQueueStore(str(path))
+    queued = _enqueue(store, "A")
+    generation = queued.authority_generation()
+    store.close()
+
+    restarted = IntegrationQueueStore(str(path))
+    assert restarted.get("p1", "A").authority_generation() == generation
+    claimed = restarted.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="gate",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert claimed.authority_generation() != generation
+
+
+def test_run_if_generation_rejects_row_changed_before_action(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    generation = queued.authority_generation()
+    replacement = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=queued.task_branch,
+        head_sha="replacement-head",
+    )
+    calls = []
+
+    assert not store.run_if_generation(
+        "p1",
+        "A",
+        expected_generation=generation,
+        action=lambda row: calls.append(row) or True,
+    )
+    assert calls == []
+    assert store.get("p1", "A") == replacement
+
+
+def test_run_if_generation_executes_inside_exact_row_fence(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    observed = []
+
+    assert store.run_if_generation(
+        "p1",
+        "A",
+        expected_generation=queued.authority_generation(),
+        action=lambda row: observed.append(row.to_dict()) or True,
+    )
+    assert observed == [queued.to_dict()]
+    assert store.get("p1", "A") == queued

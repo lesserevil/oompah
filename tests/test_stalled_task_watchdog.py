@@ -993,6 +993,31 @@ _OOMPAH_814_HEAD = "254b131c713bece56500a72408f796c46bfee8d0"
 _REPAIR_HEAD = "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f"
 
 
+def _blocked_gate_row(orch):
+    orch.integration_queue.enqueue(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        task_id="OOMPAH-814",
+        task_branch="OOMPAH-814",
+        head_sha=_OOMPAH_814_HEAD,
+    )
+    claimed = orch.integration_queue.claim_next(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        lease_owner="gate-owner",
+        dependency_map={"OOMPAH-814": ("dependency",)},
+        satisfied={"dependency"},
+    )
+    assert claimed is not None
+    assert orch.integration_queue.fail(
+        "project-1",
+        "OOMPAH-814",
+        lease_owner="gate-owner",
+        error="Combined-tree quality gate failed: 2 failures",
+    )
+    return orch.integration_queue.get("project-1", "OOMPAH-814")
+
+
 def _oompah_814_evidence(
     *,
     ci_status: str = "passed",
@@ -1043,6 +1068,149 @@ class TestGateFailureFencesWatchdogReopen:
         assert decision.evidence_result in {"failed", "fail", "failure"}
         assert decision.evidence_generation == "gen-authoritative-42"
         assert "dominates" in decision.evidence.lower()
+
+    def test_durable_gate_evidence_survives_orchestrator_restart(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        first = _make_orchestrator(tmp_path, projects=[project])
+        blocked = _blocked_gate_row(first)
+        assert blocked is not None
+        first.integration_queue.close()
+
+        restarted = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+
+        restarted_row = restarted.integration_queue.get("project-1", "OOMPAH-814")
+        assert restarted_row is not None
+        assert restarted._retire_inactive_integration_rows(
+            "project-1",
+            [issue],
+            [restarted_row],
+        ) == 0
+
+        snapshot = restarted._collect_stalled_watchdog_gate_snapshot(
+            "project-1",
+            issue,
+        )
+
+        assert snapshot["status"] == "failed"
+        assert snapshot["head_sha"] == _OOMPAH_814_HEAD
+        assert snapshot["generation"].startswith("integration-queue-v1:")
+
+    def test_action_time_queue_cas_rejects_concurrent_gate_transition(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        orch.integration_queue.enqueue(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            task_id="OOMPAH-814",
+            task_branch="OOMPAH-814",
+            head_sha=_REPAIR_HEAD,
+        )
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            decision,
+            build_watchdog_comment(decision),
+        )
+
+        assert executed is False
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
+    def test_action_time_queue_cas_applies_unchanged_generation(self, tmp_path):
+        from oompah.integration import IntegrationRecord
+
+        orch = _make_orchestrator(tmp_path)
+        blocked = _blocked_gate_row(orch)
+        assert blocked is not None
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="OOMPAH-814",
+                head_sha=_OOMPAH_814_HEAD,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        decision = StalledTaskDecision(
+            task_id=issue.identifier,
+            project_id="project-1",
+            stalled_status=NEEDS_CI_FIX,
+            classification="actionable",
+            action="reopen",
+            evidence="repair CI passed on an advanced head",
+            evidence_head=_REPAIR_HEAD,
+            evidence_result="ci_passing_at_advanced_head",
+            evidence_generation=(
+                f"integration-queue-v1:{blocked.authority_generation()}"
+            ),
+        )
+
+        executed = orch._execute_stalled_watchdog_reopen(
+            "project-1",
+            issue,
+            tracker,
+            decision,
+            build_watchdog_comment(decision),
+        )
+
+        assert executed is True
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once_with("OOMPAH-814", status=OPEN)
 
     def test_gate_failure_immediately_before_watchdog_classification(self):
         """Gate completes with failures → next watchdog tick must not reopen."""
@@ -1359,7 +1527,6 @@ class TestGateFailureFencesWatchdogReopen:
         """The orchestrator collects integration record and gate outcome."""
         # Import here so the shared fixtures/helpers above stay stable.
         from oompah.integration import IntegrationRecord
-        from oompah.quality_gate import QualityGateResult
 
         project = MagicMock()
         project.id = "project-1"
@@ -1375,18 +1542,33 @@ class TestGateFailureFencesWatchdogReopen:
             work_branch="OOMPAH-814",
         )
         issue.integration = IntegrationRecord(
-            state="blocked",
+            state="ready",
             task_branch="OOMPAH-814",
             base_branch="epic-e",
             head_sha=_OOMPAH_814_HEAD,
             attempts=1,
             last_error="Combined-tree quality gate failed",
         )
-        orch._quality_gate_outcomes[("project-1", "OOMPAH-814")] = QualityGateResult(
-            status="failed",
+        orch.integration_queue.enqueue(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            task_id="OOMPAH-814",
+            task_branch="OOMPAH-814",
             head_sha=_OOMPAH_814_HEAD,
-            command="make test",
-            output_tail="2 failures",
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id="project-1",
+            epic_id="EPIC-1",
+            lease_owner="gate-owner",
+            dependency_map={"OOMPAH-814": ("dependency",)},
+            satisfied={"dependency"},
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            "project-1",
+            "OOMPAH-814",
+            lease_owner="gate-owner",
+            error="Combined-tree quality gate failed: 2 failures",
         )
         tracker = MagicMock()
         tracker.get_metadata.return_value = {}
@@ -1402,9 +1584,11 @@ class TestGateFailureFencesWatchdogReopen:
                 "project-1", issue, tracker
             )
         assert evidence["integration"]["head_sha"] == _OOMPAH_814_HEAD
-        assert evidence["integration"]["state"] == "blocked"
+        assert evidence["integration"]["state"] == "ready"
         assert evidence["gate"]["head_sha"] == _OOMPAH_814_HEAD
         assert evidence["gate"]["status"] == "failed"
+        assert evidence["gate"]["queue_state"] == "blocked"
+        assert evidence["gate"]["generation"].startswith("integration-queue-v1:")
 
         decision = classify_stalled_task(
             "OOMPAH-814",

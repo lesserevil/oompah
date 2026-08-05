@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 import os
 import sqlite3
 import threading
 import time
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 
 INTEGRATION_QUEUE_SCHEMA_VERSION = 2
@@ -41,6 +42,16 @@ class IntegrationQueueItem:
             key: getattr(self, key)
             for key in self.__dataclass_fields__
         }
+
+    def authority_generation(self) -> str:
+        """Return a stable token for this exact durable row generation."""
+
+        payload = json.dumps(
+            self.to_dict(),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
 
 _SCHEMA = """
@@ -638,6 +649,65 @@ class IntegrationQueueStore:
                 (str(project_id), str(task_id)),
             ).fetchone()
         return self._from_row(row) if row is not None else None
+
+    def run_if_generation(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        expected_generation: str,
+        action: Callable[[IntegrationQueueItem], bool],
+    ) -> bool:
+        """Run ``action`` only while one exact queue row is unchanged.
+
+        ``BEGIN IMMEDIATE`` fences other SQLite connections and ``_lock``
+        fences callers sharing this store.  The callback is deliberately run
+        inside that authority window so a gate completion, retry, cancellation,
+        or replacement submission cannot land between the watchdog's final
+        comparison and its tracker status write.
+        """
+
+        expected = str(expected_generation or "").strip().lower()
+        if not expected:
+            return False
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    """
+                    SELECT * FROM integration_queue
+                    WHERE project_id = ? AND task_id = ?
+                    """,
+                    (str(project_id), str(task_id)),
+                ).fetchone()
+                if row is None:
+                    self._conn.rollback()
+                    return False
+                item = self._from_row(row)
+                if item.authority_generation() != expected:
+                    self._conn.rollback()
+                    return False
+                if not action(item):
+                    self._conn.rollback()
+                    return False
+                current = self._conn.execute(
+                    """
+                    SELECT * FROM integration_queue
+                    WHERE project_id = ? AND task_id = ?
+                    """,
+                    (str(project_id), str(task_id)),
+                ).fetchone()
+                if (
+                    current is None
+                    or self._from_row(current).authority_generation() != expected
+                ):
+                    self._conn.rollback()
+                    return False
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
 
     def items(
         self,

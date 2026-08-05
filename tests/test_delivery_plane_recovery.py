@@ -19,7 +19,13 @@ from oompah.integration_executor import IntegrationExecutionResult
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateOwner
-from oompah.statuses import DONE, NEEDS_REBASE, OPEN, READY_TO_INTEGRATE
+from oompah.statuses import (
+    DONE,
+    NEEDS_CI_FIX,
+    NEEDS_REBASE,
+    OPEN,
+    READY_TO_INTEGRATE,
+)
 from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.terminal_transition_coordinator import TransitionResult
 
@@ -685,6 +691,99 @@ def test_retire_inactive_rows_does_not_retire_ready_to_integrate_tasks(tmp_path)
             orchestrator.integration_queue.items(project_id=project.id)[0].state
             == "ready"
         )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_inactive_rows_preserves_exact_blocked_repair_evidence(tmp_path):
+    """Needs-CI repair keeps the durable failure row across reconciliation."""
+
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        queued = orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="failed-gate",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.fail(
+            project.id,
+            issue.identifier,
+            lease_owner="failed-gate",
+            error="combined-tree quality gate failed",
+        )
+        blocked = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert blocked is not None and blocked.state == "blocked"
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        assert retired == 0
+        retained = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert retained is not None
+        assert retained.state == "blocked"
+        assert retained.head_sha == queued.head_sha
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_inactive_rows_retires_mismatched_blocked_repair_evidence(tmp_path):
+    """A newer accepted head must not inherit an obsolete blocked result."""
+
+    issue = _issue(state=NEEDS_CI_FIX, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="failed-gate",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.fail(
+            project.id,
+            issue.identifier,
+            lease_owner="failed-gate",
+            error="combined-tree quality gate failed",
+        )
+        issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch=issue.integration.task_branch,
+            head_sha="new-accepted-head",
+        )
+        blocked = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert blocked is not None and blocked.state == "blocked"
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [blocked],
+        )
+
+        assert retired == 1
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None and current.state == "cancelled"
     finally:
         _close(orchestrator)
 

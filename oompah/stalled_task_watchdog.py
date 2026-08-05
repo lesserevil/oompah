@@ -803,7 +803,12 @@ def _current_evidence_decision(
     # any softer merge/audit/branch signal has a chance to reopen a task.
     if canonical in {NEEDS_CI_FIX, NEEDS_REBASE} and gate_head and gate_status:
         matches_accepted = (not accepted_head) or gate_head == accepted_head
-        if matches_accepted and gate_status in _FAILING_STATUSES:
+        branch_has_not_advanced = not branch_head or branch_head == accepted_head
+        if (
+            matches_accepted
+            and gate_status in _FAILING_STATUSES
+            and branch_has_not_advanced
+        ):
             return StalledTaskDecision(
                 task_id, project_id, stalled_status,
                 "insufficient_evidence", "none",
@@ -1439,6 +1444,7 @@ def run_watchdog_audit(
     dry_run: bool = False,
     evidence_provider: Callable[..., Any] | None = None,
     evidence_by_task: Mapping[str, Any] | None = None,
+    reopen_executor: Callable[..., bool] | None = None,
 ) -> WatchdogAuditResult:
     """Run a full stalled-task watchdog audit across all projects.
 
@@ -1456,6 +1462,11 @@ def run_watchdog_audit(
             tracker)`` and returning current machine evidence.
         evidence_by_task: Optional pre-collected evidence keyed by identifier;
             useful for deterministic callers and tests.
+        reopen_executor: Optional authoritative callback for a reopen. It
+            receives ``(project_id, issue, tracker, decision, comment_body)``
+            and must perform the final evidence CAS, comment, and status write
+            as one fenced action. ``False`` means authority changed and the
+            action was safely skipped.
 
     Returns:
         A :class:`WatchdogAuditResult` with full audit telemetry.
@@ -1570,6 +1581,43 @@ def run_watchdog_audit(
                 continue
 
             comment_body = build_watchdog_comment(decision)
+
+            if decision.action == "reopen" and reopen_executor is not None:
+                try:
+                    executed = bool(
+                        reopen_executor(
+                            project_id,
+                            issue,
+                            tracker,
+                            decision,
+                            comment_body,
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - fail closed per task
+                    msg = (
+                        f"Failed authoritative watchdog reopen for {identifier}: "
+                        f"{exc}"
+                    )
+                    logger.warning(msg)
+                    result.errors.append(msg)
+                    continue
+                if executed:
+                    logger.info(
+                        "Watchdog authoritatively reopened %s (project=%s) — %s",
+                        identifier,
+                        project_id,
+                        decision.evidence,
+                    )
+                    result.actions_taken += 1
+                else:
+                    logger.info(
+                        "Watchdog skipped stale reopen for %s (project=%s): "
+                        "evidence generation changed before action",
+                        identifier,
+                        project_id,
+                    )
+                    result.actions_skipped += 1
+                continue
 
             try:
                 # Post the evidence comment BEFORE the state change so the
