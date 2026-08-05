@@ -4558,19 +4558,14 @@ async def _accept_worker_submission(
             project_id,
             record,
         )
-        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-        if callable(cancel_retry):
-            cancel_retry(
-                issue_id=issue.id,
-                identifier=issue.identifier,
-                project_id=project_id,
-                reason="task submitted for integration",
-            )
-        await _clear_submission_assignment(tracker, issue)
-
         direct_maintenance = is_direct_epic_maintenance_issue(issue)
         direct_failure_message: str | None = None
         if direct_maintenance:
+            # Direct maintenance owns its durable completion and revocation in
+            # one orchestrator operation.  Clear the shared assignment before
+            # that operation schedules retirement so an in-process submitter
+            # is never cancelled at this await after its evidence was accepted.
+            await _clear_submission_assignment(tracker, issue)
             complete = getattr(
                 orch,
                 "complete_direct_epic_maintenance_submission",
@@ -4602,6 +4597,32 @@ async def _accept_worker_submission(
                 body,
                 record=record,
             )
+
+            # Persisted integration evidence must be visible both durably and
+            # on the exact live generation before revocation.  Otherwise a
+            # racing exit sees only ``authority_revoked`` and takes the generic
+            # quarantine path, bypassing the accepted-submission recovery fence.
+            bind_record = getattr(orch, "bind_accepted_submission_record", None)
+            if callable(bind_record):
+                bind_record(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=project_id,
+                    record=record,
+                )
+            await _clear_submission_assignment(tracker, issue)
+
+            # Revoke last: every operation after this call is synchronous, so
+            # an ACP/API tool invocation can return its accepted result before
+            # the scheduled retirement task cancels the provider worker.
+            cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+            if callable(cancel_retry):
+                cancel_retry(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=project_id,
+                    reason="task submitted for integration",
+                )
             _enqueue_worker_submission(orch, project_id, issue, record)
 
         if direct_failure_message is None:

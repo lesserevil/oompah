@@ -4377,6 +4377,43 @@ class Orchestrator:
         with self._retry_authority_lock:
             return self.state.running.get(issue_id)
 
+    def bind_accepted_submission_record(
+        self,
+        *,
+        issue_id: str,
+        identifier: str,
+        project_id: str | None,
+        record: IntegrationRecord,
+    ) -> bool:
+        """Bind durable accepted evidence to its live implementation run.
+
+        The submission transaction calls this after persisting ``record`` and
+        before revoking worker authority.  Keeping the write under the runtime
+        authority lock prevents the exit/termination paths from observing a
+        revoked generation without the accepted record that owns its recovery
+        fence.
+        """
+
+        with self._retry_authority_lock:
+            entry = self.state.running.get(str(issue_id))
+            if entry is None or identifier not in {
+                entry.identifier,
+                getattr(entry.issue, "identifier", None),
+            }:
+                return False
+            running_project = str(
+                getattr(entry.issue, "project_id", "") or ""
+            ).strip()
+            expected_project = str(project_id or "").strip()
+            if (
+                expected_project
+                and running_project
+                and running_project != expected_project
+            ):
+                return False
+            entry.accepted_submission_record = record
+            return True
+
     def _register_running_entry(self, issue_id: str, entry: RunningEntry) -> None:
         """Publish a runtime entry atomically with authority revocation."""
 
@@ -33032,7 +33069,8 @@ class Orchestrator:
                     identifier,
                     worktree_path or None,
                     (
-                        getattr(issue, "work_branch", None)
+                        assigned_work_branch(issue)
+                        or getattr(issue, "work_branch", None)
                         or getattr(issue, "branch_name", None)
                         or None
                     ),
@@ -35984,7 +36022,9 @@ class Orchestrator:
                         entry.identifier,
                         workspace_path,
                         (
-                            getattr(entry.issue, "work_branch", None)
+                            record.task_branch
+                            or assigned_work_branch(entry.issue)
+                            or getattr(entry.issue, "work_branch", None)
                             or getattr(entry.issue, "branch_name", None)
                             or None
                         ),
@@ -37071,6 +37111,7 @@ class Orchestrator:
 
         generation = getattr(entry, "authority_generation", None)
         revoked = bool(getattr(entry, "authority_revoked", False))
+        project_id = entry.issue.project_id if entry.issue else None
         if generation:
             with self._retry_authority_lock:
                 revoked = revoked or generation in self._revoked_authority_generations
@@ -37252,8 +37293,6 @@ class Orchestrator:
         tokens_str = ""
         if entry.session and entry.session.total_tokens > 0:
             tokens_str = f" ({entry.session.total_tokens} tokens)"
-
-        project_id = entry.issue.project_id if entry.issue else None
 
         if getattr(entry, "duplicate_preflight", False):
             await self._handle_duplicate_preflight_exit(entry, reason, error)
@@ -40459,6 +40498,31 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # exact per-task worktree is safe to snapshot under this task's
             # recovery ref.
             project_id = entry.issue.project_id if entry.issue else None
+            accepted_record = getattr(entry, "accepted_submission_record", None)
+            if accepted_record and getattr(entry, "authority_revoked", False):
+                # Scheduled retirement suppresses _on_worker_exit while it
+                # stops the provider.  Once every process is gone, enter the
+                # same accepted-generation fence explicitly rather than the
+                # generic retry snapshot/removal path.
+                if (
+                    cli_session is not None
+                    and getattr(self, "_cli_agent_sessions", {}).get(issue_id)
+                    is cli_session
+                ):
+                    self._cli_agent_sessions.pop(issue_id, None)
+                if (
+                    acp_session is not None
+                    and getattr(self, "_acp_agent_sessions", {}).get(issue_id)
+                    is acp_session
+                ):
+                    self._acp_agent_sessions.pop(issue_id, None)
+                await self._handle_revoked_submission_exit(
+                    entry,
+                    issue_id,
+                    project_id,
+                    accepted_record,
+                )
+                return True
             project_store = getattr(self, "project_store", None)
             recovery_publication_pending = False
             recovery_preserver = getattr(
@@ -40495,7 +40559,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 entry.identifier,
                                 entry.workspace_path,
                                 (
-                                    getattr(entry.issue, "work_branch", None)
+                                    assigned_work_branch(entry.issue)
+                                    or getattr(entry.issue, "work_branch", None)
                                     or getattr(entry.issue, "branch_name", None)
                                     or None
                                 ),

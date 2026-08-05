@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TypeVar
 
+from oompah.integration import accepted_submission_branch
+
 
 CURRENT_VERSION = 1
 """Current serialized terminal-audit record version."""
@@ -493,14 +495,26 @@ def compute_issue_evidence_fingerprint(
                 ),
             )
     else:
-        # Try explicit branches first
-        source_branch = str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(integration, "task_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        )
+        accepted_branch = accepted_submission_branch(issue)
+        if accepted_branch:
+            # Accepted generation evidence is immutable authority.  Mutable
+            # tracker source/work projections may lag a crash repair and must
+            # not give the auditor a different lock, branch, or exact head.
+            source_branch = accepted_branch
+            source_sha = str(getattr(integration, "head_sha", None) or "")
+        else:
+            source_branch = str(
+                getattr(issue, "source_branch", None)
+                or getattr(issue, "work_branch", None)
+                or getattr(integration, "task_branch", None)
+                or getattr(issue, "branch_name", None)
+                or ""
+            )
+            source_sha = str(
+                getattr(issue, "source_sha", None)
+                or getattr(integration, "head_sha", None)
+                or ""
+            )
         
         # If no explicit branch and it's an epic without work_branch,
         # try canonical epic branch names
@@ -521,11 +535,6 @@ def compute_issue_evidence_fingerprint(
             if epic_branches:
                 source_branch = epic_branches[0]
         
-        source_sha = str(
-            getattr(issue, "source_sha", None)
-            or getattr(integration, "head_sha", None)
-            or ""
-        )
         target_branch = str(
             getattr(issue, "target_branch", None)
             or getattr(integration, "base_branch", None)

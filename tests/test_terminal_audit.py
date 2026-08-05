@@ -339,6 +339,43 @@ class TestEpicBranchResolution:
         )
         assert fp == fp_expected
 
+    def test_accepted_generation_overrides_stale_source_projection(self) -> None:
+        """Auditor lock and fingerprint use the same exact accepted generation."""
+
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="Accepted task",
+            description="Description",
+            project_id="proj-1",
+            work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+            branch_name="epic-OOMPAH-763--task-OOMPAH-814",
+            target_branch="main",
+        )
+        issue.source_branch = "stale-source"
+        issue.source_sha = "b" * 40
+        issue.integration = Mock(
+            state="ready",
+            task_branch="OOMPAH-814",
+            head_sha="a" * 40,
+            base_branch="main",
+            base_sha="c" * 40,
+            integrated_sha=None,
+        )
+
+        fingerprint = compute_issue_evidence_fingerprint(issue, "proj-1")
+
+        expected = compute_evidence_fingerprint(
+            requirements_text="Description",
+            project_id="proj-1",
+            task_id="OOMPAH-814",
+            source_branch="OOMPAH-814",
+            source_sha="a" * 40,
+            target_branch="main",
+            target_sha="c" * 40,
+        )
+        assert fingerprint == expected
+
     def test_compute_fingerprint_prefers_explicit_work_branch_over_epic_branch(self) -> None:
         """Explicit work_branch takes precedence over epic branch resolution."""
         issue = Issue(

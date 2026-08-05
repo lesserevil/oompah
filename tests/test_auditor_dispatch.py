@@ -250,6 +250,22 @@ def test_branch_key_is_shared_by_epic_children_and_explicit_branches():
     ) == "feature/shared"
 
 
+def test_branch_key_prefers_accepted_generation_over_stale_projection():
+    issue = SimpleNamespace(
+        identifier="OOMPAH-814",
+        project_id="project-a",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-814",
+        branch_name="epic-OOMPAH-763--task-OOMPAH-814",
+        integration=SimpleNamespace(
+            state="ready",
+            task_branch="OOMPAH-814",
+            head_sha="a" * 40,
+        ),
+    )
+
+    assert audit_branch_key(issue) == "OOMPAH-814"
+
+
 def test_finish_attempt_classifies_transient_failures():
     """Transient failures (launch error, timeout, etc.) are classified as INFRASTRUCTURE_ERROR."""
     from oompah.terminal_audit import FailureClassification

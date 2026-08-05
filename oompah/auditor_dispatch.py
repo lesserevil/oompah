@@ -17,6 +17,7 @@ from oompah.auditor_candidate_selector import (
     AuditorCandidateSelector,
     NoCandidateReason,
 )
+from oompah.integration import accepted_submission_branch
 from oompah.roles import Candidate
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -57,6 +58,9 @@ def parse_timestamp(value: str | None) -> datetime | None:
 def audit_branch_key(issue: Any) -> str:
     """Return the branch identity shared by auditors and implementation work."""
 
+    accepted_branch = accepted_submission_branch(issue)
+    if accepted_branch:
+        return accepted_branch
     for attr in ("work_branch", "branch_name"):
         value = str(getattr(issue, attr, "") or "").strip()
         if value:
