@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-829
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Migrate legacy equivalent Done-override fingerprints for structural maintenance
   tasks
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:21:44.684301Z'
+updated_at: '2026-08-05T19:32:23.155374Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -83,6 +83,45 @@ oompah.review_number: '723'
 oompah.work_branch: OOMPAH-829
 oompah.target_branch: main
 oompah.review_head: 8c262588c86e873665bc92fe0b885f6d734412bf
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d628e5e4235c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-829
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T19:32:10.611419+00:00'
+  - version: 1
+    audit_id: audit-fbd06944968b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-829
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6d4ce17424480a510530e13b63a9b8d6b439bbec3840a24140bbf26a277c620e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T19:32:10.611419+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -172,5 +211,15 @@ author: oompah
 created: 2026-08-05 19:20
 ---
 Branch quality gate passed for `8c262588c86e873665bc92fe0b885f6d734412bf` using `make test` in 634.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 19:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 19:32
+---
+YOLO: merged PR #723.
 ---
 <!-- COMMENTS:END -->
