@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-814
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make submit-queue dispatch fixtures deterministic under full-gate load
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:23:52.257756Z'
+updated_at: '2026-08-05T00:26:02.522725Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,6 +65,7 @@ oompah.integration:
     \ short test summary info ============================\nFAILED tests/test_orchestrator_merged.py::TestShouldDispatchCompleted::test_short_description_accepted\n\
     = 1 failed, 15694 passed, 8 skipped, 1 xfailed, 48 warnings in 826.72s (0:13:46)\
     \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+oompah.agent_run_id: f2fb949e-5b8b-4c02-b32d-2ada5f975cf6
 ---
 ## Summary
 
@@ -159,5 +160,10 @@ FAILED tests/test_orchestrator_merged.py::TestShouldDispatchCompleted::test_shor
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-05 00:26
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
