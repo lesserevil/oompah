@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-842
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bootstrap native validation guard provider fix onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T18:52:40.896459Z'
+updated_at: '2026-08-05T20:45:31.816957Z'
 work_branch: null
 target_branch: null
 review_url: null
