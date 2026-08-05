@@ -212,8 +212,7 @@ from oompah.terminal_audit_health import (
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
-    is_audit_infrastructure_retryable,
-    is_audit_evidence_retryable,
+    audit_recovery_mode,
 )
 from oompah.workflow_contract import (
     LIFECYCLE_FINAL_STATUSES,
@@ -8581,6 +8580,7 @@ class Orchestrator:
         project_id: str,
         task_id: str,
         target_state: TargetState,
+        evidence_fingerprint: EvidenceFingerprint | None = None,
     ) -> str | None:
         """Determine the appropriate recovery mode for a completed terminal audit.
 
@@ -8590,17 +8590,21 @@ class Orchestrator:
         - None: if no recovery is possible or record not found
 
         This function queries the terminal audit metadata store synchronously
-        to inspect the COMPLETED record and determine what recovery actions
-        are valid based on the terminal attempt's failure classification.
+        to inspect the newest completed record and determine what recovery
+        action is valid based on the terminal attempt's failure classification.
+        When a current fingerprint is supplied, the record must match it; an
+        old alert must never advertise a retry that the coordinator will fence.
         """
         try:
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, project_id
             )
-            doc = store.load()
-            
-            # Find the most recent COMPLETED record for this task and target
+            doc = store.read(task_id)
+
+            # The chain is ordered by durable append order.  The newest
+            # matching record is authoritative, including a successful audit
+            # or an active retry that must suppress recovery guidance.
             matching = [
                 record
                 for record in doc.pending_chain
@@ -8608,27 +8612,16 @@ class Orchestrator:
                 and record.project_id == project_id
                 and record.task_id in {task_id, str(task_id)}
             ]
-            
-            # Find the most recent COMPLETED record
-            completed = next(
-                (
-                    record
-                    for record in reversed(matching)
-                    if record.request_state == RequestState.COMPLETED
-                ),
-                None,
-            )
-            
-            if completed is None:
+
+            latest = matching[-1] if matching else None
+            if latest is None or latest.request_state != RequestState.COMPLETED:
                 return None
-            
-            # Check what recovery modes are available based on terminal failure
-            if is_audit_evidence_retryable(completed):
-                return "evidence_addendum"
-            elif is_audit_infrastructure_retryable(completed):
-                return "infrastructure"
-            else:
+            if (
+                evidence_fingerprint is not None
+                and latest.evidence_fingerprint != evidence_fingerprint
+            ):
                 return None
+            return audit_recovery_mode(latest)
         except Exception as exc:
             logger.warning(
                 "Could not determine recovery mode for %s/%s: %s",
@@ -8672,12 +8665,17 @@ class Orchestrator:
             message = (
                 f"Integrated task {task_id} at {integrated_sha} has no active terminal "
                 f"audit ({reason}). An authenticated project owner can rearm target "
-                f"{target_state} to retry the audit; the task remains fail-closed."
+                f"{target_state} with `audit_retry` to retry the audit; the task "
+                "remains fail-closed."
             )
         else:
-            # No known recovery action; don't emit an alert
+            # Remove a stale actionable warning if the durable outcome is no
+            # longer retryable (for example after a PASS or fingerprint change).
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
             return False
-        
+
         existing = next(
             (alert for alert in self._alerts if alert.get("source") == source),
             None,
@@ -12447,6 +12445,7 @@ class Orchestrator:
                 item.project_id,
                 item.task_id,
                 TargetState.DONE,
+                evidence_fingerprint=fingerprint,
             )
             alert_added = self._arm_integrated_audit_recovery_alert(
                 item.project_id,

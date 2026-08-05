@@ -954,6 +954,9 @@ def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     assert response.json()["audit_id"] == "audit-retry-1"
     assert coordinator.retries[0]["requested_target"] is TargetState.ARCHIVED
     assert coordinator.retries[0]["reason"] == "Detached audit checkout is deployed"
+    assert coordinator.retries[0]["evidence_fingerprint"] == (
+        server_module._terminal_evidence_fingerprint(issue, "proj-1")
+    )
     assert tracker.status_updates == []
 
 

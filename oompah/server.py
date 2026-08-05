@@ -6262,10 +6262,11 @@ async def _stage_terminal_transition(
                     project_id=str(project_id),
                     reason=retry_reason,
                     project=_project_by_id(orch, str(project_id)),
-                    evidence_fingerprint=(
-                        _terminal_evidence_fingerprint(current_issue, str(project_id))
-                        if evidence_addendum is not None
-                        else None
+                    # Both recovery modes are fenced to the exact current
+                    # evidence snapshot.  Addenda add validation data, but
+                    # infrastructure rearm must not revive an older head.
+                    evidence_fingerprint=_terminal_evidence_fingerprint(
+                        current_issue, str(project_id)
                     ),
                     evidence_addendum=evidence_addendum,
                 )

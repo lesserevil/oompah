@@ -28,7 +28,17 @@ from oompah.statuses import (
     OPEN,
     READY_TO_INTEGRATE,
 )
-from oompah.terminal_audit import compute_issue_evidence_fingerprint
+from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
+    FailureClassification,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
 
 
@@ -106,6 +116,39 @@ def _blocked_row(orchestrator: Orchestrator, project: Project, issue: Issue):
     return row
 
 
+def _seed_completed_audit(
+    tracker,
+    issue: Issue,
+    classifications: list[FailureClassification],
+) -> None:
+    """Seed the durable terminal outcome used by the recovery sweep."""
+    fingerprint = compute_issue_evidence_fingerprint(issue, "proj-1")
+    attempts = [
+        AuditAttempt(
+            attempt_id=f"attempt-{index}",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.FAIL,
+            failure_classification=classification,
+        )
+        for index, classification in enumerate(classifications)
+    ]
+    record = TerminalAuditRecord(
+        audit_id="audit-recovery-1",
+        project_id="proj-1",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=attempts,
+        requested_by=ContributorIdentity("auditor", "test"),
+    )
+    tracker.get_metadata.return_value = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+
+
 def _close(orchestrator: Orchestrator) -> None:
     orchestrator.integration_queue.close()
     orchestrator.coordination_store.close()
@@ -117,7 +160,15 @@ def _close(orchestrator: Orchestrator) -> None:
 def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(tmp_path):
     issue = _issue(state="Needs Human", integration_state="integrated")
     issue.integration = replace(issue.integration, integrated_sha="c" * 40)
-    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    _seed_completed_audit(
+        tracker,
+        issue,
+        [
+            FailureClassification.FINALIZATION_FAILURE,
+            FailureClassification.NO_AUDITOR,
+        ],
+    )
     orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
     try:
         orchestrator.integration_queue.enqueue(
@@ -154,7 +205,8 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
         ]
         assert len(alerts) == 1
         assert "c" * 40 in alerts[0]["message"]
-        assert "audit_retry_evidence_addendum" in alerts[0]["message"]
+        assert "audit_retry" in alerts[0]["message"]
+        assert "audit_retry_evidence_addendum" not in alerts[0]["message"]
         assert (
             orchestrator.request_terminal_transition.call_args.kwargs[
                 "evidence_fingerprint"
@@ -168,6 +220,51 @@ def test_integrated_audit_failure_arms_one_recovery_alert_without_warning_loop(t
             alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
             for alert in orchestrator._alerts
         )
+    finally:
+        _close(orchestrator)
+
+
+def test_integrated_audit_recovery_alert_uses_evidence_addendum_only_for_missing_evidence(
+    tmp_path,
+):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="c" * 40)
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    _seed_completed_audit(tracker, issue, [FailureClassification.MISSING_EVIDENCE])
+    orchestrator.project_store.epic_branch_name.return_value = "epic-EPIC-1"
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            lease_owner="worker-1",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orchestrator.integration_queue.complete(
+            project.id, issue.identifier, lease_owner="worker-1"
+        )
+        orchestrator.request_terminal_transition = mock.AsyncMock(
+            return_value=TransitionResult(success=False, reason="already completed")
+        )
+
+        asyncio.run(orchestrator._stage_integrated_task_audit(claimed))
+
+        alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+        ]
+        assert len(alerts) == 1
+        assert "audit_retry_evidence_addendum" in alerts[0]["message"]
+        assert "with `audit_retry`" not in alerts[0]["message"]
     finally:
         _close(orchestrator)
 

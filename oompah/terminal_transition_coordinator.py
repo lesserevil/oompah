@@ -250,6 +250,26 @@ def _terminal_attempt(record: TerminalAuditRecord) -> AuditAttempt | None:
     return record.attempts[-1]
 
 
+def audit_recovery_mode(record: TerminalAuditRecord) -> str | None:
+    """Return the one supported recovery mode for a completed audit record.
+
+    Recovery is decided from the terminal attempt only.  Earlier attempts are
+    retained as audit history, but cannot make a terminal outcome less or more
+    recoverable.  Keeping this decision in one helper makes the alert producer
+    and the owner retry mutation use the same classification contract.
+    """
+    if record.request_state != RequestState.COMPLETED:
+        return None
+    terminal = _terminal_attempt(record)
+    if terminal is None or terminal.failure_classification is None:
+        return None
+    if terminal.failure_classification in _EVIDENCE_REARM_CLASSES:
+        return "evidence_addendum"
+    if terminal.failure_classification in _INFRASTRUCTURE_RETRYABLE_CLASSES:
+        return "infrastructure"
+    return None
+
+
 def is_audit_infrastructure_retryable(record: TerminalAuditRecord) -> bool:
     """Determine if a completed audit record can be retried via infrastructure recovery.
 
@@ -259,12 +279,7 @@ def is_audit_infrastructure_retryable(record: TerminalAuditRecord) -> bool:
 
     Returns ``False`` if the record is not completed or has no attempts.
     """
-    if record.request_state != RequestState.COMPLETED:
-        return False
-    terminal = _terminal_attempt(record)
-    if terminal is None or terminal.failure_classification is None:
-        return False
-    return terminal.failure_classification in _INFRASTRUCTURE_RETRYABLE_CLASSES
+    return audit_recovery_mode(record) == "infrastructure"
 
 
 def is_audit_evidence_retryable(record: TerminalAuditRecord) -> bool:
@@ -276,12 +291,7 @@ def is_audit_evidence_retryable(record: TerminalAuditRecord) -> bool:
 
     Returns ``False`` if the record is not completed or has no attempts.
     """
-    if record.request_state != RequestState.COMPLETED:
-        return False
-    terminal = _terminal_attempt(record)
-    if terminal is None or terminal.failure_classification is None:
-        return False
-    return terminal.failure_classification in _EVIDENCE_REARM_CLASSES
+    return audit_recovery_mode(record) == "evidence_addendum"
 
 
 def classify_failure_to_status(
@@ -991,11 +1001,12 @@ class TerminalTransitionCoordinator:
         repeated request coalesces with that pending record.
 
         ``evidence_addendum`` is the explicit evidence-only recovery contract.
-        It is accepted only for an audit whose completed attempts all failed
-        with ``MISSING_EVIDENCE`` and only when the caller supplies the exact
-        current canonical fingerprint.  The addendum records which named
-        checks were supplied; it never changes the fingerprint or bypasses
-        the independent auditor.
+        It is accepted only for an audit whose terminal attempt failed with
+        ``MISSING_EVIDENCE`` and only when the caller supplies the exact
+        current canonical fingerprint.  Infrastructure recovery is fenced by
+        that same fingerprint even though it does not carry an addendum.  The
+        addendum records which named checks were supplied; it never changes
+        the fingerprint or bypasses the independent auditor.
         """
 
         requested_target = TargetState.from_raw(requested_target)
@@ -1025,39 +1036,38 @@ class TerminalTransitionCoordinator:
             evidence_addendum, Mapping
         ):
             raise TypeError("evidence_addendum must be a mapping")
+        if not isinstance(evidence_fingerprint, EvidenceFingerprint):
+            return TransitionResult(
+                success=False,
+                reason="evidence_fingerprint_mismatch",
+            )
 
         def _operation() -> TransitionResult:
+            tracker = self._tracker_for_project(project_id)
+            locked_issue, locked_fingerprint = self._refresh_override_evidence(
+                tracker,
+                current_issue,
+                project_id,
+                evidence_fingerprint,
+            )
+            if locked_fingerprint != evidence_fingerprint:
+                return TransitionResult(
+                    success=False,
+                    reason="evidence_fingerprint_mismatch",
+                )
             lifecycle_conflict = self._lifecycle_conflict(
-                current_issue, requested_target, project_id
+                locked_issue, requested_target, project_id
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
             self._revoke_delivery_for_terminal_transition(
                 project_id,
-                current_issue.identifier,
+                locked_issue.identifier,
             )
-            tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            locked_fingerprint = evidence_fingerprint
             if evidence_addendum is not None:
-                if not isinstance(evidence_fingerprint, EvidenceFingerprint):
-                    return TransitionResult(
-                        success=False,
-                        reason="evidence_fingerprint_mismatch",
-                    )
-                _, locked_fingerprint = self._refresh_override_evidence(
-                    tracker,
-                    current_issue,
-                    project_id,
-                    evidence_fingerprint,
-                )
-                if locked_fingerprint != evidence_fingerprint:
-                    return TransitionResult(
-                        success=False,
-                        reason="evidence_fingerprint_mismatch",
-                    )
                 supplied_fingerprint = evidence_addendum.get(
                     "evidence_fingerprint",
                     evidence_addendum.get("fingerprint"),
@@ -1096,7 +1106,7 @@ class TerminalTransitionCoordinator:
                     if record.target_state == requested_target
                     and record.project_id == project_id
                     and record.task_id
-                    in {current_issue.identifier, str(current_issue.id or "")}
+                    in {locked_issue.identifier, str(locked_issue.id or "")}
                 ]
                 active = next(
                     (
@@ -1116,26 +1126,39 @@ class TerminalTransitionCoordinator:
                     )
                     return doc
 
-                exhausted = next(
-                    (
-                        record
-                        for record in reversed(matching)
-                        if record.request_state == RequestState.COMPLETED
-                        and record.attempts
-                        and (
-                            (
-                                evidence_addendum is not None
-                                and locked_fingerprint is not None
-                                and record.evidence_fingerprint == locked_fingerprint
-                                and is_audit_evidence_retryable(record)
-                            )
-                            or (
-                                evidence_addendum is None
-                                and is_audit_infrastructure_retryable(record)
-                            )
-                        )
-                    ),
-                    None,
+                # Only the newest record is authoritative.  Looking farther
+                # back would let an old failed audit bypass a newer PASS (or
+                # a newer changed-fingerprint failure), violating successful
+                # audit finality.
+                latest = matching[-1] if matching else None
+                desired_mode = (
+                    "evidence_addendum"
+                    if evidence_addendum is not None
+                    else "infrastructure"
+                )
+                latest_mode = (
+                    audit_recovery_mode(latest)
+                    if latest is not None
+                    else None
+                )
+                if (
+                    latest is not None
+                    and latest.request_state == RequestState.COMPLETED
+                    and latest_mode == desired_mode
+                    and latest.evidence_fingerprint != locked_fingerprint
+                ):
+                    decision = TransitionResult(
+                        success=False,
+                        reason="evidence_fingerprint_mismatch",
+                    )
+                    return doc
+                exhausted = (
+                    latest
+                    if latest is not None
+                    and latest.request_state == RequestState.COMPLETED
+                    and latest_mode == desired_mode
+                    and latest.evidence_fingerprint == locked_fingerprint
+                    else None
                 )
                 if exhausted is None:
                     return doc
@@ -1150,7 +1173,7 @@ class TerminalTransitionCoordinator:
                 ]
                 fresh = _make_record(
                     project_id,
-                    current_issue.identifier,
+                    locked_issue.identifier,
                     requested_target,
                     exhausted.evidence_fingerprint,
                     authorized_actor,
@@ -1167,7 +1190,7 @@ class TerminalTransitionCoordinator:
                         "audit_id": fresh.audit_id,
                         "superseded_audit_id": exhausted.audit_id,
                         "project_id": project_id,
-                        "task_id": current_issue.identifier,
+                        "task_id": locked_issue.identifier,
                         "target_state": requested_target.value,
                         "actor": authorized_actor.to_dict(),
                         "reason": redact_terminal_audit_text(reason.strip()),
@@ -1200,7 +1223,7 @@ class TerminalTransitionCoordinator:
                 )
 
             try:
-                store.update(current_issue.identifier, _updater)
+                store.update(locked_issue.identifier, _updater)
             except TerminalAuditMetadataQuarantinedError:
                 return TransitionResult(
                     success=False,
@@ -1211,19 +1234,19 @@ class TerminalTransitionCoordinator:
                 return decision
 
             try:
-                tracker.update_issue(current_issue.identifier, status=IN_VALIDATION)
+                tracker.update_issue(locked_issue.identifier, status=IN_VALIDATION)
                 decision.status_staged = True
             except Exception:
                 logger.exception(
                     "Failed to restore In Validation for retried audit %s",
-                    current_issue.identifier,
+                    locked_issue.identifier,
                 )
                 return decision
 
             if not decision.coalesced:
                 try:
                     tracker.add_comment(
-                        current_issue.identifier,
+                        locked_issue.identifier,
                         "Terminal audit rearmed by project owner after recovery: "
                         f"{reason.strip()}",
                         author="oompah",
@@ -1231,25 +1254,25 @@ class TerminalTransitionCoordinator:
                 except Exception:
                     logger.exception(
                         "Failed to post terminal-audit retry comment for %s",
-                        current_issue.identifier,
+                        locked_issue.identifier,
                     )
             if retired_audit_id:
                 self._record_metric(
                     "record_stale_discarded",
                     project_id,
-                    current_issue.identifier,
+                    locked_issue.identifier,
                     retired_audit_id,
                 )
                 self._clear_retired_alert(
                     project_id,
-                    current_issue.identifier,
+                    locked_issue.identifier,
                     retired_audit_id,
                 )
             if decision.audit_id and not decision.coalesced:
                 self._record_metric(
                     "record_queued",
                     project_id,
-                    current_issue.identifier,
+                    locked_issue.identifier,
                     decision.audit_id,
                 )
             return decision
@@ -3430,6 +3453,7 @@ __all__ = [
     "ResultRejection",
     "TerminalTransitionCoordinator",
     "TransitionResult",
+    "audit_recovery_mode",
     "classify_failure_to_status",
     "is_audit_evidence_retryable",
     "is_audit_infrastructure_retryable",

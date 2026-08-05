@@ -1958,6 +1958,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Detached audit checkout support is deployed.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
@@ -1992,9 +1993,12 @@ class TestRetryFailedAudit:
             "Workspace transport repaired.",
             self._owner_project(),
         )
+        kwargs = {
+            "evidence_fingerprint": _exhausted_no_auditor_record().evidence_fingerprint,
+        }
 
-        first = _run(coordinator.retry_failed_audit(*args))
-        second = _run(coordinator.retry_failed_audit(*args))
+        first = _run(coordinator.retry_failed_audit(*args, **kwargs))
+        second = _run(coordinator.retry_failed_audit(*args, **kwargs))
 
         assert first.success is True
         assert second.success is True
@@ -2190,6 +2194,82 @@ class TestRetryFailedAudit:
         assert result.success is False
         assert result.reason == "audit_not_retryable"
 
+    def test_newer_successful_audit_fences_older_retryable_failure(self) -> None:
+        """A completed PASS is final even when an older failure was retryable."""
+        failed = _exhausted_no_auditor_record()
+        passed = replace(
+            failed,
+            audit_id="audit-newer-pass",
+            attempts=[
+                replace(
+                    failed.attempts[-1],
+                    attempt_id="newer-pass",
+                    verdict=Verdict.PASS,
+                    failure_classification=None,
+                )
+            ],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [failed, passed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry the historical failure",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [failed, passed]
+
+    def test_infrastructure_retry_requires_current_fingerprint(self) -> None:
+        """Infrastructure recovery cannot rearm an audit from another head."""
+        failed = _exhausted_no_auditor_record()
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [failed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry after infrastructure repair",
+                self._owner_project(),
+                evidence_fingerprint=_alt_fingerprint(),
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_fingerprint_mismatch"
+
+    def test_infrastructure_retry_without_fingerprint_fails_closed(self) -> None:
+        failed = _exhausted_no_auditor_record()
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [failed])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Retry after infrastructure repair",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_fingerprint_mismatch"
+
     def test_mixed_attempt_history_infrastructure_retry_succeeds(self) -> None:
         """OOMPAH-745: mixed attempt history should not block infrastructure retry.
 
@@ -2212,6 +2292,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Auditor provider repaired and redeployed.",
                 self._owner_project(),
+                evidence_fingerprint=mixed.evidence_fingerprint,
             )
         )
 
@@ -3523,6 +3604,37 @@ class TestRetryEligibilityFunctions:
         )
         
         assert is_audit_infrastructure_retryable(record) is True
+
+    @pytest.mark.parametrize(
+        "classification",
+        [
+            FailureClassification.NO_AUDITOR,
+            FailureClassification.INFRASTRUCTURE_ERROR,
+            FailureClassification.POLICY_INCOMPATIBILITY,
+        ],
+    )
+    def test_all_infrastructure_recovery_classifications_share_one_mode(
+        self, classification: FailureClassification
+    ) -> None:
+        record = replace(
+            _exhausted_no_auditor_record(),
+            attempts=[
+                replace(
+                    _exhausted_no_auditor_record().attempts[-1],
+                    failure_classification=classification,
+                )
+            ],
+        )
+
+        from oompah.terminal_transition_coordinator import (
+            audit_recovery_mode,
+            is_audit_evidence_retryable,
+            is_audit_infrastructure_retryable,
+        )
+
+        assert audit_recovery_mode(record) == "infrastructure"
+        assert is_audit_infrastructure_retryable(record) is True
+        assert is_audit_evidence_retryable(record) is False
 
     def test_evidence_retryable_for_missing_evidence_terminal(self) -> None:
         """MISSING_EVIDENCE terminal failure is retryable via evidence addendum."""
