@@ -5,7 +5,9 @@ status: In Progress
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
-children: []
+children:
+- OOMPAH-834
+- OOMPAH-835
 blocked_by:
 - OOMPAH-781
 - OOMPAH-782
@@ -19,7 +21,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T16:31:23.081300Z'
+updated_at: '2026-08-05T16:38:34.385495Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
