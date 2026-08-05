@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T20:22:57.415316Z'
+updated_at: '2026-08-05T20:23:24.632729Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -59,10 +59,10 @@ oompah.integration:
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
   head_sha: 2af2f103d0375e267de1bcf542d06825bce80d44
   submitted_at: '2026-08-05T20:22:51.265104+00:00'
-  updated_at: '2026-08-05T20:22:51.265104+00:00'
+  updated_at: '2026-08-05T20:23:22.443379+00:00'
 oompah.task_costs:
-  total_input_tokens: 46681
-  total_output_tokens: 2620
+  total_input_tokens: 46798
+  total_output_tokens: 39745
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -72,6 +72,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 85
       output_tokens: 2021
+      cost_usd: 0.0
+    opus:
+      input_tokens: 117
+      output_tokens: 37125
       cost_usd: 0.0
   runs:
   - profile: default
@@ -98,6 +102,12 @@ oompah.task_costs:
     output_tokens: 2021
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:22:11.940904+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 117
+    output_tokens: 37125
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:23:14.464860+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-796__20260804T212503Z
@@ -108,6 +118,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-770--task-OOMPAH-796
     source_sha: a681ec2fc005f339063b3b8e2a139b8ae0b3c379
     completed_at: '2026-08-04T21:25:30.786143+00:00'
+  - run_id: OOMPAH-796__20260805T192450Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: oompah_tests
+    source_branch: epic-OOMPAH-770--task-OOMPAH-796
+    source_sha: 2af2f103d0375e267de1bcf542d06825bce80d44
+    completed_at: '2026-08-05T20:23:14.469433+00:00'
 ---
 ## Summary
 
@@ -350,5 +368,20 @@ author: oompah
 created: 2026-08-05 20:22
 ---
 Fenced integration overlay to exact head, honoured retry_forced authority, wired IntegrationQueueStore into production facts, reordered live_claim_precedes_history ahead of tracker action_required, and added generation-race and restart-convergence regressions.
+---
+author: oompah
+created: 2026-08-05 20:23
+---
+Agent completed successfully in 3579s (37242 tokens)
+---
+author: oompah
+created: 2026-08-05 20:23
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 154, Tool calls: 111
+- Tokens: 117 in / 37.1K out [37.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 59m 39s
+- Log: OOMPAH-796__20260805T192450Z.jsonl
 ---
 <!-- COMMENTS:END -->
