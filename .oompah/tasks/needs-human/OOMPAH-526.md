@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:09:58.663709Z'
+updated_at: '2026-08-05T00:10:42.078687Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -501,5 +501,17 @@ author: oompah
 created: 2026-08-05 00:09
 ---
 The parent epic OOMPAH-521 merged from epic-OOMPAH-521, but this task was Needs Human with work branch epic-OOMPAH-521. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-05 00:10
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #13)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current review 567 is merged
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
