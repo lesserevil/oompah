@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T15:44:15.632077Z'
+updated_at: '2026-08-05T15:48:46.716894Z'
 work_branch: null
 target_branch: null
 review_url: null
