@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T19:20:22.968969Z'
+updated_at: '2026-08-05T19:20:33.669468Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -139,8 +139,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-adbaaac8362f
-    applied: false
+    applied: true
     created_at: '2026-08-05T19:20:19.180745+00:00'
+    applied_at: '2026-08-05T19:20:30.516152+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1468,5 +1469,23 @@ author: oompah
 created: 2026-08-05 18:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 19:20
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head: e1b0f4846054bacac48e667295e2c00733d86d8c
+- task_branch: OOMPAH-505
+- landed_commits: 59a06459a; 5cf99179e; ab00e7cf3
+- focused_tests: test_acp_backends+test_providers+test_providers_ui=152 passed; test_providers_role_matrix=89 passed; test_role_store=105 passed; test_roles_api=53 passed; test_acp_agent=50 passed; test_orchestrator_handlers role/model=42 passed
+- six_mapping_test: tests/test_acp_agent.py::TestAcpWorkerModelHandoff::test_explicit_role_model_reaches_acp_session — 6 params (claude-haiku, claude-sonnet, claude-opus, codex-gpt-5.6-luna, codex-gpt-5.6-terra, codex-gpt-5.6-sol) all pass
+- capability_split_evidence: oompah/server.py:13780 has_catalog=callable(getattr(cls, fetch_models, None)); 13781 supports_manual=bool(cls.supports_manual_model_selection()); 13807 supports_model_selection=has_catalog or supports_manual
+- ui_manual_input: oompah/templates/providers.html: providerSupportsManualModels() gated on desc.supports_manual_model_selection; fetch_note documents SDK-default fallback
+- role_store_shape: oompah/roles.py: Role(strategy in {priority, round_robin}, candidates=[Candidate(provider_id, model)]); legacy single-candidate format promoted to one-candidate priority role for backward compat
+- description_deviation_note: Fast Claude candidate is haiku (not fable) per documented live-verification correction; sonnet/opus and Codex trio unchanged
 ---
 <!-- COMMENTS:END -->
