@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:56:44.687982Z'
+updated_at: '2026-08-05T05:58:19.414816Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -161,5 +161,23 @@ Updated retry_failed_audit() to use these functions instead of all() check over 
 Key insight: Retryability should be determined from terminal exhaustion outcome only. Prior attempt history is preserved for audit trail but doesn't block retry.
 
 Added two comprehensive tests for mixed-attempt scenarios that now pass. All 134 terminal transition tests pass, all 58 terminal audit tests pass.
+---
+author: oompah
+created: 2026-08-05 05:58
+---
+Verification Complete:
+
+Tests passing:
+- 134/134 terminal_transition_coordinator tests (including 2 new mixed-attempt tests)
+- 58/58 terminal_audit + observability tests  
+- 47/47 terminal_audit_metadata + override tests
+
+New functions successfully exported and importable:
+- is_audit_infrastructure_retryable()
+- is_audit_evidence_retryable()
+
+Fix addresses core issue: Mixed attempt histories (FINALIZATION_FAILURE + terminal NO_AUDITOR) no longer block infrastructure retry. Retryability is now determined solely from terminal attempt classification, preserving prior attempt history for audit trail purposes.
+
+Alert/action parity achieved: retry_failed_audit() now uses same eligibility logic that should be used by recovery alert emission (ready for next agent to integrate alert-side changes).
 ---
 <!-- COMMENTS:END -->
