@@ -21,6 +21,7 @@ from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import RecoveryPublicationError
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
@@ -296,6 +297,120 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
     
     # 3. Should remain in completed state for integration queue
     assert issue.id in orch.state.completed
+
+
+@pytest.mark.asyncio
+async def test_unpublished_active_operation_checkpoint_blocks_integration(tmp_path):
+    """commit-tree recovery can leave HEAD unchanged and still fence Ready."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue(state="In Progress")
+    workspace = _create_test_worktree(tmp_path)
+    submitted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    record = IntegrationRecord(state="ready", head_sha=submitted_head)
+    entry = RunningEntry(
+        worker_task=asyncio.sleep(0),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=workspace,
+    )
+    context = {
+        "project_id": issue.project_id,
+        "issue_identifier": issue.identifier,
+        "snapshot_head": "b" * 40,
+        "pending_ref": "refs/oompah/recovery-pending/TASK-1",
+        "recovery_ref": "refs/oompah/recovery/TASK-1",
+    }
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    store = MagicMock()
+    store.preserve_worktree_changes.side_effect = RecoveryPublicationError(
+        "transfer interrupted",
+        context=context,
+    )
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.completed.add(issue.id)
+    orch._post_comment = MagicMock()
+
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", store),
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+
+    tracker.update_issue.assert_called_once_with(issue.identifier, status=OPEN)
+    assert not any(
+        call.kwargs.get("status") == READY_TO_INTEGRATE
+        for call in tracker.update_issue.call_args_list
+    )
+    assert (issue.project_id, issue.identifier) in orch._pending_recovery_publications
+    assert issue.id not in orch.state.completed
+
+
+@pytest.mark.asyncio
+async def test_published_commit_tree_checkpoint_with_unchanged_head_reopens(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue(state="In Progress")
+    workspace = _create_test_worktree(tmp_path)
+    submitted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    record = IntegrationRecord(state="ready", head_sha=submitted_head)
+    entry = RunningEntry(
+        worker_task=asyncio.sleep(0),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=workspace,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    store = MagicMock()
+    store.preserve_worktree_changes.return_value = {
+        "snapshot_head": "c" * 40,
+        "recovery_ref": "refs/oompah/recovery/TASK-1",
+        "publication_state": "published",
+    }
+    orch.state.running[issue.id] = entry
+    orch.state.completed.add(issue.id)
+    orch._post_comment = MagicMock()
+
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", store),
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+
+    tracker.update_issue.assert_called_once_with(issue.identifier, status=OPEN)
+    assert issue.id not in orch.state.completed
 
 
 @pytest.mark.asyncio
