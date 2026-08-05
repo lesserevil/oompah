@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T08:24:16.282762Z'
+updated_at: '2026-08-05T08:24:34.334687Z'
 work_branch: null
 target_branch: null
 review_url: null
