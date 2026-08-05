@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T13:13:31.163643Z'
+updated_at: '2026-08-05T13:14:02.686999Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -34,6 +34,45 @@ oompah.review_number: '721'
 oompah.work_branch: OOMPAH-825
 oompah.target_branch: main
 oompah.review_head: 11c75e6c1b86f16837c13efb32938f814f362b79
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5ffc50b0397d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-825
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1446e7a5635bf07712e5dc07c6bcf7c4d386aee89bb245209cbf5f4c6138b71
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T13:13:49.463353+00:00'
+  - version: 1
+    audit_id: audit-073bdc9f703b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-825
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1446e7a5635bf07712e5dc07c6bcf7c4d386aee89bb245209cbf5f4c6138b71
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T13:13:49.463353+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -110,5 +149,15 @@ author: oompah
 created: 2026-08-05 13:13
 ---
 OOMPAH-826 containment/workaround complete for the current review generation: exact repaired head 11c75e6c1b86f16837c13efb32938f814f362b79 passed the complete Makefile gate (15,657 passed, 7 skipped, 1 expected xfail; 0 failures; 621.26s). GitHub CI on the same exact head is also green across Python 3.11/3.12/3.13. PR #721 was temporarily draft-held only to prevent merge before this missing exact-head local evidence existed; restoring it to ready now.
+---
+author: oompah
+created: 2026-08-05 13:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 13:14
+---
+YOLO: merged PR #721.
 ---
 <!-- COMMENTS:END -->
