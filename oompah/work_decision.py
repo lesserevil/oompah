@@ -71,6 +71,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "intake.awaiting_decision",
         "integration.active",
         "integration.dependencies_blocked",
+        "integration.gate_blocked",
         "integration.live_claim_precedes_history",
         "integration.queued",
         "integration.required_base_missing",
@@ -632,6 +633,25 @@ def _validation_decision(
             action=PermittedAction.RETRY_AUDIT,
             job="terminal_audit_recovery",
         )
+    # Quarantined or unsafe evidence cannot be automatically retried: the
+    # metadata is corrupt or the audit found an unsafe archive condition.
+    # Escalate immediately rather than spinning on revision/transport retry.
+    if bool(value.get("quarantined")) or bool(value.get("unsafe")):
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="operator.action_required",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    str(value.get("action_code") or "audit.evidence_unsafe"),
+                    "terminal_audit",
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
+        )
     if bool(value.get("action_required")):
         return _decision(
             task,
@@ -785,6 +805,27 @@ def _integration_decision(
             actions=(PermittedAction.CLAIM_INTEGRATION,),
             alert=AlertSeverity.INFO,
             durable_jobs=("integration_recovery",),
+        )
+    # A blocked gate result is authoritative for this exact head generation.
+    # No automatic integration_attempt may be scheduled until the operator
+    # provides explicit same-generation retry, a newer head, or repair
+    # evidence.  Escalate immediately so the stall is visible.
+    if value.get("state") == "blocked":
+        return _decision(
+            task,
+            facts,
+            disposition=TaskDisposition.ACTION_REQUIRED,
+            reason_code="integration.gate_blocked",
+            owner=WorkflowOwner.OPERATOR,
+            prerequisites=(
+                UnmetPrerequisite(
+                    "integration.gate_blocked",
+                    task.task_id,
+                    str(value.get("last_error") or "gate_blocked"),
+                ),
+            ),
+            actions=(PermittedAction.RESOLVE_OPERATOR_ACTION,),
+            alert=AlertSeverity.WARNING,
         )
     return _decision(
         task,

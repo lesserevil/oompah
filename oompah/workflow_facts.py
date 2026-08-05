@@ -21,11 +21,25 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import canonicalize_status
 from oompah.tracker import TrackerProtocol
+
+
+@runtime_checkable
+class IntegrationQueueProtocol(Protocol):
+    """Narrow queue-store surface needed for integration fact overlay.
+
+    Any object with this interface may be passed as ``integration_queue``
+    to :class:`WorkflowFactCollector`.  This keeps the collector decoupled
+    from the concrete ``IntegrationQueueStore`` implementation.
+    """
+
+    def get(self, project_id: str, task_id: str) -> Any | None:
+        """Return one queue row or None if the task is not queued."""
+        ...
 
 WORKFLOW_FACTS_SCHEMA_VERSION = 1
 LANDING_FACT_SCHEMA_VERSION = 1
@@ -799,6 +813,7 @@ class WorkflowFactCollector:
         tracker: TrackerProtocol,
         sources: Mapping[FactDomain | str, FactSource] | None = None,
         landing_collector: GitLandingCollector | None = None,
+        integration_queue: IntegrationQueueProtocol | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.project_id = _required_text(project_id, "project_id")
@@ -823,6 +838,7 @@ class WorkflowFactCollector:
             and landing_collector.project_id != self.project_id
         ):
             raise ValueError("landing collector project does not match fact collector")
+        self.integration_queue = integration_queue
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _now(self) -> tuple[datetime, str]:
@@ -908,6 +924,53 @@ class WorkflowFactCollector:
             now_iso,
             observations,
         )
+
+    def _overlay_integration_queue(
+        self,
+        tracker_value: dict[str, Any] | None,
+        task_id: str,
+        now_iso: str,
+    ) -> dict[str, Any] | None:
+        """Overlay durable IntegrationQueueStore state onto tracker integration.
+
+        The tracker's integration record can lag the queue when a worker has
+        claimed the item (state=integrating) or the gate returned a definitive
+        block (state=blocked) but the tracker has not yet been updated.  The
+        overlay makes the controller see the authoritative durable state so
+        it does not schedule a duplicate integration_attempt while one is
+        already active, and does not retry a definitively blocked head.
+        """
+        if self.integration_queue is None:
+            return tracker_value
+        try:
+            queue_row = self.integration_queue.get(self.project_id, task_id)
+        except Exception:  # noqa: BLE001 - queue evidence boundary
+            # A read error must not suppress valid tracker evidence.
+            return tracker_value
+        if queue_row is None:
+            return tracker_value
+        # Merge queue durable state into the tracker value.  Start from the
+        # tracker dict and overlay only the fields that the queue uniquely owns.
+        base: dict[str, Any] = dict(tracker_value) if tracker_value is not None else {}
+        queue_state = str(getattr(queue_row, "state", None) or "").strip()
+        if queue_state in ("integrating", "blocked"):
+            base["state"] = queue_state
+        if queue_state == "integrating":
+            lease_expires_at = getattr(queue_row, "lease_expires_at", None)
+            if lease_expires_at is not None:
+                try:
+                    expires_dt = datetime.fromtimestamp(float(lease_expires_at), tz=timezone.utc)
+                    base["lease_expires_at"] = _render_time(expires_dt)
+                except (TypeError, ValueError, OSError, OverflowError):
+                    pass
+            lease_owner = getattr(queue_row, "lease_owner", None)
+            if lease_owner:
+                base["lease_owner"] = str(lease_owner)
+        if queue_state == "blocked":
+            last_error = getattr(queue_row, "last_error", None)
+            if last_error:
+                base["last_error"] = str(last_error)
+        return base
 
     def collect(
         self,
@@ -995,6 +1058,9 @@ class WorkflowFactCollector:
                 source="tracker",
             )
         integration = _integration_value(issue)
+        integration = self._overlay_integration_queue(
+            integration, task_id, now_iso
+        )
         observations[FactDomain.INTEGRATION] = (
             FactObservation.known(
                 FactDomain.INTEGRATION,
