@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T13:35:19.971624Z'
+updated_at: '2026-08-05T13:35:38.083108Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -181,13 +181,13 @@ oompah.terminal_audit:
     started_at: '2026-08-05T13:33:13.936793+00:00'
     branch_key: OOMPAH-825
 oompah.task_costs:
-  total_input_tokens: 51
-  total_output_tokens: 8069
+  total_input_tokens: 70
+  total_output_tokens: 11828
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 51
-      output_tokens: 8069
+      input_tokens: 70
+      output_tokens: 11828
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -196,6 +196,12 @@ oompah.task_costs:
     output_tokens: 8069
     cost_usd: 0.0
     recorded_at: '2026-08-05T13:32:26.861922+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 19
+    output_tokens: 3759
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T13:35:35.436598+00:00'
 ---
 ## Summary
 
@@ -359,5 +365,15 @@ Safe evidence:
 - commit_trailer: canonical_oompah_no_model_attribution
 - prior_full_gate: 15657 passed, 7 skipped, 1 xfailed, 619.73s (recorded)
 - followup_open_bugs: OOMPAH-828, OOMPAH-829 (do not block Merged)
+---
+author: oompah
+created: 2026-08-05 13:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 18, Tool calls: 13
+- Tokens: 19 in / 3.8K out [3.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 19s
+- Log: OOMPAH-825__20260805T133326Z.jsonl
 ---
 <!-- COMMENTS:END -->
