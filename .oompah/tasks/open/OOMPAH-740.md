@@ -18,10 +18,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - rebase-requested
-- epic:rebasing
+- epic:stale
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-05T04:24:37.042739Z'
+updated_at: '2026-08-05T04:29:30.197543Z'
 work_branch: null
 target_branch: null
 review_url: null
