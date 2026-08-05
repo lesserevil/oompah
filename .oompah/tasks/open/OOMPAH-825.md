@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:42:28.220229Z'
+updated_at: '2026-08-05T12:49:02.051663Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
@@ -75,5 +75,19 @@ author: oompah
 created: 2026-08-05 12:42
 ---
 YOLO: CI tests failed on MR #721. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-05 12:49
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #6)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+**Evidence head:** `74c4b71cfab349bc782fff71188c97651f54f519`
+**Evidence result:** `comment_ci_passing`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
