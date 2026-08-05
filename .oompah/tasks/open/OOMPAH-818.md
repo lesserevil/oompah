@@ -7,12 +7,12 @@ title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
 children: []
 blocked_by:
-- OOMPAH-819
+- OOMPAH-820
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T03:06:51.987921Z'
+updated_at: '2026-08-05T03:10:17.124188Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
