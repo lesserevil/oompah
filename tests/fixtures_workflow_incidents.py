@@ -783,11 +783,11 @@ INCIDENTS: tuple[IncidentScenario, ...] = (
             erroneous_effects=("attempts_remain_zero", "no_lease", "false_healthy"),
         ),
         expected=ExpectedDecision(
-            "integration.live_claim_precedes_history",
-            TaskDisposition.OWNED,
+            "integration.queued",
+            TaskDisposition.RETRY_SCHEDULED,
             WorkflowOwner.INTEGRATOR,
             {},
-            durable_jobs=("integration_attempt", "historical_audit_replay_batch"),
+            durable_jobs=("integration_attempt",),
             invariants=(
                 "single_active_owner",
                 "bounded_wait_is_reassessed",

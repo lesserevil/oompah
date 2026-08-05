@@ -21,6 +21,7 @@ INTEGRATION_STATES = frozenset(
         "needs_human",
     }
 )
+INTEGRATION_MODES = frozenset({"queue", "standalone"})
 
 # ``working`` describes an implementation checkout that has not submitted a
 # generation yet.  Every other record state names evidence that has crossed
@@ -594,6 +595,11 @@ class IntegrationRecord:
     """Versioned tracker record describing one task's integration state."""
 
     state: str
+    # Durable delivery ownership selected by the service at submission time.
+    # ``standalone`` opens a review directly; ``queue`` lands through an epic
+    # integration row.  Legacy records may omit it and are derived from task
+    # containment by the workflow fact collector.
+    mode: str | None = None
     task_branch: str | None = None
     base_branch: str | None = None
     base_sha: str | None = None
@@ -628,6 +634,8 @@ class IntegrationRecord:
             )
         if self.state not in INTEGRATION_STATES:
             raise ValueError(f"unsupported integration state: {self.state!r}")
+        if self.mode is not None and self.mode not in INTEGRATION_MODES:
+            raise ValueError(f"unsupported integration mode: {self.mode!r}")
         if self.attempts < 0:
             raise ValueError("integration attempts cannot be negative")
 
@@ -671,6 +679,7 @@ class IntegrationRecord:
         return cls(
             version=INTEGRATION_RECORD_VERSION,
             state=str(value.get("state") or "").strip().lower(),
+            mode=_optional_text(value.get("mode")),
             task_branch=_optional_text(value.get("task_branch")),
             base_branch=_optional_text(value.get("base_branch")),
             base_sha=_optional_text(value.get("base_sha")),
@@ -695,6 +704,7 @@ class IntegrationRecord:
             "attempts": self.attempts,
         }
         for key in (
+            "mode",
             "task_branch",
             "base_branch",
             "base_sha",
