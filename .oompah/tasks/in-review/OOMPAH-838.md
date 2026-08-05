@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-838
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Preserve forced quality-gate retry through integration claim
 parent: null
@@ -11,12 +11,12 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T17:16:51.468440Z'
+updated_at: '2026-08-05T17:17:04.586282Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
 review_number: '722'
-review_head: null
+review_head: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
 merged_at: null
 oompah.integration:
   version: 2
@@ -30,6 +30,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/722
 oompah.review_number: '722'
 oompah.work_branch: OOMPAH-838
 oompah.target_branch: main
+oompah.review_head: 005e9e717de8cf1d77b4c3331df20ecc64c421e9
 ---
 ## Summary
 
