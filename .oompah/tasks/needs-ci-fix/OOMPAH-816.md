@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T09:51:16.549469Z'
+updated_at: '2026-08-05T10:08:34.286199Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -49,14 +49,51 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-816
   base_branch: epic-OOMPAH-763
   base_sha: 6a62d9658ecc5048bd7b26723927b3937d149989
   head_sha: e932a72167707d3cb7eaaf8e69fb53623eda7215
   submitted_at: '2026-08-05T09:51:10.536217+00:00'
-  updated_at: '2026-08-05T09:51:10.536217+00:00'
+  updated_at: '2026-08-05T10:08:23.595212+00:00'
+  last_error: "Combined-tree quality gate failed: ture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
+    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-g9omnj8e/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
+    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
+    \    headers, stream = encode_request(\n\ntests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration\n\
+    tests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected\n\
+    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88:\
+    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._context.run(self._callback,\
+    \ *self._args)\n  Enable tracemalloc to get traceback where the object was allocated.\n\
+    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_task_cost_telemetry.py::TestComputeRunCostRecord::test_recorded_at_is_iso_utc_string\n\
+    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py:2217:\
+    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    def __init__(self,\
+    \ name, parent):\n  Enable tracemalloc to get traceback where the object was allocated.\n\
+    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_process_start_and_immediate_exit\n\
+    tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_polling_resume_when_forwarder_process_dies\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-g9omnj8e/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
+    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
+    \ at 0x7e66f254b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
+    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
+    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
+    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
+    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
+    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
+    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
+    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
+    \ short test summary info ============================\nFAILED tests/test_gitlab_review_flows.py::TestGitLabRebaseConflictFlow::test_gitlab_rebase_conflict_falls_through_to_task\n\
+    FAILED tests/test_orchestrator_webhook_health.py::TestIsWebhookHealthy::test_webhook_just_at_threshold_boundary\n\
+    FAILED tests/test_provider_retirement.py::test_surviving_process_keeps_agent_and_audit_metrics_visible\n\
+    = 3 failed, 15939 passed, 8 skipped, 1 xfailed, 47 warnings in 991.00s (0:16:31)\
+    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
 oompah.task_costs:
   total_input_tokens: 47030
   total_output_tokens: 474
@@ -416,5 +453,66 @@ author: oompah
 created: 2026-08-05 09:51
 ---
 Serialized heavyweight validation and eliminated all observed combined-tree fixture leakage; exact-node stress 40/40 and focused/affected matrix 948/948 pass at e932a7216.
+---
+author: oompah
+created: 2026-08-05 10:08
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-816`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+ture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-g9omnj8e/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+tests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration
+tests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88: RuntimeWarning: coroutine 'sleep' was never awaited
+    self._context.run(self._callback, *self._args)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_task_cost_telemetry.py::TestComputeRunCostRecord::test_recorded_at_is_iso_utc_string
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py:2217: RuntimeWarning: coroutine 'sleep' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_process_start_and_immediate_exit
+tests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_polling_resume_when_forwarder_process_dies
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-g9omnj8e/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7e66f254b9c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_gitlab_review_flows.py::TestGitLabRebaseConflictFlow::test_gitlab_rebase_conflict_falls_through_to_task
+FAILED tests/test_orchestrator_webhook_health.py::TestIsWebhookHealthy::test_webhook_just_at_threshold_boundary
+FAILED tests/test_provider_retirement.py::test_surviving_process_keeps_agent_and_audit_metrics_visible
+= 3 failed, 15939 passed, 8 skipped, 1 xfailed, 47 warnings in 991.00s (0:16:31) =
+
+make: *** [Makefile:401: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
