@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T02:06:32.291231Z'
+updated_at: '2026-08-05T02:07:28.109197Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -248,12 +248,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T02:01:37.974811+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T02:07:22.594180+00:00'
+  updated_at: '2026-08-05T02:07:22.594180+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -891,5 +893,10 @@ author: oompah
 created: 2026-08-05 02:06
 ---
 Discovery: Verified landed OOMPAH-505 implementation is complete and intact. Key findings: (1) Backend descriptors expose supports_manual_model_selection() independently from has_catalog (Claude and Codex both return True); (2) UI supports manual model entry with fallback to SDK defaults; (3) Role store validates and persists explicit role candidates; (4) Role matrix supports multi-candidate configuration with priority/round-robin strategy. All focused tests passing: 301 provider/role tests, 324 orchestrator handler tests, 45 ACP backend tests, 183 auth tests = 853 passing. make check-secrets clean (null-byte warning is expected).
+---
+author: oompah
+created: 2026-08-05 02:07
+---
+Explicit Claude and Codex model tiers implementation complete and verified. Backend descriptors expose supports_manual_model_selection() independent of catalog discovery. UI provides manual model entry for catalog-less ACP backends with SDK-default fallback. Role store validates and persists explicit role candidates with priority/round-robin strategy support. All 853 focused tests passing: providers (301), orchestrator handlers (324), ACP backends (45), auth tests (183). Secrets scan clean. Production deployment ready.
 ---
 <!-- COMMENTS:END -->
