@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:43:24.581251Z'
-updated_at: '2026-08-05T06:44:59.730025Z'
+updated_at: '2026-08-05T08:03:46.750572Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live production regression on 2026-08-05: terminal lifecycle reconciliation repe
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 08:03
+---
+Reviewed logical lifecycle-reconciliation patch is recorded on the systemic parent branch and pushed at exact clean head 6a62d9658ecc5048bd7b26723927b3937d149989. This is the same reviewed bootstrap logic now deployed on main via OOMPAH-823: bounded retry/backoff and exhaustion, pending-first fairness, coalesced persistence/scheduling, lossless rediscovery, and responsive cached state reads. Verification on this parent-based branch: 217 focused tests passed; terminal mutation scan 8/8 passed; check-secrets and git diff checks passed. Holding submit only until the active OOMPAH-823 terminal audit releases the validation lane.
+---
+<!-- COMMENTS:END -->
