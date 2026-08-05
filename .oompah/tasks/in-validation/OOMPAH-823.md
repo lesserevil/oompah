@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T08:03:02.913601Z'
+updated_at: '2026-08-05T08:07:37.469689Z'
 work_branch: OOMPAH-823
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/719
@@ -33,6 +33,31 @@ oompah.target_branch: main
 oompah.review_head: d509c08214c45bb7c0e4f93c1d42e57a01633f87
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9df86e658fde: '2026-08-05T08:07:26.095666+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-823
+    target_state: Done
+    evidence_fingerprint: 40cf76507cb99b49895f29bbefc51870fbbed30c3e0e012c48a97d0f6d6f6a34
+    audit_ids:
+    - audit-a40e05f2de1d
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T08:07:26.095676+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-823
+    audit_id: audit-a40e05f2de1d
+    attempt_id: attempt-9df86e658fde
+    target_state: Done
+    evidence_fingerprint: 40cf76507cb99b49895f29bbefc51870fbbed30c3e0e012c48a97d0f6d6f6a34
+    status: In Validation
+    audit_ids:
+    - audit-a40e05f2de1d
+    applied: true
+    created_at: '2026-08-05T08:07:26.095686+00:00'
+    applied_at: '2026-08-05T08:07:34.589961+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -40,7 +65,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-823
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -49,7 +74,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9df86e658fde
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -59,13 +84,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-05T08:02:55.112876+00:00'
       branch_key: OOMPAH-823
+      verdict: pass
+      completed_at: '2026-08-05T08:07:26.095545+00:00'
+      ended_at: '2026-08-05T08:07:26.095545+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-05T07:53:06.996118+00:00'
-    updated_at: '2026-08-05T08:02:55.112876+00:00'
+    updated_at: '2026-08-05T08:07:26.095545+00:00'
   - version: 1
     audit_id: audit-76196b8784e7
     project_id: proj-14849f1b
@@ -149,5 +177,21 @@ author: oompah
 created: 2026-08-05 08:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 08:07
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d509c08214c45bb7c0e4f93c1d42e57a01633f87
+- origin_main_head: a165ee90e826bd6e48182340ad76e8adfd86c35b
+- merge_commit_subject: Merge pull request #719 from lesserevil/OOMPAH-823
+- base_commit: 9ea2b5523
+- diff_stat_files: 7 files changed, 1242 insertions(+), 105 deletions(-)
+- focused_tests: 200 passed (test_terminal_audit_enforcement.py + test_state_api_responsiveness.py + test_config.py)
+- lifecycle_tests_matched: 16 lifecycle tests passed: batches durable+restart-safe, defer, isolates+retries tracker failures, finishes after metadata failure, progress read unblocked, hot rows exhaust once, pending not starved by four failed, retry due survives restart+transient, transient outage does not consume retry, absence reopen, operator-change reopen, one-checkpoint-per-batch, external-effect intent required, scheduler floor+coalesce, discovery replay, configured retry policy
 ---
 <!-- COMMENTS:END -->
