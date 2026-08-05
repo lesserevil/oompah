@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:59:49.176478Z'
+updated_at: '2026-08-05T01:59:56.302602Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -851,5 +851,20 @@ author: oompah
 created: 2026-08-05 01:59
 ---
 Completion: OOMPAH-505 is verified and ready for integration at clean pushed head e1b0f4846. The landed feature exposes manual ACP model selection independently of catalogs, preserves backward-compatible SDK fallback, carries six explicit Claude/Codex tier mappings through dispatch and telemetry, and retains existing auth/provider controls. Final evidence: 753 focused/neighbor tests passed and make check-secrets passed.
+---
+author: oompah
+created: 2026-08-05 01:59
+---
+Verified explicit Claude/Codex ACP model tiers; 753 focused tests and secret scan pass; clean pushed head e1b0f4846.
+---
+author: oompah
+created: 2026-08-05 01:59
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 17
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 22s
+- Log: OOMPAH-505__20260805T015353Z.jsonl
 ---
 <!-- COMMENTS:END -->
