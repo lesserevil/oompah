@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:18:14.649196Z'
+updated_at: '2026-08-05T01:18:34.647970Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -82,13 +81,13 @@ oompah.integration:
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   updated_at: '2026-08-05T01:11:14.879836+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2022
+  total_input_tokens: 1016
+  total_output_tokens: 2287
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2022
+      input_tokens: 1016
+      output_tokens: 2287
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +96,12 @@ oompah.task_costs:
     output_tokens: 2022
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:09:16.439250+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1006
+    output_tokens: 265
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:18:26.445949+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-817__20260805T010831Z
@@ -225,5 +230,15 @@ Fixed the recovery snapshot durability bug by:
 ✅ Restart-safe and idempotent
 ✅ No task stranding on persistence failures
 ✅ All existing tests pass (125 projects.py tests + 3 submission_fencing tests)
+---
+author: oompah
+created: 2026-08-05 01:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 58
+- Tokens: 1.0K in / 265 out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 32s
+- Log: OOMPAH-817__20260805T011123Z.jsonl
 ---
 <!-- COMMENTS:END -->
