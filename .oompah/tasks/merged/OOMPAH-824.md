@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T12:08:36.559601Z'
+updated_at: '2026-08-05T12:08:44.841377Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -81,8 +81,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-6b3fa26bb2f6
-    applied: false
+    applied: true
     created_at: '2026-08-05T12:08:33.069659+00:00'
+    applied_at: '2026-08-05T12:08:42.268383+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -316,5 +317,24 @@ author: oompah
 created: 2026-08-05 12:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 12:08
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- main_head: c14ca03f59078e6df06871488cf78f04477acb11
+- merge_pr: #720
+- merge_commit_message: Merge pull request #720 from lesserevil/OOMPAH-824
+- branch_head_merged: 50d19fe5d932421111494403c9b0160d5f2e35f4
+- prior_bootstrap_commit: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+- pre_merge_main: a165ee90e
+- branch_contained_in_main: true
+- prior_full_gate_seconds: 637.2
+- prior_full_gate_head: 476cf5514514ba70c8641a3a908c0d0eb7ccfe79
+- prior_total_focused_passes: 890
 ---
 <!-- COMMENTS:END -->
