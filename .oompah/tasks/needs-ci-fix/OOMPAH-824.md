@@ -1,18 +1,19 @@
 ---
 id: OOMPAH-824
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-816
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:35:45.989339Z'
+updated_at: '2026-08-05T11:44:09.890136Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -60,5 +61,10 @@ author: oompah
 created: 2026-08-05 11:34
 ---
 Branch quality gate passed for `476cf5514514ba70c8641a3a908c0d0eb7ccfe79` using `make test` in 637.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 11:44
+---
+YOLO: CI tests failed on MR #720. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
