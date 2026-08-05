@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T19:43:58.136785Z'
+updated_at: '2026-08-05T20:26:49.391362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -218,5 +218,20 @@ author: oompah
 created: 2026-08-05 19:43
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 20:26
+---
+## Implementation
+
+Modified oompah/terminal_audit_enforcement.py \`_lifecycle_terminal_authorities\`:
+
+- Added an Archived-target-only branch that accepts a completed PASS Archived audit record when it is joined to an applied Archived result intent via an exact (project_id, task_id, audit_id, attempt_id, target_state, evidence_fingerprint) tuple.
+- Fingerprint linkage is exact: record.evidence_fingerprint.digest == attempt.evidence_fingerprint.digest == intent.evidence_fingerprint (digest or {digest: ...}).
+- Rejects: quarantined metadata; unapplied intents; retired/superseded intents; cross-task or cross-project intents; non-Archived target intents; missing audit_id/attempt_id fields.
+- Never generalizes to Done/Merged: the block is gated on \`target_state == TargetState.ARCHIVED\`.
+- Non-mutating: returns the record for the existing \`current_state == ARCHIVED and (passed or overrides)\` → outcome="not_needed" branch. No tracker.update_issue call is added.
+
+Added 10 tests covering the primary case, all failure cases from the acceptance criteria, and a live-shape 4-row (OOMPAH-452/453/455/456) restart-safe convergence test.
 ---
 <!-- COMMENTS:END -->
