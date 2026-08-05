@@ -69,6 +69,7 @@ class WebhookEvent:
         review_id: The PR/MR number as a string.
         source_branch: The head/source branch name.
         target_branch: The base/target branch name.
+        review_head: The exact source commit recorded by the PR/MR event.
         author: The login/username of the PR/MR author.
         title: The PR/MR title.
         merged: Whether the PR/MR was merged.
@@ -104,6 +105,7 @@ class WebhookEvent:
     review_id: str = ""
     source_branch: str = ""
     target_branch: str = ""
+    review_head: str = ""
     author: str = ""
     title: str = ""
     merged: bool = False
@@ -227,6 +229,7 @@ def _parse_github_pr(
         review_id=str(pr.get("number", "")),
         source_branch=head.get("ref", ""),
         target_branch=base.get("ref", ""),
+        review_head=head.get("sha", ""),
         author=user.get("login", ""),
         title=pr.get("title", ""),
         merged=bool(pr.get("merged", False)),
@@ -636,6 +639,7 @@ def _parse_gitlab_mr(
         review_id=str(attrs.get("iid", "")),
         source_branch=attrs.get("source_branch", ""),
         target_branch=attrs.get("target_branch", ""),
+        review_head=(attrs.get("last_commit") or {}).get("id", ""),
         author=user.get("username", ""),
         title=attrs.get("title", ""),
         merged=merged,
