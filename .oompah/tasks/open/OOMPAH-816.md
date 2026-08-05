@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T09:48:22.979830Z'
+updated_at: '2026-08-05T09:50:24.926738Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -429,5 +429,20 @@ author: oompah
 created: 2026-08-05 09:48
 ---
 Diagnosed the third gate's two failures as remaining five-second fixture leakage, after all 15,940 other tests passed. The maintenance-future test ran the production archive/cleanup/label sweep merely to count scheduling, and telemetry helpers still ran lifecycle/release-recovery lanes. Pushed test-only isolation at e932a7216: count the future body directly, disable unrelated shared/lifecycle lanes, await owned futures, and drain executors without cancellation. Verification: exact two nodes 40/40 across 20 fresh xdist runs; affected four-file suite 362/362; combined focused/affected matrix 948/948; terminal mutation scan 8/8; secret scan/diff check pass; independent review PASS.
+---
+author: oompah
+created: 2026-08-05 09:50
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #17)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing at branch head e932a7216770 (repair advanced past accepted head d8f63cce4424); safe to reopen.
+**Evidence head:** `e932a72167707d3cb7eaaf8e69fb53623eda7215`
+**Evidence result:** `ci_passing_at_advanced_head`
+**Evidence generation:** `integration-queue-v1:b146e8d293c6455c9b8d814890f13fe82ba8c93eb145cbe612f97fbd067fcbc2`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
