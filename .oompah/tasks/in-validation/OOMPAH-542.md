@@ -9,11 +9,9 @@ children: []
 blocked_by: []
 labels:
 - human-only
-- needs:backend
-- needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-08-05T15:25:43.037696Z'
+updated_at: '2026-08-05T15:25:49.273596Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
