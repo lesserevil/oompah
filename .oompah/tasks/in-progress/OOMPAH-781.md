@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-05T00:13:07.648794Z'
+updated_at: '2026-08-05T00:32:39.934451Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -431,5 +431,10 @@ author: oompah
 created: 2026-08-05 00:11
 ---
 Advanced the prepared terminal-audit stack onto new OOMPAH-791 head a1b0c82ef (which contains OOMPAH-813 and OOMPAH-782) using an exact two-commit --onto rebase. No conflicts; new pushed head bc20fd0cade2caf3b794422d5063845fcf777196. Combined terminal/review/epic/workflow/submission-fencing verification: 571 passed, 1 expected xfail; diff check clean. Hold submission until OOMPAH-791 lands.
+---
+author: oompah
+created: 2026-08-05 00:32
+---
+Restacked both implementation commits patch-equivalently onto OOMPAH-791 a923f1fbe (which includes accepted OOMPAH-813 eb5d206f2). New exact pushed head afa1f1fe9cfd90b3c5f2970b3574b61ecf883520; range-diff shows both commits '=' and branch is clean. Combined epic/review/integration/workflow facts/jobs/submission-fencing/terminal-audit suite passes 617, 1 xfailed. Task remains claimed/In Progress and unsubmitted until OOMPAH-791 lands on the stabilized common root.
 ---
 <!-- COMMENTS:END -->

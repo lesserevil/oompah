@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:32:13.057144Z'
-work_branch: null
+updated_at: '2026-08-05T00:32:49.893810Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
 review_number: null
@@ -35,6 +35,8 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 795d9f5d-b843-4924-8545-09cb2c8efca6
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-815
 ---
 ## Summary
 
@@ -46,3 +48,11 @@ Live reproduction on OOMPAH-814 at 2026-08-05 00:26 UTC: a direct-owner implemen
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 00:32
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+<!-- COMMENTS:END -->

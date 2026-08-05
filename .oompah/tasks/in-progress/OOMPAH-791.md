@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-05T00:13:32.567483Z'
+updated_at: '2026-08-05T00:32:38.019721Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-08-05 00:13
 ---
 Added finish-order dependency on root repair OOMPAH-807. Once OOMPAH-814 lands and 807 rebases/passes, refresh epic-OOMPAH-768 onto that exact common root lineage and rebase this prepared stack once more before submission. This carries the stable gate fixture plus metadata-only audit fix into the production composition and avoids repeatedly gating divergent nested lineages.
+---
+author: oompah
+created: 2026-08-05 00:32
+---
+Restacked six implementation commits patch-equivalently onto independently accepted OOMPAH-813 head eb5d206f2. New exact pushed head a923f1fbe9aa14e8c188a9d36d643bb6404bfb59; range-diff shows all six commits '=' and branch is clean. The combined OOMPAH-781 top-of-stack suite after both restacks passes 617, 1 xfailed across epic/review/integration/workflow facts/jobs/submission fencing and terminal-audit lifecycle. Task remains claimed/In Progress and unsubmitted until the common root lineage (OOMPAH-814/807) stabilizes.
 ---
 <!-- COMMENTS:END -->
