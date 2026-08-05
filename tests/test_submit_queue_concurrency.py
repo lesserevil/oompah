@@ -15,11 +15,8 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import json
-import os
-import tempfile
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -78,32 +75,99 @@ def _make_review(review_id: str = "1", source_branch: str = "feat", draft: bool 
     )
 
 
-def _make_project_mock(project_id: str, max_in_flight_prs: int = 1, name: str = "myrepo") -> MagicMock:
-    p = MagicMock(spec=Project)
-    p.id = project_id
-    p.name = name
-    p.repo_url = "https://github.com/org/repo"
-    p.yolo = False
-    p.paused = False
-    p.max_in_flight_prs = max_in_flight_prs
-    p.last_webhook_received_at = None
-    return p
+class _DispatchTracker:
+    """Concrete no-I/O tracker slice used by dispatch-policy tests."""
+
+    def __init__(self) -> None:
+        self.children_requested_for: list[str] = []
+
+    def fetch_children(self, parent_id: str) -> list[Issue]:
+        self.children_requested_for.append(parent_id)
+        return []
 
 
-def _make_orchestrator(tmp_path, projects=None) -> Orchestrator:
-    """Create a test orchestrator with a mocked project store."""
+def _make_project(
+    tmp_path,
+    project_id: str,
+    max_in_flight_prs: int = 1,
+    name: str = "myrepo",
+    *,
+    default_branch: str = "main",
+) -> Project:
+    return Project(
+        id=project_id,
+        name=name,
+        repo_url="https://github.com/org/repo",
+        repo_path=str(tmp_path / "repos" / name),
+        default_branch=default_branch,
+        yolo=False,
+        paused=False,
+        max_in_flight_prs=max_in_flight_prs,
+        last_webhook_received_at=None,
+    )
+
+
+_OWNED_ORCHESTRATORS: list[Orchestrator] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_owned_orchestrators():
+    """Close stores and executors opened by this module's test helpers."""
+
+    first_owned = len(_OWNED_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        owned = _OWNED_ORCHESTRATORS[first_owned:]
+        del _OWNED_ORCHESTRATORS[first_owned:]
+        for orchestrator in reversed(owned):
+            orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+            orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+            orchestrator.coordination_store.close()
+            orchestrator.integration_queue.close()
+            orchestrator.review_capacity_store.close()
+            orchestrator.workflow_job_store.close()
+            orchestrator.task_transition_journal.close()
+
+
+def _make_orchestrator(
+    tmp_path,
+    projects=None,
+    *,
+    project_store: ProjectStore | None = None,
+) -> Orchestrator:
+    """Create an orchestrator whose tracker boundary is concrete and local."""
+
     all_projects = list(projects or [])
-    project_store = MagicMock()
-    project_store.list_all.return_value = all_projects
-    project_store.get.side_effect = lambda pid: next(
-        (p for p in all_projects if p.id == pid), None
+    if project_store is None:
+        project_store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        project_store._projects.update(
+            {project.id: project for project in all_projects}
+        )
+    else:
+        all_projects = list(project_store.list_all())
+
+    legacy_tracker = _DispatchTracker()
+    with patch.object(
+        Orchestrator,
+        "_new_tracker",
+        return_value=legacy_tracker,
+    ):
+        orchestrator = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+    orchestrator._project_trackers.update(
+        {project.id: _DispatchTracker() for project in all_projects}
     )
-    return Orchestrator(
-        config=_make_config(),
-        workflow_path="WORKFLOW.md",
-        project_store=project_store,
-        state_path=str(tmp_path / "state.json"),
-    )
+    _OWNED_ORCHESTRATORS.append(orchestrator)
+    return orchestrator
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +337,7 @@ class TestCountOpenReviews:
     def test_webhook_healthy_cold_cache_fetches_reviews(
         self, tmp_path, monkeypatch
     ):
-        project = _make_project_mock("proj-1")
+        project = _make_project(tmp_path, "proj-1")
         project.last_webhook_received_at = datetime.now(timezone.utc)
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._reviews_cache = {}
@@ -297,7 +361,7 @@ class TestCountOpenReviews:
     def test_webhook_healthy_warm_cache_reuses_reviews(
         self, tmp_path, monkeypatch
     ):
-        project = _make_project_mock("proj-1")
+        project = _make_project(tmp_path, "proj-1")
         project.last_webhook_received_at = datetime.now(timezone.utc)
         cached = [_make_review("1")]
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -347,22 +411,22 @@ class TestProjectMaxInFlight:
         assert orch._project_max_in_flight("proj-unknown") == 1
 
     def test_default_project_returns_one(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=1)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=1)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         assert orch._project_max_in_flight("proj-1") == 1
 
     def test_project_with_cap_three_returns_three(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=3)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=3)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         assert orch._project_max_in_flight("proj-1") == 3
 
     def test_project_with_cap_six_returns_six(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=6)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=6)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         assert orch._project_max_in_flight("proj-1") == 6
 
     def test_clamped_to_at_least_one(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=0)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=0)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         assert orch._project_max_in_flight("proj-1") == 1
 
@@ -371,25 +435,25 @@ class TestProjectHasOpenReviewCompat:
     """_project_has_open_review() still works as a thin compat wrapper."""
 
     def test_no_reviews_returns_false(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=1)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=1)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
         assert orch._project_has_open_review("proj-1") is False
 
     def test_one_review_default_cap_returns_true(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=1)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=1)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": [_make_review("1", draft=False)]}
         assert orch._project_has_open_review("proj-1") is True
 
     def test_one_review_cap_three_returns_false(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=3)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=3)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": [_make_review("1", draft=False)]}
         assert orch._project_has_open_review("proj-1") is False
 
     def test_three_reviews_cap_three_returns_true(self, tmp_path):
-        proj = _make_project_mock("proj-1", max_in_flight_prs=3)
+        proj = _make_project(tmp_path, "proj-1", max_in_flight_prs=3)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {
             "proj-1": [_make_review("1"), _make_review("2"), _make_review("3")]
@@ -405,8 +469,14 @@ class TestProjectHasOpenReviewCompat:
 class TestShouldDispatchOpenReviewGate:
     """_should_dispatch() ignores the per-project in-flight PR cap."""
 
-    def _orch_with_reviews(self, tmp_path, project_id: str, n_open: int, cap: int) -> Orchestrator:
-        proj = _make_project_mock(project_id, max_in_flight_prs=cap)
+    def _orch_with_reviews(
+        self,
+        tmp_path,
+        project_id: str,
+        n_open: int,
+        cap: int,
+    ) -> Orchestrator:
+        proj = _make_project(tmp_path, project_id, max_in_flight_prs=cap)
         orch = _make_orchestrator(tmp_path, projects=[proj])
         reviews = [_make_review(str(i), draft=False) for i in range(n_open)]
         orch._reviews_cache = {project_id: reviews}
@@ -448,6 +518,25 @@ class TestShouldDispatchOpenReviewGate:
         issue = _make_issue("issue-2", project_id="proj-b")
         assert orch._should_dispatch(issue) is True
 
+    def test_unset_default_branch_does_not_construct_tracker(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = _make_project(tmp_path, "proj-unset", default_branch="")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker_factory = MagicMock(
+            side_effect=AssertionError("dispatch constructed a project tracker")
+        )
+        monkeypatch.setattr(orch, "_new_tracker_for_project", tracker_factory)
+        issue = _make_issue("issue-unset", project_id=project.id)
+
+        assert orch._should_dispatch(issue) is True
+        tracker_factory.assert_not_called()
+        assert orch._project_trackers[project.id].children_requested_for == [
+            issue.id
+        ]
+
     def test_cap3_three_open_still_dispatches(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-b", n_open=3, cap=3)
         issue = _make_issue("issue-2", project_id="proj-b")
@@ -485,8 +574,12 @@ class TestShouldDispatchOpenReviewGate:
 
     def test_cap1_on_one_project_does_not_block_any_dispatch(self, tmp_path):
         """Reaching cap on proj-a does not block dispatch for either project."""
-        proj_a = _make_project_mock("proj-a", max_in_flight_prs=1, name="a")
-        proj_b = _make_project_mock("proj-b", max_in_flight_prs=3, name="b")
+        proj_a = _make_project(
+            tmp_path, "proj-a", max_in_flight_prs=1, name="a"
+        )
+        proj_b = _make_project(
+            tmp_path, "proj-b", max_in_flight_prs=3, name="b"
+        )
         orch = _make_orchestrator(tmp_path, projects=[proj_a, proj_b])
         orch._reviews_cache = {
             "proj-a": [_make_review("1", draft=False)],  # proj-a at cap=1
@@ -499,8 +592,12 @@ class TestShouldDispatchOpenReviewGate:
 
     def test_two_projects_independent_limits(self, tmp_path):
         """Two projects with different caps both keep dispatching."""
-        proj_a = _make_project_mock("proj-a", max_in_flight_prs=1, name="a")
-        proj_b = _make_project_mock("proj-b", max_in_flight_prs=2, name="b")
+        proj_a = _make_project(
+            tmp_path, "proj-a", max_in_flight_prs=1, name="a"
+        )
+        proj_b = _make_project(
+            tmp_path, "proj-b", max_in_flight_prs=2, name="b"
+        )
         orch = _make_orchestrator(tmp_path, projects=[proj_a, proj_b])
         orch._reviews_cache = {
             "proj-a": [],  # proj-a has 0 < cap=1
@@ -564,8 +661,11 @@ class TestServerMaxInFlightPrsAPI:
         srv._orchestrator = orch
         self.client = TestClient(app)
         self.store = store
-        yield
-        srv._orchestrator = old_orch
+        try:
+            yield
+        finally:
+            self.client.close()
+            srv._orchestrator = old_orch
 
     def test_patch_sets_max_in_flight_prs(self):
         res = self.client.patch(
@@ -626,8 +726,6 @@ class TestStateSnapshotExposesMaxInFlightPrs:
     """GET /api/v1/state — exposes max_in_flight_prs and open_reviews_by_project."""
 
     def test_projects_in_state_include_max_in_flight_prs(self, tmp_path):
-        from oompah.orchestrator import Orchestrator
-
         proj = Project(
             id="proj-snap",
             name="snaptest",
@@ -650,20 +748,18 @@ class TestStateSnapshotExposesMaxInFlightPrs:
             repos_root=str(tmp_path / "repos"),
             worktree_root=str(tmp_path / "wt"),
         )
-        orch = Orchestrator(
-            config=_make_config(),
-            workflow_path="WORKFLOW.md",
-            project_store=store2,
-            state_path=str(tmp_path / "state.json"),
-        )
+        orch = _make_orchestrator(tmp_path, project_store=store2)
         snapshot = orch.get_snapshot()
         projects = snapshot["projects"]
         assert any(p.get("max_in_flight_prs") == 3 for p in projects)
 
     def test_state_snapshot_has_open_reviews_by_project(self, tmp_path):
-        proj = _make_project_mock("proj-snap", max_in_flight_prs=2, name="snaptest")
-
-        from oompah.orchestrator import Orchestrator
+        proj = _make_project(
+            tmp_path,
+            "proj-snap",
+            max_in_flight_prs=2,
+            name="snaptest",
+        )
         orch = _make_orchestrator(tmp_path, projects=[proj])
         orch._reviews_cache = {
             "proj-snap": [_make_review("1", draft=False), _make_review("2", draft=False)],
