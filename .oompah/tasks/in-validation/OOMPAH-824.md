@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:50:46.805413Z'
+updated_at: '2026-08-05T11:57:08.509428Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -35,6 +35,45 @@ oompah.review_number: '720'
 oompah.work_branch: OOMPAH-824
 oompah.target_branch: main
 oompah.review_head: 50d19fe5d932421111494403c9b0160d5f2e35f4
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-11ec4964b81b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-824
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2701e4eaf3dd9b3fd75638852536efecd3bd04b8657a3c9ff02a3081cb7b5536
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T11:56:58.531869+00:00'
+  - version: 1
+    audit_id: audit-6b3fa26bb2f6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-824
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2701e4eaf3dd9b3fd75638852536efecd3bd04b8657a3c9ff02a3081cb7b5536
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T11:56:58.531869+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -91,5 +130,15 @@ author: oompah
 created: 2026-08-05 11:50
 ---
 Repaired GitHub CI PATH enumeration failure at exact pushed head 50d19fe5d932421111494403c9b0160d5f2e35f4. Native validation guard now skips nonexistent/unreadable PATH directories, with an exact regression; 78 focused tests, terminal scan, secret scan, diff check, and independent review pass.
+---
+author: oompah
+created: 2026-08-05 11:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 11:57
+---
+YOLO: merged PR #720.
 ---
 <!-- COMMENTS:END -->
