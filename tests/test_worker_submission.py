@@ -1,5 +1,6 @@
 """Worker submission staging API and CLI tests."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -248,6 +249,205 @@ def test_submit_endpoint_rejects_invalid_git_object_id_without_writing():
     assert response.status_code == 400
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
+
+
+def test_same_head_ready_submit_backfills_missing_work_branch_projection(tmp_path):
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch="OOMPAH-814",
+        base_branch="epic-OOMPAH-763",
+        base_sha="1" * 40,
+        head_sha="2" * 40,
+    )
+    issue = Issue(
+        id="OOMPAH-814",
+        identifier="OOMPAH-814",
+        title="Accepted plain branch",
+        state="Ready to Integrate",
+        project_id="proj-1",
+        parent_id="OOMPAH-763",
+        work_branch=None,
+        integration=existing,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.config.parallel_epic_children_enabled = True
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.integration_queue = queue
+    try:
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            response = client.post(
+                "/api/v1/issues/OOMPAH-814/submit",
+                json={
+                    "project_id": "proj-1",
+                    "task_branch": "OOMPAH-814",
+                    "head_sha": "2" * 40,
+                    "remote_head_sha": "2" * 40,
+                    "worktree_clean": True,
+                    "summary": "Idempotent retry",
+                },
+            )
+            duplicate = client.post(
+                "/api/v1/issues/OOMPAH-814/submit",
+                json={
+                    "project_id": "proj-1",
+                    "task_branch": "OOMPAH-814",
+                    "head_sha": "2" * 40,
+                    "remote_head_sha": "2" * 40,
+                    "worktree_clean": True,
+                    "summary": "Duplicate retry",
+                },
+            )
+            queued = queue.items(project_id="proj-1", epic_id="OOMPAH-763")
+    finally:
+        queue.close()
+
+    assert response.status_code == 201, response.text
+    assert duplicate.status_code == 201, duplicate.text
+    assert len(queued) == 1
+    assert queued[0].task_branch == "OOMPAH-814"
+    assert queued[0].head_sha == "2" * 40
+    tracker.set_metadata_field.assert_called_once_with(
+        "OOMPAH-814",
+        "oompah.work_branch",
+        "OOMPAH-814",
+    )
+    tracker.update_issue.assert_not_called()
+    tracker.add_comment.assert_not_called()
+    assert issue.work_branch == "OOMPAH-814"
+
+
+def test_submit_refetch_fences_concurrent_branch_authority_change(tmp_path):
+    stale = _issue()
+    fresh = _issue()
+    fresh.work_branch = "other-accepted-branch"
+    fresh.integration = IntegrationRecord(
+        state="blocked",
+        task_branch="other-accepted-branch",
+        head_sha="b" * 40,
+    )
+    tracker = MagicMock()
+    # Project routing probes once, the endpoint fetches its initial snapshot,
+    # then the submission authority fence performs the decisive fresh read.
+    tracker.fetch_issue_detail.side_effect = [stale, stale, fresh]
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.config.parallel_epic_children_enabled = True
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.integration_queue = queue
+    try:
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            response = _post_submit(client)
+    finally:
+        queue.close()
+
+    assert response.status_code == 400
+    assert "expected work branch" in response.json()["error"]["message"]
+    orch._cancel_retry_for_issue.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+
+
+def test_remote_git_rejection_precedes_retry_tracker_and_queue_mutation(tmp_path):
+    issue = _issue()
+    issue.parent_id = "EPIC-1"
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.config.parallel_epic_children_enabled = True
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.integration_queue = queue
+    try:
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(
+                server_module,
+                "_verify_submission_git_authority",
+                new=AsyncMock(side_effect=ValueError("remote head mismatch")),
+            ),
+            TestClient(app, raise_server_exceptions=False) as client,
+        ):
+            response = _post_submit(client)
+    finally:
+        queue.close()
+
+    assert response.status_code == 400
+    assert "remote head mismatch" in response.text
+    orch._cancel_retry_for_issue.assert_not_called()
+    tracker.get_metadata.assert_not_called()
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+
+
+def test_direct_epic_verification_leaves_rewrite_ancestry_to_reconciliation():
+    from oompah.projects import SubmissionGitAuthority
+
+    issue = Issue(
+        id="DIRECT-TASK",
+        identifier="DIRECT-TASK",
+        title="Rebase epic-EPIC-PARENT onto main",
+        state="Needs Rebase",
+        project_id="proj-1",
+        parent_id="EPIC-PARENT",
+        work_branch="epic-EPIC-PARENT",
+    )
+    record = IntegrationRecord(
+        state="ready",
+        task_branch="epic-EPIC-PARENT",
+        base_branch="epic-EPIC-PARENT",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    captured = {}
+
+    class Store:
+        @staticmethod
+        def epic_branch_name(_identifier):
+            return "epic-EPIC-PARENT"
+
+        @staticmethod
+        def verify_submission_git_authority(project_id, **kwargs):
+            captured.update(project_id=project_id, **kwargs)
+            return SubmissionGitAuthority(
+                task_branch=kwargs["task_branch"],
+                head_sha=kwargs["head_sha"],
+                base_branch=kwargs["base_branch"],
+                base_sha=None,
+            )
+
+    orch = MagicMock()
+    orch.project_store = Store()
+    orch.config.parallel_epic_children_enabled = True
+
+    verified = asyncio.run(
+        server_module._verify_submission_git_authority(
+            orch,
+            issue,
+            "proj-1",
+            record,
+        )
+    )
+
+    assert captured == {
+        "project_id": "proj-1",
+        "task_branch": "epic-EPIC-PARENT",
+        "head_sha": "b" * 40,
+        "base_branch": "epic-EPIC-PARENT",
+        "base_sha": None,
+    }
+    # The record retains the old base for the dedicated reconciliation path;
+    # only generic ancestor validation omits it.
+    assert verified.base_sha == "a" * 40
 
 
 def _post_submit(client, *, head=None, summary="Done", branch="oompah/task/TASK-2"):
