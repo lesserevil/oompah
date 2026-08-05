@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T15:47:52.862424Z'
+updated_at: '2026-08-05T15:54:27.803741Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -310,5 +310,10 @@ author: oompah
 created: 2026-08-05 15:47
 ---
 Parent advanced while this run waited for the shared validation lane: OOMPAH-815 passed its exact gate and integrated, so local canonical epic-OOMPAH-763 is now 5d7cdb7668515ebe0963d59f27c0cca3fcf46dce. Rebase accepted OOMPAH-807 product commit 069633eeb patch-equivalently onto the latest fetched parent (at least 5d7cdb766), not the earlier 22252cc checkpoint; preserve OOMPAH-815 accepted-branch authority semantics and drop recovery checkpoint 238f07f5c.
+---
+author: oompah
+created: 2026-08-05 15:54
+---
+Understanding: I am resuming the accepted revisionless Archived-audit patch. The preserved checkpoint is an explicitly superseded recovery commit; I will retain its recovery ref, replay the accepted product change on the current epic head, verify the metadata-only archive and recovery paths, then push and resubmit the exact clean head.
 ---
 <!-- COMMENTS:END -->
