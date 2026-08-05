@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T08:24:34.334687Z'
+updated_at: '2026-08-05T09:53:22.148132Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Live post-OOMPAH-823 state has 46 bounded/exhausted terminal lifecycle rows and 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 09:53
+---
+Implemented the authoritative lifecycle-ledger recovery at clean pushed exact head b741e5372. It scopes alias-complete project snapshots, parses strict landing facts, distinguishes forge outage from negative evidence, rejects stale/retired authority, performs fresh under-lock tri-state validation before durable intent/status repair, and makes the one-time v1 migration restart/race safe. Live-shaped 46-row migration coverage proves 44 not-needed + 2 owner-authorized Done repairs; provider, parent-landing, child-state, and persistence races fail closed. Verification: 390 focused tests pass (terminal enforcement 78, SCM 304, compatibility 8); terminal mutation scan 8/8; secret/diff checks pass; independent exact-head review PASS; canonical trailer and remote synchronization verified. Holding submission only to serialize against OOMPAH-816's active canonical gate.
+---
+<!-- COMMENTS:END -->
