@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:24.014858Z'
-updated_at: '2026-08-05T19:50:11.107275Z'
+updated_at: '2026-08-05T19:50:36.801389Z'
 work_branch: OOMPAH-829
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/723
@@ -45,13 +45,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 48324
-  total_output_tokens: 274
+  total_input_tokens: 48365
+  total_output_tokens: 8864
   total_cost_usd: 0.0
   by_model:
     opus:
       input_tokens: 48324
       output_tokens: 274
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 41
+      output_tokens: 8590
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -60,6 +64,12 @@ oompah.task_costs:
     output_tokens: 274
     cost_usd: 0.0
     recorded_at: '2026-08-05T18:25:26.042207+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 8590
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:50:34.286479+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-829__20260805T181841Z
@@ -302,5 +312,15 @@ Safe evidence:
 - commit_scope: oompah/terminal_audit.py, oompah/terminal_audit_enforcement.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_fingerprint_canonicalization.py
 - migration_version: LEGACY_DONE_OVERRIDE_EQUIVALENCE_VERSION=1
 - acceptance_scenarios: OOMPAH-660 repairs once and is idempotent; OOMPAH-662 control needs no marker; 12 fail-closed drift cases; SCM outage fails closed; post-write recovery; cross-project isolation
+---
+author: oompah
+created: 2026-08-05 19:50
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 46, Tool calls: 35
+- Tokens: 41 in / 8.6K out [8.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 32s
+- Log: OOMPAH-829__20260805T193509Z.jsonl
 ---
 <!-- COMMENTS:END -->
