@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-469
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Add the reserved read-only auditor focus and prompt contract
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-29T17:51:57.548022Z'
+updated_at: '2026-08-05T18:22:29.773692Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -90,6 +90,28 @@ oompah.task_costs:
     output_tokens: 54379
     cost_usd: 0.0
     recorded_at: '2026-07-29T00:33:07.856480+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-720c324ed427
+    project_id: proj-14849f1b
+    task_id: OOMPAH-469
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: eb4b81678b2206993ec6248508ee7fefa75cbd3aacb838a588587f73dadc11b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:22:23.660401+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -317,5 +339,10 @@ author: oompah
 created: 2026-07-29 00:35
 ---
 Implemented and pushed reserved auditor focus, prompt contract, read-only authority policy, and regression tests in 4ee93839f.
+---
+author: oompah
+created: 2026-08-05 18:22
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->

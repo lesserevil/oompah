@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Open
+status: In Validation
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T18:22:01.453473Z'
+updated_at: '2026-08-05T18:22:22.250373Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -192,6 +192,23 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-04T21:34:35.336793+00:00'
     updated_at: '2026-08-04T22:57:12.166093+00:00'
+  - version: 1
+    audit_id: audit-2cd8b8c9af4f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-523
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 474347bbd45d577059a9319b12864e52f907209a861f4364372f6ccbbc648798
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Open
+    created_at: '2026-08-05T18:22:16.796576+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-11b6a9dcd01f
