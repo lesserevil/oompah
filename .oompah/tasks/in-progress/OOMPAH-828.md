@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T19:43:08.088569Z'
+updated_at: '2026-08-05T19:43:58.136785Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -208,5 +208,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: stalled, Duration: 1h 13m 10s
 - Log: OOMPAH-828__20260805T182921Z.jsonl
+---
+author: oompah
+created: 2026-08-05 19:43
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-05 19:43
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
