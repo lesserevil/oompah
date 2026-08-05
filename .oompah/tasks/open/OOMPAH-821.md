@@ -11,13 +11,40 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T05:37:17.832878Z'
-work_branch: null
+updated_at: '2026-08-05T05:38:31.320068Z'
+work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: f6373ef564f02957e54284145b83350868b90fdca9864b8366cebc41a8abb7ba
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: d1e486ea-67e5-4664-b2b1-83ef41a7be41
+  claim_owner: 4d963552-8ec1-4f4b-8986-7bc16090635b
+  claimed_at: '2026-08-05T05:38:11.601973+00:00'
+  claim_expires_at: '2026-08-05T06:08:11.601973+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 40f676d9-beae-4353-a531-5d64006e55bd
+oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-770--task-OOMPAH-821
+  base_branch: epic-OOMPAH-770
+  base_sha: f1e7925b7263f980517f943291102c8c83335ed2
+  updated_at: '2026-08-05T05:38:25.047125+00:00'
 ---
 ## Summary
 
@@ -29,3 +56,16 @@ Live regression: OOMPAH-745 is integrated at exact head b08a12057afed4e7af5080e7
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 05:38
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-05 05:38
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
