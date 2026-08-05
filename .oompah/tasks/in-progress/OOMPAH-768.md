@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-05T16:16:59.612282Z'
+updated_at: '2026-08-05T16:32:12.223471Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-08-05 16:16
 ---
 Direct-owner continuation: while OOMPAH-807's exact gate runs, the domain stack has been reconstructed in isolated scratch refs on candidate parent b1c089614. Duplicate patch-equivalent commits are omitted; OOMPAH-813 exact-project/replacement-run fences are composed with OOMPAH-815 accepted-branch and recovery-publication authority. A static review caught and repaired the composed project_id_val recovery-path NameError before testing. Authoritative epic-OOMPAH-768 will not be rewritten or pushed until OOMPAH-807 lands and combined tests pass.
+---
+author: oompah
+created: 2026-08-05 16:32
+---
+Integration checkpoint advanced: OOMPAH-807 passed the combined-tree gate and integrated at b1c089614. The refreshed OOMPAH-768 composition is based on that exact root and contains only the accepted durable integration/implementation/review plus OOMPAH-813 authority fixes; two conflict-repair corrections normalize project identity and preserve OOMPAH-815 recovery scope. Static checks are clean. Focused composition tests are intentionally waiting for the single shared validation lane, currently occupied by OOMPAH-523's legitimate make test; no duplicate test load is being introduced.
 ---
 <!-- COMMENTS:END -->
