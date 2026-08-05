@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:00:30.314581Z'
+updated_at: '2026-08-05T17:01:01.834795Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -51,8 +51,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-810
   base_branch: epic-OOMPAH-763
-  base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  updated_at: '2026-08-04T22:05:30.389256+00:00'
+  base_sha: b1c089614b81076b961c7681b6ddad64ca68191e
+  updated_at: '2026-08-05T17:01:00.622811+00:00'
 oompah.task_costs:
   total_input_tokens: 46708
   total_output_tokens: 435
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-05 16:04
 ---
 Deadlock correction: the earlier dependency removal omitted --hard-start, so the actual start_dependencies edge on OOMPAH-768 remained despite the comment. Removed that exact hard-start edge now. OOMPAH-810/833 may proceed independently and no longer wait behind the workflow whose ACP result-delivery race they repair.
+---
+author: oompah
+created: 2026-08-05 17:00
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
