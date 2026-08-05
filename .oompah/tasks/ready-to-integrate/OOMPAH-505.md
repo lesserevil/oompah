@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:48:46.156563Z'
+updated_at: '2026-08-05T01:49:13.293303Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,8 +20,8 @@ merged_at: null
 oompah.agent_run_id: 7a34103f-da86-4558-99a0-6ba28c18b4f5
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9678767
-  total_output_tokens: 34398
+  total_input_tokens: 9678921
+  total_output_tokens: 39343
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -29,8 +29,8 @@ oompah.task_costs:
       output_tokens: 34018
       cost_usd: 0.0
     haiku:
-      input_tokens: 50613
-      output_tokens: 380
+      input_tokens: 50767
+      output_tokens: 5325
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +63,12 @@ oompah.task_costs:
     output_tokens: 156
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:34:57.744028+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 154
+    output_tokens: 4945
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:49:01.035940+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -249,7 +255,7 @@ oompah.integration:
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   submitted_at: '2026-08-05T01:48:20.003108+00:00'
-  updated_at: '2026-08-05T01:48:20.003108+00:00'
+  updated_at: '2026-08-05T01:49:10.624098+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -260,6 +266,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-502--task-OOMPAH-505
     source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
     completed_at: '2026-08-05T01:07:35.183200+00:00'
+  - run_id: OOMPAH-505__20260805T014207Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: oompah_tests
+    source_branch: epic-OOMPAH-502--task-OOMPAH-505
+    source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+    completed_at: '2026-08-05T01:49:01.039771+00:00'
 ---
 ## Summary
 
@@ -780,5 +794,20 @@ author: oompah
 created: 2026-08-05 01:48
 ---
 Completion: OOMPAH-505 submitted for integration. The explicit Claude/Codex model-tier feature is complete and verified: backend descriptors expose supports_manual_model_selection independently from has_catalog (enabling operator-entered model IDs for catalog-less ACP providers); UI provides free-text manual model input; six explicit role mappings configured with SDK-default fallback for backward compatibility; all 664 focused tests pass with no regressions; secrets scan clean. Implementation ready for production deployment.
+---
+author: oompah
+created: 2026-08-05 01:49
+---
+Agent completed successfully in 432s (5099 tokens)
+---
+author: oompah
+created: 2026-08-05 01:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 45, Tool calls: 24
+- Tokens: 154 in / 4.9K out [5.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 12s
+- Log: OOMPAH-505__20260805T014207Z.jsonl
 ---
 <!-- COMMENTS:END -->
