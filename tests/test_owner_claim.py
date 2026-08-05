@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
+import types
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,6 +24,10 @@ from oompah.models import Issue, Project, RunningEntry, WorkflowDefinition
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore, RecoveryPublicationError
 from oompah.server import app
+from oompah.validation_resource_lease import (
+    ValidationLeaseOwner,
+    ValidationResourceLease,
+)
 
 
 def _project_store(tmp_path) -> tuple[ProjectStore, Project]:
@@ -648,6 +655,297 @@ def test_owner_claim_api_waits_for_claim_to_register_before_retirement(tmp_path)
     assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
     tracker.update_issue.assert_called_once_with(issue.identifier, status="In Progress")
     tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
+
+
+def test_owner_claim_retires_exact_advertised_legacy_provider_only(
+    tmp_path,
+    monkeypatch,
+):
+    """The health recovery request retires one exact orphan generation."""
+
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    lease_path = tmp_path / "legacy-recovery.sqlite3"
+    orch.validation_resource_lease = ValidationResourceLease(
+        lease_path,
+        capacity=2,
+        poll_seconds=0.01,
+    )
+    launcher = """
+import os
+import sys
+import time
+import types
+from pathlib import Path
+from oompah.validation_resource_lease import ValidationLeaseOwner, ValidationResourceLease
+
+lease = ValidationResourceLease(sys.argv[1], capacity=2, poll_seconds=0.01)
+owner = ValidationLeaseOwner.worker(
+    project_id='proj-1',
+    task_id='OOMPAH-1',
+    authority_generation=sys.argv[2],
+)
+handle = lease.acquire(owner)
+handle.attach_process(types.SimpleNamespace(pid=os.getpid()), timeout_seconds=60)
+Path(sys.argv[3]).write_text(str(os.getpid()), encoding='utf-8')
+time.sleep(30)
+"""
+    flagged_ready = tmp_path / "flagged.ready"
+    unrelated_ready = tmp_path / "unrelated.ready"
+    flagged = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            launcher,
+            str(lease_path),
+            "generation-1",
+            str(flagged_ready),
+        ],
+        start_new_session=True,
+    )
+    unrelated = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            launcher,
+            str(lease_path),
+            "generation-2",
+            str(unrelated_ready),
+        ],
+        start_new_session=True,
+    )
+    try:
+        deadline = time.monotonic() + 3
+        while (
+            not flagged_ready.exists() or not unrelated_ready.exists()
+        ) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert flagged_ready.exists() and unrelated_ready.exists()
+        flagged_pid = int(flagged_ready.read_text(encoding="utf-8"))
+        monkeypatch.setattr(
+            "oompah.validation_resource_lease._legacy_provider_bootstrap_process",
+            lambda pid, _ticks, _trusted, _parent: int(pid) == flagged_pid,
+        )
+        snapshot = orch.validation_resource_lease.status().to_dict()
+        recovery = next(
+            owner["recovery_request"]
+            for owner in snapshot["owners"]
+            if owner.get("process_role") == "legacy_provider_bootstrap"
+        )
+        body = {
+            "actor_login": "alice",
+            **recovery["body"],
+        }
+        client = TestClient(app, raise_server_exceptions=False)
+        endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+        ):
+            response = client.post(endpoint, json=body)
+
+        assert response.status_code == 200, response.text
+        assert flagged.wait(timeout=3) != 0
+        assert unrelated.poll() is None
+        remaining = orch.validation_resource_lease.status().to_dict()["owners"]
+        assert [owner["authority_generation"] for owner in remaining] == [
+            "generation-2"
+        ]
+        assert orch._owner_claim_for_issue(issue.id, issue.project_id) is not None
+        tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
+        tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
+    finally:
+        for process in (flagged, unrelated):
+            if process.poll() is None:
+                process.terminate()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=3)
+
+
+def test_owner_claim_stale_validation_generation_cannot_cancel_current_runtime(
+    tmp_path,
+):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    running = MagicMock()
+    running.authority_generation = "current-generation"
+    orch.state.running[issue.id] = running
+    orch.validation_resource_lease.cancel_exact_owner_process = MagicMock()
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    body = {
+        "actor_login": "alice",
+        "expected_validation_owner": {
+            "kind": "worker",
+            "project_id": "proj-1",
+            "task_id": "OOMPAH-1",
+            "authority_generation": "stale-generation",
+            "requester_pid": 101,
+            "requester_start_ticks": 102,
+            "child_pid": 103,
+            "child_start_ticks": 104,
+        },
+    }
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(endpoint, json=body)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == (
+        "validation_owner_recovery_pending"
+    )
+    orch.validation_resource_lease.cancel_exact_owner_process.assert_not_called()
+    assert orch.state.running[issue.id] is running
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
+    tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
+    tracker.remove_label.assert_not_called()
+
+
+def test_legacy_recovery_waits_for_exact_durable_owner_row_to_retire(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    owner = ValidationLeaseOwner.worker(
+        project_id="proj-1",
+        task_id="OOMPAH-1",
+        authority_generation="generation-1",
+    )
+    identity = {
+        "requester_pid": 101,
+        "requester_start_ticks": 102,
+        "child_pid": 103,
+        "child_start_ticks": 104,
+    }
+    durable_owner = {
+        "kind": "worker",
+        "project_id": "proj-1",
+        "task_id": "OOMPAH-1",
+        "authority_generation": "generation-1",
+        **identity,
+    }
+    orch.validation_resource_lease.status = MagicMock(
+        side_effect=[
+            types.SimpleNamespace(
+                owners=(
+                    {
+                        **durable_owner,
+                        "process_role": "legacy_provider_bootstrap",
+                    },
+                )
+            ),
+            types.SimpleNamespace(owners=(durable_owner,)),
+        ]
+    )
+    orch.validation_resource_lease.cancel_exact_owner_process = MagicMock(
+        return_value=True
+    )
+
+    retired, error = server_module._retire_expected_legacy_validation_owner(
+        orch,
+        issue,
+        owner,
+        identity,
+    )
+
+    assert retired is False
+    assert error == "the exact legacy validation owner has not retired yet"
+
+
+def test_legacy_recovery_rejects_non_session_provider_pid(tmp_path):
+    orch, _tracker, issue = _orchestrator(tmp_path)
+    running = MagicMock()
+    running.authority_generation = "generation-1"
+    running.session.agent_pid = "901"
+    orch.state.running[issue.id] = running
+    orch.validation_resource_lease.cancel_exact_owner_process = MagicMock()
+    owner = ValidationLeaseOwner.worker(
+        project_id="proj-1",
+        task_id="OOMPAH-1",
+        authority_generation="generation-1",
+    )
+    identity = {
+        "requester_pid": 101,
+        "requester_start_ticks": 102,
+        "child_pid": 902,
+        "child_start_ticks": 104,
+    }
+
+    retired, error = server_module._retire_expected_legacy_validation_owner(
+        orch,
+        issue,
+        owner,
+        identity,
+    )
+
+    assert retired is False
+    assert error == "the live provider process no longer matches the request"
+    orch.validation_resource_lease.cancel_exact_owner_process.assert_not_called()
+
+
+def test_owner_claim_same_generation_aba_replacement_fails_closed(tmp_path):
+    orch, tracker, issue = _orchestrator(tmp_path)
+    issue.labels = []
+    tracker.fetch_issue_detail.return_value = issue
+    identity = {
+        "requester_pid": 101,
+        "requester_start_ticks": 102,
+        "child_pid": 103,
+        "child_start_ticks": 104,
+    }
+    orch.validation_resource_lease.status = MagicMock(
+        return_value=types.SimpleNamespace(
+            owners=(
+                {
+                    "kind": "worker",
+                    "project_id": "proj-1",
+                    "task_id": "OOMPAH-1",
+                    "authority_generation": "generation-1",
+                    "process_role": "legacy_provider_bootstrap",
+                    **identity,
+                },
+            )
+        )
+    )
+    # The exact transaction observes that the advertised row was replaced
+    # after the health read but before cancellation authority was recorded.
+    orch.validation_resource_lease.cancel_exact_owner_process = MagicMock(
+        return_value=False
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    endpoint = "/api/v1/projects/proj-1/tasks/OOMPAH-1/owner-claim"
+    body = {
+        "actor_login": "alice",
+        "expected_validation_owner": {
+            "kind": "worker",
+            "project_id": "proj-1",
+            "task_id": "OOMPAH-1",
+            "authority_generation": "generation-1",
+            **identity,
+        },
+    }
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(
+            server_module,
+            "_publish_owner_claim_state",
+            new=AsyncMock(),
+        ),
+        patch.object(server_module, "broadcast_issues", new=AsyncMock()),
+    ):
+        response = client.post(endpoint, json=body)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == (
+        "validation_owner_recovery_pending"
+    )
+    assert orch._owner_claim_for_issue(issue.id, issue.project_id) is None
+    tracker.add_label.assert_called_once_with(issue.identifier, "human-only")
+    tracker.remove_label.assert_not_called()
 
 
 def test_stale_dispatch_aborts_after_direct_owner_claim(tmp_path):

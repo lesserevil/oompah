@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from oompah import validation_resource_lease as validation_lease_module
 from oompah.api_agent import _exec_run_command
 from oompah.auditor import check_auditor_command
 from oompah.tool_liveness import ToolLivenessMonitor
@@ -674,6 +675,197 @@ def test_status_is_authoritative_activity_not_an_alert(tmp_path):
     cancelled.set()
     thread.join(timeout=3)
     held.release()
+
+
+def test_status_marks_legacy_provider_root_and_safe_recovery_action(
+    tmp_path,
+    monkeypatch,
+):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    held = lease.acquire(_worker_owner("project", "TASK-1"))
+    held.attach_process(types.SimpleNamespace(pid=os.getpid()), timeout_seconds=30)
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_legacy_provider_bootstrap_process",
+        lambda _pid, _ticks, _trusted, _parent: True,
+    )
+
+    snapshot = lease.status().to_dict()
+
+    assert snapshot["status"] == "action_required"
+    assert snapshot["legacy_provider_bootstrap_owner_count"] == 1
+    assert snapshot["owners"][0]["process_role"] == "legacy_provider_bootstrap"
+    assert snapshot["owners"][0]["recovery_action"] == "claim_task_directly"
+    assert snapshot["owners"][0]["recovery_preserves_worktree"] is True
+    recovery = snapshot["owners"][0]["recovery_request"]
+    assert recovery["method"] == "POST"
+    assert recovery["endpoint"] == (
+        "/api/v1/projects/project/tasks/TASK-1/owner-claim"
+    )
+    expected = recovery["body"]["expected_validation_owner"]
+    assert expected["kind"] == "worker"
+    assert expected["project_id"] == "project"
+    assert expected["task_id"] == "TASK-1"
+    assert expected["authority_generation"] == "worker-TASK-1"
+    assert expected["requester_pid"] == os.getpid()
+    assert expected["child_pid"] == os.getpid()
+    held.release()
+
+
+def test_exact_owner_cancellation_rejects_same_generation_aba_replacement(
+    tmp_path,
+):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = _worker_owner("project", "TASK-1")
+    held = lease.acquire(owner)
+    held.attach_process(types.SimpleNamespace(pid=os.getpid()), timeout_seconds=30)
+    advertised = lease.status().owners[0]
+    replacement_identity = {
+        "requester_pid": int(advertised["requester_pid"]) + 101,
+        "requester_start_ticks": int(advertised["requester_start_ticks"]) + 101,
+        "child_pid": int(advertised["child_pid"]) + 101,
+        "child_start_ticks": int(advertised["child_start_ticks"]) + 101,
+    }
+    with lease._connect() as connection:
+        connection.execute(
+            """UPDATE owners SET requester_pid = ?, requester_start_ticks = ?,
+                      child_pid = ?, child_start_ticks = ?
+               WHERE token = ?""",
+            (*replacement_identity.values(), held.token),
+        )
+
+    cancelled = lease.cancel_exact_owner_process(
+        owner,
+        requester_pid=int(advertised["requester_pid"]),
+        requester_start_ticks=int(advertised["requester_start_ticks"]),
+        child_pid=int(advertised["child_pid"]),
+        child_start_ticks=int(advertised["child_start_ticks"]),
+    )
+
+    assert cancelled is False
+    with lease._connect() as connection:
+        current = connection.execute(
+            "SELECT requester_pid, child_pid FROM owners WHERE token = ?",
+            (held.token,),
+        ).fetchone()
+        tombstones = connection.execute(
+            "SELECT COUNT(*) FROM cancelled_owners"
+        ).fetchone()[0]
+    assert dict(current) == {
+        "requester_pid": replacement_identity["requester_pid"],
+        "child_pid": replacement_identity["child_pid"],
+    }
+    assert tombstones == 0
+    held.release()
+
+
+def test_legacy_auditor_owner_does_not_advertise_direct_claim_recovery(
+    tmp_path,
+    monkeypatch,
+):
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    held = lease.acquire(_audit_owner("project", "TASK-1"))
+    held.attach_process(types.SimpleNamespace(pid=os.getpid()), timeout_seconds=30)
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_legacy_provider_bootstrap_process",
+        lambda _pid, _ticks, _trusted, _parent: True,
+    )
+
+    owner = lease.status().to_dict()["owners"][0]
+
+    assert owner["process_role"] == "legacy_provider_bootstrap"
+    assert "recovery_action" not in owner
+    assert "recovery_request" not in owner
+    held.release()
+
+
+@pytest.mark.parametrize(
+    (
+        "arguments",
+        "environment",
+        "prefix",
+        "entrypoint_matches_operator",
+        "interpreter_matches_operator",
+        "parent_matches_operator",
+        "bootstrap_is_task_writable",
+        "expected",
+    ),
+    [
+        (
+            ("node", "/operator/codex", "exec", "--experimental-json"),
+            {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "codex_sdk_ts"},
+            b"#!/usr/bin/env node\n",
+            True,
+            True,
+            True,
+            False,
+            True,
+        ),
+        (
+            ("node", "/workspace/test.js", "exec", "--experimental-json"),
+            {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "codex_sdk_ts"},
+            b"#!/usr/bin/env node\n",
+            False,
+            True,
+            True,
+            True,
+            False,
+        ),
+        (
+            ("node", "/operator/codex", "exec", "--version"),
+            {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "codex_sdk_ts"},
+            b"#!/usr/bin/env node\n",
+            True,
+            True,
+            True,
+            False,
+            False,
+        ),
+        (
+            ("node", "/workspace/codex", "exec", "--experimental-json"),
+            {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "codex_sdk_ts"},
+            b"#!/usr/bin/env node\n",
+            True,
+            True,
+            True,
+            True,
+            False,
+        ),
+        (
+            ("node", "/operator/codex", "exec", "--experimental-json"),
+            {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "codex_sdk_ts"},
+            b"#!/usr/bin/env node\n",
+            True,
+            True,
+            False,
+            False,
+            False,
+        ),
+    ],
+)
+def test_legacy_provider_root_detection_is_specific(
+    arguments,
+    environment,
+    prefix,
+    entrypoint_matches_operator,
+    interpreter_matches_operator,
+    parent_matches_operator,
+    bootstrap_is_task_writable,
+    expected,
+):
+    assert (
+        validation_lease_module._is_legacy_provider_bootstrap_snapshot(
+            arguments,
+            environment,
+            prefix,
+            entrypoint_matches_operator=entrypoint_matches_operator,
+            interpreter_matches_operator=interpreter_matches_operator,
+            parent_matches_operator=parent_matches_operator,
+            bootstrap_is_task_writable=bootstrap_is_task_writable,
+        )
+        is expected
+    )
 
 
 def test_same_project_cannot_monopolize_equal_priority_queue(tmp_path):
