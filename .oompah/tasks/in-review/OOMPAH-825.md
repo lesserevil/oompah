@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-825
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Scope and reclassify exhausted lifecycle reconciliation rows from authoritative
   landing evidence
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T08:24:12.278010Z'
-updated_at: '2026-08-05T12:30:55.059213Z'
+updated_at: '2026-08-05T12:31:01.913709Z'
 work_branch: OOMPAH-825
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/721
