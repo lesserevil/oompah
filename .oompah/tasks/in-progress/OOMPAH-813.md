@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:50:36.091912Z'
-updated_at: '2026-08-05T00:02:37.449192Z'
+updated_at: '2026-08-05T00:03:10.372835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +40,10 @@ author: oompah
 created: 2026-08-05 00:02
 ---
 Implementation checkpoint: _on_worker_exit now freezes the exact live run project before cleanup/awaits, uses that same scope throughout later exit handling, and the revoked-submission helper rejects missing, changed, cross-project, or cross-task records without tracker mutation. Verification: 100 focused submission-fencing/run-identity/provider-retirement/task-handoff/auditor-exit tests passed; terminal mutation scan passed 8/8; focused Ruff F821 and diff checks passed.
+---
+author: oompah
+created: 2026-08-05 00:03
+---
+Completed and pushed exact task head 7eada51f6fe7ea384c02317654c0b376183fb7af on epic-OOMPAH-768--task-OOMPAH-813, with direct parent a3948097f27f4e84ac0f2375408ac05f4e419d2c. Focused verification remains green: 100 tests, terminal mutation scan 8/8, Ruff F821, and diff check. Branch is clean and up to date with origin. Per ordered-landing handoff, OOMPAH-813 remains In Progress/claimed and has not been submitted; project owner should submit only after OOMPAH-782 lands.
 ---
 <!-- COMMENTS:END -->
