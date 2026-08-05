@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -14,7 +14,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T18:23:09.566803Z'
+updated_at: '2026-08-05T18:23:23.030303Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-526
 target_branch: null
 review_url: null
@@ -172,6 +172,23 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-04T21:34:57.078497+00:00'
     updated_at: '2026-08-05T00:02:28.136542+00:00'
+  - version: 1
+    audit_id: audit-102eb40c0244
+    project_id: proj-14849f1b
+    task_id: OOMPAH-526
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cd0bb5fea6e035fef4632b3b93e88c8092080de83fd46e5cdfeb77a2880e8de6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T18:23:18.899055+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc08a582ec99

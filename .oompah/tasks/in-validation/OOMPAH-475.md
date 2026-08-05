@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T18:01:39.698184Z'
+updated_at: '2026-08-05T18:23:30.014548Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -197,6 +197,28 @@ oompah.task_costs:
     output_tokens: 69
     cost_usd: 0.0
     recorded_at: '2026-07-29T16:25:50.691903+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3774e7d2a8a7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-475
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d0d4a777a847ee43b6769dcdf55f1f2f614c5de91e6048cc88f422cc74559d8b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T18:23:23.796051+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -1424,5 +1446,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 7s
 - Log: OOMPAH-475__20260729T162347Z.jsonl
+---
+author: oompah
+created: 2026-08-05 18:23
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
