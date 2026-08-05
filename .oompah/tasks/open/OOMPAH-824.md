@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:44:27.983882Z'
+updated_at: '2026-08-05T11:48:12.596874Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -80,5 +80,10 @@ created: 2026-08-05 11:44
 **Evidence result:** `comment_ci_passing`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-05 11:48
+---
+GitHub CI exposed a runner-specific bug: PATH may contain a nonexistent optional directory (/snap/bin), while native guard discovery deferred directory iteration beyond its OSError handler. Fixed at exact pushed head 50d19fe5d932421111494403c9b0160d5f2e35f4 by eagerly enumerating each PATH directory inside the guarded block and skipping stale/unreadable entries, matching shutil.which behavior. Added an exact missing-PATH-entry regression. Focused native guard + Codex backend suite: 78 passed; terminal mutation scan and secret scan passed. PR #720 CI is rerunning.
 ---
 <!-- COMMENTS:END -->
