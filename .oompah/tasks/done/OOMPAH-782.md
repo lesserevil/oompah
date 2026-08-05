@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:00.734500Z'
-updated_at: '2026-08-05T00:30:33.811715Z'
+updated_at: '2026-08-05T00:31:09.013251Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-782
 target_branch: null
 review_url: null
@@ -64,13 +64,17 @@ oompah.integration:
     OOMPAH-812: 1230456cc7834d14b8064d73e1742734ab670d2a
     OOMPAH-793: a744be37d42047e25e6fc62a6a64878c187290e0
 oompah.task_costs:
-  total_input_tokens: 46834
-  total_output_tokens: 334
+  total_input_tokens: 46915
+  total_output_tokens: 3416
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46834
       output_tokens: 334
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 81
+      output_tokens: 3082
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +83,12 @@ oompah.task_costs:
     output_tokens: 334
     cost_usd: 0.0
     recorded_at: '2026-08-04T20:23:40.527207+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 81
+    output_tokens: 3082
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T00:31:03.517605+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-782__20260804T202310Z
@@ -434,5 +444,15 @@ Safe evidence:
 - test_files_added_or_expanded: tests/test_review_workflow.py (986 lines), tests/test_scm.py (+30 lines), tests/test_work_decision.py (+12 lines)
 - review_action_jobs: review_monitor, review_merge, review_ci_repair, review_conflict_repair, review_closed_repair, review_head_reconciliation, review_landing_refresh, review_terminal_stage, review_capacity_recheck
 - commit_trailer_canonical: both OOMPAH-782 commits end with 'Co-authored-by: oompah <lesserevil@users.noreply.github.com>'
+---
+author: oompah
+created: 2026-08-05 00:31
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 59
+- Tokens: 81 in / 3.1K out [3.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 11s
+- Log: OOMPAH-782__20260805T000809Z.jsonl
 ---
 <!-- COMMENTS:END -->

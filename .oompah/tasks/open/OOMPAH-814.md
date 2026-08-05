@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:30:55.140854Z'
+updated_at: '2026-08-05T00:31:05.760518Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -32,14 +32,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 52db7c21f436ded1c4c3012e9d528c9a03d71c4ce544a8776a2e04fe1449e147
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-05T00:30:51.883100+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: a4c104e1-0e8b-472d-9812-b42f54ddb75b
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-05T00:29:30.908855+00:00'
-  claim_expires_at: '2026-08-05T00:59:30.908855+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Closest active tasks OOMPAH-807 and OOMPAH-815 address\
+    \ revisionless audits and accepted-branch identity; neither concerns deterministic\
+    \ submit-queue test fixtures or mock/tracker resource cleanup.\nFocus handoff:\
+    \ duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \nMatches:\
+    \ none  \n\nEvidence: Closest active tasks OOMPAH-807 and OOMPAH-815 address revisionless\
+    \ audits and accepted-branch identity; neither concerns deterministic submit-queue\
+    \ test fixtures or mock/tracker resource cleanup."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -61,6 +68,16 @@ oompah.task_costs:
     output_tokens: 306
     cost_usd: 0.0
     recorded_at: '2026-08-05T00:30:51.870607+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-814__20260805T003011Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-814
+    source_sha: cb1446d4beba7ad83a1b67d94574ad5c01cf8814
+    completed_at: '2026-08-05T00:30:51.940545+00:00'
 ---
 ## Summary
 
