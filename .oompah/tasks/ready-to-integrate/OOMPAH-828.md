@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-828
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Treat applied Archived audit results as final lifecycle no-ops
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T20:31:04.218585Z'
+updated_at: '2026-08-05T20:31:31.775959Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,6 +101,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-828
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:20:05.427853+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-828
+  head_sha: a5545b61a8db17a99655f81dfdafa7f5741c243c
+  submitted_at: '2026-08-05T20:31:23.369024+00:00'
+  updated_at: '2026-08-05T20:31:23.369024+00:00'
 ---
 ## Summary
 
@@ -268,5 +276,10 @@ Delivered: exact-join Archived-lifecycle finality at head a5545b61a.
 - tests/test_terminal_audit_enforcement.py: adds 10 tests covering the primary case, the four live-shape rows (OOMPAH-452/453/455/456) converging to not_needed with restart safety, and every rejection case from the acceptance criteria.
 
 Effect on OOMPAH-452/453/455/456 lifecycle rows: outcome becomes not_needed, no tracker.update_issue call, no rearm on restart, lifecycle errors/action_required clear once redeployed.
+---
+author: oompah
+created: 2026-08-05 20:31
+---
+Add target-aware Archived-lifecycle finality: _lifecycle_terminal_authorities now accepts a completed PASS Archived record joined to an applied Archived result intent via an exact project/task/audit/attempt/target/fingerprint tuple, so live rows OOMPAH-452/453/455/456 converge to not_needed with zero tracker mutations while incomplete, failed, mismatched, retired, quarantined, unapplied evidence and Done/Merged targets remain fail-closed. Covered by 10 new tests plus 313 neighboring-suite regressions passing.
 ---
 <!-- COMMENTS:END -->
