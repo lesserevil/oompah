@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T11:35:38.917055Z'
+updated_at: '2026-08-05T11:35:45.989339Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
