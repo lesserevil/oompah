@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-05T00:32:39.934451Z'
+updated_at: '2026-08-05T03:19:43.379457Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -436,5 +436,10 @@ author: oompah
 created: 2026-08-05 00:32
 ---
 Restacked both implementation commits patch-equivalently onto OOMPAH-791 a923f1fbe (which includes accepted OOMPAH-813 eb5d206f2). New exact pushed head afa1f1fe9cfd90b3c5f2970b3574b61ecf883520; range-diff shows both commits '=' and branch is clean. Combined epic/review/integration/workflow facts/jobs/submission-fencing/terminal-audit suite passes 617, 1 xfailed. Task remains claimed/In Progress and unsubmitted until OOMPAH-791 lands on the stabilized common root.
+---
+author: oompah
+created: 2026-08-05 03:19
+---
+Live OOMPAH-818 resubmission exposed a terminal-audit chain generation bug within this task's scope. Tracker metadata retains Done audit audit-1fa98e0837dc in_progress at old evidence fingerprint 4b2e72bc plus a newer Merged request fingerprint b8b2f37c. Current _build_merged_entries reuses any active Done row without fingerprint equality; pure-code replay produced only Merged(new), so startup ignores stale Done and the new generation silently skips required Done auditing. Required cutover regression/fix: reuse an active Done request only when its evidence fingerprint exactly equals the current Merged generation; supersede stale active cross-target Done records while preserving attempt/history; build a fresh same-fingerprint Done→Merged chain across restart. Bootstrap implementation is being added to OOMPAH-820 before OOMPAH-818 reflow.
 ---
 <!-- COMMENTS:END -->
