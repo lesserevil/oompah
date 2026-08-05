@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T06:18:12.806852Z'
+updated_at: '2026-08-05T06:21:16.131392Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -230,5 +230,24 @@ author: oompah
 created: 2026-08-05 06:18
 ---
 Resource coordination: OOMPAH-814's exact canonical full gate currently owns the heavyweight validation lane. Continue implementation and bounded/focused checks, but do not launch make test/test-serial or a broad multi-file pytest suite until the gate completes. OOMPAH-816 will enforce this automatically once deployed.
+---
+author: oompah
+created: 2026-08-05 06:21
+---
+Implementation Complete: Implemented canonical retry-eligibility consumer in orchestrator to ensure alert/action parity for terminal-audit recovery guidance. 
+
+Key changes:
+1. Imported is_audit_infrastructure_retryable() and is_audit_evidence_retryable() from terminal_transition_coordinator to orchestrator
+2. Created _determine_terminal_audit_recovery_mode() helper that queries terminal audit metadata and uses canonical retry functions to classify retryability based on TERMINAL attempt classification
+3. Updated _arm_integrated_audit_recovery_alert() to accept recovery_mode parameter and generate mode-specific messages (evidence_addendum, infrastructure, or None)
+4. Updated integration flow at orchestrator.py:462810 to determine recovery mode before generating alerts, ensuring only supported recovery actions are advertised
+
+Alert/Action Parity Verified:
+- Infrastructure recovery ('infrastructure' mode) only suggested for NO_AUDITOR/INFRASTRUCTURE_ERROR/POLICY_INCOMPATIBILITY terminals
+- Evidence addendum recovery ('evidence_addendum' only suggested for MISSING_EVIDENCE terminals
+- Mixed attempt history (e.g., FINALIZATION_FAILURE + terminal NO_AUDITOR) correctly uses TERMINAL classification for retry eligibility
+- Non-retryable terminal states don't generate alerts
+
+Tests Added: 9 comprehensive tests in TestRetryEligibilityFunctions verifying all retryable/non-retryable classifications and mixed-attempt scenarios. All 143 terminal transition coordinator tests pass.
 ---
 <!-- COMMENTS:END -->
