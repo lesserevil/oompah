@@ -257,6 +257,45 @@ class GrandfatherTuple:
         )
 
 
+def _pending_record_authority_key(
+    record: TerminalAuditRecord,
+) -> tuple[int, int, int, float, str]:
+    """Return the deterministic restart authority of one duplicate record."""
+
+    in_progress = int(record.request_state is RequestState.IN_PROGRESS)
+    attempts = tuple(record.attempts or ())
+    active_attempt = int(
+        any(
+            attempt.request_state is RequestState.IN_PROGRESS
+            and not attempt.ended_at
+            for attempt in attempts
+        )
+    )
+    timestamps = [record.updated_at, record.created_at]
+    for attempt in attempts:
+        timestamps.extend(
+            (attempt.ended_at, attempt.started_at, attempt.created_at)
+        )
+    newest = float("-inf")
+    for raw in timestamps:
+        if not raw:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            newest = max(newest, parsed.timestamp())
+        except (TypeError, ValueError):
+            continue
+    return (
+        active_attempt,
+        in_progress,
+        record.source_generation,
+        newest,
+        record.audit_id,
+    )
+
+
 @dataclass
 class PendingAudit:
     """One queued audit request, including its unchanged attempt history."""
@@ -286,6 +325,12 @@ class PendingAudit:
             self.evidence_fingerprint.digest,
         )
 
+    @property
+    def audit_key(self) -> tuple[str, str, str]:
+        """Project/task-scoped audit identity used for recovery deduplication."""
+
+        return (self.project_id, self.task_id, self.audit_id)
+
     @classmethod
     def from_record(cls, record: TerminalAuditRecord, *, source: str = "metadata") -> "PendingAudit":
         return cls(
@@ -300,15 +345,24 @@ class PendingAudit:
         )
 
     def merge_record(self, record: TerminalAuditRecord) -> None:
-        """Merge metadata recovery without manufacturing an attempt."""
+        """Merge metadata recovery without manufacturing an attempt.
+
+        Exact-generation duplicates can survive an older writer or a crash.
+        Preserve every attempt id, but project the record which already owns
+        active execution so restart recovery binds to its claimed audit id
+        instead of an older pending sibling.
+        """
 
         self.attempt_ids = list(
             dict.fromkeys(
                 [*self.attempt_ids, *(attempt.attempt_id for attempt in record.attempts)]
             )
         )
-        if self.record is None:
+        if self.record is None or _pending_record_authority_key(
+            record
+        ) > _pending_record_authority_key(self.record):
             self.record = record
+            self.audit_id = record.audit_id
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -784,7 +838,7 @@ class TerminalAuditEnforcement:
             source=source,
         )
         for existing in self.pending_audits:
-            if existing.key == candidate.key or existing.audit_id == candidate.audit_id:
+            if existing.key == candidate.key or existing.audit_key == candidate.audit_key:
                 return existing
         self.pending_audits.append(candidate)
         return candidate
@@ -792,7 +846,7 @@ class TerminalAuditEnforcement:
     def _queue_record(self, record: TerminalAuditRecord) -> None:
         candidate = PendingAudit.from_record(record)
         for existing in self.pending_audits:
-            if existing.audit_id == candidate.audit_id or existing.key == candidate.key:
+            if existing.audit_key == candidate.audit_key or existing.key == candidate.key:
                 existing.merge_record(record)
                 return
         self.pending_audits.append(candidate)
@@ -806,7 +860,7 @@ class TerminalAuditEnforcement:
                 (
                     existing
                     for existing in result
-                    if existing.audit_id == entry.audit_id or existing.key == entry.key
+                    if existing.audit_key == entry.audit_key or existing.key == entry.key
                 ),
                 None,
             )
@@ -816,8 +870,8 @@ class TerminalAuditEnforcement:
             match.attempt_ids = list(
                 dict.fromkeys([*match.attempt_ids, *entry.attempt_ids])
             )
-            if match.record is None:
-                match.record = entry.record
+            if entry.record is not None:
+                match.merge_record(entry.record)
         return result
 
     def _reconcile_current(
@@ -2166,11 +2220,15 @@ class TerminalAuditEnforcement:
             live_ids = [
                 record.audit_id
                 for record in document.pending_chain
-                if record.request_state in PENDING_REQUEST_STATES
+                if record.project_id == project_id
+                and record.task_id == identifier
+                and record.request_state in PENDING_REQUEST_STATES
             ]
             chain = [
                 replace(record, request_state=RequestState.CANCELLED, updated_at=now)
-                if record.audit_id in live_ids
+                if record.project_id == project_id
+                and record.task_id == identifier
+                and record.audit_id in live_ids
                 else record
                 for record in document.pending_chain
             ]
@@ -2223,15 +2281,19 @@ class TerminalAuditEnforcement:
             # could replay an older PASS after the override wins.
             intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
             if isinstance(intents, list):
-                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
-                    {
-                        **dict(raw),
-                        "applied": True,
-                        "retired_by_override": True,
-                    }
-                    for raw in intents
-                    if isinstance(raw, Mapping)
-                ]
+                updated_intents: list[dict[str, Any]] = []
+                for raw in intents:
+                    if not isinstance(raw, Mapping):
+                        continue
+                    item = dict(raw)
+                    if (
+                        item.get("project_id") == project_id
+                        and item.get("task_id") == identifier
+                    ):
+                        item["applied"] = True
+                        item["retired_by_override"] = True
+                    updated_intents.append(item)
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = updated_intents
             unknown[TERMINAL_RETIREMENTS_KEY] = retirements
             return replace(document, pending_chain=chain, unknown_fields=unknown)
 
@@ -2350,7 +2412,13 @@ class TerminalAuditEnforcement:
                     continue
 
                 record = next(
-                    (item for item in document.pending_chain if item.audit_id == audit_id),
+                    (
+                        item
+                        for item in document.pending_chain
+                        if item.audit_id == audit_id
+                        and item.project_id == project_id
+                        and item.task_id == identifier
+                    ),
                     None,
                 )
                 stale_reason: str | None = None
@@ -2365,8 +2433,6 @@ class TerminalAuditEnforcement:
 
                 if record is None:
                     stale_reason = stale_reason or "missing_audit_record"
-                elif record.project_id != project_id or record.task_id != identifier:
-                    stale_reason = stale_reason or "audit_identity_mismatch"
                 elif target_state is None or status_key(target_state) != status_key(
                     record.target_state.value
                 ):

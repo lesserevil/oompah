@@ -1505,6 +1505,8 @@ def _audit_plan(
 ) -> AuditDispatchPlan:
     return AuditDispatchPlan(
         audit_id="audit-1",
+        project_id="project-1",
+        task_id="TASK-1",
         attempt_id="attempt-1",
         target_state=target,
         evidence_fingerprint=EvidenceFingerprint("a" * 64),

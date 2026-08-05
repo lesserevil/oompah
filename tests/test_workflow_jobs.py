@@ -480,6 +480,47 @@ def test_expired_recovery_is_bounded(store, clock):
     assert store.recover_expired(limit=2) == 1
 
 
+def test_preserved_finalizer_cannot_starve_expired_recovery_limit(store, clock):
+    store.enqueue(spec("final", task="T-final"))
+    finalizing = claim(store)
+    store.checkpoint(
+        finalizing.job_id,
+        finalizing.lease_token,
+        phase="finalizing",
+        checkpoint={"audit_id": "audit-final", "attempt_id": "attempt-final"},
+    )
+    store.enqueue(spec("ordinary", task="T-ordinary", action="forge_effect"))
+    ordinary = claim(store, actions=("forge_effect",))
+    clock.advance(31)
+
+    assert store.recover_expired(limit=1) == 1
+    assert store.get(finalizing.job_id).state is WorkflowJobState.RUNNING
+    assert store.get(ordinary.job_id).state is WorkflowJobState.QUEUED
+
+
+def test_sql_filters_apply_before_list_limit(store):
+    store.enqueue(spec("ordinary", task="T-ordinary", action="forge_effect"))
+    ordinary = claim(store, actions=("forge_effect",))
+    store.enqueue(spec("final", task="T-final"))
+    finalizing = claim(store, actions=("terminal_audit",))
+    store.checkpoint(
+        finalizing.job_id,
+        finalizing.lease_token,
+        phase="finalizing",
+        checkpoint={"audit_id": "audit-final", "attempt_id": "attempt-final"},
+    )
+
+    selected = store.list_jobs(
+        states=(WorkflowJobState.RUNNING,),
+        actions=("terminal_audit",),
+        phases=("finalizing",),
+        limit=1,
+    )
+
+    assert [job.job_id for job in selected] == [finalizing.job_id]
+    assert store.get(ordinary.job_id).state is WorkflowJobState.RUNNING
+
+
 def test_abandoned_recovery_can_be_scoped_to_process_owner(store):
     store.enqueue(spec("a", task="T-a"))
     store.enqueue(spec("b", task="T-b"))
@@ -489,6 +530,23 @@ def test_abandoned_recovery_can_be_scoped_to_process_owner(store):
     assert store.recover_abandoned(lease_owner="old-a") == 1
     assert store.get(first.job_id).state is WorkflowJobState.QUEUED
     assert store.get(second.job_id).state is WorkflowJobState.RUNNING
+
+
+def test_preserved_finalizer_cannot_starve_abandoned_recovery_limit(store):
+    store.enqueue(spec("final", task="T-final"))
+    finalizing = claim(store)
+    store.checkpoint(
+        finalizing.job_id,
+        finalizing.lease_token,
+        phase="finalizing",
+        checkpoint={"audit_id": "audit-final", "attempt_id": "attempt-final"},
+    )
+    store.enqueue(spec("ordinary", task="T-ordinary", action="forge_effect"))
+    ordinary = claim(store, actions=("forge_effect",))
+
+    assert store.recover_abandoned(lease_owner="worker-a", limit=1) == 1
+    assert store.get(finalizing.job_id).state is WorkflowJobState.RUNNING
+    assert store.get(ordinary.job_id).state is WorkflowJobState.QUEUED
 
 
 def test_supersede_revokes_running_lease_and_never_revives_on_enqueue(store):
