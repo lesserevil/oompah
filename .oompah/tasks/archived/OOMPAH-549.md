@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-08-05T20:04:11.822863Z'
+updated_at: '2026-08-05T20:04:26.229175Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,6 +97,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T19:54:57.300095+00:00'
     branch_key: OOMPAH-549
+oompah.task_costs:
+  total_input_tokens: 38
+  total_output_tokens: 7109
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 38
+      output_tokens: 7109
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 38
+    output_tokens: 7109
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T20:04:22.158381+00:00'
 ---
 ## Summary
 
@@ -172,5 +188,15 @@ Safe evidence:
 - docs_updated: docs/task-epic-workflow.md, docs/operator-runbook.md, docs/parallel-epic-integration.md, AGENTS.md, WORKFLOW.md
 - focused_tests: tests/test_parallel_epic_children.py::test_dashboard_shows_queue_wait_reason_and_dependency_semantics + agent_instructions/statuses/task_cli/task_handoff/coordination suites
 - aged_days_since_merge: 7
+---
+author: oompah
+created: 2026-08-05 20:04
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 48, Tool calls: 36
+- Tokens: 38 in / 7.1K out [7.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 19s
+- Log: OOMPAH-549__20260805T195520Z.jsonl
 ---
 <!-- COMMENTS:END -->
