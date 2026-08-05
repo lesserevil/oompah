@@ -1,23 +1,25 @@
 ---
 id: OOMPAH-824
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-816
 labels: []
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T08:20:26.696471Z'
+updated_at: '2026-08-05T08:20:43.452790Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
