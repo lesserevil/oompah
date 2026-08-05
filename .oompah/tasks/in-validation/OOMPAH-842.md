@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-842
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Bootstrap native validation guard provider fix onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T18:52:26.995790Z'
-updated_at: '2026-08-05T22:08:21.863822Z'
+updated_at: '2026-08-05T22:17:35.879465Z'
 work_branch: OOMPAH-842
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/725
@@ -33,6 +33,45 @@ oompah.review_number: '725'
 oompah.work_branch: OOMPAH-842
 oompah.target_branch: main
 oompah.review_head: c5c0f4029096f43c669840e3138e1317a1aa3361
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9ae8619f760e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T22:17:23.501614+00:00'
+  - version: 1
+    audit_id: audit-2fb4256b75cb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-842
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a469e9b6423f8f24f8ff1429f5e606a9d512db781918a8bf5a9f33c8a17c26f0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-05T22:17:23.501614+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -65,5 +104,15 @@ author: oompah
 created: 2026-08-05 22:07
 ---
 Branch quality gate passed for `c5c0f4029096f43c669840e3138e1317a1aa3361` using `make test` in 649.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 22:17
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 22:17
+---
+YOLO: merged PR #725.
 ---
 <!-- COMMENTS:END -->
