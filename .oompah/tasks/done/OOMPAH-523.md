@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T20:01:08.349540Z'
+updated_at: '2026-08-05T20:01:18.503205Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -138,8 +138,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-2cd8b8c9af4f
-    applied: false
+    applied: true
     created_at: '2026-08-05T20:01:02.649566+00:00'
+    applied_at: '2026-08-05T20:01:16.592571+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1520,5 +1521,26 @@ author: oompah
 created: 2026-08-05 19:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 20:01
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
+- task_branch: origin/epic-OOMPAH-521--task-OOMPAH-523
+- worktree_status: clean
+- middleware_class: _BasicAuthMiddleware at oompah/server.py line 615
+- exempt_routes: GET /healthz, POST /api/v1/webhooks/github, POST /api/v1/webhooks/gitlab
+- healthz_fields: status, instance_id, build_id only
+- test_server_auth: 73 passed
+- test_auth_health_and_http_auth_and_ws_and_docs: 105 passed
+- test_server_webhooks_ws_lifecycle_favicon: 186 passed
+- test_granian_bootstrap: 21 passed
+- impl_commits: fb9526679 (OOMPAH-523: Enforce Basic authentication across HTTP and WebSocket surfaces), 2c090848a (OOMPAH-523: Harden Basic auth enforcement)
+- both_commits_in_head_ancestry: confirmed via git log --oneline fb9526679^..HEAD --ancestry-path
 ---
 <!-- COMMENTS:END -->
