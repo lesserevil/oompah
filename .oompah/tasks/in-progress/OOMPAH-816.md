@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T01:14:45.624154Z'
+updated_at: '2026-08-05T06:11:53.252496Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-05 01:14
 ---
 Additional live acceptance evidence: during OOMPAH-814's exact gate, OOMPAH-505 launched python -m pytest -q over five broad subsystem files (acp_backends, providers, providers_ui, acp_agent, orchestrator_handlers). It owned 11 managed processes and hundreds of SQLite/WAL handles; dm-0 reached 98-99% utilization and both that command plus all four gate workers blocked in jbd2_log_wait_commit. Heavyweight classification cannot rely only on make test/test-serial or a claim that any explicit file list is focused. Treat substantial multi-file pytest commands as heavyweight; permit only genuinely bounded node/small-file checks to bypass, with regressions for this exact five-file shape.
+---
+author: oompah
+created: 2026-08-05 06:11
+---
+Rebased the accepted validation-resource lease onto reconciled systemic parent ceafd8e14. New exact clean pushed head is 990a9856db25cff6cd3b8165b5e55b18444aff39. In the branch-isolated environment, the focused lease/quality-gate/native-wrapper/Codex/config/liveness/API matrix passes 482/482; the earlier four wrapper import failures were reproduced as a shared-main-venv artifact and pass in the correct branch environment. Holding final submission until OOMPAH-814 lands; its tests-only delta is conflict-free and will be the last base refresh before this resource-arbitration task gates.
 ---
 <!-- COMMENTS:END -->
