@@ -55,6 +55,7 @@ class TestSCMProviderContract:
             unavailable_capability_warning("review_comments"),
         ]
         assert provider.get_branch_ci_status("org/repo", "main") is CIStatus.UNKNOWN
+        assert provider.observe_branch_landing("org/repo", "a", "main") is None
 
     def test_legacy_commit_implementation_is_available_through_contract_name(self):
         assert _ContractFakeProvider().get_review_commits("org/repo", "7") == ["a" * 40]
@@ -2397,6 +2398,180 @@ class TestListMergedReviewsGitLab:
         assert reviews[0].target_branch == "main"
         assert reviews[0].state == "merged"
         assert provider._captured["params"]["state"] == "merged"
+
+
+class TestObserveBranchLandingGitHub:
+    """The lifecycle observation keeps absence distinct from API failure."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200, json_error=None):
+            self._payload = payload
+            self.status_code = status_code
+            self._json_error = json_error
+
+        def json(self):
+            if self._json_error is not None:
+                raise self._json_error
+            return self._payload
+
+    @staticmethod
+    def _provider(response):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(return_value=response)
+        return provider
+
+    def test_matching_merged_route_is_authoritative_positive(self):
+        response = self._FakeResponse([
+            {
+                "merged_at": "2026-08-05T00:00:00Z",
+                "head": {"ref": "epic-CHILD"},
+                "base": {"ref": "epic-PARENT"},
+            }
+        ])
+        provider = self._provider(response)
+
+        assert provider.observe_branch_landing(
+            "org/repo", "epic-CHILD", "epic-PARENT"
+        ) is True
+        assert provider._api.call_args.kwargs["params"] == {
+            "state": "closed",
+            "head": "org:epic-CHILD",
+            "base": "epic-PARENT",
+            "per_page": 100,
+            "sort": "updated",
+            "direction": "desc",
+        }
+
+    def test_successful_empty_route_is_authoritative_negative(self):
+        provider = self._provider(self._FakeResponse([]))
+
+        assert provider.observe_branch_landing(
+            "org/repo", "epic-CHILD", "epic-PARENT"
+        ) is False
+
+    def test_non_200_is_unavailable(self):
+        provider = self._provider(self._FakeResponse([], status_code=503))
+
+        assert provider.observe_branch_landing(
+            "org/repo", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_transport_failure_is_unavailable(self):
+        import httpx
+
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("offline"))
+
+        assert provider.observe_branch_landing(
+            "org/repo", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_json_failure_is_unavailable(self):
+        import json
+
+        error = json.JSONDecodeError("invalid", "{", 0)
+        provider = self._provider(self._FakeResponse(None, json_error=error))
+
+        assert provider.observe_branch_landing(
+            "org/repo", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_malformed_success_elements_are_unavailable(self):
+        for payload in ([{}], ["not-an-object"]):
+            provider = self._provider(self._FakeResponse(payload))
+            assert provider.observe_branch_landing(
+                "org/repo", "epic-CHILD", "epic-PARENT"
+            ) is None
+
+
+class TestObserveBranchLandingGitLab:
+    """GitLab exposes the same authoritative tri-state lifecycle contract."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200, json_error=None):
+            self._payload = payload
+            self.status_code = status_code
+            self._json_error = json_error
+
+        def json(self):
+            if self._json_error is not None:
+                raise self._json_error
+            return self._payload
+
+    @staticmethod
+    def _provider(response):
+        provider = GitLabProvider(
+            hostname="gitlab.example.com",
+            access_token="t",
+        )
+        provider._api = mock.MagicMock(return_value=response)
+        return provider
+
+    def test_matching_merged_route_is_authoritative_positive(self):
+        response = self._FakeResponse([
+            {
+                "state": "merged",
+                "source_branch": "epic-CHILD",
+                "target_branch": "epic-PARENT",
+            }
+        ])
+        provider = self._provider(response)
+
+        assert provider.observe_branch_landing(
+            "group/project", "epic-CHILD", "epic-PARENT"
+        ) is True
+        assert provider._api.call_args.kwargs["params"] == {
+            "state": "merged",
+            "source_branch": "epic-CHILD",
+            "target_branch": "epic-PARENT",
+            "per_page": 100,
+            "order_by": "updated_at",
+            "sort": "desc",
+        }
+
+    def test_successful_empty_route_is_authoritative_negative(self):
+        provider = self._provider(self._FakeResponse([]))
+
+        assert provider.observe_branch_landing(
+            "group/project", "epic-CHILD", "epic-PARENT"
+        ) is False
+
+    def test_non_200_is_unavailable(self):
+        provider = self._provider(self._FakeResponse([], status_code=503))
+
+        assert provider.observe_branch_landing(
+            "group/project", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_transport_failure_is_unavailable(self):
+        import httpx
+
+        provider = GitLabProvider(
+            hostname="gitlab.example.com",
+            access_token="t",
+        )
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("offline"))
+
+        assert provider.observe_branch_landing(
+            "group/project", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_json_failure_is_unavailable(self):
+        import json
+
+        error = json.JSONDecodeError("invalid", "{", 0)
+        provider = self._provider(self._FakeResponse(None, json_error=error))
+
+        assert provider.observe_branch_landing(
+            "group/project", "epic-CHILD", "epic-PARENT"
+        ) is None
+
+    def test_malformed_success_elements_are_unavailable(self):
+        for payload in ([{}], ["not-an-object"]):
+            provider = self._provider(self._FakeResponse(payload))
+            assert provider.observe_branch_landing(
+                "group/project", "epic-CHILD", "epic-PARENT"
+            ) is None
 
 
 class TestFindPrForBranchGitHub:

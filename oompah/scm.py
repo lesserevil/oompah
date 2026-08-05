@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.parse
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, NotRequired, TypedDict
@@ -398,6 +399,21 @@ class SCMProvider(ABC):
         to distinguish an empty discussion from an unavailable feature.
         """
         return []
+
+    def observe_branch_landing(
+        self,
+        repo: str,
+        source_branch: str,
+        target_branch: str,
+    ) -> bool | None:
+        """Observe whether an exact source branch landed on an exact target.
+
+        ``True`` and ``False`` are authoritative provider observations;
+        ``None`` means the provider cannot distinguish absence from an API or
+        transport failure.  The default deliberately fails closed because the
+        legacy review-list methods collapse those cases into empty results.
+        """
+        return None
 
     def get_capability_warnings(self, capabilities: set[str]) -> list[CapabilityWarning]:
         """Report unsupported optional capabilities without raising exceptions.
@@ -1530,6 +1546,69 @@ class GitHubProvider(SCMProvider):
             ))
         return reviews
 
+    def observe_branch_landing(
+        self,
+        repo: str,
+        source_branch: str,
+        target_branch: str,
+    ) -> bool | None:
+        """Return a tri-state observation for one exact GitHub PR route."""
+
+        source = str(source_branch or "").strip()
+        target = str(target_branch or "").strip()
+        if not repo or not source or not target:
+            return None
+        owner = repo.split("/", 1)[0] if "/" in repo else ""
+        head_param = f"{owner}:{source}" if owner else source
+        try:
+            response = self._api(
+                "GET",
+                f"/repos/{repo}/pulls",
+                params={
+                    "state": "closed",
+                    "head": head_param,
+                    "base": target,
+                    "per_page": 100,
+                    "sort": "updated",
+                    "direction": "desc",
+                },
+            )
+            if response.status_code != 200:
+                logger.debug(
+                    "GitHub observe_branch_landing %s %s -> %s: HTTP %d",
+                    repo,
+                    source,
+                    target,
+                    response.status_code,
+                )
+                return None
+            data = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitHub observe_branch_landing failed for %s %s -> %s: %s",
+                repo,
+                source,
+                target,
+                exc,
+            )
+            return None
+        if not isinstance(data, list):
+            return None
+        for pr in data:
+            if not isinstance(pr, Mapping):
+                return None
+            head = pr.get("head")
+            base = pr.get("base")
+            if not isinstance(head, Mapping) or not isinstance(base, Mapping):
+                return None
+            if (
+                bool(pr.get("merged_at"))
+                and str(head.get("ref") or "").strip() == source
+                and str(base.get("ref") or "").strip() == target
+            ):
+                return True
+        return False
+
 
     def find_pr_for_branch(
         self, repo: str, branch_name: str,
@@ -2172,6 +2251,75 @@ class GitLabProvider(SCMProvider):
                 draft=mr.get("draft", False) or mr.get("work_in_progress", False),
             ))
         return reviews
+
+    def observe_branch_landing(
+        self,
+        repo: str,
+        source_branch: str,
+        target_branch: str,
+    ) -> bool | None:
+        """Return a tri-state observation for one exact GitLab MR route."""
+
+        source = str(source_branch or "").strip()
+        target = str(target_branch or "").strip()
+        if not repo or not source or not target:
+            return None
+        encoded = self._project_path(repo)
+        try:
+            response = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_requests",
+                params={
+                    "state": "merged",
+                    "source_branch": source,
+                    "target_branch": target,
+                    "per_page": 100,
+                    "order_by": "updated_at",
+                    "sort": "desc",
+                },
+            )
+            if response.status_code != 200:
+                logger.debug(
+                    "GitLab observe_branch_landing %s %s -> %s: HTTP %d",
+                    repo,
+                    source,
+                    target,
+                    response.status_code,
+                )
+                return None
+            data = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab observe_branch_landing failed for %s %s -> %s: %s",
+                repo,
+                source,
+                target,
+                exc,
+            )
+            return None
+        if not isinstance(data, list):
+            return None
+        for mr in data:
+            if not isinstance(mr, Mapping):
+                return None
+            raw_state = mr.get("state")
+            raw_source = mr.get("source_branch")
+            raw_target = mr.get("target_branch")
+            if (
+                not isinstance(raw_state, str)
+                or not isinstance(raw_source, str)
+                or not raw_source.strip()
+                or not isinstance(raw_target, str)
+                or not raw_target.strip()
+            ):
+                return None
+            if (
+                raw_state.lower() == "merged"
+                and raw_source.strip() == source
+                and raw_target.strip() == target
+            ):
+                return True
+        return False
 
     def find_pr_for_branch(
         self, repo: str, branch_name: str,

@@ -29,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from oompah.integration import is_direct_epic_maintenance_issue
 from oompah.models import Issue
 from oompah.statuses import (
     ARCHIVED,
@@ -49,6 +50,7 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
+    TerminalAuditMetadata,
     TerminalAuditMetadataStore,
     TerminalAuditMetadataQuarantinedError,
 )
@@ -65,7 +67,8 @@ TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
-LIFECYCLE_RECONCILIATION_VERSION = 1
+LIFECYCLE_RECONCILIATION_VERSION = 2
+LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION = 2
 DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE = 4
 DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS = 5
 DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS = 30.0
@@ -449,6 +452,10 @@ class TerminalAuditEnforcement:
         save_state: Callable[[Mapping[str, Any]], None] | None = None,
         validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
         | None = None,
+        lifecycle_landing_evidence: Callable[
+            [Issue, str, Mapping[str, Issue]], Mapping[str, Any]
+        ]
+        | None = None,
     ) -> None:
         self.state_path = state_path or service_state_path
         if self.state_path is None and load_state is None:
@@ -458,6 +465,7 @@ class TerminalAuditEnforcement:
         self._load_state_callback = load_state
         self._save_state_callback = save_state
         self._validate_terminal_transition = validate_terminal_transition
+        self._lifecycle_landing_evidence = lifecycle_landing_evidence
         self.state = TerminalAuditEnforcementState()
         self._state_loaded = False
         self.pending_audits: list[PendingAudit] = []
@@ -1100,23 +1108,173 @@ class TerminalAuditEnforcement:
         return min(delay, ceiling)
 
     @staticmethod
-    def _lifecycle_source_fingerprint(tracker: TrackerProtocol, issue: Issue) -> str:
-        """Fingerprint only inputs whose repair may be changed by an operator."""
+    def _lifecycle_snapshot_issue(
+        snapshot: Mapping[str, Issue], identifier: object
+    ) -> Issue | None:
+        alias = str(identifier or "").strip()
+        return snapshot.get(alias) if alias else None
 
-        metadata: Any
+    @staticmethod
+    def _lifecycle_integration_fact(issue: Issue | None) -> Any:
+        if issue is None:
+            return None
+        integration = getattr(issue, "integration", None)
+        if integration is None:
+            return None
+        to_dict = getattr(integration, "to_dict", None)
+        if callable(to_dict):
+            try:
+                return to_dict()
+            except Exception:  # noqa: BLE001 - fingerprinting fails closed below
+                return None
+        return dict(integration) if isinstance(integration, Mapping) else None
+
+    @staticmethod
+    def _lifecycle_scoped_snapshot(
+        project_id: str, issues: Iterable[Issue]
+    ) -> dict[str, Issue]:
+        """Return an alias-complete snapshot containing only one project.
+
+        Native Markdown adapters intentionally do not persist a managed-project
+        identifier in each task file.  Background recovery nevertheless has an
+        authoritative project scope: the tracker was selected from that scope.
+        Work on shallow copies so attaching it cannot mutate an adapter cache.
+        """
+
+        snapshot: dict[str, Issue] = {}
+        for source in issues:
+            issue = copy.copy(source)
+            issue.project_id = str(project_id)
+            for alias in (
+                getattr(issue, "identifier", None),
+                getattr(issue, "id", None),
+            ):
+                value = str(alias or "").strip()
+                if value:
+                    snapshot[value] = issue
+        return snapshot
+
+    def _lifecycle_classifier_fact(
+        self,
+        issue: Issue,
+        project_id: str,
+        snapshot: Mapping[str, Issue],
+    ) -> dict[str, Any] | None:
+        """Capture the exact current lifecycle classification as retry evidence.
+
+        ``None`` means the classifier was unavailable, not that work was proven
+        unlanded.  Callers must retain the previous exhausted epoch in that
+        case; a transport outage or process restart is not an operator/evidence
+        change and must not manufacture another retry budget.
+        """
+
+        state = canonicalize_status(getattr(issue, "state", ""))
+        if state != MERGED:
+            return {
+                "version": LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+                "state": state,
+                "result": "not_merged",
+            }
+        validator = self._validate_terminal_transition
+        if validator is None:
+            return None
+        token = _recovery_snapshot.set(dict(snapshot))
+        try:
+            conflict = validator(issue, TargetState.MERGED, project_id)
+        except Exception:  # noqa: BLE001 - unavailable evidence is not a new fact
+            return None
+        finally:
+            _recovery_snapshot.reset(token)
+        if isinstance(conflict, str) and conflict.strip():
+            result = "conflict"
+            detail: str | None = conflict.strip()
+        elif conflict is False:
+            result = "conflict"
+            detail = "shared_epic_lifecycle_rejected"
+        else:
+            result = "allowed"
+            detail = None
+        return {
+            "version": LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+            "state": state,
+            "result": result,
+            "detail": detail,
+        }
+
+    def _lifecycle_source_fingerprint(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        *,
+        project_id: str,
+        snapshot: Mapping[str, Issue],
+    ) -> str | None:
+        """Fingerprint authoritative inputs that can change a repair decision.
+
+        The v2 fingerprint includes project/task identity, the complete scoped
+        parent fact, durable integration evidence, current terminal metadata,
+        and the target-relative classifier result.  Failed metadata/classifier
+        reads return ``None`` so an outage cannot look like changed evidence.
+        """
+
         try:
             metadata = tracker.get_metadata(str(issue.identifier))
-        except Exception as exc:  # noqa: BLE001 - a failed read is itself stable input
-            metadata = {"unavailable": type(exc).__name__}
-        terminal_metadata = (
-            metadata.get(METADATA_KEY)
-            if isinstance(metadata, Mapping)
-            else {"invalid": type(metadata).__name__}
+        except Exception:  # noqa: BLE001 - do not fingerprint an outage
+            return None
+        if not isinstance(metadata, Mapping):
+            return None
+        parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+        parent = self._lifecycle_snapshot_issue(snapshot, parent_id)
+        parent_terminal_metadata: Any = None
+        if parent is not None:
+            try:
+                parent_metadata = tracker.get_metadata(str(parent.identifier))
+            except Exception:  # noqa: BLE001 - do not fingerprint an outage
+                return None
+            if not isinstance(parent_metadata, Mapping):
+                return None
+            parent_terminal_metadata = parent_metadata.get(METADATA_KEY)
+        classifier = self._lifecycle_classifier_fact(
+            issue, str(project_id), snapshot
         )
+        if classifier is None:
+            return None
+        landing_evidence: Mapping[str, Any] | None = None
+        if self._lifecycle_landing_evidence is not None:
+            token = _recovery_snapshot.set(dict(snapshot))
+            try:
+                landing_evidence = self._lifecycle_landing_evidence(
+                    issue,
+                    str(project_id),
+                    snapshot,
+                )
+            except Exception:  # noqa: BLE001 - do not fingerprint an outage
+                return None
+            finally:
+                _recovery_snapshot.reset(token)
+            if not isinstance(landing_evidence, Mapping):
+                return None
         payload = {
+            "classifier_version": LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+            "project_id": str(project_id),
+            "task_id": str(issue.identifier),
             "state": canonicalize_status(getattr(issue, "state", "")),
-            "parent_id": str(getattr(issue, "parent_id", "") or ""),
-            "terminal_audit": terminal_metadata,
+            "parent_id": parent_id,
+            "terminal_audit": metadata.get(METADATA_KEY),
+            "integration": self._lifecycle_integration_fact(issue),
+            "parent": (
+                {
+                    "task_id": str(parent.identifier),
+                    "state": canonicalize_status(getattr(parent, "state", "")),
+                    "issue_type": str(getattr(parent, "issue_type", "") or ""),
+                    "terminal_audit": parent_terminal_metadata,
+                    "integration": self._lifecycle_integration_fact(parent),
+                }
+                if parent is not None
+                else None
+            ),
+            "landing_evidence": landing_evidence,
+            "landing_classifier": classifier,
         }
         encoded = json.dumps(
             payload,
@@ -1201,12 +1359,14 @@ class TerminalAuditEnforcement:
     ) -> tuple[
         dict[str, Any],
         dict[tuple[str, str], tuple[TrackerProtocol, Issue]],
+        dict[str, dict[str, Issue]],
         set[str],
         bool,
     ]:
         """Discover Merged rows and prepare one coalesced durable projection."""
 
         current: dict[tuple[str, str], tuple[TrackerProtocol, Issue]] = {}
+        snapshots: dict[str, dict[str, Issue]] = {}
         merged_keys: set[tuple[str, str]] = set()
         unavailable_projects: set[str] = set()
         scan_errors: list[str] = []
@@ -1217,18 +1377,32 @@ class TerminalAuditEnforcement:
                 unavailable_projects.add(str(project_id))
                 scan_errors.append(f"scan_failed:{project_id}:{type(exc).__name__}")
                 continue
-            for issue in issues:
-                identifier = str(getattr(issue, "identifier", "") or "")
-                if not identifier:
+            scoped_snapshot = self._lifecycle_scoped_snapshot(project_id, issues)
+            snapshots[str(project_id)] = scoped_snapshot
+            seen: set[str] = set()
+            for source_issue in issues:
+                identifier = str(
+                    getattr(source_issue, "identifier", "") or ""
+                ).strip()
+                if not identifier or identifier in seen:
                     continue
+                seen.add(identifier)
+                issue = scoped_snapshot[identifier]
+                identifier = str(getattr(issue, "identifier", "") or "")
                 current[(str(project_id), identifier)] = (tracker, issue)
                 if canonicalize_status(getattr(issue, "state", "")) != MERGED:
                     continue
                 merged_keys.add((str(project_id), identifier))
 
         raw = getattr(self.state, "lifecycle_reconciliation", {}) or {}
-        if not isinstance(raw, Mapping) or raw.get("version") != LIFECYCLE_RECONCILIATION_VERSION:
+        raw_version = raw.get("version") if isinstance(raw, Mapping) else None
+        if not isinstance(raw, Mapping) or raw_version not in {
+            1,
+            LIFECYCLE_RECONCILIATION_VERSION,
+        }:
             raw = {}
+            raw_version = None
+        migrate_v1 = raw_version == 1
         records: list[dict[str, Any]] = []
         by_key: dict[str, dict[str, Any]] = {}
         for item in raw.get("records", []) if isinstance(raw.get("records", []), list) else []:
@@ -1275,14 +1449,40 @@ class TerminalAuditEnforcement:
             tracker_issue = current.get(
                 (str(row.get("project_id", "")), str(row.get("task_id", "")))
             )
+            project_id = str(row.get("project_id", ""))
+            snapshot = snapshots.get(project_id, {})
+            if migrate_v1 and status == "exhausted":
+                # The v1 ledger did not persist enough target-relative input
+                # to compare retries safely.  Mark its single migration epoch
+                # as pending, but do not spend it until the current classifier
+                # and landing evidence are authoritatively observable.  A
+                # forge outage during deployment therefore cannot demote a
+                # valid Merged row or consume its one-time repair budget.
+                row.update(
+                    {
+                        "classifier_version": (
+                            LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION
+                        ),
+                        "migration_v1_rearm_pending": True,
+                    }
+                )
+            else:
+                row.setdefault(
+                    "classifier_version",
+                    LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+                )
             if status == "failed" and attempts >= max_attempts:
                 row["status"] = status = "exhausted"
                 row.setdefault("exhausted_at", str(row.get("updated_at") or now.isoformat()))
                 row.pop("next_attempt_at", None)
                 if tracker_issue is not None:
-                    row["failure_fingerprint"] = self._lifecycle_source_fingerprint(
-                        *tracker_issue
+                    fingerprint = self._lifecycle_source_fingerprint(
+                        *tracker_issue,
+                        project_id=project_id,
+                        snapshot=snapshot,
                     )
+                    if fingerprint is not None:
+                        row["failure_fingerprint"] = fingerprint
             elif status == "failed" and self._lifecycle_timestamp(
                 row.get("next_attempt_at")
             ) is None:
@@ -1294,20 +1494,40 @@ class TerminalAuditEnforcement:
                 )
                 row["next_attempt_at"] = (updated_at + timedelta(seconds=delay)).isoformat()
             elif status == "exhausted" and tracker_issue is not None:
-                fingerprint = self._lifecycle_source_fingerprint(*tracker_issue)
+                fingerprint = self._lifecycle_source_fingerprint(
+                    *tracker_issue,
+                    project_id=project_id,
+                    snapshot=snapshot,
+                )
                 previous = row.get("failure_fingerprint")
+                migration_pending = (
+                    row.get("migration_v1_rearm_pending") is True
+                )
                 task_reappeared = (
                     row.get("last_error") == "task_not_present_in_current_snapshot"
+                    and (not migration_pending or fingerprint is not None)
                 )
-                if task_reappeared or (
-                    isinstance(previous, str) and previous and previous != fingerprint
+                migration_rearm = (
+                    migration_pending and fingerprint is not None
+                )
+                if task_reappeared or migration_rearm or (
+                    fingerprint is not None
+                    and isinstance(previous, str)
+                    and previous
+                    and previous != fingerprint
                 ):
                     try:
-                        retry_epochs = (
-                            max(int(row.get("retry_epochs", 0) or 0), 0) + 1
+                        retry_epochs = max(
+                            int(row.get("retry_epochs", 0) or 0), 0
                         )
                     except (TypeError, ValueError):
-                        retry_epochs = 1
+                        retry_epochs = 0
+                    migration_epoch_started = (
+                        migration_rearm
+                        and row.get("migration_v1_rearm_started") is True
+                    )
+                    if not migration_epoch_started:
+                        retry_epochs += 1
                     row.update(
                         {
                             "status": "pending",
@@ -1316,13 +1536,17 @@ class TerminalAuditEnforcement:
                             "retry_epochs": retry_epochs,
                         }
                     )
+                    if migration_rearm:
+                        row["migration_v1_rearm_started"] = True
                     for key in (
                         "next_attempt_at",
                         "exhausted_at",
                         "failure_fingerprint",
                     ):
                         row.pop(key, None)
-                elif not isinstance(previous, str) or not previous:
+                elif fingerprint is not None and (
+                    not isinstance(previous, str) or not previous
+                ):
                     row["failure_fingerprint"] = fingerprint
 
         try:
@@ -1341,7 +1565,7 @@ class TerminalAuditEnforcement:
         if changed:
             queue["updated_at"] = now.isoformat()
         self._set_lifecycle_state(queue)
-        return queue, current, unavailable_projects, changed
+        return queue, current, snapshots, unavailable_projects, changed
 
     def reconcile_lifecycle_batch(
         self,
@@ -1395,6 +1619,7 @@ class TerminalAuditEnforcement:
             (
                 queue,
                 current,
+                snapshots,
                 unavailable_projects,
                 prepared_changed,
             ) = self._lifecycle_prepare_queue(
@@ -1457,38 +1682,50 @@ class TerminalAuditEnforcement:
                         # before metadata finalization failed.  Complete that
                         # second half without writing the tracker status again.
                         if row.get("conflict"):
+                            current_state = canonicalize_status(
+                                getattr(issue, "state", "")
+                            )
                             store = TerminalAuditMetadataStore(
                                 tracker, self.project_store, project_id
                             )
                             try:
                                 with self.project_store.project_write_lock(project_id):
                                     document = store.read(task_id)
-                                    done_records = [
-                                        record
-                                        for record in document.pending_chain
-                                        if (
-                                            record.project_id == project_id
-                                            and record.task_id in {
-                                                task_id,
-                                                str(getattr(issue, "id", "") or ""),
-                                            }
-                                            and record.target_state == TargetState.DONE
-                                            and record.request_state == RequestState.COMPLETED
-                                            and any(
-                                                attempt.verdict == Verdict.PASS
-                                                for attempt in record.attempts
+                                    try:
+                                        current_target = TargetState.from_raw(
+                                            current_state
+                                        )
+                                    except ValueError:
+                                        current_target = None
+                                    passed: list[TerminalAuditRecord] = []
+                                    overrides: list[OverrideRecord] = []
+                                    if current_target is not None:
+                                        passed, overrides = (
+                                            self._lifecycle_terminal_authorities(
+                                                document,
+                                                issue,
+                                                project_id,
+                                                current_target,
                                             )
                                         )
-                                    ]
-                                    if done_records and self._finalize_incompatible_shared_epic_merged(
+                                    if current_state == ARCHIVED and (
+                                        passed or overrides
+                                    ):
+                                        outcome = "not_needed"
+                                    elif current_state == DONE and (
+                                        passed or overrides
+                                    ) and self._finalize_incompatible_shared_epic_merged(
                                         store,
                                         tracker,
                                         issue,
                                         project_id,
                                         str(row["conflict"]),
-                                        done_records,
+                                        passed,
+                                        overrides,
                                     ):
                                         outcome = "reconciled"
+                                    elif current_target is None:
+                                        outcome = "state_changed"
                                     else:
                                         error = "lifecycle_metadata_not_finalized"
                             except Exception as exc:  # noqa: BLE001 - row isolation
@@ -1500,46 +1737,139 @@ class TerminalAuditEnforcement:
                         if validator is None:
                             error = "lifecycle_validator_unavailable"
                         else:
+                            token = _recovery_snapshot.set(
+                                snapshots.get(project_id, {})
+                            )
                             try:
                                 conflict = validator(issue, TargetState.MERGED, project_id)
                             except Exception as exc:  # noqa: BLE001 - row isolation
                                 conflict = None
                                 error = f"lifecycle_validation_failed:{type(exc).__name__}"
-                            if error is None and not (
-                                isinstance(conflict, str) and conflict.strip()
-                            ):
+                            finally:
+                                _recovery_snapshot.reset(token)
+                            has_conflict = (
+                                isinstance(conflict, str) and bool(conflict.strip())
+                            ) or conflict is False
+                            if error is None and not has_conflict:
                                 outcome = "not_needed"
                             elif error is None:
-                                row["conflict"] = str(conflict)
+                                store = TerminalAuditMetadataStore(
+                                    tracker, self.project_store, project_id
+                                )
                                 try:
-                                    # Persist the classification before the
-                                    # external status write.  If the process
-                                    # dies after that write, a fresh worker
-                                    # sees the persisted conflict and can
-                                    # finish metadata without mutating status
-                                    # a second time.
-                                    queue["updated_at"] = current_time.isoformat()
-                                    self._set_lifecycle_state(queue)
-                                    if not self._persist(self._load_root_state()):
-                                        raise RuntimeError(
-                                            "lifecycle intent was not durably persisted"
+                                    with self.project_store.project_write_lock(project_id):
+                                        # The discovery snapshot can go stale
+                                        # before this serialized mutation
+                                        # boundary. Re-read the complete scoped
+                                        # task/parent graph and re-run the
+                                        # tri-state validator under the same
+                                        # lock that guards the Done write.
+                                        fresh_snapshot = self._lifecycle_scoped_snapshot(
+                                            project_id,
+                                            self._all_issues(tracker),
                                         )
+                                        fresh_issue = fresh_snapshot.get(task_id)
+                                        fresh_has_conflict = False
+                                        conflict_text: str | None = None
+                                        if fresh_issue is None:
+                                            error = "task_not_present_in_locked_snapshot"
+                                        elif canonicalize_status(
+                                            getattr(fresh_issue, "state", "")
+                                        ) != MERGED:
+                                            outcome = "state_changed"
+                                        else:
+                                            fresh_token = _recovery_snapshot.set(
+                                                fresh_snapshot
+                                            )
+                                            try:
+                                                fresh_conflict = validator(
+                                                    fresh_issue,
+                                                    TargetState.MERGED,
+                                                    project_id,
+                                                )
+                                            except Exception as exc:  # noqa: BLE001
+                                                fresh_conflict = None
+                                                error = (
+                                                    "lifecycle_revalidation_failed:"
+                                                    f"{type(exc).__name__}"
+                                                )
+                                            finally:
+                                                _recovery_snapshot.reset(fresh_token)
+                                            fresh_has_conflict = (
+                                                isinstance(fresh_conflict, str)
+                                                and bool(fresh_conflict.strip())
+                                            ) or fresh_conflict is False
+                                            if error is None and not fresh_has_conflict:
+                                                outcome = "not_needed"
+                                            elif error is None:
+                                                conflict_text = (
+                                                    fresh_conflict.strip()
+                                                    if isinstance(fresh_conflict, str)
+                                                    else "shared_epic_lifecycle_rejected"
+                                                )
+                                                row["conflict"] = conflict_text
+                                                migration_marker = row.pop(
+                                                    "migration_v1_rearm_pending",
+                                                    None,
+                                                )
+                                                migration_started = row.pop(
+                                                    "migration_v1_rearm_started",
+                                                    None,
+                                                )
+                                                try:
+                                                    # Persist the fresh
+                                                    # classification before the
+                                                    # external status write. If
+                                                    # the process dies after the
+                                                    # write, recovery completes
+                                                    # metadata without repeating
+                                                    # the mutation.
+                                                    queue["updated_at"] = (
+                                                        current_time.isoformat()
+                                                    )
+                                                    self._set_lifecycle_state(queue)
+                                                    if not self._persist(
+                                                        self._load_root_state()
+                                                    ):
+                                                        raise RuntimeError(
+                                                            "lifecycle intent was not "
+                                                            "durably persisted"
+                                                        )
+                                                except Exception as exc:  # noqa: BLE001
+                                                    if migration_marker is True:
+                                                        row[
+                                                            "migration_v1_rearm_pending"
+                                                        ] = True
+                                                    if migration_started is True:
+                                                        row[
+                                                            "migration_v1_rearm_started"
+                                                        ] = True
+                                                    error = (
+                                                        "lifecycle_intent_persist_failed:"
+                                                        f"{type(exc).__name__}"
+                                                    )
+                                            if error is None and fresh_has_conflict:
+                                                assert fresh_issue is not None
+                                                assert conflict_text is not None
+                                                # Fresh validation, exact Done
+                                                # authority, and the status write
+                                                # remain within one project lock.
+                                                if self._reconcile_incompatible_shared_epic_merged(
+                                                    store,
+                                                    tracker,
+                                                    fresh_issue,
+                                                    project_id,
+                                                    validated_conflict=conflict_text,
+                                                ):
+                                                    outcome = "reconciled"
+                                                else:
+                                                    error = "lifecycle_repair_not_applied"
                                 except Exception as exc:  # noqa: BLE001 - row isolation
-                                    error = f"lifecycle_intent_persist_failed:{type(exc).__name__}"
-                                if error is None:
-                                    store = TerminalAuditMetadataStore(
-                                        tracker, self.project_store, project_id
-                                    )
-                                    try:
-                                        with self.project_store.project_write_lock(project_id):
-                                            if self._reconcile_incompatible_shared_epic_merged(
-                                                store, tracker, issue, project_id
-                                            ):
-                                                outcome = "reconciled"
-                                            else:
-                                                error = "lifecycle_repair_not_applied"
-                                    except Exception as exc:  # noqa: BLE001 - row isolation
-                                        error = f"lifecycle_repair_failed:{type(exc).__name__}"
+                                    if error is None:
+                                        error = (
+                                            "lifecycle_repair_failed:"
+                                            f"{type(exc).__name__}"
+                                        )
                 row["attempts"] = int(row.get("attempts", 0) or 0) + 1
                 row["updated_at"] = current_time.isoformat()
                 if error is None:
@@ -1550,6 +1880,8 @@ class TerminalAuditEnforcement:
                         "next_attempt_at",
                         "exhausted_at",
                         "failure_fingerprint",
+                        "migration_v1_rearm_pending",
+                        "migration_v1_rearm_started",
                     ):
                         row.pop(key, None)
                 else:
@@ -1558,7 +1890,11 @@ class TerminalAuditEnforcement:
                             "status": "failed",
                             "last_error": error,
                             "failure_fingerprint": (
-                                self._lifecycle_source_fingerprint(*tracker_issue)
+                                self._lifecycle_source_fingerprint(
+                                    *tracker_issue,
+                                    project_id=project_id,
+                                    snapshot=snapshots.get(project_id, {}),
+                                )
                                 if tracker_issue is not None
                                 else None
                             ),
@@ -1608,6 +1944,75 @@ class TerminalAuditEnforcement:
                 self._persist(self._load_root_state())
             return self.lifecycle_reconciliation_status()
 
+    @staticmethod
+    def _lifecycle_done_only_issue(issue: Issue) -> bool:
+        labels = {str(label).strip().lower() for label in issue.labels or []}
+        return (
+            is_direct_epic_maintenance_issue(issue)
+            and "ci-fix" not in labels
+            and "merge-conflict" not in labels
+        )
+
+    @staticmethod
+    def _lifecycle_terminal_authorities(
+        document: TerminalAuditMetadata,
+        issue: Issue,
+        project_id: str,
+        target_state: TargetState,
+    ) -> tuple[list[TerminalAuditRecord], list[OverrideRecord]]:
+        """Return exact current PASS/owner authority for one terminal target."""
+
+        identifier = str(issue.identifier)
+        aliases = {identifier, str(getattr(issue, "id", "") or "")}
+        current_fingerprint = compute_issue_evidence_fingerprint(issue, project_id)
+        passed = [
+            record
+            for record in document.pending_chain
+            if record.project_id == project_id
+            and record.task_id in aliases
+            and record.target_state == target_state
+            and record.request_state == RequestState.COMPLETED
+            and record.evidence_fingerprint == current_fingerprint
+            and any(
+                attempt.verdict == Verdict.PASS
+                and attempt.target_state == target_state
+                and attempt.evidence_fingerprint == current_fingerprint
+                for attempt in record.attempts
+            )
+        ]
+        overrides: list[OverrideRecord] = []
+        raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+        for raw in raw_overrides if isinstance(raw_overrides, list) else []:
+            if not isinstance(raw, Mapping) or raw.get("applied") is not True:
+                continue
+            if any(
+                bool(raw.get(key))
+                for key in (
+                    "retired_at",
+                    "retired_reason",
+                    "retired_by_reconciliation",
+                    "retired_by_override",
+                    "retired_by_lifecycle",
+                    "lifecycle_retired",
+                    "superseded",
+                    "superseded_at",
+                    "superseded_by",
+                )
+            ):
+                continue
+            try:
+                record = OverrideRecord.from_dict(raw)
+            except (TypeError, ValueError):
+                continue
+            if (
+                record.project_id == project_id
+                and record.task_id in aliases
+                and record.target_state == target_state
+                and record.evidence_fingerprint == current_fingerprint
+            ):
+                overrides.append(record)
+        return passed, overrides
+
     def _finalize_incompatible_shared_epic_merged(
         self,
         store: TerminalAuditMetadataStore,
@@ -1616,6 +2021,7 @@ class TerminalAuditEnforcement:
         project_id: str,
         conflict: str,
         done_records: list[TerminalAuditRecord],
+        done_overrides: list[OverrideRecord] | None = None,
     ) -> bool:
         """Finish metadata/audit retirement after a prior status write.
 
@@ -1736,6 +2142,9 @@ class TerminalAuditEnforcement:
                         "reason": "shared_epic_parent_not_landed",
                         "conflict": conflict,
                         "done_audit_ids": [record.audit_id for record in done_records],
+                        "done_override_ids": [
+                            record.override_id for record in (done_overrides or [])
+                        ],
                         "created_at": now,
                     }
                 )
@@ -1756,7 +2165,8 @@ class TerminalAuditEnforcement:
             try:
                 tracker.add_comment(
                     identifier,
-                    f"Lifecycle reconciliation restored {identifier} to audited Done: {conflict}",
+                    f"Lifecycle reconciliation restored {identifier} to "
+                    f"authorized Done: {conflict}",
                     author="oompah",
                 )
             except Exception:
@@ -1773,31 +2183,37 @@ class TerminalAuditEnforcement:
         tracker: TrackerProtocol,
         issue: Issue,
         project_id: str,
+        *,
+        validated_conflict: str | None = None,
     ) -> bool:
         """Restore legacy shared children to audited Done before recovery.
 
         Older service versions could persist a project-owner Merged override
-        for a child whose work existed only on the epic branch.  If the child
-        has a completed passing Done audit, Done is the safe durable state to
-        restore.  The incompatible Merged rows remain in the audit ledger for
-        history, while only that child's Merged rows/override/intents are
-        retired so unrelated audits are untouched.
+        for a child whose work existed only on the epic branch.  A completed
+        passing Done audit remains sufficient authority.  A matching applied
+        owner Done override is also sufficient, but only for structurally
+        Done-only maintenance helpers.  The incompatible Merged rows remain in
+        the audit ledger for history, while only that child's Merged rows,
+        overrides, and intents are retired so unrelated audits are untouched.
         """
 
-        validator = self._validate_terminal_transition
-        if validator is None or canonicalize_status(getattr(issue, "state", "")) != MERGED:
+        if canonicalize_status(getattr(issue, "state", "")) != MERGED:
             return False
-
-        try:
-            conflict = validator(issue, TargetState.MERGED, project_id)
-        except Exception:
-            logger.warning(
-                "Could not classify legacy Merged child %s/%s during recovery",
-                project_id,
-                issue.identifier,
-                exc_info=True,
-            )
-            return False
+        conflict = validated_conflict
+        if conflict is None:
+            validator = self._validate_terminal_transition
+            if validator is None:
+                return False
+            try:
+                conflict = validator(issue, TargetState.MERGED, project_id)
+            except Exception:
+                logger.warning(
+                    "Could not classify legacy Merged child %s/%s during recovery",
+                    project_id,
+                    issue.identifier,
+                    exc_info=True,
+                )
+                return False
         if not isinstance(conflict, str) or not conflict.strip():
             return False
 
@@ -1809,20 +2225,19 @@ class TerminalAuditEnforcement:
         if document.is_quarantined:
             return False
 
-        done_records = [
-            record
-            for record in document.pending_chain
-            if record.project_id == project_id
-            and record.task_id in {identifier, str(getattr(issue, "id", "") or "")}
-            and record.target_state == TargetState.DONE
-            and record.request_state == RequestState.COMPLETED
-            and any(attempt.verdict == Verdict.PASS for attempt in record.attempts)
-        ]
-        if not done_records:
+        done_records, done_overrides = self._lifecycle_terminal_authorities(
+            document,
+            issue,
+            project_id,
+            TargetState.DONE,
+        )
+        if not done_records and not (
+            done_overrides and self._lifecycle_done_only_issue(issue)
+        ):
             return False
 
         try:
-            # The completed Done audit is the evidence for this repair.  Do
+            # The exact Done authority is the evidence for this repair.  Do
             # not reopen implementation work or create a new audit attempt.
             # TERMINAL-AUDIT-ALLOW OOMPAH-725: serialized legacy reconciliation.
             tracker.update_issue(identifier, status=DONE)
@@ -1835,145 +2250,22 @@ class TerminalAuditEnforcement:
             )
             return False
 
-        now = datetime.now(timezone.utc).isoformat()
-
-        def _finalize(current):
-            unknown = dict(current.unknown_fields)
-            chain = [
-                replace(record, request_state=RequestState.SUPERSEDED, updated_at=now)
-                if (
-                    record.project_id == project_id
-                    and record.task_id in {identifier, str(getattr(issue, "id", "") or "")}
-                    and record.target_state == TargetState.MERGED
-                    and record.request_state
-                    in {
-                        RequestState.PENDING,
-                        RequestState.IN_PROGRESS,
-                        RequestState.COMPLETED,
-                    }
-                )
-                else record
-                for record in current.pending_chain
-            ]
-
-            raw_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
-            overrides: list[dict[str, Any]] = []
-            for raw in raw_overrides if isinstance(raw_overrides, list) else []:
-                if not isinstance(raw, Mapping):
-                    continue
-                item = dict(raw)
-                if (
-                    item.get("project_id") == project_id
-                    and item.get("task_id") == identifier
-                    and item.get("target_state") == TargetState.MERGED.value
-                ):
-                    item.update(
-                        {
-                            "applied": True,
-                            "lifecycle_reconciled": True,
-                            "reconciled_to": DONE,
-                            "retired_reason": "shared_epic_parent_not_landed",
-                            "reconciled_at": now,
-                        }
-                    )
-                overrides.append(item)
-            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
-
-            raw_retirements = unknown.get(TERMINAL_RETIREMENTS_KEY, [])
-            retirements: list[dict[str, Any]] = []
-            for raw in raw_retirements if isinstance(raw_retirements, list) else []:
-                if not isinstance(raw, Mapping):
-                    continue
-                item = dict(raw)
-                if (
-                    item.get("project_id") == project_id
-                    and item.get("task_id") == identifier
-                    and item.get("target_state") == TargetState.MERGED.value
-                ):
-                    # Keep the historical identity but reopen its fence so a
-                    # later, genuinely landed Merged request can proceed.
-                    item.update(
-                        {
-                            "applied": False,
-                            "lifecycle_reconciled": True,
-                            "reconciled_to": DONE,
-                            "retired_reason": "shared_epic_parent_not_landed",
-                        }
-                    )
-                retirements.append(item)
-            unknown[TERMINAL_RETIREMENTS_KEY] = retirements
-
-            raw_intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
-            if isinstance(raw_intents, list):
-                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
-                    {
-                        **dict(raw),
-                        "applied": True,
-                        "retired_by_reconciliation": True,
-                        "retired_reason": "shared_epic_parent_not_landed",
-                        "reconciled_at": now,
-                    }
-                    if (
-                        isinstance(raw, Mapping)
-                        and raw.get("project_id") == project_id
-                        and raw.get("task_id") == identifier
-                        and raw.get("target_state") == TargetState.MERGED.value
-                    )
-                    else raw
-                    for raw in raw_intents
-                    if isinstance(raw, Mapping)
-                ]
-
-            rows = [
-                dict(row)
-                for row in (unknown.get(LIFECYCLE_RECONCILIATIONS_KEY) or [])
-                if isinstance(row, Mapping)
-            ]
-            rows.append(
-                {
-                    "project_id": project_id,
-                    "task_id": identifier,
-                    "from": MERGED,
-                    "to": DONE,
-                    "reason": "shared_epic_parent_not_landed",
-                    "conflict": conflict,
-                    "done_audit_ids": [record.audit_id for record in done_records],
-                    "created_at": now,
-                }
-            )
-            unknown[LIFECYCLE_RECONCILIATIONS_KEY] = rows
-            return replace(current, pending_chain=chain, unknown_fields=unknown)
-
-        try:
-            store.update(identifier, _finalize)
-        except Exception:
+        finalized = self._finalize_incompatible_shared_epic_merged(
+            store,
+            tracker,
+            issue,
+            project_id,
+            conflict,
+            done_records,
+            done_overrides,
+        )
+        if finalized:
             logger.warning(
-                "Could not finalize incompatible Merged child repair %s/%s",
+                "Reconciled incompatible shared-epic child %s/%s from Merged to Done",
                 project_id,
                 identifier,
-                exc_info=True,
             )
-            return False
-
-        try:
-            tracker.add_comment(
-                identifier,
-                f"Lifecycle reconciliation restored {identifier} to audited Done: "
-                f"{conflict}",
-                author="oompah",
-            )
-        except Exception:
-            logger.debug(
-                "Could not post legacy lifecycle reconciliation comment for %s",
-                identifier,
-                exc_info=True,
-            )
-        logger.warning(
-            "Reconciled incompatible shared-epic child %s/%s from Merged to Done",
-            project_id,
-            identifier,
-        )
-        return True
+        return finalized
 
     def _recover_terminal_override(
         self,

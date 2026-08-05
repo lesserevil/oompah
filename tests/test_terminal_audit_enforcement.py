@@ -20,6 +20,7 @@ from oompah.models import Issue
 from oompah.config import ServiceConfig
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
+from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
@@ -32,6 +33,8 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_enforcement import (
+    LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION,
+    LIFECYCLE_RECONCILIATION_VERSION,
     PendingAudit,
     SERVICE_STATE_KEY,
     TERMINAL_OVERRIDE_RECORDS_KEY,
@@ -39,6 +42,7 @@ from oompah.terminal_audit_enforcement import (
     TerminalAuditEnforcement,
     TerminalAuditEnforcementState,
     _authority_key,
+    get_recovery_snapshot,
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -595,6 +599,80 @@ def _shared_epic_conflict(issue, target, _project):
     return None
 
 
+def _completed_terminal_authority(
+    issue: Issue,
+    project_id: str,
+    target_state: TargetState,
+) -> TerminalAuditRecord:
+    fingerprint = compute_issue_evidence_fingerprint(issue, project_id)
+    return TerminalAuditRecord(
+        audit_id=f"audit-{target_state.value.lower()}-{issue.identifier}",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=target_state,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id=f"pass-{target_state.value.lower()}-{issue.identifier}",
+                target_state=target_state,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+
+
+def _applied_terminal_override(
+    issue: Issue,
+    project_id: str,
+    target_state: TargetState,
+) -> dict[str, object]:
+    raw = OverrideRecord(
+        override_id=f"override-{target_state.value.lower()}-{issue.identifier}",
+        project_id=project_id,
+        task_id=issue.identifier,
+        target_state=target_state,
+        evidence_fingerprint=compute_issue_evidence_fingerprint(issue, project_id),
+        authorized_by=ContributorIdentity("owner", "api"),
+        reason="authorized recovery",
+    ).to_dict()
+    raw["applied"] = True
+    return raw
+
+
+def _v1_exhausted_lifecycle_state(
+    identifiers: list[tuple[str, str]],
+    started: datetime,
+) -> dict[str, object]:
+    return {
+        SERVICE_STATE_KEY: TerminalAuditEnforcementState(
+            lifecycle_reconciliation={
+                "version": 1,
+                "status": "degraded",
+                "records": [
+                    {
+                        "project_id": project_id,
+                        "task_id": task_id,
+                        "status": "exhausted",
+                        "attempts": 5,
+                        "last_error": "lifecycle_repair_not_applied",
+                        "conflict": "stale shared-epic conflict",
+                        "failure_fingerprint": "0" * 64,
+                        "exhausted_at": started.isoformat(),
+                        "updated_at": started.isoformat(),
+                    }
+                    for project_id, task_id in identifiers
+                ],
+                "cursor": 0,
+                "updated_at": started.isoformat(),
+                "errors": [],
+            }
+        ).to_dict()
+    }
+
+
 def test_lifecycle_reconciliation_batches_are_durable_and_restart_safe(tmp_path):
     tracker = _Tracker([])
     for number in range(5):
@@ -642,6 +720,970 @@ def test_lifecycle_reconciliation_batches_are_durable_and_restart_safe(tmp_path)
     )
     assert duplicate["status"] == "complete"
     assert len(tracker.status_updates) == 5
+
+
+def test_lifecycle_batch_scopes_native_issues_and_installs_complete_snapshot(
+    tmp_path,
+):
+    tracker = _native_tracker(tmp_path / "native-repo")
+    parent = tracker.create_issue(
+        "Parent epic",
+        issue_type="epic",
+        initial_status="Merged",
+    )
+    child = tracker.create_issue(
+        "Native child",
+        parent=parent.identifier,
+        initial_status="Merged",
+    )
+    observed: list[str] = []
+
+    def validate(issue, target, project_id):
+        assert target == TargetState.MERGED
+        assert project_id == "project-native"
+        assert issue.project_id == "project-native"
+        snapshot = get_recovery_snapshot()
+        assert snapshot is not None
+        assert snapshot[issue.identifier] is issue
+        assert all(item.project_id == "project-native" for item in snapshot.values())
+        if issue.parent_id:
+            assert snapshot[issue.parent_id].state == "Merged"
+        observed.append(issue.identifier)
+        return None
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=validate,
+    )
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-native", tracker)], batch_size=2
+    )
+
+    assert result["status"] == "complete"
+    assert result["processed"] == 2
+    assert result["reconciled"] == 0
+    assert set(observed) == {parent.identifier, child.identifier}
+    assert tracker.fetch_issue_detail(child.identifier).project_id is None
+
+
+def test_lifecycle_stale_merged_conflict_accepts_current_pass_archived(tmp_path):
+    issue = _issue("ARCHIVED-1", "Archived", "evidence", "project-a")
+    issue.parent_id = "EPIC-1"
+    tracker = _Tracker([issue])
+    archived = _completed_terminal_authority(
+        issue, "project-a", TargetState.ARCHIVED
+    )
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[archived]).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _v1_exhausted_lifecycle_state(
+                [("project-a", issue.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert result["status"] == "complete"
+    assert result["processed"] == 1
+    assert result["reconciled"] == 0
+    assert result["action_required"] is False
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["outcome"] == "not_needed"
+    assert row["classifier_version"] == LIFECYCLE_RECONCILIATION_CLASSIFIER_VERSION
+
+
+def test_lifecycle_revalidates_locked_snapshot_before_done_write(tmp_path):
+    child = _issue("CHILD-RACE", "Merged", "evidence", "project-a")
+    child.parent_id = "EPIC-RACE"
+    parent = _issue("EPIC-RACE", "In Review", "parent", "project-a")
+    parent.issue_type = "epic"
+    tracker = _Tracker([child, parent])
+    done_record = _completed_terminal_authority(
+        child, "project-a", TargetState.DONE
+    )
+    tracker.metadata[child.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[done_record]
+        ).to_dict()
+    }
+    tracker.metadata[parent.identifier] = {}
+
+    class LandingLockStore(_LockStore):
+        def project_write_lock(self, _project_id):
+            class Lock:
+                def __enter__(self):
+                    parent.state = "Merged"
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+            return Lock()
+
+    observed_parent_states: list[str] = []
+
+    def validate(issue, _target, _project_id):
+        snapshot = get_recovery_snapshot()
+        assert snapshot is not None
+        parent_state = canonicalize_status(snapshot[issue.parent_id].state)
+        observed_parent_states.append(parent_state)
+        if parent_state in {"Merged", "Archived"}:
+            return None
+        return "parent review has not landed"
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=LandingLockStore(),
+        validate_terminal_transition=validate,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=1,
+        now=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
+
+    assert observed_parent_states == ["In Review", "Merged"]
+    assert result["status"] == "complete"
+    assert result["reconciled"] == 0
+    assert tracker.status_updates == []
+    assert child.state == "Merged"
+
+
+def test_lifecycle_locked_refetch_completes_concurrent_child_state_change(tmp_path):
+    child = _issue("CHILD-STATE-RACE", "Merged", "evidence", "project-a")
+    child.parent_id = "EPIC-STATE-RACE"
+    parent = _issue("EPIC-STATE-RACE", "In Review", "parent", "project-a")
+    parent.issue_type = "epic"
+    tracker = _Tracker([child, parent])
+    tracker.metadata[child.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[
+                _completed_terminal_authority(
+                    child, "project-a", TargetState.DONE
+                )
+            ]
+        ).to_dict()
+    }
+    tracker.metadata[parent.identifier] = {}
+
+    class StateChangeLockStore(_LockStore):
+        def project_write_lock(self, _project_id):
+            class Lock:
+                def __enter__(self):
+                    child.state = "Done"
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+            return Lock()
+
+    def validate(_issue, _target, _project_id):
+        return "parent review has not landed"
+
+    state_path = tmp_path / "service_state.json"
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=StateChangeLockStore(),
+        validate_terminal_transition=validate,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=1,
+        now=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
+
+    assert result["status"] == "complete"
+    assert result["reconciled"] == 0
+    assert tracker.status_updates == []
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["status"] == "completed"
+    assert row["outcome"] == "state_changed"
+    assert "conflict" not in row
+
+
+def test_lifecycle_done_only_owner_override_repairs_once_but_normal_task_fails_closed(
+    tmp_path,
+):
+    helper = _issue("HELPER-1", "Merged", "evidence", "project-a")
+    helper.title = "Rebase epic-EPIC-1 onto main"
+    helper.parent_id = "EPIC-1"
+    normal = _issue("NORMAL-1", "Merged", "evidence", "project-a")
+    normal.parent_id = "EPIC-1"
+    tracker = _Tracker([helper, normal])
+    for issue in (helper, normal):
+        tracker.metadata[issue.identifier] = {
+            METADATA_KEY: TerminalAuditMetadata(
+                unknown_fields={
+                    TERMINAL_OVERRIDE_RECORDS_KEY: [
+                        _applied_terminal_override(
+                            issue, "project-a", TargetState.DONE
+                        )
+                    ]
+                }
+            ).to_dict()
+        }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _v1_exhausted_lifecycle_state(
+                [
+                    ("project-a", helper.identifier),
+                    ("project-a", normal.identifier),
+                ],
+                started,
+            )
+        ),
+        encoding="utf-8",
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        batch_size=2,
+        max_attempts=1,
+        now=started,
+    )
+
+    assert result["reconciled"] == 1
+    assert result["exhausted"] == 1
+    assert result["action_required"] is True
+    assert tracker.status_updates == [(helper.identifier, "Done")]
+    repeated = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        batch_size=2,
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+    assert repeated == result
+    assert tracker.status_updates == [(helper.identifier, "Done")]
+
+
+@pytest.mark.parametrize(
+    ("retirement_marker", "retirement_value"),
+    [
+        ("retired_reason", "superseded_by_newer_override"),
+        ("retired_by_reconciliation", True),
+        ("lifecycle_retired", True),
+    ],
+)
+def test_lifecycle_retired_done_override_cannot_reauthorize_status_write(
+    tmp_path,
+    retirement_marker,
+    retirement_value,
+):
+    helper = _issue("HELPER-RETIRED", "Merged", "evidence", "project-a")
+    helper.title = "Rebase epic-EPIC-1 onto main"
+    helper.parent_id = "EPIC-1"
+    override = _applied_terminal_override(
+        helper, "project-a", TargetState.DONE
+    )
+    override[retirement_marker] = retirement_value
+    tracker = _Tracker([helper])
+    tracker.metadata[helper.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]}
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _v1_exhausted_lifecycle_state(
+                [("project-a", helper.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+
+    assert result["exhausted"] == 1
+    assert result["reconciled"] == 0
+    assert tracker.status_updates == []
+    assert helper.state == "Merged"
+
+
+def test_lifecycle_fingerprint_reopens_for_changed_landing_fact_not_outage_or_restart(
+    tmp_path,
+):
+    issue = _issue("NESTED-1", "Merged", "evidence", "project-a")
+    issue.parent_id = "EPIC-1"
+    parent = _issue("EPIC-1", "In Review", "parent", "project-a")
+    parent.issue_type = "epic"
+    tracker = _Tracker([issue, parent])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata().to_dict()
+    }
+    tracker.metadata[parent.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata().to_dict()
+    }
+    evidence = {"revision": "landing-v1", "landed": False, "outage": False}
+
+    def validate(_issue, _target, _project):
+        return None if evidence["landed"] else "target-relative review not landed"
+
+    def landing(_issue, project_id, _snapshot):
+        if evidence["outage"]:
+            raise OSError("workflow fact store unavailable")
+        return {
+            "project_id": project_id,
+            "source": "epic-NESTED-1",
+            "target": "epic-EPIC-1",
+            "evidence_revision": evidence["revision"],
+        }
+
+    state_path = tmp_path / "service_state.json"
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=validate,
+        lifecycle_landing_evidence=landing,
+    )
+    exhausted = first.reconcile_lifecycle_batch(
+        [("project-a", tracker)], max_attempts=1, now=started
+    )
+    assert exhausted["exhausted"] == 1
+
+    evidence["outage"] = True
+    restarted = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=validate,
+        lifecycle_landing_evidence=landing,
+    )
+    unavailable = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+    assert unavailable == exhausted
+
+    evidence.update({"outage": False, "landed": True, "revision": "landing-v2"})
+    recovered = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)],
+        max_attempts=1,
+        now=started + timedelta(days=2),
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["action_required"] is False
+    assert recovered["reconciled"] == 0
+
+
+def test_lifecycle_v1_absent_reappearance_waits_for_authoritative_landing_evidence(
+    tmp_path,
+):
+    project_id = "project-a"
+    task_id = "CHILD-REAPPEARS-DURING-OUTAGE"
+    tracker = _Tracker([])
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    raw_state = _v1_exhausted_lifecycle_state(
+        [(project_id, task_id)], started
+    )
+    row = raw_state[SERVICE_STATE_KEY]["lifecycle_reconciliation"]["records"][0]
+    row["last_error"] = "task_not_present_in_current_snapshot"
+    state_path.write_text(json.dumps(raw_state), encoding="utf-8")
+    evidence = {"available": False}
+
+    def landing(_issue, scoped_project_id, _snapshot):
+        if not evidence["available"]:
+            raise OSError("SCM landing observation unavailable")
+        return {
+            "project_id": scoped_project_id,
+            "source": "epic-PARENT",
+            "target": "main",
+            "observation": "landed",
+            "facts": [],
+        }
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=lambda *_args: None,
+        lifecycle_landing_evidence=landing,
+    )
+
+    initial = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=1, now=started
+    )
+    assert initial["exhausted"] == 1
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert persisted["attempts"] == 5
+    assert persisted["migration_v1_rearm_pending"] is True
+
+    issue = _issue(task_id, "Merged", "evidence", project_id)
+    tracker.issues.append(issue)
+    tracker.metadata[task_id] = {}
+    unavailable = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=started + timedelta(hours=1),
+    )
+    assert unavailable == initial
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert persisted["status"] == "exhausted"
+    assert persisted["attempts"] == 5
+    assert persisted["migration_v1_rearm_pending"] is True
+    assert tracker.status_updates == []
+
+    evidence["available"] = True
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=started + timedelta(hours=2),
+    )
+    assert recovered["status"] == "complete"
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert persisted["status"] == "completed"
+    assert persisted["attempts"] == 1
+    assert "migration_v1_rearm_pending" not in persisted
+    assert tracker.status_updates == []
+
+
+def test_lifecycle_v1_rearm_survives_processing_outage_after_fingerprint(
+    tmp_path,
+):
+    project_id = "project-a"
+    helper = _issue("HELPER-OBSERVATION-RACE", "Merged", "evidence", project_id)
+    helper.title = "Rebase epic-EPIC-1 onto main"
+    helper.parent_id = "EPIC-1"
+    tracker = _Tracker([helper])
+    tracker.metadata[helper.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [
+                    _applied_terminal_override(
+                        helper,
+                        project_id,
+                        TargetState.DONE,
+                    )
+                ]
+            }
+        ).to_dict()
+    }
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            _v1_exhausted_lifecycle_state(
+                [(project_id, helper.identifier)], started
+            )
+        ),
+        encoding="utf-8",
+    )
+    validator_calls = 0
+
+    def validate(_issue, _target, _project_id):
+        nonlocal validator_calls
+        validator_calls += 1
+        if validator_calls == 2:
+            raise OSError("SCM unavailable after fingerprint observation")
+        return "maintenance helpers are Done-only"
+
+    def landing(_issue, scoped_project_id, _snapshot):
+        return {
+            "project_id": scoped_project_id,
+            "source": "epic-EPIC-1",
+            "target": "main",
+            "observation": "not_landed",
+            "facts": [],
+        }
+
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=validate,
+        lifecycle_landing_evidence=landing,
+    )
+
+    unavailable = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)], max_attempts=1, now=started
+    )
+    assert unavailable["exhausted"] == 1
+    assert tracker.status_updates == []
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert persisted["attempts"] == 1
+    assert persisted["retry_epochs"] == 1
+    assert persisted["migration_v1_rearm_pending"] is True
+    assert persisted["migration_v1_rearm_started"] is True
+
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [(project_id, tracker)],
+        max_attempts=1,
+        now=started + timedelta(hours=1),
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 1
+    assert tracker.status_updates == [(helper.identifier, "Done")]
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert persisted["retry_epochs"] == 1
+    assert "migration_v1_rearm_pending" not in persisted
+    assert "migration_v1_rearm_started" not in persisted
+
+
+def test_lifecycle_landing_evidence_rejects_incomplete_fact_and_uses_exact_scm_route(
+    monkeypatch,
+):
+    import oompah.orchestrator as orchestrator_module
+
+    project = SimpleNamespace(
+        id="project-a",
+        repo_url="https://github.com/org/repo",
+        default_branch="main",
+        access_token=None,
+    )
+    root = _issue("ROOT", "In Review", "root", "project-a")
+    root.issue_type = "epic"
+    nested = _issue("NESTED", "In Review", "nested", "project-a")
+    nested.issue_type = "epic"
+    nested.parent_id = root.identifier
+    child = _issue("CHILD", "Merged", "child", "project-a")
+    child.parent_id = nested.identifier
+    snapshot = {
+        item.identifier: item
+        for item in (root, nested, child)
+    }
+    landing = {
+        "project_id": "project-a",
+        "source": "epic-NESTED",
+        "target": "epic-ROOT",
+        "state": "landed",
+        "durable": True,
+        "evidence_revision": "landing-revision-1",
+    }
+
+    class Store:
+        def landing_facts(self, *, project_id, task_id):
+            assert project_id == "project-a"
+            assert task_id == "NESTED"
+            return (landing,)
+
+    class StrictLandingFact:
+        @classmethod
+        def from_dict(cls, _raw):
+            raise ValueError("landing proof requires kind")
+
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.project_store = SimpleNamespace(get=lambda value: project)
+    orchestrator.workflow_job_store = Store()
+    orchestrator._epic_branch_for_issue = lambda issue: f"epic-{issue.identifier}"
+    provider = SimpleNamespace(
+        observe_branch_landing=lambda _repo, source, target: (
+            source == "epic-NESTED" and target == "epic-ROOT"
+        )
+    )
+    monkeypatch.setattr(
+        orchestrator_module,
+        "detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    monkeypatch.setattr(
+        orchestrator_module.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(LandingFact=StrictLandingFact),
+    )
+
+    nested_fact = Orchestrator._terminal_lifecycle_landing_evidence(
+        orchestrator,
+        nested,
+        "project-a",
+        snapshot,
+    )
+    child_fact = Orchestrator._terminal_lifecycle_landing_evidence(
+        orchestrator,
+        child,
+        "project-a",
+        snapshot,
+    )
+
+    assert nested_fact["source"] == child_fact["source"] == "epic-NESTED"
+    assert nested_fact["target"] == child_fact["target"] == "epic-ROOT"
+    assert nested_fact["observation"] == child_fact["observation"] == "landed"
+    # The incomplete raw mapping has no LandingFact schema/proof/content hash,
+    # so only the exact source/target SCM observation may authorize landing.
+    assert nested_fact["facts"] == child_fact["facts"] == []
+
+
+def test_lifecycle_forge_observation_requires_explicit_tristate_capability():
+    orchestrator = Orchestrator.__new__(Orchestrator)
+
+    class LegacyProvider:
+        def list_merged_reviews(self, _slug):
+            return []
+
+        def find_pr_for_branch(self, _slug, _branch):
+            return None
+
+    class ObservingProvider:
+        def __init__(self, observation):
+            self.observation = observation
+
+        def observe_branch_landing(self, _slug, _source, _target):
+            return self.observation
+
+    assert Orchestrator._epic_branch_landing_observation(
+        orchestrator,
+        LegacyProvider(),
+        "org/repo",
+        "epic-CHILD",
+        "epic-PARENT",
+    ) is None
+    assert Orchestrator._epic_branch_landing_observation(
+        orchestrator,
+        ObservingProvider(False),
+        "org/repo",
+        "epic-CHILD",
+        "epic-PARENT",
+    ) is False
+    assert Orchestrator._epic_branch_landing_observation(
+        orchestrator,
+        ObservingProvider(True),
+        "org/repo",
+        "epic-CHILD",
+        "epic-PARENT",
+    ) is True
+
+
+def test_lifecycle_actual_orchestrator_propagates_scm_outage_without_status_write(
+    tmp_path,
+    monkeypatch,
+):
+    import httpx
+
+    from oompah.scm import GitHubProvider
+
+    project = SimpleNamespace(
+        id="project-a",
+        repo_url="https://github.com/org/repo",
+        default_branch="main",
+        access_token=None,
+    )
+
+    class ProjectStore(_LockStore):
+        def get(self, project_id):
+            return project if project_id == project.id else None
+
+        @staticmethod
+        def epic_branch_name(identifier):
+            return f"epic-{identifier}"
+
+    child = _issue("CHILD-OUTAGE", "Merged", "evidence", project.id)
+    child.parent_id = "EPIC-OUTAGE"
+    parent = _issue("EPIC-OUTAGE", "In Review", "parent", project.id)
+    parent.issue_type = "epic"
+    tracker = _Tracker([child, parent])
+    tracker.metadata[child.identifier] = {}
+    tracker.metadata[parent.identifier] = {}
+    provider = GitHubProvider(access_token="test")
+
+    def unavailable_api(*_args, **_kwargs):
+        raise httpx.HTTPError("transport unavailable")
+
+    provider._api = unavailable_api
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+
+    project_store = ProjectStore()
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.project_store = project_store
+    orchestrator.workflow_job_store = SimpleNamespace()
+    orchestrator._alerts = []
+    validator = lambda issue, target, project_id: (
+        Orchestrator._validate_terminal_transition(
+            orchestrator,
+            issue,
+            target,
+            project_id,
+        )
+    )
+    landing = lambda issue, project_id, snapshot: (
+        Orchestrator._terminal_lifecycle_landing_evidence(
+            orchestrator,
+            issue,
+            project_id,
+            snapshot,
+        )
+    )
+    state_path = tmp_path / "service_state.json"
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=project_store,
+        validate_terminal_transition=validator,
+        lifecycle_landing_evidence=landing,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [(project.id, tracker)],
+        max_attempts=1,
+        now=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
+
+    assert result["exhausted"] == 1
+    assert result["reconciled"] == 0
+    assert tracker.status_updates == []
+    assert child.state == "Merged"
+    row = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]["records"][0]
+    assert row["last_error"] == "lifecycle_validation_failed:OSError"
+
+
+def test_lifecycle_v1_live_shaped_46_row_migration_converges_44_plus_2(
+    tmp_path,
+    monkeypatch,
+):
+    project_a = "project-a"
+    project_b = "project-b"
+    tracker_a = _Tracker([])
+    tracker_b = _Tracker([])
+    rows: list[tuple[str, str]] = []
+
+    # Four stale Merged repair intents are superseded by exact current
+    # PASS/Archived authority.
+    for number in range(4):
+        issue = _issue(f"ARCHIVED-{number}", "Archived", "evidence", project_a)
+        issue.parent_id = "PARENT-A"
+        tracker_a.issues.append(issue)
+        tracker_a.metadata[issue.identifier] = {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[
+                    _completed_terminal_authority(
+                        issue, project_a, TargetState.ARCHIVED
+                    )
+                ]
+            ).to_dict()
+        }
+        rows.append((project_a, issue.identifier))
+
+    # Thirty-one children are valid from terminal parent facts in the complete
+    # project snapshot, even when their native projection carries no project ID.
+    terminal_parent = _issue("PARENT-A", "Archived", "parent", None)
+    terminal_parent.issue_type = "epic"
+    tracker_a.issues.append(terminal_parent)
+    tracker_a.metadata[terminal_parent.identifier] = {}
+    for number in range(31):
+        issue = _issue(f"VALID-{number}", "Merged", "evidence", None)
+        issue.parent_id = terminal_parent.identifier
+        tracker_a.issues.append(issue)
+        tracker_a.metadata[issue.identifier] = {}
+        rows.append((project_a, issue.identifier))
+
+    # Nine target-relative/nested landings remain valid before their parents
+    # themselves reach a terminal state. Include two in another project to
+    # prove aliases and landing facts cannot escape their source scope.
+    for number in range(9):
+        project_id = project_b if number >= 7 else project_a
+        tracker = tracker_b if project_id == project_b else tracker_a
+        parent_id = f"OPEN-PARENT-{project_id}-{number}"
+        parent = _issue(parent_id, "In Review", "parent", None)
+        parent.issue_type = "epic"
+        issue = _issue(f"LANDED-{number}", "Merged", "evidence", None)
+        issue.parent_id = parent.identifier
+        tracker.issues.extend([parent, issue])
+        tracker.metadata[parent.identifier] = {}
+        tracker.metadata[issue.identifier] = {}
+        rows.append((project_id, issue.identifier))
+
+    # Only these structurally Done-only maintenance helpers require writes.
+    for number in range(2):
+        issue = _issue(f"REBASE-{number}", "Merged", "evidence", project_a)
+        issue.title = "Rebase epic-MAINTENANCE onto main"
+        issue.parent_id = "MAINTENANCE"
+        tracker_a.issues.append(issue)
+        tracker_a.metadata[issue.identifier] = {
+            METADATA_KEY: TerminalAuditMetadata(
+                unknown_fields={
+                    TERMINAL_OVERRIDE_RECORDS_KEY: [
+                        _applied_terminal_override(
+                            issue, project_a, TargetState.DONE
+                        )
+                    ]
+                }
+            ).to_dict()
+        }
+        rows.append((project_a, issue.identifier))
+
+    assert len(rows) == 46
+
+    projects = {
+        project_a: SimpleNamespace(
+            id=project_a,
+            repo_url="https://github.com/org/project-a",
+            default_branch="main",
+            access_token=None,
+        ),
+        project_b: SimpleNamespace(
+            id=project_b,
+            repo_url="https://github.com/org/project-b",
+            default_branch="main",
+            access_token=None,
+        ),
+    }
+
+    class ProjectStore(_LockStore):
+        def get(self, project_id):
+            return projects.get(project_id)
+
+        @staticmethod
+        def epic_branch_name(identifier):
+            return f"epic-{identifier}"
+
+    class ExactLandingProvider:
+        @staticmethod
+        def observe_branch_landing(_repo, source, target):
+            assert source.startswith("epic-")
+            assert target == "main"
+            return True
+
+        @staticmethod
+        def list_merged_reviews(_repo):
+            return []
+
+        @staticmethod
+        def find_pr_for_branch(_repo, _branch):
+            return None
+
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: ExactLandingProvider(),
+    )
+    project_store = ProjectStore()
+    orchestrator = Orchestrator.__new__(Orchestrator)
+    orchestrator.project_store = project_store
+    orchestrator.workflow_job_store = SimpleNamespace()
+    orchestrator._alerts = []
+
+    def validate(issue, target, project_id):
+        return Orchestrator._validate_terminal_transition(
+            orchestrator,
+            issue,
+            target,
+            project_id,
+        )
+
+    def landing(issue, project_id, snapshot):
+        return Orchestrator._terminal_lifecycle_landing_evidence(
+            orchestrator,
+            issue,
+            project_id,
+            snapshot,
+        )
+
+    started = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(_v1_exhausted_lifecycle_state(rows, started)),
+        encoding="utf-8",
+    )
+    enforcer = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=project_store,
+        validate_terminal_transition=validate,
+        lifecycle_landing_evidence=landing,
+    )
+
+    result = enforcer.reconcile_lifecycle_batch(
+        [(project_a, tracker_a), (project_b, tracker_b)],
+        batch_size=46,
+        max_attempts=1,
+        now=started,
+    )
+
+    assert result["status"] == "complete"
+    assert result["processed"] == 46
+    assert result["reconciled"] == 2
+    assert result["failed"] == 0
+    assert result["pending"] == 0
+    assert result["exhausted"] == 0
+    assert result["action_required"] is False
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))[SERVICE_STATE_KEY][
+        "lifecycle_reconciliation"
+    ]
+    assert persisted["version"] == LIFECYCLE_RECONCILIATION_VERSION
+    assert sum(row["outcome"] == "not_needed" for row in persisted["records"]) == 44
+    assert sum(row["outcome"] == "reconciled" for row in persisted["records"]) == 2
+    assert tracker_a.status_updates == [
+        ("REBASE-0", "Done"),
+        ("REBASE-1", "Done"),
+    ]
+    writes_before = tracker_a.set_calls + tracker_b.set_calls
+    restarted = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=validate,
+    )
+    repeated = restarted.reconcile_lifecycle_batch(
+        [(project_a, tracker_a), (project_b, tracker_b)],
+        batch_size=46,
+        max_attempts=1,
+        now=started + timedelta(days=1),
+    )
+    assert repeated == result
+    assert tracker_a.set_calls + tracker_b.set_calls == writes_before
+    assert tracker_a.status_updates == [
+        ("REBASE-0", "Done"),
+        ("REBASE-1", "Done"),
+    ]
 
 
 def test_initialize_can_defer_lifecycle_reconciliation(tmp_path):
