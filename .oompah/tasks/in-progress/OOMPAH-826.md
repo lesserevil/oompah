@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T19:44:47.837226Z'
+updated_at: '2026-08-05T19:48:09.078406Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ author: oompah
 created: 2026-08-05 19:44
 ---
 Understanding: Continuing the preserved OOMPAH-826 review branch as a CI-fix pass. I will inspect the existing orchestrator/test changes, fetch and fast-forward the same branch, read the original PR check logs to identify the concrete failure, reproduce it with the relevant Makefile-backed focused tests, and apply only the minimal exact-head review-gating correction before pushing and submitting.
+---
+author: oompah
+created: 2026-08-05 19:48
+---
+Discovery: PR #721’s failed run 31005918588 confirms the trigger: local evidence existed for 74c4b71c, forge CI failed test_close_gate.py, and the repaired 11c75e6c rerun passed. OOMPAH-826 itself has no remote PR/run yet. The preserved patch gates four adoption sites, but focused standalone recovery currently has 3 failures because restart/race/metadata tests still assert that an existing review skips the gate. More importantly, exact-head gating must be tested through the durable BranchQualityGate cache and the authority CAS, not only by changing one mock assertion; the unrelated uv.lock refresh will be removed.
 ---
 <!-- COMMENTS:END -->
