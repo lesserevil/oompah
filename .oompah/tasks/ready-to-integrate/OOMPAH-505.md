@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:27:33.348475Z'
+updated_at: '2026-08-05T01:28:04.672762Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: c42a2591-b18e-4e2b-8062-271bd77b76f9
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9678325
@@ -236,12 +236,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:23:07.187702+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T01:27:48.987145+00:00'
+  updated_at: '2026-08-05T01:27:48.987145+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -616,5 +618,20 @@ author: oompah
 created: 2026-08-05 01:27
 ---
 Completion: OOMPAH-505 is fully present on the canonical task branch at e1b0f4846, which is clean and identical to origin. Manual ACP model-selection descriptors, server-side validation, role persistence/fallback, explicit Claude/Codex dispatch propagation, telemetry, documentation, and UI behavior are covered by the landed implementation. Verification totals: 356 provider/role/API/UI tests + 375 ACP/orchestrator/telemetry tests + 108 auth/JSON/access-control neighbor tests passed; make check-secrets passed. No additional commit or live configuration mutation is required in this session.
+---
+author: oompah
+created: 2026-08-05 01:27
+---
+Verified and submitted the existing explicit Claude/Codex ACP model-tier implementation: manual selection descriptors/UI, server validation and fallback, role persistence, six explicit dispatch mappings, telemetry, documentation, and regression coverage. Focused suites and secret scan pass; canonical task branch is clean and pushed.
+---
+author: oompah
+created: 2026-08-05 01:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 32
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 3s
+- Log: OOMPAH-505__20260805T012318Z.jsonl
 ---
 <!-- COMMENTS:END -->
