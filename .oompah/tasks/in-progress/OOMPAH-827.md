@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T18:26:14.155928Z'
+updated_at: '2026-08-05T18:30:32.178723Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 724dee77-fd2c-400b-a75c-5c4dc654e861
+oompah.agent_run_id: 78201a27-e5fc-459e-9c14-9b3dd890779c
 oompah.task_costs:
   total_input_tokens: 46446
   total_output_tokens: 288
