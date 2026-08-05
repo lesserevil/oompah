@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-523
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Enforce Basic authentication across HTTP and WebSocket surfaces
 parent: OOMPAH-521
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T18:15:53.229054Z'
+updated_at: '2026-08-05T18:19:48.512892Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -293,14 +293,15 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-521--task-OOMPAH-523
   base_branch: epic-OOMPAH-521
   base_sha: 7978ec91b5532784c5dd6f18bc028954fd3696a9
   head_sha: 9ea2b5523f250ac6259531c2e4fae39dff2288bd
   submitted_at: '2026-08-05T18:15:44.050273+00:00'
-  updated_at: '2026-08-05T18:15:44.050273+00:00'
+  updated_at: '2026-08-05T18:19:40.401991+00:00'
+  last_error: remote epic branch epic-OOMPAH-521 does not exist
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-523__20260804T234732Z
@@ -1371,5 +1372,12 @@ author: oompah
 created: 2026-08-05 18:15
 ---
 Re-submit the unchanged, fully verified exact head 9ea2b5523 once after deploying OOMPAH-838; consume the explicit one-shot forced gate retry instead of the stale cached failure.
+---
+author: oompah
+created: 2026-08-05 18:19
+---
+Integration could not verify `epic-OOMPAH-521--task-OOMPAH-523`: remote epic branch epic-OOMPAH-521 does not exist
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
