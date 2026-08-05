@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:09.212852Z'
-updated_at: '2026-08-05T19:58:26.441973Z'
+updated_at: '2026-08-05T19:59:21.988442Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,13 +135,13 @@ oompah.terminal_audit:
     branch_key: OOMPAH-547
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 57
-  total_output_tokens: 1975
+  total_input_tokens: 89
+  total_output_tokens: 8200
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 57
-      output_tokens: 1975
+      input_tokens: 89
+      output_tokens: 8200
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -150,6 +150,12 @@ oompah.task_costs:
     output_tokens: 1975
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:40:57.093997+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 32
+    output_tokens: 6225
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T19:59:19.259021+00:00'
 ---
 ## Summary
 
@@ -252,5 +258,15 @@ Safe evidence:
 - test_parallel_epic_children: 34/34 passed
 - test_coordination: 15/15 passed
 - test_worker_submission: 14/14 passed
+---
+author: oompah
+created: 2026-08-05 19:59
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 34
+- Tokens: 32 in / 6.2K out [6.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 39s
+- Log: OOMPAH-547__20260805T194205Z.jsonl
 ---
 <!-- COMMENTS:END -->
