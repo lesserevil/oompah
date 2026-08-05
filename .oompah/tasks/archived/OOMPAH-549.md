@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-08-05T20:04:05.697859Z'
+updated_at: '2026-08-05T20:04:11.822863Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,8 +44,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-29b01ffeb6ea
-    applied: false
+    applied: true
     created_at: '2026-08-05T20:04:01.897539+00:00'
+    applied_at: '2026-08-05T20:04:10.492176+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -152,5 +153,24 @@ author: oompah
 created: 2026-08-05 19:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 20:04
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 31f8938b8f669a316a830690aaedcc1e0d3834bf
+- merged_pr: #579
+- merged_branch: epic-OOMPAH-545
+- merged_on_main: true
+- dashboard_label_must_finish_after: present in oompah/templates/dashboard.html
+- dashboard_label_cannot_start_until: present in oompah/templates/dashboard.html
+- ready_to_integrate_status: oompah/statuses.py:18 READY_TO_INTEGRATE
+- docs_updated: docs/task-epic-workflow.md, docs/operator-runbook.md, docs/parallel-epic-integration.md, AGENTS.md, WORKFLOW.md
+- focused_tests: tests/test_parallel_epic_children.py::test_dashboard_shows_queue_wait_reason_and_dependency_semantics + agent_instructions/statuses/task_cli/task_handoff/coordination suites
+- aged_days_since_merge: 7
 ---
 <!-- COMMENTS:END -->
