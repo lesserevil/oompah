@@ -300,6 +300,122 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
 
 
 @pytest.mark.asyncio
+async def test_consumed_prior_checkpoint_does_not_reopen_successor_submission(tmp_path):
+    """A checkpoint already contained by the accepted head is historical."""
+
+    orch = _orchestrator(tmp_path)
+    issue = _issue(state=READY_TO_INTEGRATE)
+    workspace = _create_test_worktree(tmp_path)
+    submitted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    record = IntegrationRecord(
+        state="ready",
+        task_branch=issue.work_branch,
+        head_sha=submitted_head,
+    )
+    entry = RunningEntry(
+        worker_task=asyncio.sleep(0),
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=workspace,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    store = MagicMock()
+    store.preserve_worktree_changes.return_value = {
+        "snapshot_head": "b" * 40,
+        "recovery_ref": "refs/oompah/recovery/TASK-1",
+        "publication_state": "published",
+    }
+    store.consume_worktree_recovery_if_incorporated.return_value = "consumed"
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.completed.add(issue.id)
+
+    with (
+        patch.object(orch, "_tracker_for_project", return_value=tracker),
+        patch.object(orch, "project_store", store),
+    ):
+        await orch._handle_revoked_submission_exit(
+            entry,
+            issue.id,
+            issue.project_id,
+            record,
+        )
+
+    store.consume_worktree_recovery_if_incorporated.assert_called_once()
+    tracker.update_issue.assert_called_once_with(
+        issue.identifier,
+        status=READY_TO_INTEGRATE,
+    )
+    assert issue.id in orch.state.completed
+
+
+@pytest.mark.parametrize(
+    ("relationship", "expected_status", "expected_reopened"),
+    [
+        ("consumed", None, 0),
+        ("current", OPEN, 1),
+    ],
+)
+def test_restart_reconciliation_distinguishes_consumed_and_current_recovery(
+    tmp_path,
+    relationship,
+    expected_status,
+    expected_reopened,
+):
+    issue = _issue(state=READY_TO_INTEGRATE, head_sha="a" * 40)
+    issue.integration = IntegrationRecord(
+        state="ready",
+        task_branch=issue.work_branch,
+        head_sha="a" * 40,
+    )
+    context = {
+        "project_id": issue.project_id,
+        "issue_identifier": issue.identifier,
+        "snapshot_head": "b" * 40,
+        "recovery_ref": "refs/oompah/recovery/TASK-1",
+        "worktree_path": str(tmp_path / "missing-checkout"),
+        "publication_state": "published",
+    }
+    store = MagicMock()
+    store.pending_worktree_recoveries.return_value = [context]
+    store.preserve_worktree_changes.return_value = context
+    store.consume_worktree_recovery_if_incorporated.return_value = relationship
+    orch = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path="WORKFLOW.md",
+        project_store=store,
+        state_path=str(tmp_path / "restart-state.json"),
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch._project_trackers[issue.project_id] = tracker
+    orch._post_comment = MagicMock()
+
+    result = orch._reconcile_pending_recovery_publications(discover=True)
+
+    assert result["reopened"] == expected_reopened
+    assert result["pending"] == 0
+    if expected_status is None:
+        tracker.update_issue.assert_not_called()
+    else:
+        tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status=expected_status,
+        )
+
+
+@pytest.mark.asyncio
 async def test_unpublished_active_operation_checkpoint_blocks_integration(tmp_path):
     """commit-tree recovery can leave HEAD unchanged and still fence Ready."""
 
