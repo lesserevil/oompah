@@ -24,6 +24,7 @@ import pytest
 
 from oompah.agent import AgentSession
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
 from oompah.models import AgentProfile, Issue, LiveSession, ModelProvider, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import RecoveryPublicationError
@@ -815,6 +816,12 @@ class TestTerminateRunningWritesCostRecord:
         """Forced termination captures dirty task state before releasing runtime."""
         orch, entry = self._make_orchestrator_with_running(tmp_path)
         entry.issue.project_id = "project-1"
+        entry.issue.work_branch = "epic-EPIC-1--task-test-001"
+        entry.issue.integration = IntegrationRecord(
+            state="ready",
+            task_branch="test-001",
+            head_sha="a" * 40,
+        )
         entry.workspace_path = str(tmp_path / "task-worktree")
         calls = []
 
@@ -850,7 +857,7 @@ class TestTerminateRunningWritesCostRecord:
                 "project-1",
                 entry.identifier,
                 entry.workspace_path,
-                None,
+                "test-001",
             )
         ]
 

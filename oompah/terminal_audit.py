@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TypeVar
 
-
 CURRENT_VERSION = 1
 """Current serialized terminal-audit record version."""
 
