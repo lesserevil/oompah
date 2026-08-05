@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:45:03.282492Z'
-updated_at: '2026-08-05T17:26:25.255955Z'
+updated_at: '2026-08-05T17:26:43.429543Z'
 work_branch: OOMPAH-838
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/722
@@ -40,18 +40,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-838
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-4ba35f85be8a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+      created_at: '2026-08-05T17:26:42.008601+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-05T17:26:42.008601+00:00'
+      branch_key: OOMPAH-838
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T17:26:12.554338+00:00'
+    updated_at: '2026-08-05T17:26:42.008601+00:00'
   - version: 1
     audit_id: audit-e856e8a1a478
     project_id: proj-14849f1b
@@ -69,7 +83,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-05T17:26:12.554338+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-4ba35f85be8a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9cdd0a6f76b61c2936d1c07199e119d2cf827e151ecdf67ac87da479ed217647
+    created_at: '2026-08-05T17:26:42.008601+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-05T17:26:42.008601+00:00'
+    branch_key: OOMPAH-838
 ---
 ## Summary
 
