@@ -5,6 +5,8 @@ Covers auto-add 'draft' label to new epics (type=epic) created via POST /api/v1/
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -125,6 +127,33 @@ class TestCreateIssueEpicDraftLabel:
         assert resp.status_code == 201
         assert mock_tracker.create_issue.call_args.kwargs["parent"] == "TASK-1"
         mock_tracker.add_parent_child.assert_not_called()
+
+    def test_create_child_holds_project_mutation_fence(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        lock = threading.RLock()
+        mock_orch.project_store.project_write_lock.return_value = lock
+
+        def create_issue(**_fields):
+            assert lock._is_owned()  # type: ignore[attr-defined]
+            return _make_mock_issue(identifier="task-child", issue_type="task")
+
+        mock_tracker.create_issue.side_effect = create_issue
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            response = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Child task",
+                    "type": "task",
+                    "project_id": "proj-1",
+                    "parent_id": "TASK-1",
+                    "description": "Child task description",
+                },
+            )
+
+        assert response.status_code == 201
 
     def test_create_bug_does_not_add_draft_label(self, client):
         """POST type=bug should NOT call tracker.add_label."""

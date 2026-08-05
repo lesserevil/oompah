@@ -421,6 +421,9 @@ async def setup_services(
         terminal_transition_coordinator=terminal_transition_coordinator,
     )
     orchestrator.workflow_runtime = workflow_runtime
+    from oompah.epic_workflow_adapter import attach_epic_workflow_events
+
+    attach_epic_workflow_events(orchestrator, workflow_runtime)
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
     attach_gitlab_hook_alerts(orchestrator, gitlab_hook_manager)

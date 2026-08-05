@@ -7303,15 +7303,21 @@ async def api_create_issue(request: Request):
             else:
                 description = source_header
 
-        issue = tracker.create_issue(
-            title=title,
-            issue_type=issue_type,
-            description=description,
-            priority=_task_priority_int(body.get("priority")),
-            initial_status=body.get("status"),
-            labels=initial_labels,
-            parent=parent_id,
+        creation_lock = (
+            orch.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
         )
+        with creation_lock:
+            issue = tracker.create_issue(
+                title=title,
+                issue_type=issue_type,
+                description=description,
+                priority=_task_priority_int(body.get("priority")),
+                initial_status=body.get("status"),
+                labels=initial_labels,
+                parent=parent_id,
+            )
         issue.project_id = project_id
         # Persist tracker-identity fields onto the returned issue so the
         # response carries the full schema even when the tracker adapter
@@ -7324,6 +7330,15 @@ async def api_create_issue(request: Request):
             issue.work_branch = work_branch
 
         _api_cache.invalidate("issues:all")
+        orch.event_bus.emit(
+            EventType.ISSUE_STATE_CHANGED,
+            {
+                "project_id": project_id,
+                "identifier": issue.identifier,
+                "parent_id": parent_id,
+                "change": "created",
+            },
+        )
         await broadcast_issues()
         return JSONResponse(
             {
@@ -12332,12 +12347,13 @@ async def api_update_issue(identifier: str, request: Request):
                     or body.get("actor")
                     or "project-owner"
                 )
-                result = promote_proposed_issue_to_backlog(
-                    tracker,
-                    identifier,
-                    current_status=existing_status,
-                    owner_override_actor=owner_override_actor,
-                )
+                with orch.project_store.project_write_lock(project_id):
+                    result = promote_proposed_issue_to_backlog(
+                        tracker,
+                        identifier,
+                        current_status=existing_status,
+                        owner_override_actor=owner_override_actor,
+                    )
                 if not result.promoted:
                     return JSONResponse(
                         {
@@ -12445,27 +12461,28 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["target_branch"] = new_target_branch
             if new_work_branch is not None:
                 update_fields["work_branch"] = new_work_branch
-            if terminal_transition_payload is None:
-                _cancel_retry_for_authority_change(
-                    orch,
-                    existing_issue,
-                    identifier,
-                    project_id,
-                    new_status,
-                    new_work_branch,
-                )
-            if update_fields:
-                tracker.update_issue(identifier, **update_fields)
-            if needs_human_status is not None:
-                _mark_tracker_needs_human(
-                    tracker,
-                    identifier,
-                    _manual_needs_human_comment(
-                        identifier,
+            with orch.project_store.project_write_lock(project_id):
+                if terminal_transition_payload is None:
+                    _cancel_retry_for_authority_change(
+                        orch,
                         existing_issue,
-                        needs_human_comment,
-                    ),
-                )
+                        identifier,
+                        project_id,
+                        new_status,
+                        new_work_branch,
+                    )
+                if update_fields:
+                    tracker.update_issue(identifier, **update_fields)
+                if needs_human_status is not None:
+                    _mark_tracker_needs_human(
+                        tracker,
+                        identifier,
+                        _manual_needs_human_comment(
+                            identifier,
+                            existing_issue,
+                            needs_human_comment,
+                        ),
+                    )
 
         _record_owner_override_if_needed(
             tracker,
@@ -12594,6 +12611,20 @@ async def api_update_issue(identifier: str, request: Request):
 
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        if new_status is not None or new_target_branch or new_work_branch:
+            orch.event_bus.emit(
+                EventType.ISSUE_STATE_CHANGED,
+                {
+                    "project_id": project_id,
+                    "identifier": identifier,
+                    "parent_id": getattr(existing_issue, "parent_id", None),
+                    "previous_status": getattr(existing_issue, "state", None),
+                    "status": new_status,
+                    "target_branch": new_target_branch,
+                    "work_branch": new_work_branch,
+                    "change": "updated",
+                },
+            )
         # A status transition into a dispatchable state must wake the
         # event-driven scheduler.  Without this, a task moved from Backlog or
         # Needs Human to Open waits for the long safety-net poll even when
@@ -19686,6 +19717,26 @@ def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
     return False
 
 
+def _durable_epic_webhook_owned(orch, issue, project) -> bool:
+    """Return whether enforce mode owns this epic's webhook reconciliation."""
+
+    runtime = getattr(orch, "workflow_runtime", None)
+    if runtime is None or not bool(getattr(runtime, "enforce", False)):
+        return False
+    if str(getattr(issue, "issue_type", "") or "").strip().lower() != "epic":
+        return False
+    bindings = getattr(runtime, "project_bindings", {})
+    binding = (
+        bindings.get(getattr(project, "id", None))
+        if isinstance(bindings, dict)
+        else None
+    )
+    return (
+        binding is not None
+        and getattr(binding, "epic_controller", None) is not None
+    )
+
+
 def _label_task_merged_from_merge_group(orch, event, project) -> None:
     """Label the task as merged when a merge_group destroyed event signals success.
 
@@ -19738,6 +19789,11 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
                 "merge_group: no task found for branch %r (head_ref=%r)",
                 branch_name,
                 head_ref,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "merge_group: durable epic workflow owns %s", issue.identifier
             )
             return
         if canonicalize_status(issue.state) != MERGED:
@@ -19794,6 +19850,12 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
                 "webhook In Review: no task found for branch %r (project=%s)",
                 source_branch,
                 project.name,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "webhook In Review: durable epic workflow owns %s",
+                issue.identifier,
             )
             return
         review_id = str(event.review_id or "").strip()
@@ -19934,6 +19996,11 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
                 "webhook Merged: no task found for branch %r (project=%s)",
                 source_branch,
                 project.name,
+            )
+            return
+        if _durable_epic_webhook_owned(orch, issue, project):
+            logger.debug(
+                "webhook Merged: durable epic workflow owns %s", issue.identifier
             )
             return
         if canonicalize_status(issue.state) != MERGED:

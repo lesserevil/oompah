@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -6687,6 +6688,58 @@ class TestSharedEpicTerminalCompatibility:
                 top_level, TargetState.MERGED, proj.id
             )
             is None
+        )
+
+    def test_epic_merged_rejects_a_current_active_child(self, tmp_path):
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = IN_PROGRESS
+        tracker.fetch_children.return_value = [child]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        reason = orch._validate_terminal_transition(
+            epic, TargetState.MERGED, proj.id
+        )
+
+        assert reason is not None
+        assert "direct children remain active" in reason
+        assert child.identifier in reason
+
+    def test_epic_merged_rejects_terminal_child_without_fresh_landing_authority(
+        self, tmp_path
+    ):
+        orch, proj, epic, child, tracker = _make_shared_epic_scenario(tmp_path)
+        child.state = DONE
+        tracker.fetch_children.return_value = [child]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        durable_controller = SimpleNamespace(
+            collector=MagicMock(),
+            store=MagicMock(),
+            scheduler=MagicMock(),
+            decision_limit=100,
+        )
+        orch.workflow_runtime = SimpleNamespace(
+            enforce=True,
+            project_bindings={
+                proj.id: SimpleNamespace(epic_controller=durable_controller)
+            },
+        )
+        stale_landing = SimpleNamespace(
+            decision=SimpleNamespace(durable_jobs=("rollup_review_creation",)),
+            facts=MagicMock(),
+        )
+
+        with patch("oompah.orchestrator.EpicWorkflowController") as controller:
+            controller.return_value.evaluate.return_value = SimpleNamespace(
+                tasks=(stale_landing,)
+            )
+            reason = orch._validate_terminal_transition(
+                epic, TargetState.MERGED, proj.id
+            )
+
+        assert reason is not None
+        assert "no longer authorizes auto-close" in reason
+        controller.return_value.evaluate.assert_called_once_with(
+            (epic,), persist_evidence=False
         )
 
     def test_ordinary_child_is_rejected_until_parent_lands(self, tmp_path):

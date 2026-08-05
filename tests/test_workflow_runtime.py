@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import threading
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -16,9 +20,15 @@ from oompah.integration_workflow import (
 )
 from oompah.models import BlockerRef, Issue
 from oompah.review_workflow import ReviewWorkflowController
-from oompah.task_transition_service import TaskTransitionService, TransitionJournal
+from oompah.task_transition_service import (
+    TaskTransitionService,
+    TransitionAuthority,
+    TransitionIntent,
+    TransitionJournal,
+    issue_authority_version,
+)
 from oompah.terminal_audit_workflow import TerminalAuditWorkflow
-from oompah.workflow_facts import FactDomain, WorkflowFactCollector
+from oompah.workflow_facts import FactDomain, LandingState, WorkflowFactCollector
 from oompah.workflow_jobs import WorkflowJobSpec, WorkflowJobState, WorkflowJobStore
 from oompah.workflow_runtime import (
     RUNTIME_ACTIONS,
@@ -551,6 +561,251 @@ def test_factory_rejects_duplicate_action_ownership(tmp_path):
     with pytest.raises(WorkflowRuntimeError, match="duplicate workflow action ownership"):
         WorkflowRuntime.from_orchestrator(orchestrator, state_dir=tmp_path)
 
+    store.close()
+
+
+def test_enforce_runtime_refreshes_remote_target_before_landing_decision(tmp_path):
+    origin = tmp_path / "origin.git"
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "--bare", str(origin)], check=True)
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "runtime@example.invalid"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Runtime Test"], cwd=repo, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "base"], cwd=repo, check=True
+    )
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-b", "epic-TOP"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "epic"], cwd=repo, check=True
+    )
+    epic_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "push", "origin", "main", "epic-TOP"], cwd=repo, check=True
+    )
+    subprocess.run(
+        ["git", "merge", "--no-ff", "epic-TOP", "-m", "land epic"],
+        cwd=repo,
+        check=True,
+    )
+    merged = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "origin", "main"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "update-ref", "refs/heads/main", base], cwd=repo, check=True
+    )
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", base],
+        cwd=repo,
+        check=True,
+    )
+
+    project = SimpleNamespace(
+        id="project-1",
+        repo_path=str(repo),
+        default_branch="main",
+        branch="main",
+        access_token=None,
+        forge_kind="github",
+    )
+    project_lock = threading.RLock()
+
+    class ProjectStore:
+        def list_all(self):
+            return [project]
+
+        def project_write_lock(self, _project_id):
+            return project_lock
+
+    class Config:
+        workflow_engine_mode = "enforce"
+        workflow_runtime_decision_limit = 20
+        workflow_runtime_batch_size = 4
+
+    issue = Issue(
+        id="TOP",
+        identifier="TOP",
+        title="TOP",
+        description="remote landing runtime fixture",
+        state="In Review",
+        project_id="project-1",
+        issue_type="epic",
+        work_branch="epic-TOP",
+        target_branch="main",
+        head_sha=epic_head,
+    )
+    # A rollup with no children is intentionally not auto-close eligible even
+    # when its own branch is landed.  Include an explicitly abandoned direct
+    # child so this fixture exercises both authoritative target refresh and the
+    # valid auto-close mutation guard.
+    child = Issue(
+        id="CHILD",
+        identifier="CHILD",
+        title="CHILD",
+        description="abandoned child fixture",
+        state="Archived",
+        project_id="project-1",
+        parent_id="TOP",
+    )
+    tracker = NativeTracker([issue, child])
+    store = WorkflowJobStore(str(tmp_path / "remote-jobs.sqlite3"))
+
+    def network_git(_project, args, *, cwd, timeout):
+        return subprocess.run(
+            args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+
+    orchestrator = SimpleNamespace(
+        project_store=ProjectStore(),
+        config=Config(),
+        workflow_job_store=store,
+        _state_path=str(tmp_path / "remote-service-state.json"),
+        _tracker_for_project=lambda _project_id: tracker,
+        _run_project_network_git=network_git,
+        workflow_action_handler_factory=lambda _binding: {
+            action: CompleteHandler() for action in RUNTIME_ACTIONS
+        },
+    )
+    runtime = WorkflowRuntime.from_orchestrator(
+        orchestrator,
+        state_dir=tmp_path,
+        terminal_transition_coordinator=MagicMock(),
+    )
+    orchestrator.workflow_runtime = runtime
+
+    binding = runtime.project_bindings["project-1"]
+    facts = binding.epic_collector.collect("TOP")
+    own = next(
+        landing
+        for landing in facts.landings
+        if landing.source == "epic-TOP" and landing.target == "main"
+    )
+
+    assert own.state is LandingState.LANDED
+    assert own.proof["target_sha"] == merged
+    assert subprocess.run(
+        ["git", "rev-parse", "refs/heads/main"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == base
+
+    decision = binding.epic_controller.evaluate(
+        (issue,), persist_evidence=False
+    ).tasks[0].decision
+    sentinel = object()
+    binding.epic_controller._latest = {"UNRELATED": sentinel}
+    guard = binding.transition_service.terminal_adapter._mutation_guard
+    intent = TransitionIntent(
+        project_id="project-1",
+        task_id="TOP",
+        expected_status="In Review",
+        expected_version=issue_authority_version(issue),
+        requested_status="Merged",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.immediate_target_landing_proven",
+        idempotency_key="auto-close-guard-projection",
+        originating_job="epic-auto-close-job",
+        precondition_revision=decision.evidence_revision,
+    )
+
+    assert guard(intent) is None
+    assert binding.epic_controller._latest == {"UNRELATED": sentinel}
+
+    ordinary_intent = TransitionIntent(
+        project_id="project-1",
+        task_id="TOP",
+        expected_status="In Review",
+        expected_version=issue_authority_version(issue),
+        requested_status="Archived",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="terminal.operator_requested",
+        idempotency_key="ordinary-terminal-cas",
+        originating_job="ordinary-terminal-job",
+    )
+    assert guard(ordinary_intent) is None
+    issue.labels = ["merge-conflict"]
+    assert guard(ordinary_intent) == "task transition authority changed"
+    issue.labels = []
+
+    helper = Issue(
+        id="REBASE-1",
+        identifier="REBASE-1",
+        title="Rebase epic-TOP onto main",
+        description="runtime rebase guard fixture",
+        state="Needs Rebase",
+        project_id="project-1",
+        issue_type="task",
+        parent_id="TOP",
+        target_branch="main",
+    )
+    tracker.issues[helper.identifier] = helper
+    rebase_revision = EpicWorkflowController(
+        collector=binding.epic_controller.collector,
+        store=binding.epic_controller.store,
+    ).evaluate((issue,), persist_evidence=False).tasks[0].decision.evidence_revision
+    rebase_intent = TransitionIntent(
+        project_id="project-1",
+        task_id=helper.identifier,
+        expected_status="Needs Rebase",
+        expected_version=issue_authority_version(helper),
+        requested_status="Archived",
+        actor="oompah",
+        authority=TransitionAuthority.ORCHESTRATOR,
+        reason_code="epic.rebase_target_superseded",
+        idempotency_key="rebase-retirement-guard",
+        originating_job="epic-rebase-job",
+        precondition_revision=rebase_revision,
+    )
+
+    assert guard(rebase_intent) is None
+    tracker.issues["REBASE-2"] = Issue(
+        id="REBASE-2",
+        identifier="REBASE-2",
+        title="Rebase epic-TOP onto main",
+        description="concurrent sibling fixture",
+        state="Needs Rebase",
+        project_id="project-1",
+        issue_type="task",
+        parent_id="TOP",
+        target_branch="main",
+    )
+    assert guard(rebase_intent) == "epic workflow evidence or containment changed"
+    assert binding.epic_controller._latest == {"UNRELATED": sentinel}
+    runtime.close()
     store.close()
 
 

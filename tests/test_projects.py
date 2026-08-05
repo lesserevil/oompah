@@ -59,7 +59,157 @@ def _store_with_one_project(tmp_path):
         default_branch="main",
     )
     store._projects[project.id] = project
+    store._registered_worktree_branch_paths = MagicMock(return_value={})
     return store, repo
+
+
+def test_epic_child_delete_rejects_remote_head_change_before_local_cleanup(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+    branch = store.epic_child_branch_name("EPIC-1", "TASK-1")
+    store._run_network_git = MagicMock(
+        return_value=MagicMock(
+            returncode=0,
+            stdout=f"{'b' * 40}\trefs/heads/{branch}\n",
+            stderr="",
+        )
+    )
+    store._remove_worktree_locked = MagicMock()
+    store._ref_exists = MagicMock(return_value=False)
+
+    with pytest.raises(ProjectError, match="changed before cleanup"):
+        store.delete_epic_child_branch(
+            "proj-sync1",
+            "EPIC-1",
+            "TASK-1",
+            expected_head_sha="a" * 40,
+        )
+
+    store._remove_worktree_locked.assert_not_called()
+    assert store._run_network_git.call_count == 1
+
+
+def test_epic_child_delete_uses_exact_remote_lease_before_local_cleanup(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+    branch = store.epic_child_branch_name("EPIC-1", "TASK-1")
+    expected = "a" * 40
+    store._run_network_git = MagicMock(
+        side_effect=(
+            MagicMock(
+                returncode=0,
+                stdout=f"{expected}\trefs/heads/{branch}\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        )
+    )
+    store._remove_worktree_locked = MagicMock()
+    store._ref_exists = MagicMock(return_value=False)
+
+    assert store.delete_epic_child_branch(
+        "proj-sync1",
+        "EPIC-1",
+        "TASK-1",
+        expected_head_sha=expected,
+    ) is True
+
+    delete_args = store._run_network_git.call_args_list[1].args[1]
+    assert delete_args == [
+        "git",
+        "push",
+        f"--force-with-lease=refs/heads/{branch}:{expected}",
+        "origin",
+        f":refs/heads/{branch}",
+    ]
+    store._remove_worktree_locked.assert_called_once_with(
+        "proj-sync1", "TASK-1", force=False
+    )
+
+
+def test_archived_epic_child_cleanup_does_not_require_parent_landing(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+    branch = store.epic_child_branch_name("EPIC-1", "TASK-1")
+    expected = "a" * 40
+    store._run_network_git = MagicMock(
+        side_effect=(
+            MagicMock(
+                returncode=0,
+                stdout=f"{expected}\trefs/heads/{branch}\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        )
+    )
+    store._remove_worktree_locked = MagicMock()
+    store._ref_exists = MagicMock(return_value=False)
+    store._assert_terminal_worktree_safe_locked = MagicMock()
+    store._assert_exact_worktree_generation_locked = MagicMock()
+
+    with patch("oompah.projects.os.path.isdir", return_value=True):
+        assert store.delete_epic_child_branch(
+            "proj-sync1",
+            "EPIC-1",
+            "TASK-1",
+            expected_head_sha=expected,
+            require_target_branch=False,
+        ) is True
+
+    store._assert_terminal_worktree_safe_locked.assert_called_once_with(
+        store.get("proj-sync1"),
+        "TASK-1",
+        store.worktree_path_for("proj-sync1", "TASK-1"),
+        branch_name=branch,
+        target_branch=None,
+        review_head=None,
+        require_target_branch=False,
+    )
+    store._assert_exact_worktree_generation_locked.assert_called_once_with(
+        store.get("proj-sync1"),
+        "TASK-1",
+        store.worktree_path_for("proj-sync1", "TASK-1"),
+        branch_name=branch,
+        expected_head_sha=expected,
+    )
+
+
+def test_owned_primary_delete_uses_exact_remote_lease(tmp_path):
+    store, _repo = _store_with_one_project(tmp_path)
+    project = store.get("proj-sync1")
+    assert project is not None
+    branch = "epic-EPIC-1"
+    expected = "a" * 40
+    store._is_owned_issue_branch = MagicMock(return_value=True)
+    store._branch_is_protected = MagicMock(return_value=False)
+    store._prune_git_worktrees = MagicMock()
+    store._registered_worktree_branches = MagicMock(return_value=set())
+    store._ref_exists = MagicMock(return_value=False)
+    store._run_network_git = MagicMock(
+        side_effect=(
+            MagicMock(
+                returncode=0,
+                stdout=f"{expected}\trefs/heads/{branch}\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        )
+    )
+
+    changed, reason = store._delete_owned_issue_branch_locked(
+        project,
+        "EPIC-1",
+        branch,
+        is_epic=True,
+        expected_head_sha=expected,
+    )
+
+    assert (changed, reason) == (True, None)
+    delete_args = store._run_network_git.call_args_list[1].args[1]
+    assert delete_args == [
+        "git",
+        "push",
+        f"--force-with-lease=refs/heads/{branch}:{expected}",
+        "origin",
+        f":refs/heads/{branch}",
+    ]
 
 
 def _submission_authority_store(tmp_path):
@@ -133,6 +283,200 @@ def _submission_authority_store(tmp_path):
     )
     store._projects[project.id] = project
     return store, source, managed, epic_sha, task_sha
+
+
+def test_exact_primary_cleanup_preserves_local_ref_advanced_during_remote_delete(
+    tmp_path,
+):
+    store, _source, managed, expected, advanced = _submission_authority_store(
+        tmp_path
+    )
+    project = store.get("proj-authority")
+    assert project is not None
+    branch = "epic-OOMPAH-763"
+    local_ref = f"refs/heads/{branch}"
+    subprocess.run(
+        ["git", "update-ref", local_ref, expected], cwd=managed, check=True
+    )
+    run_network_git = store._run_network_git
+
+    def advance_after_remote_delete(project_arg, args, **kwargs):
+        result = run_network_git(project_arg, args, **kwargs)
+        if args[:2] == ["git", "push"]:
+            subprocess.run(
+                ["git", "update-ref", local_ref, advanced],
+                cwd=managed,
+                check=True,
+            )
+        return result
+
+    with patch.object(store, "_run_network_git", side_effect=advance_after_remote_delete):
+        with pytest.raises(ProjectError, match="compare-and-delete failed"):
+            store._delete_owned_issue_branch_locked(
+                project,
+                "OOMPAH-763",
+                branch,
+                is_epic=True,
+                expected_head_sha=expected,
+            )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "--verify", local_ref],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == advanced
+
+
+def test_exact_child_cleanup_preserves_local_ref_advanced_during_remote_delete(
+    tmp_path,
+):
+    store, _source, managed, expected, advanced = _submission_authority_store(
+        tmp_path
+    )
+    branch = store.epic_child_branch_name("OOMPAH-763", "OOMPAH-814")
+    local_ref = f"refs/heads/{branch}"
+    subprocess.run(
+        ["git", "update-ref", local_ref, expected], cwd=managed, check=True
+    )
+    subprocess.run(
+        ["git", "push", "origin", f"{expected}:refs/heads/{branch}"],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    run_network_git = store._run_network_git
+
+    def advance_after_remote_delete(project_arg, args, **kwargs):
+        result = run_network_git(project_arg, args, **kwargs)
+        if args[:2] == ["git", "push"]:
+            subprocess.run(
+                ["git", "update-ref", local_ref, advanced],
+                cwd=managed,
+                check=True,
+            )
+        return result
+
+    with patch.object(store, "_run_network_git", side_effect=advance_after_remote_delete):
+        with pytest.raises(ProjectError, match="compare-and-delete failed"):
+            store.delete_epic_child_branch(
+                "proj-authority",
+                "OOMPAH-763",
+                "OOMPAH-814",
+                expected_head_sha=expected,
+            )
+
+    assert subprocess.run(
+        ["git", "rev-parse", "--verify", local_ref],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip() == advanced
+
+
+def test_exact_child_cleanup_rejects_alternate_registered_worktree(tmp_path):
+    store, _source, managed, _epic_sha, expected = _submission_authority_store(
+        tmp_path
+    )
+    project = store.get("proj-authority")
+    assert project is not None
+    child_id = "OOMPAH-814"
+    branch = store.epic_child_branch_name("OOMPAH-763", child_id)
+    subprocess.run(["git", "branch", branch, expected], cwd=managed, check=True)
+    subprocess.run(
+        ["git", "push", "origin", f"{expected}:refs/heads/{branch}"],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    alternate = tmp_path / "alternate-child-worktree"
+    subprocess.run(
+        ["git", "worktree", "add", str(alternate), branch],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    with pytest.raises(ProjectError, match="alternate worktree"):
+        store.delete_epic_child_branch(
+            project.id,
+            "OOMPAH-763",
+            child_id,
+            expected_head_sha=expected,
+            require_target_branch=False,
+        )
+
+    remote = subprocess.run(
+        ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
+        cwd=managed,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert remote.returncode == 0
+    assert expected in remote.stdout
+
+
+def test_exact_child_cleanup_preserves_worktree_dirtied_during_remote_delete(
+    tmp_path,
+):
+    store, _source, managed, _epic_sha, expected = _submission_authority_store(
+        tmp_path
+    )
+    project = store.get("proj-authority")
+    assert project is not None
+    child_id = "OOMPAH-814"
+    branch = store.epic_child_branch_name("OOMPAH-763", child_id)
+    worktree = Path(store.worktree_path_for(project.id, child_id))
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "branch", branch, expected], cwd=managed, check=True
+    )
+    subprocess.run(
+        ["git", "worktree", "add", str(worktree), branch],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "push", "origin", f"{expected}:refs/heads/{branch}"],
+        cwd=managed,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    run_network_git = store._run_network_git
+    changed = worktree / "arrived-during-delete.txt"
+
+    def dirty_after_remote_delete(project_arg, args, **kwargs):
+        result = run_network_git(project_arg, args, **kwargs)
+        if args[:2] == ["git", "push"] and args[-1] == f":refs/heads/{branch}":
+            changed.write_text("preserve me\n", encoding="utf-8")
+        return result
+
+    with patch.object(store, "_run_network_git", side_effect=dirty_after_remote_delete):
+        with pytest.raises(ProjectError, match="dirty task worktree"):
+            store.delete_epic_child_branch(
+                project.id,
+                "OOMPAH-763",
+                child_id,
+                expected_head_sha=expected,
+                require_target_branch=False,
+            )
+
+    assert worktree.is_dir()
+    assert changed.read_text(encoding="utf-8") == "preserve me\n"
+    assert subprocess.run(
+        ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+        cwd=managed,
+        check=False,
+    ).returncode == 0
 
 
 def test_submission_git_authority_proves_exact_plain_branch_and_parent_base(
@@ -1944,7 +2288,7 @@ class TestRemoveWorktreeCleanup:
 
         assert changed is True
         assert skip_reason is None
-        assert ["git", "push", "origin", "--delete", "TASK-42"] in calls
+        assert ["git", "push", "origin", ":refs/heads/TASK-42"] in calls
         assert ["git", "branch", "-D", "--", "TASK-42"] in calls
 
     def test_terminal_cleanup_deletes_real_local_and_remote_refs(self, tmp_path):
@@ -3450,6 +3794,216 @@ class TestNestedEpicTerminalCleanup:
             check=False,
         ).returncode == 0
 
+    def test_archived_cleanup_prunes_published_unlanded_epic_worktree(self, tmp_path):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path, landing=None
+        )
+        subprocess.run(
+            ["git", "push", "origin", source],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        changed, skip_reason = store.cleanup_terminal_issue(
+            project.id,
+            "CHILD",
+            branch_name=source,
+            is_epic=True,
+            target_branch=None,
+            review_head=None,
+            require_target_branch=False,
+            expected_head_sha=source_head,
+        )
+
+        assert (changed, skip_reason) == (True, None)
+        assert not os.path.isdir(worktree)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{source}"],
+            cwd=project.repo_path,
+            check=False,
+        ).returncode == 1
+        assert subprocess.run(
+            ["git", "ls-remote", "--exit-code", "--heads", "origin", source],
+            cwd=project.repo_path,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 2
+        assert target != source
+
+    def test_primary_cleanup_rechecks_alternate_worktree_at_remote_delete_boundary(
+        self, tmp_path
+    ):
+        store, project, worktree, source, _target, source_head = self._setup_repo(
+            tmp_path, landing=None
+        )
+        subprocess.run(
+            ["git", "push", "origin", source],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        alternate = tmp_path / "late-alternate-epic-worktree"
+        run_network_git = store._run_network_git
+        alternate_created = False
+
+        def add_alternate_after_remote_probe(project_arg, args, **kwargs):
+            nonlocal alternate_created
+            result = run_network_git(project_arg, args, **kwargs)
+            if (
+                not alternate_created
+                and args[1:3] == ["ls-remote", "--exit-code"]
+                and args[-1] == source
+                and not os.path.isdir(worktree)
+            ):
+                subprocess.run(
+                    ["git", "worktree", "add", str(alternate), source],
+                    cwd=project.repo_path,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                alternate_created = True
+            return result
+
+        with patch.object(
+            store,
+            "_run_network_git",
+            side_effect=add_alternate_after_remote_probe,
+        ):
+            changed, skip_reason = store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                require_target_branch=False,
+                expected_head_sha=source_head,
+            )
+
+        assert alternate_created is True
+        assert (changed, skip_reason) == (True, "checked_out_in_worktree")
+        assert alternate.is_dir()
+        remote = subprocess.run(
+            ["git", "ls-remote", "--exit-code", "--heads", "origin", source],
+            cwd=project.repo_path,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert remote.returncode == 0
+        assert source_head in remote.stdout
+
+    def test_exact_cleanup_preserves_live_branch_advanced_after_review(self, tmp_path):
+        store, project, worktree, source, target, reviewed_head = self._setup_repo(
+            tmp_path
+        )
+        (Path(worktree) / "after-review.txt").write_text(
+            "new generation\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "after-review.txt"], cwd=worktree, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "advance after review"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "origin", source],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        advanced_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        with pytest.raises(ProjectError, match="changed before cleanup"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=target,
+                review_head=reviewed_head,
+                require_target_branch=True,
+                expected_head_sha=reviewed_head,
+            )
+
+        assert os.path.isdir(worktree)
+        remote_head = subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", source],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.split(maxsplit=1)[0]
+        assert remote_head == advanced_head
+
+    def test_remote_only_exact_branch_requires_target_landing_before_delete(
+        self, tmp_path
+    ):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path, landing=None
+        )
+        subprocess.run(
+            ["git", "push", "origin", source],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "remove", worktree, "--force"],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "branch", "-D", "--", source],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "update-ref", "-d", f"refs/remotes/origin/{source}"],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        with pytest.raises(ProjectError, match="not reachable"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "CHILD",
+                branch_name=source,
+                is_epic=True,
+                target_branch=target,
+                review_head=source_head,
+                require_target_branch=True,
+                expected_head_sha=source_head,
+            )
+
+        remote_head = subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", source],
+            cwd=project.repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.split(maxsplit=1)[0]
+        assert remote_head == source_head
+
     def test_unreachable_head_and_wrong_target_are_preserved(self, tmp_path):
         store, project, worktree, source, target, source_head = self._setup_repo(
             tmp_path, landing=None
@@ -3519,6 +4073,75 @@ class TestNestedEpicTerminalCleanup:
                 require_target_branch=True,
             )
         assert os.path.isdir(worktree)
+
+    @pytest.mark.parametrize("late_change", ["dirty", "active"])
+    def test_primary_cleanup_preserves_worktree_changed_after_initial_probe(
+        self, tmp_path, late_change
+    ):
+        store, project, worktree, source, target, source_head = self._setup_repo(
+            tmp_path
+        )
+        subprocess.run(
+            ["git", "push", "origin", source],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        original_status = store._git_status_for_worktree
+        probes = 0
+        dirty_path = Path(worktree) / "arrived-after-initial-probe.txt"
+        git_dir = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        git_dir_path = Path(git_dir)
+        if not git_dir_path.is_absolute():
+            git_dir_path = Path(worktree) / git_dir_path
+
+        def change_before_final_probe(path):
+            nonlocal probes
+            probes += 1
+            if probes == 2:
+                if late_change == "dirty":
+                    dirty_path.write_text("preserve me\n", encoding="utf-8")
+                else:
+                    operation = git_dir_path / "rebase-merge"
+                    operation.mkdir()
+                    (operation / "head-name").write_text(
+                        f"refs/heads/{source}\n", encoding="utf-8"
+                    )
+            return original_status(path)
+
+        expected_error = (
+            "dirty task worktree" if late_change == "dirty" else "active rebase"
+        )
+        with patch.object(
+            store,
+            "_git_status_for_worktree",
+            side_effect=change_before_final_probe,
+        ):
+            with pytest.raises(ProjectError, match=expected_error):
+                store.cleanup_terminal_issue(
+                    project.id,
+                    "CHILD",
+                    branch_name=source,
+                    is_epic=True,
+                    target_branch=target,
+                    review_head=source_head,
+                    require_target_branch=True,
+                    expected_head_sha=source_head,
+                )
+
+        assert probes >= 2
+        assert os.path.isdir(worktree)
+        if late_change == "dirty":
+            assert dirty_path.read_text(encoding="utf-8") == "preserve me\n"
+        else:
+            assert (git_dir_path / "rebase-merge" / "head-name").is_file()
 
     def test_missing_nested_evidence_and_unregistered_path_fail_closed(self, tmp_path):
         store, project, worktree, source, target, source_head = self._setup_repo(

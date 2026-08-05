@@ -2735,7 +2735,11 @@ class Orchestrator:
                 )
                 continue
             try:
-                restored[epic_id] = EpicRebaseStateEntry.from_dict(entry_dict)
+                entry = EpicRebaseStateEntry.from_dict(entry_dict)
+                # Legacy files used the bare epic identifier.  Keep that key
+                # until a real cross-project collision requires both entries
+                # to be migrated to scoped keys.
+                restored[epic_id] = entry
             except Exception as exc:
                 logger.debug(
                     "Failed to restore epic rebase state for %s: %s",
@@ -4678,6 +4682,9 @@ class Orchestrator:
             project_id=scoped_project_id,
             tracker=tracker,
             journal=self.task_transition_journal,
+            write_lock=lambda: self.project_store.project_write_lock(
+                scoped_project_id
+            ),
         )
 
         # A transition claim is normally held only for one tracker read/write
@@ -6755,7 +6762,21 @@ class Orchestrator:
         """Gracefully stop the orchestrator."""
         self._stopping = True
         if self.workflow_runtime is not None:
-            await self.workflow_runtime.drain(timeout_seconds=10.0)
+            workflow_drained = await self.workflow_runtime.drain(
+                timeout_seconds=10.0
+            )
+            if not workflow_drained:
+                # Epic forge/tracker/Git effects are shielded once their
+                # external mutation begins.  The bounded interval keeps the
+                # ordinary shutdown path responsive, but lifecycle stores must
+                # not close underneath a mutation that legitimately outlasts
+                # it.  Finish draining that already-started work before
+                # continuing graceful restart.
+                logger.warning(
+                    "Workflow mutations exceeded the initial shutdown drain "
+                    "budget; waiting for safe completion"
+                )
+                await self.workflow_runtime.drain(timeout_seconds=None)
         # Terminate all running agents
         for issue_id, entry in self._running_items_snapshot():
             await self._terminate_running(issue_id, cleanup_workspace=False)
@@ -6792,6 +6813,20 @@ class Orchestrator:
         short-lived test or graceful restart must not leave a worker that can
         mutate tracker state after its event loop and fixtures have gone away.
         """
+        pending_workflow_operations = int(
+            getattr(
+                getattr(self, "workflow_runtime", None),
+                "pending_operation_count",
+                0,
+            )
+            or 0
+        )
+        if pending_workflow_operations:
+            raise RuntimeError(
+                "workflow runtime still has "
+                f"{pending_workflow_operations} operation(s); "
+                "refusing to close lifecycle stores"
+            )
         futures = [
             future
             for future in (
@@ -8402,6 +8437,7 @@ class Orchestrator:
                 ResultRejection.FINGERPRINT_MISMATCH,
                 ResultRejection.STATE_MISMATCH,
                 ResultRejection.ISSUE_NOT_IN_VALIDATION,
+                ResultRejection.CURRENT_EVIDENCE_MISMATCH,
             }:
                 self.terminal_audit_workflow.cancel(
                     finalizing_job,
@@ -14164,6 +14200,12 @@ class Orchestrator:
                         or current.authority_generation() != expected_generation
                     ):
                         return False
+                if self._request_durable_epic_rebase(
+                    epic,
+                    target_branch=target_branch,
+                    source="queue-staleness-block",
+                ):
+                    return True
                 allowed, reason = self._epic_synchronization_decision(epic, target_branch)
                 if not allowed:
                     if not _authority_current():
@@ -17543,6 +17585,13 @@ class Orchestrator:
 
         return build_implementation_workflow_handlers(self, binding)
 
+    def _epic_workflow_action_handlers(self, binding: Any) -> Mapping[str, Any]:
+        """Build total project-routed handlers for the durable epic domain."""
+
+        from oompah.epic_workflow_adapter import build_epic_workflow_handlers
+
+        return build_epic_workflow_handlers(self, binding)
+
     def workflow_action_handler_factory(self, binding: Any) -> Mapping[str, Any]:
         """Compose every production durable-domain handler for one project.
 
@@ -17563,6 +17612,8 @@ class Orchestrator:
             if not callable(factory):
                 continue
             produced = factory(binding)
+            if not isinstance(produced, Mapping):
+                raise TypeError(f"{factory_name} must return a handler mapping")
             overlap = set(handlers).intersection(produced)
             if overlap:
                 raise RuntimeError(
@@ -17762,6 +17813,30 @@ class Orchestrator:
             priority=priority,
         )
         return scheduled is not None
+
+    def _request_durable_epic_rebase(
+        self,
+        epic: Issue,
+        *,
+        target_branch: str,
+        source: str,
+    ) -> bool:
+        """Publish one exact rebase request when the durable runtime owns epics."""
+
+        runtime = self.workflow_runtime
+        if runtime is None or not runtime.enforce:
+            return False
+        self.event_bus.emit(
+            "epic_rebase_requested",
+            {
+                "project_id": epic.project_id,
+                "identifier": epic.identifier,
+                "target_branch": target_branch,
+                "source": source,
+            },
+        )
+        self.request_refresh()
+        return True
 
     @staticmethod
     def _shared_epic_landing_proven(facts: Any) -> bool:
@@ -19840,6 +19915,93 @@ class Orchestrator:
 
         if requested_target != TargetState.MERGED:
             return None
+
+        # An epic may become Merged only while every current direct child is
+        # terminal (Done/Merged) or explicitly abandoned (Archived).  This is
+        # deliberately checked by the coordinator at both request staging and
+        # audit-result application, under the shared project write lock.  It
+        # closes the verify-to-transition race where a child is added or
+        # reopened after the durable workflow's last evidence snapshot.
+        if (getattr(issue, "issue_type", "") or "").strip().lower() == "epic":
+            try:
+                tracker = self._tracker_for_project(project_id)
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                children = tracker.fetch_children(issue.identifier)
+                active_children = sorted(
+                    child.identifier
+                    for child in children
+                    if isinstance(child, Issue)
+                    and (
+                        not str(getattr(child, "project_id", None) or "").strip()
+                        or str(child.project_id) == project_id
+                    )
+                    and str(getattr(child, "parent_id", None) or "").strip()
+                    == issue.identifier
+                    and canonicalize_status(child.state)
+                    not in {DONE, MERGED, ARCHIVED}
+                )
+            except Exception as exc:  # evidence boundary must fail closed
+                return (
+                    f"Cannot transition epic {issue.identifier} to Merged: "
+                    "its current direct-child containment could not be verified "
+                    f"({type(exc).__name__})."
+                )
+            if active_children:
+                return (
+                    f"Cannot transition epic {issue.identifier} to Merged while "
+                    "direct children remain active: "
+                    + ", ".join(active_children)
+                )
+            runtime = getattr(self, "workflow_runtime", None)
+            if runtime is not None and bool(getattr(runtime, "enforce", False)):
+                bindings = getattr(runtime, "project_bindings", {})
+                binding = (
+                    bindings.get(project_id)
+                    if isinstance(bindings, Mapping)
+                    else None
+                )
+                controller = getattr(binding, "epic_controller", None)
+                if controller is None:
+                    return (
+                        f"Cannot transition epic {issue.identifier} to Merged: "
+                        "durable epic evidence is unavailable."
+                    )
+                try:
+                    # The coordinator invokes this callback while holding the
+                    # project mutation fence.  Recollect the complete current
+                    # containment and authoritative remote-target landing here,
+                    # after the auditor has finished but before its PASS can
+                    # mutate tracker state.  This catches a terminal child added
+                    # after staging as well as an active child reopen: terminal
+                    # status alone is not landing proof.
+                    guard_controller = EpicWorkflowController(
+                        collector=controller.collector,
+                        store=controller.store,
+                        scheduler=controller.scheduler,
+                        decision_limit=controller.decision_limit,
+                    )
+                    batch = guard_controller.evaluate(
+                        (issue,), persist_evidence=False
+                    )
+                    task = batch.tasks[0] if batch.tasks else None
+                except Exception as exc:  # evidence boundary must fail closed
+                    return (
+                        f"Cannot transition epic {issue.identifier} to Merged: "
+                        "durable epic evidence could not be refreshed "
+                        f"({type(exc).__name__})."
+                    )
+                if (
+                    task is None
+                    or "epic_auto_close" not in task.decision.durable_jobs
+                    or not self._shared_epic_landing_proven(task.facts)
+                ):
+                    return (
+                        f"Cannot transition epic {issue.identifier} to Merged: "
+                        "current direct-child landing or immediate-target "
+                        "evidence no longer authorizes auto-close."
+                    )
         parent_id = str(getattr(issue, "parent_id", None) or "").strip()
         if not parent_id:
             # Top-level tasks and top-level epics retain normal Merged paths.
@@ -21230,8 +21392,12 @@ class Orchestrator:
                     target_branch,
                 )
                 continue
-            current_state = self._get_epic_rebase_state(issue.identifier)
-            entry = self._epic_rebase_states.get(issue.identifier)
+            current_state = self._get_epic_rebase_state(
+                issue.identifier, project_id=project_id
+            )
+            entry = self._epic_rebase_state_entry(
+                issue.identifier, project_id
+            )
 
             try:
                 result = check_epic_branch_staleness(
@@ -21330,7 +21496,9 @@ class Orchestrator:
             a for a in self._alerts if a.get("source") != source
         ]
 
-        rebase_state = self._get_epic_rebase_state(epic.identifier)
+        rebase_state = self._get_epic_rebase_state(
+            epic.identifier, project_id=epic.project_id
+        )
         if rebase_state != EpicRebaseState.FAILED:
             return
 
@@ -21468,10 +21636,37 @@ class Orchestrator:
                 return blocker_id, status or blocker_state or "unknown"
         return None
 
-    def _open_epic_main_prs(self, candidates: list[Issue]) -> int:
-        """Open epic completion PRs for epics whose children are all closed.
+    def _open_epic_main_prs(
+        self,
+        candidates: list[Issue],
+        *,
+        persist_tracker_state: bool = True,
+        fail_closed_review_lookup: bool = False,
+        expected_source_head: str | None = None,
+    ) -> int:
+        """Compatibility sweep composed from the exact one-epic effect."""
 
-        For each active epic in ``candidates``:
+        return sum(
+            self._open_one_epic_main_pr(
+                issue,
+                persist_tracker_state=persist_tracker_state,
+                fail_closed_review_lookup=fail_closed_review_lookup,
+                expected_source_head=expected_source_head,
+            )
+            for issue in candidates
+        )
+
+    def _open_one_epic_main_pr(
+        self,
+        issue: Issue,
+        *,
+        persist_tracker_state: bool = True,
+        fail_closed_review_lookup: bool = False,
+        expected_source_head: str | None = None,
+    ) -> int:
+        """Open one exact epic completion review when its evidence is ready.
+
+        For the leased epic:
 
         * If it has no children, skip (nothing has been done — wait for
           the planner).
@@ -21494,7 +21689,7 @@ class Orchestrator:
         Returns the number of PRs opened.
         """
         opened = 0
-        for issue in candidates:
+        for issue in (issue,):
             if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
                 continue  # epic itself has already landed or been discarded
             project_id = issue.project_id
@@ -21587,7 +21782,8 @@ class Orchestrator:
                     epic_branch,
                     target_branch,
                 )
-                self._mark_epic_merged(issue, epic_branch=epic_branch)
+                if persist_tracker_state:
+                    self._mark_epic_merged(issue, epic_branch=epic_branch)
                 continue
 
             # Idempotency: if a (first-landing) review already exists with this
@@ -21599,6 +21795,10 @@ class Orchestrator:
                 slug,
                 project_id,
                 epic_branch,
+                fail_closed=fail_closed_review_lookup,
+                target_branch=(
+                    target_branch if fail_closed_review_lookup else None
+                ),
             )
             if existing_review is not None:
                 if not getattr(existing_review, "draft", False):
@@ -21616,12 +21816,13 @@ class Orchestrator:
                     target_branch,
                 ):
                     continue
-                self._ensure_epic_in_review_metadata(
-                    project_id,
-                    issue,
-                    existing_review,
-                    epic_branch,
-                )
+                if persist_tracker_state:
+                    self._ensure_epic_in_review_metadata(
+                        project_id,
+                        issue,
+                        existing_review,
+                        epic_branch,
+                    )
                 continue
 
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
@@ -21705,6 +21906,35 @@ class Orchestrator:
                 target_branch,
             ):
                 continue
+
+            # The durable epic job revalidated a target-relative evidence
+            # generation before entering this effect.  Fence review creation
+            # to that exact source head immediately before reserving capacity
+            # and contacting the forge.  Legacy callers omit the fence.
+            expected_head = str(expected_source_head or "").strip().lower()
+            if expected_head:
+                try:
+                    current_head = str(
+                        provider.get_branch_head_sha(slug, epic_branch) or ""
+                    ).strip().lower()
+                except Exception as exc:  # noqa: BLE001 - fail closed on CAS read
+                    if fail_closed_review_lookup:
+                        raise
+                    logger.warning(
+                        "Deferred epic PR for %s: source-head CAS read failed: %s",
+                        issue.identifier,
+                        exc,
+                    )
+                    continue
+                if current_head != expected_head:
+                    logger.info(
+                        "Cancelled epic PR creation for %s: source head changed "
+                        "from %s to %s after evidence revalidation",
+                        issue.identifier,
+                        expected_head,
+                        current_head or "unavailable",
+                    )
+                    continue
 
             reservation = self._acquire_review_slot(
                 project=project,
@@ -21799,29 +22029,33 @@ class Orchestrator:
                 epic_branch,
                 target_branch,
             )
-            # Persist review metadata on the epic task record (TASK-462.2).
-            try:
-                tracker = self._tracker_for_project(project_id)
-                tracker.update_issue(issue.identifier, status=IN_REVIEW)
-                self._write_review_metadata(
-                    tracker,
-                    issue.identifier,
-                    review_id=getattr(result, "id", None),
-                    review_url=getattr(result, "url", None),
-                    source_branch=epic_branch,
-                    target_branch=target_branch,
-                )
-                self._sync_epic_review_child_states(
-                    project_id,
-                    issue,
-                    epic_branch,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to write review metadata for epic %s: %s",
-                    issue.identifier,
-                    exc,
-                )
+            if persist_tracker_state:
+                # Legacy modes retain their established combined forge/tracker
+                # effect.  Enforce-mode durable handlers pass False: their
+                # verified review receipt is followed by a transition-service
+                # intent, so this path must not become a second status writer.
+                try:
+                    tracker = self._tracker_for_project(project_id)
+                    tracker.update_issue(issue.identifier, status=IN_REVIEW)
+                    self._write_review_metadata(
+                        tracker,
+                        issue.identifier,
+                        review_id=getattr(result, "id", None),
+                        review_url=getattr(result, "url", None),
+                        source_branch=epic_branch,
+                        target_branch=target_branch,
+                    )
+                    self._sync_epic_review_child_states(
+                        project_id,
+                        issue,
+                        epic_branch,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to write review metadata for epic %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
             opened += 1
         return opened
 
@@ -21831,16 +22065,46 @@ class Orchestrator:
         slug: str,
         project_id: str,
         epic_branch: str,
+        *,
+        fail_closed: bool = False,
+        target_branch: str | None = None,
     ) -> ReviewRequest | Any | None:
-        """Return an open review for ``epic_branch`` from cache or forge."""
+        """Return an open review for one exact source/target pair.
+
+        Legacy callers may omit ``target_branch`` and retain source-only
+        behavior.  Durable epic creation always supplies it and fails closed
+        if an open review exists for the source but points at a stale parent.
+        """
+
+        expected_target = str(target_branch or "").strip()
+
+        def exact(review: Any) -> bool:
+            if not self._review_matches_open_branch(review, epic_branch):
+                return False
+            return not expected_target or str(
+                getattr(review, "target_branch", "") or ""
+            ).strip() == expected_target
+
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, []) or []
         for review in reviews:
-            if self._review_matches_open_branch(review, epic_branch):
+            if exact(review):
                 return review
+            if (
+                expected_target
+                and self._review_matches_open_branch(review, epic_branch)
+                and fail_closed
+            ):
+                raise EpicTargetResolutionError(
+                    f"open epic review for {epic_branch} targets "
+                    f"{getattr(review, 'target_branch', None)!r}, not "
+                    f"{expected_target!r}"
+                )
 
         try:
             review = provider.find_pr_for_branch(slug, epic_branch)
         except Exception as exc:  # noqa: BLE001 - best-effort idempotency guard
+            if fail_closed:
+                raise
             logger.debug(
                 "find_pr_for_branch failed while checking epic PR %s/%s: %s",
                 slug,
@@ -21848,8 +22112,18 @@ class Orchestrator:
                 exc,
             )
             return None
-        if self._review_matches_open_branch(review, epic_branch):
+        if exact(review):
             return review
+        if (
+            expected_target
+            and self._review_matches_open_branch(review, epic_branch)
+            and fail_closed
+        ):
+            raise EpicTargetResolutionError(
+                f"open epic review for {epic_branch} targets "
+                f"{getattr(review, 'target_branch', None)!r}, not "
+                f"{expected_target!r}"
+            )
         return None
 
     def _epic_branch_landed_on_target(
@@ -22775,6 +23049,54 @@ class Orchestrator:
     # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _epic_rebase_state_key(
+        epic_identifier: str, project_id: str | None
+    ) -> str:
+        project = str(project_id or "").strip()
+        identifier = str(epic_identifier or "").strip()
+        return f"{project}::{identifier}" if project else identifier
+
+    def _epic_rebase_state_storage_key(
+        self, epic_identifier: str, project_id: str | None = None
+    ) -> str | None:
+        """Resolve scoped state while accepting one unambiguous legacy key."""
+
+        scoped = self._epic_rebase_state_key(epic_identifier, project_id)
+        if scoped in self._epic_rebase_states:
+            return scoped
+        legacy = str(epic_identifier or "").strip()
+        entry = self._epic_rebase_states.get(legacy)
+        if entry is not None and (
+            not project_id or not entry.project_id or entry.project_id == project_id
+        ):
+            return legacy
+        suffix = f"::{legacy}"
+        matches = [
+            key
+            for key, candidate in self._epic_rebase_states.items()
+            if key.endswith(suffix)
+            and (not project_id or candidate.project_id == project_id)
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def _epic_rebase_state_entry(
+        self, epic_identifier: str, project_id: str | None = None
+    ) -> EpicRebaseStateEntry | None:
+        key = self._epic_rebase_state_storage_key(epic_identifier, project_id)
+        return self._epic_rebase_states.get(key) if key is not None else None
+
+    @staticmethod
+    def _epic_id_from_rebase_state_key(
+        storage_key: str, entry: EpicRebaseStateEntry
+    ) -> str:
+        prefix = f"{entry.project_id}::" if entry.project_id else ""
+        return (
+            storage_key[len(prefix) :]
+            if prefix and storage_key.startswith(prefix)
+            else storage_key
+        )
+
     def _record_epic_rebase_target(
         self,
         epic_identifier: str,
@@ -22791,7 +23113,7 @@ class Orchestrator:
         and dashboard consumers verify that a helper did not silently fall
         back to the project default branch.
         """
-        entry = self._epic_rebase_states.get(epic_identifier)
+        entry = self._epic_rebase_state_entry(epic_identifier, project_id)
         if entry is None:
             logger.debug(
                 "Cannot record epic rebase target for untracked epic %s",
@@ -22819,7 +23141,8 @@ class Orchestrator:
         (except for the timestamp update).  Removes any other
         ``epic:*`` labels from the task before adding the new one.
         """
-        old_entry = self._epic_rebase_states.get(epic_identifier)
+        old_key = self._epic_rebase_state_storage_key(epic_identifier, project_id)
+        old_entry = self._epic_rebase_states.get(old_key) if old_key else None
         if old_entry is not None and old_entry.state == state.value:
             # Same state — just refresh the timestamp.
             old_entry.updated_at = time.time()
@@ -22827,12 +23150,36 @@ class Orchestrator:
             return
 
         now = time.time()
-        old_entry = self._epic_rebase_states.get(epic_identifier)
         retry_count = old_entry.retry_count if old_entry else 0
         # Increment retry count on FAILED transitions
-        if state == EpicRebaseState.FAILED and (old_entry is None or old_entry.state != "failed"):
+        if state == EpicRebaseState.FAILED and (
+            old_entry is None or old_entry.state != "failed"
+        ):
             retry_count += 1
-        self._epic_rebase_states[epic_identifier] = EpicRebaseStateEntry(
+        storage_key = old_key or str(epic_identifier or "").strip()
+        direct_entry = self._epic_rebase_states.get(storage_key)
+        if (
+            project_id
+            and direct_entry is not None
+            and direct_entry.project_id
+            and direct_entry.project_id != project_id
+        ):
+            previous_key = self._epic_rebase_state_key(
+                epic_identifier, direct_entry.project_id
+            )
+            self._epic_rebase_states[previous_key] = direct_entry
+            self._epic_rebase_states.pop(storage_key, None)
+            storage_key = self._epic_rebase_state_key(
+                epic_identifier, project_id
+            )
+        elif project_id and any(
+            key.endswith(f"::{epic_identifier}")
+            for key in self._epic_rebase_states
+        ):
+            storage_key = self._epic_rebase_state_key(
+                epic_identifier, project_id
+            )
+        self._epic_rebase_states[storage_key] = EpicRebaseStateEntry(
             state=state.value,
             updated_at=now,
             project_id=project_id,
@@ -22879,10 +23226,10 @@ class Orchestrator:
         )
 
     def _get_epic_rebase_state(
-        self, epic_identifier: str
+        self, epic_identifier: str, *, project_id: str | None = None
     ) -> EpicRebaseState | None:
         """Return the current rebase state for ``epic_identifier``, or None."""
-        entry = self._epic_rebase_states.get(epic_identifier)
+        entry = self._epic_rebase_state_entry(epic_identifier, project_id)
         if entry is None:
             return None
         try:
@@ -22897,7 +23244,14 @@ class Orchestrator:
         project_id: str | None = None,
     ) -> None:
         """Drop the tracked rebase state for ``epic_identifier`` and clear labels."""
-        removed_entry = self._epic_rebase_states.pop(epic_identifier, None)
+        storage_key = self._epic_rebase_state_storage_key(
+            epic_identifier, project_id
+        )
+        removed_entry = (
+            self._epic_rebase_states.pop(storage_key, None)
+            if storage_key is not None
+            else None
+        )
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -22946,20 +23300,27 @@ class Orchestrator:
         epics don't accumulate ghost state forever.
         """
         active_epic_ids = {
-            issue.identifier
+            (issue.project_id, issue.identifier)
             for issue in candidates
             if issue.issue_type == "epic"
             and not _is_terminal_state(
                 issue.state, self.config.tracker_terminal_states
             )
         }
-        stale = [
-            epic_id
-            for epic_id in self._epic_rebase_states
-            if epic_id not in active_epic_ids
-        ]
-        for epic_id in stale:
-            entry = self._epic_rebase_states.pop(epic_id)
+        stale = []
+        for storage_key, entry in self._epic_rebase_states.items():
+            identifier = self._epic_id_from_rebase_state_key(storage_key, entry)
+            active = (entry.project_id, identifier) in active_epic_ids
+            if entry.project_id is None:
+                active = any(
+                    active_identifier == identifier
+                    for _project_id, active_identifier in active_epic_ids
+                )
+            if not active:
+                stale.append(storage_key)
+        for storage_key in stale:
+            entry = self._epic_rebase_states.pop(storage_key)
+            epic_id = self._epic_id_from_rebase_state_key(storage_key, entry)
             self._clear_epic_stale_alert(epic_id)
             logger.debug(
                 "Pruned stale epic rebase state for %s (was %s)",
@@ -22969,7 +23330,9 @@ class Orchestrator:
         if stale:
             self._persist_epic_rebase_states()
 
-    def _should_dispatch_rebase_agent(self, epic_identifier: str) -> bool:
+    def _should_dispatch_rebase_agent(
+        self, epic_identifier: str, *, project_id: str | None = None
+    ) -> bool:
         """Idempotency gate: should we dispatch a rebase agent for this epic?
 
         Returns ``False`` when:
@@ -22981,8 +23344,10 @@ class Orchestrator:
         Returns ``True`` for ``STALE``, ``REBASED``, no state, or when
         the respective timeout/backoff has elapsed.
         """
-        entry = self._epic_rebase_states.get(epic_identifier)
-        state = self._get_epic_rebase_state(epic_identifier)
+        entry = self._epic_rebase_state_entry(epic_identifier, project_id)
+        state = self._get_epic_rebase_state(
+            epic_identifier, project_id=project_id
+        )
         if state == EpicRebaseState.REBASING:
             timeout_s = 1800.0  # 30 minutes
             if entry and time.time() - entry.updated_at < timeout_s:
@@ -23022,12 +23387,15 @@ class Orchestrator:
         """
         if not source_branch or not source_branch.startswith("epic-"):
             return False
-        for identifier, entry in self._epic_rebase_states.items():
+        for storage_key, entry in self._epic_rebase_states.items():
             if entry.project_id != project_id:
                 continue
+            identifier = self._epic_id_from_rebase_state_key(storage_key, entry)
             expected = self.project_store.epic_branch_name(identifier)
             if expected == source_branch:
-                state = self._get_epic_rebase_state(identifier)
+                state = self._get_epic_rebase_state(
+                    identifier, project_id=project_id
+                )
                 if state == EpicRebaseState.REBASING:
                     return True
         return False
@@ -23092,14 +23460,18 @@ class Orchestrator:
             if not is_declared_epic and not self._issue_has_children(issue):
                 continue
 
-            state = self._get_epic_rebase_state(issue.identifier)
+            state = self._get_epic_rebase_state(
+                issue.identifier, project_id=issue.project_id
+            )
             if state not in (
                 EpicRebaseState.STALE,
                 EpicRebaseState.FAILED,
                 EpicRebaseState.REBASING,
             ):
                 continue
-            if not self._should_dispatch_rebase_agent(issue.identifier):
+            if not self._should_dispatch_rebase_agent(
+                issue.identifier, project_id=issue.project_id
+            ):
                 continue
 
             project = self.project_store.get(issue.project_id)
@@ -23119,6 +23491,13 @@ class Orchestrator:
                     issue.identifier,
                     reason,
                 )
+                continue
+            if self._request_durable_epic_rebase(
+                issue,
+                target_branch=target_branch,
+                source="epic-synchronization",
+            ):
+                filed += 1
                 continue
 
             try:
@@ -23214,7 +23593,7 @@ class Orchestrator:
         epic: Issue,
         epic_branch: str,
         target_branch: str,
-    ) -> None:
+    ) -> Any:
         """Create a sibling task task under ``epic`` to rebase the epic branch.
 
         The task is labelled ``merge-conflict`` so the dispatcher routes
@@ -23295,6 +23674,7 @@ class Orchestrator:
             epic_branch,
             target_branch,
         )
+        return created
 
     def _mark_epic_review_repair_issue(
         self,
@@ -30872,6 +31252,12 @@ class Orchestrator:
                     target_branch = self._resolve_epic_target_branch(issue, project)
                 except EpicTargetResolutionError:
                     return
+            if self._request_durable_epic_rebase(
+                issue,
+                target_branch=target_branch or project.default_branch,
+                source="forge-merge-conflict",
+            ):
+                return
             if self._is_mature_epic_review_issue(issue, children):
                 self._mark_epic_review_repair_issue(
                     tracker,
@@ -31589,13 +31975,24 @@ class Orchestrator:
                 if project is not None:
                     auto_promote = bool(getattr(project, "intake_auto_promote", True))
             try:
-                result = process_epic_proposal_issue(
-                    tracker,
-                    issue,
-                    auto_promote=auto_promote,
-                    allow_decomposition=allow_decomposition,
-                    project=project,
+                mutation_lock = (
+                    self.project_store.project_write_lock(issue.project_id)
+                    if issue.project_id
+                    else contextlib.nullcontext()
                 )
+                # Applying an accepted proposal can retype/reparent the source
+                # and create several direct children.  Keep the complete
+                # proposal transaction under the same project fence used by
+                # durable epic auto-close and rollup creation so neither can
+                # observe or act on a partial containment generation.
+                with mutation_lock:
+                    result = process_epic_proposal_issue(
+                        tracker,
+                        issue,
+                        auto_promote=auto_promote,
+                        allow_decomposition=allow_decomposition,
+                        project=project,
+                    )
             except Exception as exc:  # noqa: BLE001
                 metrics["error_count"] += 1
                 logger.debug(
@@ -35629,6 +36026,7 @@ class Orchestrator:
             {
                 "issue_id": issue_id,
                 "identifier": entry.identifier,
+                "project_id": project_id,
                 "reason": "task_handoff_failed",
                 "error": "task handoff capability failed",
             },
@@ -35682,6 +36080,7 @@ class Orchestrator:
             {
                 "issue_id": issue_id,
                 "identifier": entry.identifier,
+                "project_id": project_id,
                 "reason": "worktree_recovery_failed",
                 "error": error,
             },
@@ -35757,6 +36156,7 @@ class Orchestrator:
             {
                 "issue_id": issue_id,
                 "identifier": entry.identifier,
+                "project_id": project_id,
                 "reason": "worktree_recovery_publication_pending",
                 "error": str(error),
                 "snapshot_head": snapshot_head or None,
@@ -40064,6 +40464,7 @@ class Orchestrator:
             {
                 "issue_id": issue_id,
                 "identifier": entry.identifier,
+                "project_id": entry.issue.project_id,
                 "work_kind": "duplicate_screening",
                 **result,
             },
@@ -40543,6 +40944,7 @@ class Orchestrator:
                 {
                     "issue_id": issue_id,
                     "identifier": entry.identifier,
+                    "project_id": project_id,
                     "reason": reason,
                     "error": error,
                     "auditor": True,
@@ -40923,6 +41325,7 @@ class Orchestrator:
                                 {
                                     "issue_id": issue_id,
                                     "identifier": entry.identifier,
+                                    "project_id": project_id,
                                     "reason": reason,
                                     "error": error,
                                     "elapsed_s": elapsed,
@@ -41428,6 +41831,7 @@ class Orchestrator:
             {
                 "issue_id": issue_id,
                 "identifier": entry.identifier,
+                "project_id": project_id,
                 "reason": reason,
                 "error": error,
                 "elapsed_s": elapsed,
@@ -41886,46 +42290,55 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
         created: list[Issue] = []
+        mutation_lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        # Decomposition changes the parent's containment generation.  Keep the
+        # entire validated child set under the same fence used by epic
+        # auto-close and rollup-review mutations so neither can observe a
+        # partial plan or race the first child write.
+        with mutation_lock:
+            for task in tasks:
+                title = str(task["title"]).strip()
+                description = str(task["description"]).strip()
+                priority = task.get("priority", parent_issue.priority or 2)
+                if not isinstance(priority, int) or priority < 0 or priority > 4:
+                    priority = 2
 
-        for task in tasks:
-            title = str(task["title"]).strip()
-            description = str(task["description"]).strip()
-            priority = task.get("priority", parent_issue.priority or 2)
-            if not isinstance(priority, int) or priority < 0 or priority > 4:
-                priority = 2
+                child = tracker.create_issue(
+                    title=title,
+                    issue_type="task",
+                    description=description,
+                    priority=priority,
+                    initial_status=OPEN,
+                    parent=parent_issue.identifier,
+                )
+                created.append(child)
 
-            child = tracker.create_issue(
-                title=title,
-                issue_type="task",
-                description=description,
-                priority=priority,
-                initial_status=OPEN,
-                parent=parent_issue.identifier,
-            )
-            created.append(child)
-
-            # Add focus hint label
-            focus_hint = task.get("focus_hint", "")
-            if focus_hint:
-                try:
-                    tracker.add_label(child.identifier, f"needs:{focus_hint}")
-                except Exception:
-                    pass
-
-        # Add inter-task dependencies
-        for i, task in enumerate(tasks):
-            for dep_idx in task.get("depends_on", []):
-                if (
-                    isinstance(dep_idx, int)
-                    and 0 <= dep_idx < len(created)
-                    and dep_idx != i
-                ):
+                # Add focus hint label
+                focus_hint = task.get("focus_hint", "")
+                if focus_hint:
                     try:
-                        tracker.add_dependency(
-                            created[i].identifier, created[dep_idx].identifier
-                        )
+                        tracker.add_label(child.identifier, f"needs:{focus_hint}")
                     except Exception:
                         pass
+
+            # Add inter-task dependencies
+            for i, task in enumerate(tasks):
+                for dep_idx in task.get("depends_on", []):
+                    if (
+                        isinstance(dep_idx, int)
+                        and 0 <= dep_idx < len(created)
+                        and dep_idx != i
+                    ):
+                        try:
+                            tracker.add_dependency(
+                                created[i].identifier, created[dep_idx].identifier
+                            )
+                        except Exception:
+                            pass
 
         # Move the original issue to the decomposed status.
         try:

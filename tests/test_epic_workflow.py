@@ -15,6 +15,7 @@ from oompah.epic_workflow import (
     EpicFactCollector,
     EpicWorkflowController,
     EpicWorkflowHandler,
+    ProductionEpicWorkflowBackend,
     epic_branch,
 )
 from oompah.models import Issue
@@ -24,6 +25,11 @@ from oompah.orchestrator import (
 )
 from oompah.statuses import DONE, IN_PROGRESS, OPEN
 from oompah.workflow_contract import TaskDisposition
+from oompah.statuses import ARCHIVED, IN_REVIEW, MERGED
+from oompah.task_transition_service import (
+    TransitionDisposition,
+    TransitionOutcome,
+)
 from oompah.work_decision import evaluate_task
 from oompah.workflow_facts import (
     FactState,
@@ -39,6 +45,7 @@ from oompah.workflow_worker import (
     EffectResult,
     RevalidationResult,
     VerificationResult,
+    WorkflowActionSuperseded,
     WorkflowRunDisposition,
 )
 
@@ -140,9 +147,7 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
     make_git_fixture(tmp_path)
     top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
     mid = issue("MID", state=OPEN, issue_type="epic", parent_id="TOP")
-    leaf = issue(
-        "LEAF", state=DONE, parent_id="MID", work_branch="leaf"
-    )
+    leaf = issue("LEAF", state=DONE, parent_id="MID", work_branch="leaf")
     tracker = Tracker([top, mid, leaf])
     collector = EpicFactCollector(
         project_id="project-1",
@@ -156,10 +161,7 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
 
     decisions = {item.task.identifier: item.decision for item in batch.tasks}
     assert decisions["MID"].disposition is TaskDisposition.RUNNABLE
-    assert (
-        decisions["MID"].reason_code
-        == "terminal.immediate_target_landing_proven"
-    )
+    assert decisions["MID"].reason_code == "terminal.immediate_target_landing_proven"
     assert decisions["MID"].durable_jobs == ("epic_auto_close",)
     # MID is intentionally still Open. TOP is eligible from MID's landing on
     # epic-TOP, not from a status that TOP would have derived from MID.
@@ -198,9 +200,7 @@ def test_bounded_controller_rotates_across_all_eligible_epics(tmp_path):
 def test_shadow_epic_evaluation_does_not_persist_landing_evidence(tmp_path):
     make_git_fixture(tmp_path)
     epic = issue("TOP", state=OPEN, issue_type="epic")
-    child = issue(
-        "LEAF", state=DONE, parent_id="TOP", work_branch="leaf"
-    )
+    child = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
     tracker = Tracker([epic, child])
     collector = EpicFactCollector(
         project_id="project-1",
@@ -216,6 +216,645 @@ def test_shadow_epic_evaluation_does_not_persist_landing_evidence(tmp_path):
     assert store.landing_facts(project_id="project-1", task_id="TOP") == ()
     assert store.list_jobs() == ()
     store.close()
+
+
+def test_explicit_epic_action_supersedes_only_its_older_action_generation(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=SimpleNamespace(project_id="project-1"),
+        store=store,
+    )
+
+    old = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.READINESS,
+        generation="event-1",
+        payload={"authority": "one"},
+    )
+    independent = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.TARGET_RESOLUTION,
+        generation="target-1",
+        payload={"authority": "one"},
+    )
+    new = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.READINESS,
+        generation="event-2",
+        payload={"authority": "two"},
+    )
+
+    assert store.get(old.job_id).state is WorkflowJobState.SUPERSEDED
+    assert store.get(independent.job_id).state is WorkflowJobState.QUEUED
+    assert store.get(new.job_id).state is WorkflowJobState.QUEUED
+    assert old.scheduling_lane == new.scheduling_lane
+    assert independent.scheduling_lane != new.scheduling_lane
+    store.close()
+
+
+class RecordingEpicEffects:
+    def __init__(self) -> None:
+        self.receipt = None
+        self.apply_calls = 0
+
+    def inspect_epic_effect(self, action, epic, facts, payload):
+        return self.receipt
+
+    def apply_epic_effect(
+        self,
+        action,
+        epic,
+        facts,
+        payload,
+        *,
+        idempotency_key,
+        originating_job,
+        evidence_generation,
+    ):
+        self.apply_calls += 1
+        self.receipt = {
+            "effect": action.value,
+            "review_id": "42",
+            "source_branch": f"epic-{epic.identifier}",
+            "target_branch": "main",
+            "source_head": "a" * 40,
+            "idempotency_key": idempotency_key,
+        }
+        return self.receipt
+
+    def verify_epic_effect(self, action, epic, facts, payload, receipt):
+        if self.receipt is None:
+            return None
+        if receipt.get("source_head") != self.receipt["source_head"]:
+            return None
+        return self.receipt
+
+
+class RecordingTransitionService:
+    def __init__(self) -> None:
+        self.intents = []
+
+    async def execute(self, intent):
+        self.intents.append(intent)
+        return TransitionOutcome(
+            transition_id="transition-1",
+            project_id=intent.project_id,
+            task_id=intent.task_id,
+            disposition=TransitionDisposition.APPLIED,
+            reason_code="transition.applied",
+            observed_status=intent.requested_status,
+            observed_version=intent.expected_version,
+            requested_status=intent.requested_status,
+            applied_status=intent.requested_status,
+        )
+
+
+def production_handler(controller, tracker, effects):
+    return EpicWorkflowHandler(
+        ProductionEpicWorkflowBackend(
+            controller=controller,
+            tracker=tracker,
+            effects=effects,
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_production_review_handler_uses_exact_receipt_and_transition(tmp_path):
+    make_git_fixture(tmp_path)
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    tracker = Tracker([top, leaf])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    _batch, scheduled = controller.reconcile([top])
+    assert scheduled.jobs_created == 1
+    job = store.list_jobs()[0]
+    assert job.action == EpicAction.ROLLUP_REVIEW_CREATION.value
+    effects = RecordingEpicEffects()
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={job.action: production_handler(controller, tracker, effects)},
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert effects.apply_calls == 1
+    assert len(transitions.intents) == 1
+    intent = transitions.intents[0]
+    assert intent.requested_status == IN_REVIEW
+    assert intent.exact_head == "a" * 40
+    completed = store.get(job.job_id)
+    assert completed.checkpoint["effect"]["review_id"] == "42"
+    assert completed.checkpoint["verification"]["source_head"] == "a" * 40
+    assert store.landing_facts(project_id="project-1", task_id="TOP")
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_uses_persisted_review_head_as_terminal_cas(tmp_path):
+    make_git_fixture(tmp_path)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "merge", "--ff-only", "epic-TOP")
+    exact_head = git(tmp_path, "rev-parse", "epic-TOP")
+    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top.review_head = exact_head
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    tracker = Tracker([top, leaf])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    # Persist the exact child landing before pruning the shared epic source.
+    # The review head can recover the epic's own landing, but it must not hide
+    # an unknown current child obligation.
+    controller.evaluate([top])
+    git(tmp_path, "branch", "-D", "epic-TOP")
+    _batch, scheduled = controller.reconcile([top])
+    assert scheduled.jobs_created == 1
+    job = store.list_jobs()[0]
+    assert job.action == EpicAction.AUTO_CLOSE.value
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            job.action: production_handler(controller, tracker, RecordingEpicEffects())
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.COMPLETED
+    assert len(transitions.intents) == 1
+    assert transitions.intents[0].requested_status == "Merged"
+    assert transitions.intents[0].exact_head == exact_head
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_auto_close_rejects_stale_review_head_until_exact_landing_is_synced(
+    tmp_path,
+):
+    make_git_fixture(tmp_path)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "merge", "--ff-only", "epic-TOP")
+    landing_head = git(tmp_path, "rev-parse", "epic-TOP")
+    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top.review_head = "f" * 40
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    tracker = Tracker([top, leaf])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    stale = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-stale",
+        expected_head_sha=top.review_head,
+    )
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: production_handler(
+                controller, tracker, RecordingEpicEffects()
+            )
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    stale_result = await worker.run_once()
+
+    assert stale_result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert store.get(stale.job_id).state is WorkflowJobState.SUPERSEDED
+    assert transitions.intents == []
+
+    top.review_head = landing_head
+    current = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation="auto-close-current",
+        expected_head_sha=landing_head,
+    )
+    current_result = await worker.run_once()
+
+    assert current_result.disposition is WorkflowRunDisposition.COMPLETED
+    assert store.get(current.job_id).state is WorkflowJobState.COMPLETED
+    assert len(transitions.intents) == 1
+    assert transitions.intents[0].requested_status == MERGED
+    assert transitions.intents[0].exact_head == landing_head
+    store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("child_change", ["added", "reopened"])
+async def test_queued_auto_close_rechecks_current_children(tmp_path, child_change):
+    make_git_fixture(tmp_path)
+    git(tmp_path, "checkout", "main")
+    git(tmp_path, "merge", "--ff-only", "epic-TOP")
+    landing_head = git(tmp_path, "rev-parse", "epic-TOP")
+    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top.review_head = landing_head
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    tracker = Tracker([top, leaf])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    initial = controller.evaluate([top]).tasks[0].decision
+    assert initial.durable_jobs == (EpicAction.AUTO_CLOSE.value,)
+    queued = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.AUTO_CLOSE,
+        generation=f"auto-close-before-child-{child_change}",
+        expected_head_sha=landing_head,
+    )
+    if child_change == "added":
+        late = issue(
+            "LATE", state=OPEN, parent_id="TOP", work_branch="late-child"
+        )
+        tracker.issues[late.identifier] = late
+    else:
+        leaf.state = OPEN
+
+    transitions = RecordingTransitionService()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.AUTO_CLOSE.value: production_handler(
+                controller, tracker, RecordingEpicEffects()
+            )
+        },
+        transition_services={"project-1": transitions},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert store.get(queued.job_id).state is WorkflowJobState.SUPERSEDED
+    assert transitions.intents == []
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_external_apply_and_verify_recheck_fresh_action_authority():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={"epic_branch": "epic-TOP", "target_branch": "main"},
+    )
+    facts.landings = ()
+    decision = SimpleNamespace(
+        durable_jobs=(),
+        evidence_revision="facts-no-longer-authorized",
+        reason_code="rollup.waiting_children",
+    )
+    effects = MagicMock()
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(epic=top, facts=facts, decision=decision)
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.ROLLUP_REVIEW_CREATION.value,
+            payload={},
+            generation="review-generation-1",
+        ),
+        idempotency_key="review-effect-1",
+    )
+
+    with pytest.raises(WorkflowActionSuperseded):
+        await backend.apply(context)
+    with pytest.raises(WorkflowActionSuperseded):
+        await backend.verify(context, EffectResult({"source_head": "a" * 40}))
+
+    effects.apply_epic_effect.assert_not_called()
+    effects.verify_epic_effect.assert_not_called()
+
+
+def test_merged_cleanup_is_not_current_without_exact_own_landing():
+    top = issue("TOP", state=MERGED, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={
+            "epic_branch": "epic-TOP",
+            "target_branch": "main",
+            "children": [],
+        },
+    )
+    facts.landings = ()
+    snapshot = SimpleNamespace(
+        epic=top,
+        facts=facts,
+        # Even a stale decision that requested cleanup cannot override the
+        # mutation-time landing fence.
+        decision=SimpleNamespace(durable_jobs=(EpicAction.CLEANUP.value,)),
+    )
+
+    assert not ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.CLEANUP,
+        snapshot,
+        {},
+    )
+    top.state = IN_PROGRESS
+    facts.landings = (
+        LandingFact(
+            "epic-TOP",
+            "main",
+            "a" * 40,
+            {"kind": "git_ancestry", "source_sha": "a" * 40},
+            "2026-08-05T00:00:00+00:00",
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        ),
+    )
+    assert not ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.CLEANUP,
+        snapshot,
+        {},
+    )
+    top.state = MERGED
+    assert ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.CLEANUP,
+        snapshot,
+        {},
+    )
+
+
+def test_rebase_action_rejects_stale_target_even_when_repair_remains_runnable():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic", parent_id="NEW")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={
+            "epic_branch": "epic-TOP",
+            "target_branch": "epic-NEW",
+            "children": [],
+        },
+    )
+    snapshot = SimpleNamespace(
+        epic=top,
+        facts=facts,
+        decision=SimpleNamespace(
+            durable_jobs=(EpicAction.REBASE_REPAIR.value,),
+        ),
+    )
+
+    assert not ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.REBASE_REPAIR,
+        snapshot,
+        {"target_branch": "epic-OLD"},
+    )
+    assert ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.REBASE_REPAIR,
+        snapshot,
+        {"target_branch": "epic-NEW"},
+    )
+    snapshot.decision.durable_jobs = ()
+    assert not ProductionEpicWorkflowBackend._is_action_current(
+        EpicAction.REBASE_REPAIR,
+        snapshot,
+        {"target_branch": "epic-NEW"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_review_effect_restart_replays_verify_without_duplicate_create(tmp_path):
+    make_git_fixture(tmp_path)
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    leaf = issue("LEAF", state=DONE, parent_id="TOP", work_branch="leaf")
+    tracker = Tracker([top, leaf])
+    store_path = tmp_path / "jobs.sqlite3"
+    store = WorkflowJobStore(str(store_path))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    controller.reconcile([top])
+    effects = RecordingEpicEffects()
+    crashed = False
+
+    def crash_after_receipt(phase, _job):
+        nonlocal crashed
+        if phase == "effect_returned" and not crashed:
+            crashed = True
+            raise RuntimeError("simulated process death after durable effect receipt")
+
+    first = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.ROLLUP_REVIEW_CREATION.value: production_handler(
+                controller, tracker, effects
+            )
+        },
+        transition_services={"project-1": RecordingTransitionService()},
+        worker_id="epic-worker-1",
+        retry_delay_seconds=0,
+        phase_observer=crash_after_receipt,
+    )
+    first_result = await first.run_once()
+    assert first_result.disposition is WorkflowRunDisposition.RETRY_SCHEDULED
+    assert effects.apply_calls == 1
+    store.close()
+
+    reopened = WorkflowJobStore(str(store_path))
+    restarted = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=reopened,
+    )
+    second = DurableWorkflowWorker(
+        store=reopened,
+        handlers={
+            EpicAction.ROLLUP_REVIEW_CREATION.value: production_handler(
+                restarted, tracker, effects
+            )
+        },
+        transition_services={"project-1": RecordingTransitionService()},
+        worker_id="epic-worker-2",
+        retry_delay_seconds=0,
+    )
+
+    second_result = await second.run_once()
+
+    assert second_result.disposition is WorkflowRunDisposition.COMPLETED
+    assert effects.apply_calls == 1
+    reopened.close()
+
+
+@pytest.mark.asyncio
+async def test_rebase_restart_accepts_helper_created_before_receipt_checkpoint():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={"epic_branch": "epic-TOP", "target_branch": "main"},
+    )
+    decision = SimpleNamespace(
+        durable_jobs=(),
+        evidence_revision="after-helper",
+        reason_code="rollup.waiting_children",
+    )
+    effects = MagicMock()
+    effects.inspect_epic_effect.return_value = {
+        "helper_id": "REBASE-1",
+        "source_branch": "epic-TOP",
+        "target_branch": "main",
+    }
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(epic=top, facts=facts, decision=decision)
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.REBASE_REPAIR.value,
+            payload={
+                "target_branch": "main",
+                "evidence_revision": "before-helper",
+            },
+            checkpoint={},
+            generation="rebase-generation-1",
+        )
+    )
+
+    result = await backend.revalidate(context)
+
+    assert result.current is True
+    effects.inspect_epic_effect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_rebase_restart_verifies_durable_receipt_after_helper_changes_decision():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={"epic_branch": "epic-TOP", "target_branch": "main"},
+    )
+    decision = SimpleNamespace(
+        durable_jobs=(),
+        evidence_revision="after-helper",
+        reason_code="rollup.waiting_children",
+    )
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    effects = MagicMock()
+    effects.verify_epic_effect.return_value = {
+        "helper_id": "REBASE-1",
+        "source_branch": "epic-TOP",
+        "target_branch": "main",
+    }
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(epic=top, facts=facts, decision=decision)
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.REBASE_REPAIR.value,
+            payload={"target_branch": "main", "evidence_revision": "before-helper"},
+            checkpoint={"effect": {"helper_id": "REBASE-1"}},
+            generation="rebase-generation-1",
+        )
+    )
+
+    result = await backend.revalidate(context)
+    verification = await backend.verify(
+        context,
+        EffectResult({"helper_id": "REBASE-1"}),
+    )
+
+    assert result.current is True
+    assert verification.verified is True
+    effects.verify_epic_effect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_rebase_restart_resumes_partial_helper_bookkeeping_repair():
+    top = issue("TOP", state=IN_PROGRESS, issue_type="epic")
+    facts = MagicMock()
+    facts.fact.return_value = SimpleNamespace(
+        state=FactState.KNOWN,
+        value={"epic_branch": "epic-TOP", "target_branch": "main"},
+    )
+    decision = SimpleNamespace(
+        durable_jobs=(),
+        evidence_revision="after-helper",
+        reason_code="rollup.waiting_children",
+    )
+    effects = MagicMock()
+    effects.inspect_epic_effect.return_value = None
+    effects.recoverable_epic_effect.return_value = True
+    controller = MagicMock()
+    controller.collector.project_id = "project-1"
+    backend = ProductionEpicWorkflowBackend(
+        controller=controller,
+        tracker=MagicMock(),
+        effects=effects,
+    )
+    backend._fresh_snapshot = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(epic=top, facts=facts, decision=decision)
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            action=EpicAction.REBASE_REPAIR.value,
+            payload={
+                "target_branch": "main",
+                "evidence_revision": "before-helper",
+            },
+            checkpoint={},
+            generation="rebase-generation-1",
+        )
+    )
+
+    result = await backend.revalidate(context)
+
+    assert result.current is True
+    effects.recoverable_epic_effect.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -303,6 +942,81 @@ def test_archived_direct_child_has_no_invented_landing_obligation(tmp_path):
 
     assert decision.disposition is TaskDisposition.RUNNABLE
     assert decision.reason_code == "rollup.children_complete"
+
+
+def test_own_landing_does_not_hide_a_new_open_child(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-b", "main")
+    (repo / "base.txt").write_text("base\n")
+    git(repo, "add", "base.txt")
+    git(repo, "commit", "-m", "base")
+    git(repo, "branch", "epic-TOP")
+    top = issue("TOP", state=IN_REVIEW, issue_type="epic")
+    top.review_head = git(repo, "rev-parse", "epic-TOP")
+    reopened = issue(
+        "REOPENED",
+        state=OPEN,
+        parent_id="TOP",
+        work_branch="reopened-child",
+    )
+    facts = EpicFactCollector(
+        project_id="project-1",
+        tracker=Tracker([top, reopened]),
+        repo_path=str(repo),
+    ).collect("TOP")
+
+    own = next(item for item in facts.landings if item.source == "epic-TOP")
+    decision = evaluate_task(top, facts)
+
+    assert own.state is LandingState.LANDED
+    assert decision.disposition is TaskDisposition.BLOCKED
+    assert decision.reason_code == "rollup.waiting_children"
+    assert decision.durable_jobs == ("child_landing_verification",)
+
+
+@pytest.mark.asyncio
+async def test_archived_cleanup_is_superseded_when_live_tip_outgrows_queued_head(
+    tmp_path,
+):
+    make_git_fixture(tmp_path)
+    queued_head = git(tmp_path, "rev-parse", "main")
+    live_head = git(tmp_path, "rev-parse", "epic-TOP")
+    assert live_head != queued_head
+    top = issue("TOP", state=ARCHIVED, issue_type="epic")
+    top.review_head = queued_head
+    tracker = Tracker([top])
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1", tracker=tracker, repo_path=str(tmp_path)
+        ),
+        store=store,
+    )
+    job = controller.schedule_action(
+        task_id="TOP",
+        action=EpicAction.CLEANUP,
+        generation="archived-cleanup-at-queued-head",
+        expected_head_sha=queued_head,
+    )
+    effects = RecordingEpicEffects()
+    worker = DurableWorkflowWorker(
+        store=store,
+        handlers={
+            EpicAction.CLEANUP.value: production_handler(
+                controller, tracker, effects
+            )
+        },
+        transition_services={"project-1": RecordingTransitionService()},
+        worker_id="epic-worker",
+    )
+
+    result = await worker.run_once()
+
+    assert result.disposition is WorkflowRunDisposition.SUPERSEDED
+    assert store.get(job.job_id).state is WorkflowJobState.SUPERSEDED
+    assert effects.apply_calls == 0
+    store.close()
 
 
 def test_orchestrator_consumes_the_same_epic_snapshot_that_it_schedules(tmp_path):
@@ -517,13 +1231,26 @@ def test_advanced_source_ref_invalidates_older_durable_landing(tmp_path):
     exact_previous = collector.collect(
         LandingRequest("source", "target", prior.revision, prior=prior)
     )
+    live_previous = collector.collect(
+        LandingRequest(
+            "source",
+            "target",
+            prior.revision,
+            prior=prior,
+            prefer_live_source=True,
+        )
+    )
 
     assert refreshed.state is LandingState.NOT_LANDED
     assert refreshed.revision != prior.revision
-    # An explicit revision is immutable evidence. A later branch tip must not
-    # invalidate proof for the exact revision that the task submitted.
+    # Exact child revisions remain stable when a shared container advances.
     assert exact_previous.state is LandingState.LANDED
     assert exact_previous.revision == prior.revision
+    # An epic's own persisted review head is fallback evidence only after
+    # pruning. While its source ref is live, the advanced tip supersedes the
+    # older reviewed generation and prevents auto-close/cleanup.
+    assert live_previous.state is LandingState.NOT_LANDED
+    assert live_previous.revision == refreshed.revision
 
 
 def test_shared_container_ref_can_advance_past_exact_child_revision(tmp_path):
@@ -600,9 +1327,7 @@ def test_landing_fact_ledger_survives_controller_restart_and_ref_pruning(tmp_pat
 
     assert batch.tasks[0].decision.disposition is TaskDisposition.RUNNABLE
     assert any(
-        item.source == "leaf"
-        and item.target == "epic-MID"
-        and item.durable
+        item.source == "leaf" and item.target == "epic-MID" and item.durable
         for item in batch.tasks[0].facts.landings
     )
     second_store.close()
@@ -745,9 +1470,13 @@ def test_restart_recovery_requires_and_scopes_the_dead_lease_owner(tmp_path):
     )
 
     assert recovered == 1
-    # The fresh reconcile may immediately supersede the recovered maintenance
-    # action, but it must no longer retain the dead lease.
-    assert store.get(epic_job.job_id).state is WorkflowJobState.SUPERSEDED
+    # A different action lane does not erase recovered maintenance intent;
+    # fresh worker revalidation will fence it if the action is no longer
+    # authorized. It must no longer retain the dead lease either way.
+    assert store.get(epic_job.job_id).state in {
+        WorkflowJobState.QUEUED,
+        WorkflowJobState.SUPERSEDED,
+    }
     assert store.get(other_job.job_id).state is WorkflowJobState.RUNNING
     assert store.get(other_project_job.job_id).state is WorkflowJobState.RUNNING
     store.close()
@@ -779,12 +1508,76 @@ def test_landing_history_limit_keeps_the_newest_evidence_window(tmp_path):
         )
         facts.append(fact)
 
-    selected = store.landing_facts(
-        project_id="project-1", task_id="TOP", limit=2
-    )
+    selected = store.landing_facts(project_id="project-1", task_id="TOP", limit=2)
 
     assert [item["evidence_revision"] for item in selected] == [
         facts[1].evidence_revision,
         facts[2].evidence_revision,
     ]
+    store.close()
+
+
+def test_latest_landing_projection_cannot_starve_a_pruned_peer(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    peer = LandingFact(
+        "peer-branch",
+        "main",
+        "1" * 40,
+        {"kind": "git_ancestry", "source_sha": "1" * 40},
+        "2026-08-04T00:00:00+00:00",
+        "project-1",
+        state=LandingState.LANDED,
+        durable=True,
+    )
+    store.record_landing_facts(
+        project_id="project-1", task_id="TOP", facts=[peer.to_dict()], now=1.0
+    )
+    newest = None
+    for index in range(101):
+        newest = LandingFact(
+            "churning-branch",
+            "main",
+            f"{index + 2:040x}",
+            {
+                "kind": "git_ancestry",
+                "source_sha": f"{index + 2:040x}",
+                "target_sha": f"{index + 200:040x}",
+            },
+            f"2026-08-04T00:{index // 60:02d}:{index % 60:02d}+00:00",
+            "project-1",
+            state=LandingState.LANDED,
+            durable=True,
+        )
+        store.record_landing_facts(
+            project_id="project-1",
+            task_id="TOP",
+            facts=[newest.to_dict()],
+            now=float(index + 2),
+        )
+    transient = LandingFact(
+        "churning-branch",
+        "main",
+        "f" * 40,
+        {"kind": "source_unavailable"},
+        "2026-08-04T00:02:00+00:00",
+        "project-1",
+        state=LandingState.UNKNOWN,
+        durable=False,
+        error_code="git_observation_failed",
+    )
+    store.record_landing_facts(
+        project_id="project-1",
+        task_id="TOP",
+        facts=[transient.to_dict()],
+        now=200.0,
+    )
+
+    selected = store.latest_landing_facts(
+        project_id="project-1", task_id="TOP", limit=100
+    )
+
+    assert {(item["source"], item["evidence_revision"]) for item in selected} == {
+        ("peer-branch", peer.evidence_revision),
+        ("churning-branch", newest.evidence_revision),
+    }
     store.close()

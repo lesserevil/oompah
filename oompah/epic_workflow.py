@@ -13,26 +13,46 @@ the nested epic.
 
 from __future__ import annotations
 
+import asyncio
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-import re
 from typing import Any, Protocol
 
 from oompah.models import Issue
 from oompah.projects import sanitize_branch_identifier
-from oompah.statuses import ARCHIVED, MERGED, canonicalize_status
+from oompah.statuses import (
+    ARCHIVED,
+    DONE,
+    IN_REVIEW,
+    MERGED,
+    canonicalize_status,
+    epic_rollup_state,
+)
+from oompah.task_transition_service import (
+    TransitionAuthority,
+    TransitionIntent,
+    issue_authority_version,
+    issue_exact_head,
+)
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_facts import (
     FactDomain,
+    FactState,
     GitLandingCollector,
     LandingFact,
     LandingRequest,
+    LandingState,
     WorkflowFactCollector,
     WorkflowFacts,
 )
-from oompah.workflow_jobs import WorkflowJob, WorkflowJobSpec, WorkflowJobStore
+from oompah.workflow_jobs import (
+    WorkflowFailureCategory,
+    WorkflowJob,
+    WorkflowJobStore,
+)
 from oompah.workflow_scheduler import WorkflowJobScheduler, WorkflowReconcileResult
 from oompah.workflow_worker import (
     EffectObservation,
@@ -41,11 +61,12 @@ from oompah.workflow_worker import (
     VerificationResult,
     WorkflowActionDomain,
     WorkflowActionError,
+    WorkflowActionSuperseded,
     WorkflowJobContext,
 )
 
-
 DEFAULT_EPIC_DECISION_LIMIT = 1000
+_EXACT_HEAD_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
 class EpicTargetResolutionError(ValueError):
@@ -69,12 +90,36 @@ class EpicAction(str, Enum):
 
 EPIC_ACTIONS = frozenset(item.value for item in EpicAction)
 
+_EPIC_READ_ONLY_ACTIONS = frozenset(
+    {
+        EpicAction.READINESS,
+        EpicAction.CHILD_LANDING_VERIFICATION,
+        EpicAction.TARGET_RESOLUTION,
+        EpicAction.RESTART_RECONCILIATION,
+    }
+)
+_EPIC_EXTERNAL_ACTIONS = frozenset(
+    {
+        EpicAction.ROLLUP_REVIEW_CREATION,
+        EpicAction.TERMINAL_VALIDATION,
+        EpicAction.REBASE_REPAIR,
+        EpicAction.CLEANUP,
+    }
+)
+
 
 def _required_text(value: object, name: str) -> str:
     result = str(value or "").strip()
     if not result:
         raise ValueError(f"{name} is required")
     return result
+
+
+def _exact_head(value: object) -> str | None:
+    """Return only immutable full-length Git object identities."""
+
+    candidate = str(value or "").strip().lower()
+    return candidate if _EXACT_HEAD_RE.fullmatch(candidate) else None
 
 
 def epic_branch(identifier: str) -> str:
@@ -121,7 +166,10 @@ def _source_branch(issue: Issue) -> str:
 def _revision(issue: Issue) -> str | None:
     integration = _integration_value(issue)
     value = (
+        # A live implementation head supersedes an older reviewed generation.
+        # The persisted review head remains the fallback after branch pruning.
         getattr(issue, "head_sha", None)
+        or getattr(issue, "review_head", None)
         or integration.get("integrated_sha")
         or integration.get("head_sha")
     )
@@ -248,6 +296,9 @@ class EpicFactCollector:
                             "landing_source": source,
                             "landing_target": target,
                             "revision": revision,
+                            "prefer_live_source": nested,
+                            "authority_version": issue_authority_version(child),
+                            "exact_head": issue_exact_head(child),
                         }
                     )
                 # Walk every node, not only declared epics.  A malformed
@@ -288,15 +339,16 @@ class EpicFactCollector:
     ) -> LandingFact | None:
         if not prior_landings:
             return None
-        return prior_landings.get((request.source, request.target)) or prior_landings.get(
-            f"{request.source}->{request.target}"
-        )
+        return prior_landings.get(
+            (request.source, request.target)
+        ) or prior_landings.get(f"{request.source}->{request.target}")
 
     def collect(
         self,
         task_id: str,
         *,
         prior_landings: Mapping[Any, LandingFact] | None = None,
+        epic_revision: str | None = None,
     ) -> WorkflowFacts:
         task_id = _required_text(task_id, "task_id")
         root = self.tracker.fetch_issue_detail(task_id)
@@ -311,6 +363,7 @@ class EpicFactCollector:
         try:
             graph = self._graph(root)
         except Exception as exc:  # noqa: BLE001 - evidence boundary
+
             def failed(_current: Issue, error: Exception = exc) -> Any:
                 raise error
 
@@ -327,9 +380,16 @@ class EpicFactCollector:
                 str(child["landing_source"]),
                 str(child["landing_target"]),
                 child.get("revision"),
-                prior=self._prior(prior_landings, LandingRequest(
-                    str(child["landing_source"]), str(child["landing_target"]), child.get("revision")
-                )),
+                prior=self._prior(
+                    prior_landings,
+                    LandingRequest(
+                        str(child["landing_source"]),
+                        str(child["landing_target"]),
+                        child.get("revision"),
+                    ),
+                ),
+                prefer_live_source=bool(child.get("prefer_live_source")),
+                authoritative_target=True,
             )
             for child in graph.children
             if child.get("requires_landing")
@@ -337,24 +397,31 @@ class EpicFactCollector:
         # The epic's own landing is deliberately included as a separate fact.
         # Rollup readiness only consumes child facts; auto-close/terminal
         # validation can consume this exact immediate-target fact later.
+        requested_epic_revision = _exact_head(epic_revision) or _revision(root)
         requests.append(
             LandingRequest(
                 graph.epic_branch,
                 graph.target_branch,
-                _revision(root),
+                requested_epic_revision,
                 prior=self._prior(
                     prior_landings,
-                    LandingRequest(graph.epic_branch, graph.target_branch, _revision(root)),
+                    LandingRequest(
+                        graph.epic_branch,
+                        graph.target_branch,
+                        requested_epic_revision,
+                    ),
                 ),
+                prefer_live_source=True,
+                authoritative_target=True,
             )
         )
         base = WorkflowFactCollector(
             project_id=self.project_id,
             tracker=self.tracker,
             sources=self.sources,
-            containment_source=lambda current: graph.to_dict()
-            if current.identifier == root.identifier
-            else None,
+            containment_source=lambda current: (
+                graph.to_dict() if current.identifier == root.identifier else None
+            ),
             landing_collector=self.landing_collector,
             clock=self.clock,
         )
@@ -458,9 +525,10 @@ class EpicWorkflowController:
         for _, task in selected:
             prior = dict(self._landings)
             try:
-                persisted = self.store.landing_facts(
+                persisted = self.store.latest_landing_facts(
                     project_id=self.collector.project_id,
                     task_id=task.identifier,
+                    limit=DEFAULT_EPIC_DECISION_LIMIT,
                 )
             except Exception:
                 # Evidence storage is fail-closed for writes but must not
@@ -477,7 +545,9 @@ class EpicWorkflowController:
             for landing in facts.landings:
                 if landing.durable:
                     self._landings[(landing.source, landing.target)] = landing
-            durable = [landing.to_dict() for landing in facts.landings if landing.durable]
+            durable = [
+                landing.to_dict() for landing in facts.landings if landing.durable
+            ]
             if durable and persist_evidence:
                 self.store.record_landing_facts(
                     project_id=self.collector.project_id,
@@ -516,6 +586,7 @@ class EpicWorkflowController:
         expected_head_sha: str | None = None,
         priority: int = 100,
         max_attempts: int = 5,
+        payload: Mapping[str, Any] | None = None,
     ) -> WorkflowJob:
         """Materialize an explicit epic maintenance action idempotently.
 
@@ -531,21 +602,23 @@ class EpicWorkflowController:
         job_generation = generation or (
             f"epic-maintenance:{self.store.allocate_snapshot_generation()}"
         )
-        key = ":".join((project_id, identifier, normalized_action.value, job_generation))
-        return self.store.enqueue(
-            WorkflowJobSpec(
-                project_id=project_id,
-                task_id=identifier,
-                generation=job_generation,
-                action=normalized_action.value,
-                idempotency_key=key,
-                phase="intent",
-                expected_evidence_revision=expected_evidence_revision,
-                expected_head_sha=expected_head_sha,
-                priority=priority,
-                max_attempts=max_attempts,
-            )
+        write = self.store.materialize_event(
+            project_id=project_id,
+            task_id=identifier,
+            decision_revision=job_generation,
+            action=normalized_action.value,
+            idempotency_namespace=f"epic-action:{normalized_action.value}",
+            scheduling_lane=f"epic-event:{normalized_action.value}",
+            expected_evidence_revision=expected_evidence_revision,
+            expected_head_sha=expected_head_sha,
+            priority=priority,
+            max_attempts=max_attempts,
+            payload=payload,
+            reason=f"superseded by newer {normalized_action.value} evidence",
         )
+        if write.job is None:  # no ordering/protection fence is used above
+            raise RuntimeError("epic event materialization did not return a job")
+        return write.job
 
     def reconcile_after_restart(
         self,
@@ -582,7 +655,9 @@ class EpicWorkflowController:
                 if current is None or job.enqueue_sequence > current.enqueue_sequence:
                     active[job.task_id] = job
         return tuple(
-            EpicProjection.from_decision(item.decision, active.get(item.task.identifier))
+            EpicProjection.from_decision(
+                item.decision, active.get(item.task.identifier)
+            )
             for item in self._latest.values()
         )
 
@@ -613,6 +688,661 @@ class EpicWorkflowBackend(Protocol):
         context: WorkflowJobContext,
         verification: VerificationResult,
     ) -> Any | Awaitable[Any]: ...
+
+
+class EpicWorkflowEffectPort(Protocol):
+    """Project-bound, task-scoped epic effects supplied by the orchestrator.
+
+    The durable backend owns evidence revalidation and lifecycle intents.  The
+    port owns only effects that cannot be expressed as a
+    :class:`TransitionIntent`: creating one exact rollup review, synchronizing
+    its exact terminal metadata, ensuring one exact rebase helper, and
+    cleaning one exact landed epic.  A port method must never invoke a
+    whole-project sweep.
+    """
+
+    def inspect_epic_effect(
+        self,
+        action: EpicAction,
+        epic: Issue,
+        facts: WorkflowFacts,
+        payload: Mapping[str, Any],
+    ) -> Mapping[str, Any] | None | Awaitable[Mapping[str, Any] | None]: ...
+
+    def apply_epic_effect(
+        self,
+        action: EpicAction,
+        epic: Issue,
+        facts: WorkflowFacts,
+        payload: Mapping[str, Any],
+        *,
+        idempotency_key: str,
+        originating_job: str,
+        evidence_generation: str,
+    ) -> Mapping[str, Any] | Awaitable[Mapping[str, Any]]: ...
+
+    def verify_epic_effect(
+        self,
+        action: EpicAction,
+        epic: Issue,
+        facts: WorkflowFacts,
+        payload: Mapping[str, Any],
+        receipt: Mapping[str, Any],
+    ) -> Mapping[str, Any] | None | Awaitable[Mapping[str, Any] | None]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _EpicActionSnapshot:
+    epic: Issue
+    facts: WorkflowFacts
+    decision: WorkDecision
+
+
+class ProductionEpicWorkflowBackend:
+    """Production evidence and intent boundary for all epic actions.
+
+    Every worker phase re-reads the exact project tracker and collects fresh
+    containment plus target-relative landing facts.  Durable landing evidence
+    is written only by this enforce-mode backend; shadow evaluation passes
+    ``persist_evidence=False`` and never constructs a worker handler.
+    """
+
+    def __init__(
+        self,
+        *,
+        controller: EpicWorkflowController,
+        tracker: Any,
+        effects: EpicWorkflowEffectPort,
+        persist_evidence: bool = True,
+    ) -> None:
+        self.controller = controller
+        self.collector = controller.collector
+        self.tracker = tracker
+        self.effects = effects
+        self.persist_evidence = bool(persist_evidence)
+
+    @staticmethod
+    def _payload(context: WorkflowJobContext) -> Mapping[str, Any]:
+        return context.job.payload or {}
+
+    def _fresh_snapshot(self, context: WorkflowJobContext) -> _EpicActionSnapshot:
+        epic = self.tracker.fetch_issue_detail(context.job.task_id)
+        if epic is None:
+            raise WorkflowActionError(
+                f"epic {context.job.task_id} is unavailable",
+                category=WorkflowFailureCategory.TRANSIENT,
+                retryable=True,
+            )
+        if str(epic.project_id or self.collector.project_id) != context.job.project_id:
+            raise WorkflowActionError(
+                "epic workflow task resolved outside its project binding",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+        if str(epic.issue_type or "").strip().lower() != "epic":
+            raise WorkflowActionError(
+                f"{epic.identifier} is not an epic",
+                category=WorkflowFailureCategory.POLICY,
+                retryable=False,
+            )
+
+        prior: dict[tuple[str, str], LandingFact] = {}
+        for raw in self.controller.store.latest_landing_facts(
+            project_id=context.job.project_id,
+            task_id=epic.identifier,
+            limit=DEFAULT_EPIC_DECISION_LIMIT,
+        ):
+            try:
+                landing = LandingFact.from_dict(raw)
+            except (TypeError, ValueError):
+                continue
+            if landing.durable:
+                prior[(landing.source, landing.target)] = landing
+        cleanup_revision = (
+            context.job.expected_head_sha
+            if context.job.action == EpicAction.CLEANUP.value
+            else None
+        )
+        facts = self.collector.collect(
+            epic.identifier,
+            prior_landings=prior,
+            epic_revision=cleanup_revision,
+        )
+        durable = tuple(
+            landing.to_dict() for landing in facts.landings if landing.durable
+        )
+        if durable and self.persist_evidence:
+            self.controller.store.record_landing_facts(
+                project_id=context.job.project_id,
+                task_id=epic.identifier,
+                facts=durable,
+            )
+        return _EpicActionSnapshot(epic, facts, evaluate_task(epic, facts))
+
+    async def _load_snapshot(self, context: WorkflowJobContext) -> _EpicActionSnapshot:
+        """Collect tracker and Git evidence without blocking lease heartbeats."""
+
+        snapshot = await asyncio.to_thread(self._fresh_snapshot, context)
+        return await _resolve_backend(snapshot)
+
+    @staticmethod
+    async def _observe_external(
+        operation: Callable[..., Any], /, *args: Any, **kwargs: Any
+    ) -> Any:
+        """Run synchronous forge/tracker observations outside the event loop."""
+
+        result = await asyncio.to_thread(operation, *args, **kwargs)
+        return await _resolve_backend(result)
+
+    @staticmethod
+    def _containment(snapshot: _EpicActionSnapshot) -> Mapping[str, Any]:
+        fact = snapshot.facts.fact(FactDomain.CONTAINMENT)
+        if fact.state is not FactState.KNOWN or not isinstance(fact.value, Mapping):
+            return {}
+        return fact.value
+
+    @classmethod
+    def _own_landing(cls, snapshot: _EpicActionSnapshot) -> LandingFact | None:
+        containment = cls._containment(snapshot)
+        source = str(containment.get("epic_branch") or "").strip()
+        target = str(containment.get("target_branch") or "").strip()
+        if not source or not target:
+            return None
+        return next(
+            (
+                landing
+                for landing in snapshot.facts.landings
+                if landing.source == source and landing.target == target
+            ),
+            None,
+        )
+
+    @classmethod
+    def _cleanup_head(cls, snapshot: _EpicActionSnapshot) -> str | None:
+        """Return the exact source generation observed for cleanup."""
+
+        own = cls._own_landing(snapshot)
+        return _exact_head(getattr(own, "revision", None))
+
+    @classmethod
+    def _cleanup_generation_is_current(
+        cls,
+        context: WorkflowJobContext,
+        snapshot: _EpicActionSnapshot,
+    ) -> bool:
+        """Fence cleanup to the immutable generation captured at enqueue."""
+
+        expected = _exact_head(context.job.expected_head_sha)
+        observed = cls._cleanup_head(snapshot)
+        return bool(expected and observed and expected == observed)
+
+    @classmethod
+    def _is_action_current(
+        cls,
+        action: EpicAction,
+        snapshot: _EpicActionSnapshot,
+        payload: Mapping[str, Any],
+    ) -> bool:
+        if action is EpicAction.AUTO_CLOSE:
+            own = cls._own_landing(snapshot)
+            revision = _exact_head(getattr(own, "revision", None))
+            return bool(
+                action.value in snapshot.decision.durable_jobs
+                and own is not None
+                and own.state is LandingState.LANDED
+                and revision
+                and revision == _exact_head(issue_exact_head(snapshot.epic))
+            )
+        if action is EpicAction.CLEANUP:
+            own = cls._own_landing(snapshot)
+            status = canonicalize_status(snapshot.epic.state)
+            children = cls._containment(snapshot).get("children")
+            containment_terminal = bool(
+                isinstance(children, (list, tuple))
+                and all(
+                    isinstance(child, Mapping)
+                    and canonicalize_status(child.get("status"))
+                    in {DONE, MERGED, ARCHIVED}
+                    for child in children
+                )
+            )
+            if status == ARCHIVED:
+                return containment_terminal
+            return bool(
+                status == MERGED
+                and own is not None
+                and own.state is LandingState.LANDED
+                and containment_terminal
+            )
+        if action is EpicAction.REBASE_REPAIR:
+            # A stale rebase request must not mutate the newly resolved target
+            # merely because fresh facts still request *some* rebase repair.
+            # Check the event's exact immediate target before the generic
+            # durable-job authorization below.
+            return bool(
+                action.value in snapshot.decision.durable_jobs
+                and cls._rebase_target_is_current(snapshot, payload)
+            )
+        if action.value in snapshot.decision.durable_jobs:
+            return True
+        if action in {
+            EpicAction.READINESS,
+            EpicAction.TARGET_RESOLUTION,
+            EpicAction.TERMINAL_VALIDATION,
+            EpicAction.RESTART_RECONCILIATION,
+        }:
+            return canonicalize_status(snapshot.epic.state) not in {MERGED, ARCHIVED}
+        return False
+
+    @classmethod
+    def _rebase_target_is_current(
+        cls,
+        snapshot: _EpicActionSnapshot,
+        payload: Mapping[str, Any],
+    ) -> bool:
+        """Fence a rebase artifact to its exact non-terminal target.
+
+        Before an effect exists, ``_is_action_current`` additionally requires
+        the fresh decision to authorize REBASE_REPAIR.  After helper creation,
+        that helper itself may remove the action from the decision; restart and
+        verification may then observe only this narrower artifact fence.
+        """
+
+        expected_target = str(payload.get("target_branch") or "").strip()
+        actual_target = str(
+            cls._containment(snapshot).get("target_branch") or ""
+        ).strip()
+        return bool(
+            expected_target
+            and expected_target == actual_target
+            and canonicalize_status(snapshot.epic.state) not in {MERGED, ARCHIVED}
+        )
+
+    @classmethod
+    def _require_action_current(
+        cls,
+        context: WorkflowJobContext,
+        action: EpicAction,
+        snapshot: _EpicActionSnapshot,
+        payload: Mapping[str, Any],
+    ) -> None:
+        """Fence every effect phase with a fresh authorization snapshot."""
+
+        current = cls._is_action_current(action, snapshot, payload)
+        if action is EpicAction.CLEANUP:
+            current = current and cls._cleanup_generation_is_current(
+                context, snapshot
+            )
+        if current:
+            return
+        raise WorkflowActionSuperseded(
+            f"fresh epic evidence no longer authorizes {action.value}",
+            replacement_generation=f"reassess:{snapshot.decision.evidence_revision}",
+        )
+
+    @classmethod
+    def _snapshot_details(
+        cls,
+        action: EpicAction,
+        snapshot: _EpicActionSnapshot,
+    ) -> dict[str, Any]:
+        containment = cls._containment(snapshot)
+        own = cls._own_landing(snapshot)
+        return {
+            "action": action.value,
+            "reason_code": snapshot.decision.reason_code,
+            "epic_branch": containment.get("epic_branch"),
+            "target_branch": containment.get("target_branch"),
+            "own_landing_state": own.state.value if own is not None else None,
+        }
+
+    async def revalidate(self, context: WorkflowJobContext) -> RevalidationResult:
+        action = EpicAction(context.job.action)
+        snapshot = await self._load_snapshot(context)
+        payload = self._payload(context)
+        current = self._is_action_current(action, snapshot, payload)
+        if action is EpicAction.CLEANUP:
+            current = current and self._cleanup_generation_is_current(
+                context, snapshot
+            )
+        if action is EpicAction.REBASE_REPAIR:
+            requested_revision = str(payload.get("evidence_revision") or "").strip()
+            saved_effect = (context.job.checkpoint or {}).get("effect")
+            if isinstance(saved_effect, Mapping):
+                # Creating the helper can itself remove REBASE_REPAIR from the
+                # fresh decision.  A durable receipt is restart authority to
+                # verify that exact already-created effect, but never to apply
+                # a helper to a different target or a terminal epic.
+                current = self._rebase_target_is_current(snapshot, payload)
+            # Fence a not-yet-applied helper to the exact generation that
+            # requested it.  Once an effect receipt exists, creation itself
+            # may have changed containment by adding the maintenance child;
+            # restart must replay verification rather than supersede the
+            # already-observed effect.
+            if (
+                requested_revision
+                and not isinstance(saved_effect, Mapping)
+                and requested_revision != snapshot.decision.evidence_revision
+            ):
+                # The helper-task write itself changes containment.  A process
+                # can die after that write but before returning the receipt;
+                # observe the exact helper before treating the old generation
+                # as stale so restart resumes verification without creating a
+                # duplicate helper.
+                observed = await self._observe_external(
+                    self.effects.inspect_epic_effect,
+                    action,
+                    snapshot.epic,
+                    snapshot.facts,
+                    payload,
+                )
+                current = observed is not None
+                if not current:
+                    recoverable = getattr(
+                        self.effects, "recoverable_epic_effect", None
+                    )
+                    if callable(recoverable):
+                        current = bool(
+                            await self._observe_external(
+                                recoverable,
+                                action,
+                                snapshot.epic,
+                                snapshot.facts,
+                                payload,
+                            )
+                        )
+        return RevalidationResult(
+            context.job.generation,
+            evidence_revision=snapshot.decision.evidence_revision,
+            head_sha=(
+                self._cleanup_head(snapshot)
+                if action is EpicAction.CLEANUP
+                else issue_exact_head(snapshot.epic)
+            ),
+            current=current,
+            details=self._snapshot_details(action, snapshot),
+        )
+
+    @classmethod
+    def _rollup_status(cls, snapshot: _EpicActionSnapshot) -> str | None:
+        children = cls._containment(snapshot).get("children")
+        if not isinstance(children, (list, tuple)):
+            return None
+        statuses = [
+            child.get("status") for child in children if isinstance(child, Mapping)
+        ]
+        return canonicalize_status(epic_rollup_state(statuses)) or None
+
+    @classmethod
+    def _transition_target(
+        cls, action: EpicAction, snapshot: _EpicActionSnapshot
+    ) -> str | None:
+        if action is EpicAction.ROLLUP_RECONCILIATION:
+            return cls._rollup_status(snapshot)
+        if action is EpicAction.ROLLUP_REVIEW_CREATION:
+            return IN_REVIEW
+        if action is EpicAction.AUTO_CLOSE:
+            own = cls._own_landing(snapshot)
+            if own is not None and own.state is LandingState.LANDED:
+                return MERGED
+        return None
+
+    @staticmethod
+    def _transition_reason(action: EpicAction) -> str:
+        if action is EpicAction.ROLLUP_REVIEW_CREATION:
+            return "rollup.review_created"
+        if action is EpicAction.AUTO_CLOSE:
+            return "terminal.immediate_target_landing_proven"
+        return "rollup.reconciled"
+
+    @classmethod
+    def _transition_receipt(
+        cls,
+        action: EpicAction,
+        snapshot: _EpicActionSnapshot,
+        *,
+        requested_status: str,
+        extra: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        receipt = dict(extra or {})
+        effect_head = _exact_head(receipt.get("source_head"))
+        if action is EpicAction.AUTO_CLOSE:
+            own = cls._own_landing(snapshot)
+            effect_head = _exact_head(getattr(own, "revision", None))
+            if effect_head is None:
+                raise WorkflowActionError(
+                    "epic auto-close has no exact immediate-target landing revision",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
+        receipt.update(
+            {
+                "action": action.value,
+                "task_id": snapshot.epic.identifier,
+                "requested_status": requested_status,
+                "expected_status": canonicalize_status(snapshot.epic.state),
+                "expected_version": issue_authority_version(snapshot.epic),
+                "exact_head": effect_head
+                or _exact_head(issue_exact_head(snapshot.epic)),
+                "reason_code": cls._transition_reason(action),
+                "evidence_revision": snapshot.decision.evidence_revision,
+            }
+        )
+        return receipt
+
+    async def inspect(self, context: WorkflowJobContext) -> EffectObservation:
+        action = EpicAction(context.job.action)
+        snapshot = await self._load_snapshot(context)
+        payload = self._payload(context)
+        if action in _EPIC_READ_ONLY_ACTIONS:
+            return EffectObservation(
+                True,
+                {
+                    **self._snapshot_details(action, snapshot),
+                    "evidence_revision": snapshot.decision.evidence_revision,
+                },
+            )
+        if action is EpicAction.ROLLUP_RECONCILIATION:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return EffectObservation(True, {"action": action.value, "noop": True})
+            receipt = self._transition_receipt(
+                action, snapshot, requested_status=target
+            )
+            return EffectObservation(
+                canonicalize_status(snapshot.epic.state) == target,
+                receipt,
+            )
+        if action in _EPIC_EXTERNAL_ACTIONS:
+            observed = await self._observe_external(
+                self.effects.inspect_epic_effect,
+                action,
+                snapshot.epic,
+                snapshot.facts,
+                payload,
+            )
+            if observed is None:
+                return EffectObservation(False)
+            receipt = dict(observed)
+            if action is EpicAction.ROLLUP_REVIEW_CREATION:
+                receipt = self._transition_receipt(
+                    action,
+                    snapshot,
+                    requested_status=IN_REVIEW,
+                    extra=receipt,
+                )
+            return EffectObservation(True, receipt)
+        if action is EpicAction.AUTO_CLOSE:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return EffectObservation(True, {"action": action.value, "noop": True})
+            receipt = self._transition_receipt(
+                action, snapshot, requested_status=target
+            )
+            return EffectObservation(
+                canonicalize_status(snapshot.epic.state) == target,
+                receipt,
+            )
+        raise WorkflowActionError(
+            f"unsupported epic action {action.value}",
+            category=WorkflowFailureCategory.POLICY,
+            retryable=False,
+        )
+
+    async def apply(self, context: WorkflowJobContext) -> EffectResult:
+        action = EpicAction(context.job.action)
+        snapshot = await self._load_snapshot(context)
+        payload = self._payload(context)
+        self._require_action_current(context, action, snapshot, payload)
+        if action in {EpicAction.ROLLUP_RECONCILIATION, EpicAction.AUTO_CLOSE}:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return EffectResult({"action": action.value, "noop": True})
+            return EffectResult(
+                self._transition_receipt(action, snapshot, requested_status=target)
+            )
+        if action in _EPIC_EXTERNAL_ACTIONS:
+            receipt = await _resolve_backend(
+                self.effects.apply_epic_effect(
+                    action,
+                    snapshot.epic,
+                    snapshot.facts,
+                    payload,
+                    idempotency_key=context.idempotency_key,
+                    originating_job=context.job.job_id,
+                    evidence_generation=context.job.generation,
+                )
+            )
+            if not isinstance(receipt, Mapping):
+                raise WorkflowActionError(
+                    "epic effect did not return a durable receipt",
+                    category=WorkflowFailureCategory.PERMANENT,
+                    retryable=False,
+                )
+            normalized = dict(receipt)
+            if action is EpicAction.ROLLUP_REVIEW_CREATION:
+                normalized = self._transition_receipt(
+                    action,
+                    snapshot,
+                    requested_status=IN_REVIEW,
+                    extra=normalized,
+                )
+            return EffectResult(normalized)
+        if action in _EPIC_READ_ONLY_ACTIONS:
+            return EffectResult(
+                {
+                    **self._snapshot_details(action, snapshot),
+                    "evidence_revision": snapshot.decision.evidence_revision,
+                }
+            )
+        raise WorkflowActionError(
+            f"unsupported epic action {action.value}",
+            category=WorkflowFailureCategory.POLICY,
+            retryable=False,
+        )
+
+    async def verify(
+        self,
+        context: WorkflowJobContext,
+        effect: EffectResult,
+    ) -> VerificationResult:
+        action = EpicAction(context.job.action)
+        snapshot = await self._load_snapshot(context)
+        payload = self._payload(context)
+        if action is EpicAction.REBASE_REPAIR:
+            # The exact helper may itself make the rebase action disappear from
+            # the fresh decision.  Verification is allowed to inspect that
+            # already-created artifact only while its original target and epic
+            # terminality remain current; ``verify_epic_effect`` proves the
+            # exact helper identity/bookkeeping before completion.
+            if not self._rebase_target_is_current(snapshot, payload):
+                raise WorkflowActionSuperseded(
+                    "fresh epic evidence no longer authorizes rebase verification",
+                    replacement_generation=(
+                        f"reassess:{snapshot.decision.evidence_revision}"
+                    ),
+                )
+        else:
+            self._require_action_current(context, action, snapshot, payload)
+        if action in _EPIC_EXTERNAL_ACTIONS:
+            verified = await self._observe_external(
+                self.effects.verify_epic_effect,
+                action,
+                snapshot.epic,
+                snapshot.facts,
+                payload,
+                effect.receipt,
+            )
+            if verified is None:
+                return VerificationResult(
+                    False,
+                    reason=f"{action.value} effect is not yet observable",
+                )
+            receipt = dict(verified)
+            if action is EpicAction.ROLLUP_REVIEW_CREATION:
+                receipt = self._transition_receipt(
+                    action,
+                    snapshot,
+                    requested_status=IN_REVIEW,
+                    extra=receipt,
+                )
+            return VerificationResult(True, receipt)
+        if action in {EpicAction.ROLLUP_RECONCILIATION, EpicAction.AUTO_CLOSE}:
+            target = self._transition_target(action, snapshot)
+            if target is None:
+                return VerificationResult(True, {"action": action.value, "noop": True})
+            return VerificationResult(
+                True,
+                self._transition_receipt(action, snapshot, requested_status=target),
+            )
+        return VerificationResult(
+            True,
+            {
+                **self._snapshot_details(action, snapshot),
+                "evidence_revision": snapshot.decision.evidence_revision,
+            },
+        )
+
+    async def build_transition(
+        self,
+        context: WorkflowJobContext,
+        verification: VerificationResult,
+    ) -> TransitionIntent | None:
+        receipt = verification.receipt
+        requested = str(receipt.get("requested_status") or "").strip()
+        if not requested:
+            return None
+        expected_status = str(receipt.get("expected_status") or "").strip()
+        expected_version = str(receipt.get("expected_version") or "").strip()
+        reason_code = str(receipt.get("reason_code") or "").strip()
+        if not expected_status or not expected_version or not reason_code:
+            raise WorkflowActionError(
+                "epic transition receipt is incomplete",
+                category=WorkflowFailureCategory.PERMANENT,
+                retryable=False,
+            )
+        if canonicalize_status(expected_status) == canonicalize_status(requested):
+            return None
+        exact_head = _exact_head(receipt.get("exact_head"))
+        return TransitionIntent(
+            project_id=context.job.project_id,
+            task_id=context.job.task_id,
+            expected_status=expected_status,
+            expected_version=expected_version,
+            requested_status=requested,
+            actor="oompah",
+            authority=TransitionAuthority.ORCHESTRATOR,
+            reason_code=reason_code,
+            idempotency_key=f"{context.idempotency_key}:transition",
+            originating_job=context.job.job_id,
+            evidence_generation=context.job.generation,
+            exact_head=exact_head,
+            precondition_revision=(
+                str(receipt.get("evidence_revision") or "").strip() or None
+                if reason_code == "terminal.immediate_target_landing_proven"
+                else None
+            ),
+        )
 
 
 async def _resolve_backend(value: Any) -> Any:
@@ -662,6 +1392,20 @@ class EpicWorkflowHandler:
             self.backend.build_transition(context, verification)
         )
 
+    @property
+    def pending_mutation_count(self) -> int:
+        effects = getattr(self.backend, "effects", None)
+        return int(getattr(effects, "pending_mutation_count", 0) or 0)
+
+    async def drain_mutations(self, *, timeout_seconds: float | None = None) -> bool:
+        effects = getattr(self.backend, "effects", None)
+        drain = getattr(effects, "drain_mutations", None)
+        if not callable(drain):
+            return True
+        result = drain(timeout_seconds=timeout_seconds)
+        resolved = await _resolve_backend(result)
+        return resolved is not False
+
 
 __all__ = [
     "DEFAULT_EPIC_DECISION_LIMIT",
@@ -675,7 +1419,9 @@ __all__ = [
     "EpicTaskDecision",
     "EpicWorkflowController",
     "EpicWorkflowBackend",
+    "EpicWorkflowEffectPort",
     "EpicWorkflowHandler",
+    "ProductionEpicWorkflowBackend",
     "epic_branch",
     "resolve_epic_target",
 ]

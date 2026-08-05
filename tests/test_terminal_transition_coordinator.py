@@ -39,6 +39,7 @@ from oompah.terminal_audit_metadata import (
 )
 from oompah.terminal_transition_coordinator import (
     OverrideRejection,
+    ResultRejection,
     TerminalTransitionCoordinator,
     TransitionResult,
     _build_new_entries,
@@ -295,7 +296,75 @@ def _seed_metadata(tracker: _MemoryTracker, chain: list[TerminalAuditRecord],
 # ---------------------------------------------------------------------------
 
 
+def test_request_mutation_guard_runs_inside_project_lock_before_staging() -> None:
+    tracker = _MemoryTracker()
+    store = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=store,
+        post_comments=False,
+    )
+    lock = store.project_write_lock(PROJECT_ID)
+
+    def guard():
+        assert lock._is_owned()  # type: ignore[attr-defined]
+        return "child containment changed"
+
+    result = _run(
+        coordinator.request_transition(
+            _issue(),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint(),
+            mutation_guard=guard,
+        )
+    )
+
+    assert result.success is False
+    assert result.reason == (
+        "workflow_precondition_changed: child containment changed"
+    )
+    assert tracker.update_calls == []
+    assert tracker.get_metadata(TASK_ID) == {}
+
+
 class TestDoneChain:
+    def test_staging_rejects_stale_tracker_snapshot_at_project_fence(self) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+        supplied = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Test task",
+            description="old requirements",
+            state="In Progress",
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(replace(supplied, description="new requirements"))
+        coordinator = _coordinator(tracker)
+
+        result = _run(
+            coordinator.request_transition(
+                supplied,
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                compute_issue_evidence_fingerprint(supplied, PROJECT_ID),
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == ResultRejection.CURRENT_EVIDENCE_MISMATCH
+        assert tracker.get_metadata(TASK_ID) == {}
+        assert tracker.update_calls == []
+
     def test_done_creates_exactly_one_audit(self) -> None:
         tracker = _MemoryTracker()
         coord = _coordinator(tracker)
@@ -1979,7 +2048,6 @@ from oompah.terminal_audit import (  # noqa: E402
 from oompah.terminal_transition_coordinator import (  # noqa: E402
     AuditResult,
     ResultOutcome,
-    ResultRejection,
     classify_failure_to_status,
     route_failure_status,
 )
@@ -2610,6 +2678,296 @@ class TestClassifyFailureToStatus:
 
 
 class TestApplyPassSingleTarget:
+    def test_pass_rejects_tracker_evidence_changed_after_auditor_snapshot(self) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                if identifier != self.current.identifier:
+                    return None
+                return copy.copy(self.current)
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Test task",
+            description="audited requirements",
+            state="In Progress",
+            project_id=PROJECT_ID,
+            work_branch="TASK-42",
+            head_sha="a" * 40,
+        )
+        tracker = DetailTracker(current)
+        fingerprint = compute_issue_evidence_fingerprint(current, PROJECT_ID)
+        coord = _coordinator(tracker)
+        staged = _run(
+            coord.request_transition(
+                copy.copy(current),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                fingerprint,
+            )
+        )
+        assert staged.success is True
+        record = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain[0]
+        submitted_snapshot = copy.copy(current)
+        current.description = "requirements changed after audit"
+
+        outcome = _apply(coord, submitted_snapshot, _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.CURRENT_EVIDENCE_MISMATCH
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        doc = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(doc.pending_chain) == 2
+        assert doc.pending_chain[0].request_state == RequestState.SUPERSEDED
+        replacement = doc.pending_chain[1]
+        assert replacement.request_state == RequestState.PENDING
+        assert replacement.target_state == record.target_state
+        assert replacement.previous_state == record.previous_state
+        assert replacement.evidence_fingerprint == compute_issue_evidence_fingerprint(
+            current, PROJECT_ID
+        )
+
+    def test_richer_fingerprint_uses_durable_tracker_projection_after_restart(
+        self,
+    ) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Test task",
+            description="stable tracker projection",
+            state="In Progress",
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        richer_fingerprint = _fingerprint("c")
+        staged = _run(
+            _coordinator(tracker).request_transition(
+                copy.copy(current),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                richer_fingerprint,
+            )
+        )
+        assert staged.success is True
+        record = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain[0]
+        assert record.evidence_fingerprint == richer_fingerprint
+
+        # A new coordinator represents restart recovery: only tracker metadata
+        # carries the separate projection that proves no tracker evidence drift.
+        outcome = _apply(
+            _coordinator(tracker),
+            copy.copy(current),
+            _pass_result(record),
+        )
+
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+
+    def test_richer_fingerprint_drift_never_requeues_weaker_evidence(self) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Test task",
+            description="original tracker projection",
+            state="In Progress",
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        richer_fingerprint = _fingerprint("c")
+        coordinator = _coordinator(tracker)
+        staged = _run(
+            coordinator.request_transition(
+                copy.copy(current),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                richer_fingerprint,
+            )
+        )
+        assert staged.success is True
+        record = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain[0]
+        current.description = "changed tracker projection"
+
+        outcome = _apply(coordinator, copy.copy(current), _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE
+        doc = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(doc.pending_chain) == 1
+        assert doc.pending_chain[0].request_state == RequestState.PENDING
+        assert doc.pending_chain[0].evidence_fingerprint == richer_fingerprint
+
+    def test_legacy_record_without_projection_accepts_reproducible_evidence(
+        self,
+    ) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Legacy task",
+            description="unchanged legacy evidence",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        record = _pending_record(
+            fingerprint=compute_issue_evidence_fingerprint(current, PROJECT_ID)
+        )
+        # Direct metadata seeding intentionally models a pre-ledger record.
+        _seed_metadata(tracker, [record])
+
+        outcome = _apply(_coordinator(tracker), copy.copy(current), _pass_result(record))
+
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+
+    def test_legacy_record_remains_reproducible_after_newer_projection_exists(
+        self,
+    ) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+            def update_issue(self, identifier: str, **kwargs: Any) -> None:
+                super().update_issue(identifier, **kwargs)
+                if "status" in kwargs:
+                    self.current.state = kwargs["status"]
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Mixed-version task",
+            description="unchanged legacy evidence",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        fingerprint = compute_issue_evidence_fingerprint(current, PROJECT_ID)
+        legacy = _pending_record(fingerprint=fingerprint)
+        newer = _pending_record(
+            audit_id="audit-with-projection",
+            target=TargetState.ARCHIVED,
+            state=RequestState.SUPERSEDED,
+        )
+        document = TerminalAuditMetadata(
+            pending_chain=[legacy, newer],
+            unknown_fields={
+                "oompah.terminal_audit_tracker_projections": [
+                    {
+                        "version": 1,
+                        "audit_id": newer.audit_id,
+                        "project_id": PROJECT_ID,
+                        "task_id": TASK_ID,
+                        "digest": fingerprint.digest,
+                    }
+                ]
+            },
+        )
+        tracker.set_metadata_field(TASK_ID, METADATA_KEY, document.to_dict())
+
+        outcome = _apply(
+            _coordinator(tracker), copy.copy(current), _pass_result(legacy)
+        )
+
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+
+    def test_legacy_unreproducible_fingerprint_fails_closed_without_downgrade(
+        self,
+    ) -> None:
+        class DetailTracker(_MemoryTracker):
+            def __init__(self, current: Issue) -> None:
+                super().__init__()
+                self.current = current
+
+            def fetch_issue_detail(self, identifier: str) -> Issue | None:
+                return copy.copy(self.current) if identifier == TASK_ID else None
+
+        current = Issue(
+            id=TASK_ID,
+            identifier=TASK_ID,
+            title="Legacy task",
+            description="tracker-only projection",
+            state=IN_VALIDATION,
+            project_id=PROJECT_ID,
+        )
+        tracker = DetailTracker(current)
+        record = _pending_record(fingerprint=_fingerprint("d"))
+        _seed_metadata(tracker, [record])
+
+        outcome = _apply(_coordinator(tracker), copy.copy(current), _pass_result(record))
+
+        assert outcome.success is False
+        assert outcome.reason == ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE
+        doc = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(doc.pending_chain) == 1
+        assert doc.pending_chain[0].request_state == RequestState.PENDING
+
     def test_pass_marks_record_completed(self) -> None:
         tracker = _MemoryTracker()
         record = _pending_record(target=TargetState.DONE)

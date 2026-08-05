@@ -2937,6 +2937,9 @@ class ProjectStore:
         project_id: str,
         epic_identifier: str,
         child_identifier: str,
+        *,
+        expected_head_sha: str | None = None,
+        require_target_branch: bool = True,
     ) -> bool:
         """Delete one landed private child branch and its managed worktree.
 
@@ -2946,6 +2949,9 @@ class ProjectStore:
         the remote branch existed.
         """
 
+        expected = str(expected_head_sha or "").strip().lower()
+        if expected and not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected epic child branch head is not an exact SHA")
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -2954,7 +2960,55 @@ class ProjectStore:
             child_identifier,
         )
         with self.project_write_lock(project_id):
-            self._remove_worktree_locked(project_id, child_identifier)
+            worktree = self.worktree_path_for(project_id, child_identifier)
+
+            def assert_no_alternate_checkout() -> None:
+                self._prune_git_worktrees(project.repo_path)
+                registered = self._registered_worktree_branch_paths(
+                    project.repo_path
+                ).get(branch, set())
+                canonical = os.path.realpath(worktree)
+                alternate = sorted(path for path in registered if path != canonical)
+                if alternate:
+                    raise ProjectError(
+                        "epic child branch is checked out in an alternate worktree: "
+                        + ", ".join(alternate)
+                    )
+
+            # The canonical managed path is not the complete Git authority:
+            # an operator or surviving agent may have the branch checked out
+            # elsewhere.  Reject that state before observing/deleting remote
+            # refs, and re-check at the actual remote deletion boundary.
+            assert_no_alternate_checkout()
+            if expected and os.path.isdir(worktree):
+                self._assert_exact_worktree_generation_locked(
+                    project,
+                    child_identifier,
+                    worktree,
+                    branch_name=branch,
+                    expected_head_sha=expected,
+                )
+            local_ref = f"refs/heads/{branch}"
+            local_exists = self._ref_exists(project.repo_path, local_ref)
+            if expected and local_exists:
+                local_head = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                    cwd=project.repo_path,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                observed_local = local_head.stdout.strip().lower()
+                if local_head.returncode != 0 or not observed_local:
+                    raise ProjectError(
+                        "cannot prove local epic child branch head before cleanup"
+                    )
+                if observed_local != expected:
+                    raise ProjectError(
+                        "epic child branch changed before cleanup: "
+                        f"expected {expected}, found {observed_local}"
+                    )
             remote = self._run_network_git(
                 project,
                 [
@@ -2973,10 +3027,25 @@ class ProjectStore:
                     f"{remote.stderr.strip()[:500]}"
                 )
             existed = remote.returncode == 0
+            remote_head = ""
             if existed:
+                remote_head = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+                if expected and remote_head != expected:
+                    raise ProjectError(
+                        "epic child branch changed before cleanup: "
+                        f"expected {expected}, found {remote_head or 'unknown'}"
+                    )
+            if existed:
+                assert_no_alternate_checkout()
+                delete_args = ["git", "push"]
+                if expected:
+                    delete_args.append(
+                        f"--force-with-lease=refs/heads/{branch}:{expected}"
+                    )
+                delete_args.extend(["origin", f":refs/heads/{branch}"])
                 deleted = self._run_network_git(
                     project,
-                    ["git", "push", "origin", "--delete", branch],
+                    delete_args,
                     timeout=60,
                 )
                 if deleted.returncode != 0:
@@ -2984,6 +3053,30 @@ class ProjectStore:
                         "git remote branch delete failed: "
                         f"{deleted.stderr.strip()[:500]}"
                     )
+            if expected and os.path.isdir(worktree):
+                # The remote compare-and-delete can block long enough for an
+                # agent or operator to change the checkout after the first
+                # safety probe.  Re-check at the removal boundary, then use a
+                # non-forced Git removal so a change racing the probe is also
+                # preserved rather than erased.
+                self._assert_terminal_worktree_safe_locked(
+                    project,
+                    child_identifier,
+                    worktree,
+                    branch_name=branch,
+                    target_branch=(
+                        self.epic_branch_name(epic_identifier)
+                        if require_target_branch
+                        else None
+                    ),
+                    review_head=expected if require_target_branch else None,
+                    require_target_branch=require_target_branch,
+                )
+            self._remove_worktree_locked(
+                project_id,
+                child_identifier,
+                force=not bool(expected),
+            )
             local = subprocess.run(
                 ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
                 cwd=project.repo_path,
@@ -2993,8 +3086,13 @@ class ProjectStore:
                 timeout=10,
             )
             if local.returncode == 0:
+                remove_args = (
+                    ["git", "update-ref", "-d", local_ref, expected]
+                    if expected
+                    else ["git", "branch", "-D", branch]
+                )
                 removed = subprocess.run(
-                    ["git", "branch", "-D", branch],
+                    remove_args,
                     cwd=project.repo_path,
                     check=False,
                     capture_output=True,
@@ -3003,7 +3101,7 @@ class ProjectStore:
                 )
                 if removed.returncode != 0:
                     raise ProjectError(
-                        "git local branch delete failed: "
+                        "git local epic child branch compare-and-delete failed: "
                         f"{removed.stderr.strip()[:500]}"
                     )
         if existed:
@@ -4619,27 +4717,7 @@ class ProjectStore:
     def _registered_worktree_branches(self, repo_path: str) -> set[str]:
         """Return local branch names currently checked out in any worktree."""
 
-        try:
-            result = subprocess.run(
-                ["git", "worktree", "list", "--porcelain"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=30,
-            )
-        except subprocess.CalledProcessError as exc:
-            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-            raise ProjectError(f"git worktree list failed: {stderr}")
-        except subprocess.TimeoutExpired:
-            raise ProjectError("git worktree list timed out")
-
-        prefix = "branch refs/heads/"
-        return {
-            line[len(prefix) :]
-            for line in result.stdout.splitlines()
-            if line.startswith(prefix)
-        }
+        return set(self._registered_worktree_branch_paths(repo_path))
 
     def _registered_worktree_branch_paths(
         self, repo_path: str
@@ -4752,6 +4830,60 @@ class ProjectStore:
             )
         return result.returncode == 0
 
+    def _assert_owned_branch_generation_locked(
+        self,
+        project: Project,
+        branch_name: str,
+        expected_head_sha: str,
+    ) -> bool:
+        """Validate an exact generation and report whether it still exists."""
+
+        expected = str(expected_head_sha or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected owned branch head is not an exact SHA")
+        local_ref = f"refs/heads/{branch_name}"
+        local_exists = self._ref_exists(project.repo_path, local_ref)
+        if local_exists:
+            local = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            observed = str(local.stdout or "").strip().lower()
+            if local.returncode != 0 or observed != expected:
+                raise ProjectError(
+                    "owned branch changed before cleanup: "
+                    f"expected {expected}, found {observed or 'unknown'}"
+                )
+        remote = self._run_network_git(
+            project,
+            [
+                "git",
+                "ls-remote",
+                "--exit-code",
+                "--heads",
+                "origin",
+                branch_name,
+            ],
+            timeout=30,
+        )
+        if remote.returncode not in {0, 2}:
+            raise ProjectError(
+                "git remote branch check failed: "
+                f"{remote.stderr.strip()[:500]}"
+            )
+        if remote.returncode == 0:
+            observed = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+            if observed != expected:
+                raise ProjectError(
+                    "owned remote branch changed before cleanup: "
+                    f"expected {expected}, found {observed or 'unknown'}"
+                )
+        return local_exists or remote.returncode == 0
+
     def _delete_owned_issue_branch_locked(
         self,
         project: Project,
@@ -4760,6 +4892,7 @@ class ProjectStore:
         *,
         is_epic: bool,
         issue_number: str | None = None,
+        expected_head_sha: str | None = None,
     ) -> tuple[bool, str | None]:
         """Delete one terminal Oompah-owned branch locally and remotely.
         
@@ -4770,6 +4903,9 @@ class ProjectStore:
         """
 
         branch_name = str(branch_name or "").strip()
+        expected = str(expected_head_sha or "").strip().lower()
+        if expected and not re.fullmatch(r"[0-9a-f]{40,64}", expected):
+            raise ProjectError("expected owned branch head is not an exact SHA")
         if not branch_name:
             return False, None
         if not self._is_owned_issue_branch(
@@ -4802,8 +4938,13 @@ class ProjectStore:
             )
             return False, "protected_branch"
 
-        self._prune_git_worktrees(project.repo_path)
-        if branch_name in self._registered_worktree_branches(project.repo_path):
+        def branch_is_checked_out() -> bool:
+            self._prune_git_worktrees(project.repo_path)
+            return branch_name in self._registered_worktree_branches(
+                project.repo_path
+            )
+
+        if branch_is_checked_out():
             logger.warning(
                 "Skipping terminal branch still checked out in a worktree "
                 "project=%s issue=%s branch=%s",
@@ -4817,15 +4958,75 @@ class ProjectStore:
         remote_ref = f"refs/remotes/origin/{branch_name}"
         local_exists = self._ref_exists(project.repo_path, local_ref)
         remote_exists = self._ref_exists(project.repo_path, remote_ref)
+        if expected and local_exists:
+            local_head = subprocess.run(
+                ["git", "rev-parse", "--verify", f"{local_ref}^{{commit}}"],
+                cwd=project.repo_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            observed_local = str(local_head.stdout or "").strip().lower()
+            if local_head.returncode != 0 or observed_local != expected:
+                raise ProjectError(
+                    "owned branch changed before cleanup: "
+                    f"expected {expected}, found {observed_local or 'unknown'}"
+                )
+        if expected:
+            remote = self._run_network_git(
+                project,
+                [
+                    "git",
+                    "ls-remote",
+                    "--exit-code",
+                    "--heads",
+                    "origin",
+                    branch_name,
+                ],
+                timeout=30,
+            )
+            if remote.returncode not in {0, 2}:
+                raise ProjectError(
+                    "git remote branch check failed: "
+                    f"{remote.stderr.strip()[:500]}"
+                )
+            remote_exists = remote.returncode == 0
+            if remote_exists:
+                remote_head = str(remote.stdout or "").split(maxsplit=1)[0].lower()
+                if remote_head != expected:
+                    raise ProjectError(
+                        "owned remote branch changed before cleanup: "
+                        f"expected {expected}, found {remote_head or 'unknown'}"
+                    )
         changed = False
 
         # Preserve the local ref until the remote deletion succeeds. If the
         # push fails, a later pass can retry without losing the submitted head.
         if remote_exists:
+            # The network observation above can block long enough for an
+            # operator or surviving agent to register another checkout.  Fence
+            # the destructive remote operation to a second complete worktree
+            # observation at its actual mutation boundary.
+            if branch_is_checked_out():
+                logger.warning(
+                    "Skipping terminal branch newly checked out in a worktree "
+                    "project=%s issue=%s branch=%s",
+                    project.id,
+                    issue_identifier,
+                    branch_name,
+                )
+                return False, "checked_out_in_worktree"
             try:
+                delete_args = ["git", "push"]
+                if expected:
+                    delete_args.append(
+                        f"--force-with-lease=refs/heads/{branch_name}:{expected}"
+                    )
+                delete_args.extend(["origin", f":refs/heads/{branch_name}"])
                 deleted = self._run_network_git(
                     project,
-                    ["git", "push", "origin", "--delete", branch_name],
+                    delete_args,
                     timeout=60,
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
@@ -4841,8 +5042,13 @@ class ProjectStore:
 
         if local_exists:
             try:
+                remove_args = (
+                    ["git", "update-ref", "-d", local_ref, expected]
+                    if expected
+                    else ["git", "branch", "-D", "--", branch_name]
+                )
                 removed = subprocess.run(
-                    ["git", "branch", "-D", "--", branch_name],
+                    remove_args,
                     cwd=project.repo_path,
                     check=False,
                     capture_output=True,
@@ -4855,7 +5061,7 @@ class ProjectStore:
                 ) from exc
             if removed.returncode != 0:
                 raise ProjectError(
-                    "git local branch delete failed: "
+                    "git local branch compare-and-delete failed: "
                     f"{removed.stderr.strip()[:500]}"
                 )
             changed = True
@@ -5255,7 +5461,7 @@ class ProjectStore:
             if operation:
                 recovery = self._preserve_dirty_worktree_locked(
                     project,
-                    issue_identifier,
+                    epic_identifier,
                     wt_path,
                     branch_name=str(operation.get("branch") or "") or None,
                 )
@@ -5268,7 +5474,7 @@ class ProjectStore:
             if self._worktree_dirty_paths(status.stdout):
                 recovery = self._preserve_dirty_worktree_locked(
                     project,
-                    issue_identifier,
+                    epic_identifier,
                     wt_path,
                     branch_name=branch_probe.stdout.strip() or None,
                 )
@@ -5278,9 +5484,19 @@ class ProjectStore:
                     "was preserved"
                 )
 
+        # The generated hook directory is Oompah-owned and intentionally
+        # excluded from deliverable-dirty checks.  Remove only that exact
+        # helper so the final non-forced Git operation remains a fail-closed
+        # boundary for any user or agent change racing the probe above.
+        hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+        if os.path.isdir(hooks_dir):
+            shutil.rmtree(hooks_dir)
+        elif os.path.lexists(hooks_dir):
+            os.remove(hooks_dir)
+
         try:
             subprocess.run(
-                ["git", "worktree", "remove", wt_path, "--force"],
+                ["git", "worktree", "remove", wt_path],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -6062,6 +6278,76 @@ class ProjectStore:
                 f"{wt_path}; head {head_sha} has no pushed or merged evidence"
             )
 
+    def _assert_exact_worktree_generation_locked(
+        self,
+        project: Project,
+        issue_identifier: str,
+        wt_path: str,
+        *,
+        branch_name: str,
+        expected_head_sha: str,
+    ) -> None:
+        """Re-check an exact checkout immediately before non-forced removal."""
+
+        if not _is_git_working_tree(wt_path):
+            raise ProjectError(
+                f"Refusing exact cleanup of non-git worktree {wt_path}"
+            )
+        status = self._git_status_for_worktree(wt_path)
+        if status.returncode != 0:
+            raise ProjectError(
+                f"cannot inspect exact terminal worktree {wt_path}: "
+                f"{status.stderr.strip()[:500]}"
+            )
+        branch_probe = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        operation = _git_operation_state(
+            wt_path,
+            current_branch=branch_probe.stdout.strip(),
+            branch_result_code=branch_probe.returncode,
+        )
+        if operation or self._worktree_dirty_paths(status.stdout):
+            # Reuse the established recovery-snapshot path.  It raises after
+            # preserving the dirty or active-operation state, before reaching
+            # its publication checks.
+            self._assert_terminal_worktree_safe_locked(
+                project,
+                issue_identifier,
+                wt_path,
+                branch_name=branch_name,
+            )
+            raise ProjectError(  # pragma: no cover - defensive contract guard
+                f"Refusing exact cleanup of changed worktree {wt_path}"
+            )
+        observed_branch = branch_probe.stdout.strip()
+        if branch_probe.returncode != 0 or observed_branch != branch_name:
+            raise ProjectError(
+                f"Refusing exact cleanup of {wt_path}: expected branch "
+                f"{branch_name!r}, found {observed_branch!r}"
+            )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        observed_head = str(head.stdout or "").strip().lower()
+        if head.returncode != 0 or observed_head != expected_head_sha:
+            raise ProjectError(
+                "epic child worktree changed before cleanup: "
+                f"expected {expected_head_sha}, found {observed_head or 'unknown'}"
+            )
+
     def _assert_terminal_target_landing_locked(
         self,
         project: Project,
@@ -6216,7 +6502,11 @@ class ProjectStore:
             )
 
     def _remove_worktree_locked(
-        self, project_id: str, issue_identifier: str
+        self,
+        project_id: str,
+        issue_identifier: str,
+        *,
+        force: bool = True,
     ) -> bool:
         project = self._projects.get(project_id)
         if not project:
@@ -6248,9 +6538,24 @@ class ProjectStore:
             logger.info("Metadata audit workspace removed path=%s", wt_path)
             return True
 
+        if not force:
+            # This generated hook directory is intentionally ignored by the
+            # deliverable-dirty check, but Git correctly treats it as an
+            # untracked path for non-forced worktree removal.  Retire only this
+            # exact Oompah-owned helper; any other concurrent untracked path
+            # remains a reason for Git to refuse removal.
+            hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+            if os.path.isdir(hooks_dir):
+                shutil.rmtree(hooks_dir)
+            elif os.path.lexists(hooks_dir):
+                os.remove(hooks_dir)
+
+        remove_args = ["git", "worktree", "remove", wt_path]
+        if force:
+            remove_args.append("--force")
         try:
             subprocess.run(
-                ["git", "worktree", "remove", wt_path, "--force"],
+                remove_args,
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -6741,6 +7046,7 @@ class ProjectStore:
         review_head: str | None = None,
         merge_commit_sha: str | None = None,
         require_target_branch: bool = False,
+        expected_head_sha: str | None = None,
     ) -> tuple[bool, str | None]:
         """Remove one terminal issue's worktree and Oompah-owned branch.
 
@@ -6784,6 +7090,13 @@ class ProjectStore:
         )
 
         with self.project_write_lock(project_id):
+            exact_generation_present = False
+            if expected_head_sha:
+                exact_generation_present = self._assert_owned_branch_generation_locked(
+                    project,
+                    candidate,
+                    expected_head_sha,
+                )
             if not is_epic:
                 auxiliary_result = (
                     self._cleanup_direct_epic_auxiliary_workspace_locked(
@@ -6809,7 +7122,8 @@ class ProjectStore:
                         require_target_branch=require_target_branch,
                     )
                 elif require_target_branch and (
-                    self._ref_exists(project.repo_path, f"refs/heads/{candidate}")
+                    exact_generation_present
+                    or self._ref_exists(project.repo_path, f"refs/heads/{candidate}")
                     or self._ref_exists(
                         project.repo_path,
                         f"refs/remotes/origin/{candidate}",
@@ -6820,28 +7134,34 @@ class ProjectStore:
                             f"Refusing terminal cleanup of {issue_identifier}: "
                             "recorded target branch evidence is unavailable"
                         )
-                    source_sha = subprocess.run(
-                        [
-                            "git",
-                            "rev-parse",
-                            "--verify",
-                            f"refs/heads/{candidate}^{{commit}}",
-                        ],
-                        cwd=project.repo_path,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                        timeout=10,
-                    )
-                    if source_sha.returncode != 0 or not source_sha.stdout.strip():
-                        raise ProjectError(
-                            f"cannot prove terminal branch head for {issue_identifier}"
+                    exact_head = str(expected_head_sha or "").strip().lower()
+                    if exact_head:
+                        source_head = exact_head
+                    else:
+                        source_sha = subprocess.run(
+                            [
+                                "git",
+                                "rev-parse",
+                                "--verify",
+                                f"refs/heads/{candidate}^{{commit}}",
+                            ],
+                            cwd=project.repo_path,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=10,
                         )
+                        if source_sha.returncode != 0 or not source_sha.stdout.strip():
+                            raise ProjectError(
+                                "cannot prove terminal branch head for "
+                                f"{issue_identifier}"
+                            )
+                        source_head = source_sha.stdout.strip()
                     self._assert_terminal_target_landing_locked(
                         project,
                         issue_identifier,
                         branch_name=candidate,
-                        head_sha=source_sha.stdout.strip(),
+                        head_sha=source_head,
                         target_branch=target_branch,
                         review_head=review_head,
                         merge_commit_sha=merge_commit_sha,
@@ -6869,6 +7189,7 @@ class ProjectStore:
                 candidate,
                 is_epic=is_epic,
                 issue_number=issue_number,
+                expected_head_sha=expected_head_sha,
             )
             # For terminal epics, also clean up any auxiliary task-style repair
             # workspace left by an epic repair/planner run (e.g. the OOMPAH-459

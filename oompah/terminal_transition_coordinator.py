@@ -64,7 +64,7 @@ import json
 import logging
 import re
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
@@ -128,6 +128,9 @@ _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 
 _TERMINAL_REARM_HISTORY_KEY = "oompah.terminal_audit_rearm_history"
 """Durable actor/reason evidence for explicit terminal-audit re-arms."""
+
+_TRACKER_EVIDENCE_PROJECTIONS_KEY = "oompah.terminal_audit_tracker_projections"
+"""Per-audit canonical tracker projections used for result-boundary CAS."""
 
 _EVIDENCE_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.MISSING_EVIDENCE,
@@ -500,6 +503,7 @@ class ResultRejection:
     ISSUE_NOT_IN_VALIDATION = "issue is not in In Validation"
     CURRENT_EVIDENCE_UNAVAILABLE = "current task evidence could not be refreshed"
     PREREQUISITE_NOT_COMPLETED = "Done prerequisite has not passed for Merged audit"
+    CURRENT_EVIDENCE_MISMATCH = "current task evidence no longer matches audit"
     MALFORMED_RESULT = "audit result is malformed"
     METADATA_QUARANTINED = "terminal-audit metadata is quarantined"
     NEEDS_HUMAN_NOT_ACTIONABLE = (
@@ -810,6 +814,8 @@ class TerminalTransitionCoordinator:
         trigger_identity: ContributorIdentity,
         project_id: str,
         evidence_fingerprint: EvidenceFingerprint,
+        *,
+        mutation_guard: Callable[[], str | None] | None = None,
     ) -> TransitionResult:
         """Stage a terminal transition for *current_issue*.
 
@@ -847,6 +853,22 @@ class TerminalTransitionCoordinator:
         requested_target = TargetState.from_raw(requested_target)
 
         def _operation() -> TransitionResult:
+            if mutation_guard is not None:
+                try:
+                    precondition_conflict = mutation_guard()
+                except Exception as exc:  # mutation authority must fail closed
+                    precondition_conflict = (
+                        "precondition verification failed: "
+                        f"{type(exc).__name__}"
+                    )
+                if isinstance(precondition_conflict, str) and precondition_conflict.strip():
+                    return TransitionResult(
+                        success=False,
+                        reason=(
+                            "workflow_precondition_changed: "
+                            + precondition_conflict.strip()
+                        ),
+                    )
             lifecycle_conflict = self._lifecycle_conflict(
                 current_issue, requested_target, project_id
             )
@@ -2147,9 +2169,61 @@ class TerminalTransitionCoordinator:
         coalesce_pending_target: bool = False,
         ensure_validation_on_coalesce: bool = False,
         queued_comment: str | None = None,
+        revalidate_completed: bool = False,
     ) -> TransitionResult:
         identifier = current_issue.identifier
         decision = _Decision()
+
+        # The audited fingerprint may deliberately contain richer evidence
+        # than a tracker can reproduce.  Persist the tracker-reproducible
+        # projection separately so result application can distinguish actual
+        # tracker drift from an unchanged richer fingerprint after restart.
+        supplied_tracker_projection = compute_issue_evidence_fingerprint(
+            current_issue, project_id
+        )
+        projection_issue = current_issue
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if callable(fetch_issue_detail):
+            try:
+                refreshed_projection = fetch_issue_detail(identifier)
+            except Exception:
+                logger.warning(
+                    "Could not refresh tracker evidence while staging %s",
+                    identifier,
+                    exc_info=True,
+                )
+                return TransitionResult(
+                    success=False,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            if (
+                not isinstance(refreshed_projection, Issue)
+                or str(refreshed_projection.identifier) != str(identifier)
+                or (
+                    getattr(refreshed_projection, "project_id", None)
+                    and str(refreshed_projection.project_id) != project_id
+                )
+            ):
+                return TransitionResult(
+                    success=False,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            projection_issue = refreshed_projection
+        tracker_projection_fingerprint = compute_issue_evidence_fingerprint(
+            projection_issue, project_id
+        )
+        if (
+            callable(fetch_issue_detail)
+            and supplied_tracker_projection != tracker_projection_fingerprint
+        ):
+            # The caller may carry a richer fingerprint separately, but its
+            # tracker-reproducible snapshot still has to match the fresh
+            # projection observed at the project mutation boundary.  Never
+            # bind a stale canonical fingerprint to newer tracker evidence.
+            return TransitionResult(
+                success=False,
+                reason=ResultRejection.CURRENT_EVIDENCE_MISMATCH,
+            )
 
         def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
             """Atomically decide and commit all metadata changes."""
@@ -2174,7 +2248,8 @@ class TerminalTransitionCoordinator:
             # --- Stale-request rejection (identical target already completed) ---
             for record in chain:
                 if (
-                    record.target_state == requested_target
+                    not revalidate_completed
+                    and record.target_state == requested_target
                     and record.project_id == project_id
                     and record.task_id == identifier
                     and record.request_state == RequestState.COMPLETED
@@ -2218,7 +2293,7 @@ class TerminalTransitionCoordinator:
             # retirement ledger is also a stale-request fence.  This is what
             # prevents a native reconciliation pass after restart from
             # recreating an audit for an already-applied fingerprint.
-            if _has_terminal_retirement(
+            if not revalidate_completed and _has_terminal_retirement(
                 doc, project_id, identifier, requested_target, evidence_fingerprint
             ):
                 decision.early_result = TransitionResult(
@@ -2405,6 +2480,11 @@ class TerminalTransitionCoordinator:
             # Mark that the queued comment has been (or will be) posted
             new_unknown = dict(doc.unknown_fields)
             new_unknown[_QUEUED_COMMENT_KEY] = True
+            new_unknown = _record_tracker_evidence_projections(
+                new_unknown,
+                decision.new_entries,
+                tracker_projection_fingerprint,
+            )
 
             return replace(doc, pending_chain=final_chain, unknown_fields=new_unknown)
 
@@ -2505,7 +2585,43 @@ class TerminalTransitionCoordinator:
         project_id: str,
     ) -> ResultOutcome:
         identifier = current_issue.identifier
+        requested_identifier = identifier
         decision = _ResultDecision()
+
+        # The caller resolves an Issue before it waits for the project fence.
+        # A UI/ACP lifecycle write or a review/head update may win that race.
+        # Production trackers expose a detail read, so refresh the complete
+        # evidence snapshot at the actual mutation boundary.  Tracker-neutral
+        # embedders without that optional method retain their supplied object.
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if callable(fetch_issue_detail):
+            try:
+                refreshed_issue = fetch_issue_detail(identifier)
+            except Exception:
+                logger.warning(
+                    "Could not refresh current audit-result evidence for %s",
+                    identifier,
+                    exc_info=True,
+                )
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            if not isinstance(refreshed_issue, Issue):
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            if str(refreshed_issue.identifier) != str(requested_identifier):
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.AUDIT_OWNERSHIP_MISMATCH,
+                )
+            current_issue = refreshed_issue
+            identifier = current_issue.identifier
 
         # Task and project ownership are server-bound arguments, not model
         # payload fields. Reject a record copied into the wrong metadata
@@ -2520,11 +2636,9 @@ class TerminalTransitionCoordinator:
             )
 
         # --- CAS: verify the tracker still holds the issue in In Validation ---
-        # We deliberately trust the caller's Issue payload here because the
-        # coordinator owns the transition into In Validation and no other
-        # writer moves an issue out of it while a chain is pending.  If the
-        # caller passed a stale Issue the metadata update below will still
-        # catch a chain drift; this is a fast reject for the common case.
+        # The issue was refreshed above when the tracker supports a detail
+        # read, so this status check shares the same project fence as the
+        # metadata and lifecycle writes below.
         if canonicalize_status(current_issue.state or "") != IN_VALIDATION:
             # A replay after the first successful terminal update may carry a
             # refreshed Issue object whose state is no longer In Validation.
@@ -2576,6 +2690,162 @@ class TerminalTransitionCoordinator:
                 success=False,
                 audit_id=result.audit_id,
                 reason=ResultRejection.ISSUE_NOT_IN_VALIDATION,
+            )
+
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            current_issue, project_id
+        )
+        try:
+            current_doc = store.read(identifier)
+        except TerminalAuditMetadataQuarantinedError:
+            return ResultOutcome(
+                success=False,
+                audit_id=result.audit_id,
+                reason=ResultRejection.METADATA_QUARANTINED,
+            )
+        projection_present, audited_tracker_projection = (
+            _tracker_evidence_projection_for_audit(
+                current_doc,
+                audit_id=result.audit_id,
+                project_id=project_id,
+                task_id=identifier,
+            )
+        )
+        if projection_present and audited_tracker_projection is None:
+            return ResultOutcome(
+                success=False,
+                audit_id=result.audit_id,
+                reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+            )
+        expected_current_fingerprint = (
+            audited_tracker_projection
+            if audited_tracker_projection is not None
+            else result.evidence_fingerprint
+        )
+
+        if callable(fetch_issue_detail) and (
+            current_fingerprint != expected_current_fingerprint
+        ):
+            # First prove that this result still owns the exact live record it
+            # names.  Evidence drift must not let a forged/stale audit ID
+            # create new work in another task's chain.
+            stale_record = next(
+                (
+                    record
+                    for record in current_doc.pending_chain
+                    if record.audit_id == result.audit_id
+                ),
+                None,
+            )
+            if stale_record is None:
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.AUDIT_NOT_FOUND,
+                )
+            if (
+                stale_record.task_id not in issue_ids
+                or stale_record.project_id != project_id
+            ):
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.AUDIT_OWNERSHIP_MISMATCH,
+                )
+            if stale_record.target_state != result.target_state:
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.TARGET_MISMATCH,
+                )
+            if stale_record.evidence_fingerprint != result.evidence_fingerprint:
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.FINGERPRINT_MISMATCH,
+                )
+            if stale_record.request_state not in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            ):
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.STATE_MISMATCH,
+                )
+
+            # Retire the obsolete audit and immediately stage the same target
+            # against the new canonical evidence.  This runs inside the same
+            # project mutation fence as the refresh above, so no lifecycle or
+            # metadata writer can interleave.  A prior completed record for a
+            # coincidentally identical fingerprint is deliberately rechecked:
+            # the intervening evidence generation revoked that authority.
+            # A richer caller-owned fingerprint cannot be reconstructed from
+            # tracker fields alone.  If its tracker projection changed, fail
+            # closed and retain the original audit instead of silently
+            # replacing it with weaker evidence.  Legacy records have no
+            # projection and receive the same conservative treatment.
+            if (
+                audited_tracker_projection is None
+                or audited_tracker_projection != result.evidence_fingerprint
+            ):
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            replacement = self._transition_locked(
+                store,
+                tracker,
+                replace(
+                    current_issue,
+                    state=stale_record.previous_state or current_issue.state,
+                ),
+                result.target_state,
+                stale_record.requested_by
+                or ContributorIdentity("oompah", "terminal-audit-refresh"),
+                project_id,
+                current_fingerprint,
+                ensure_validation_on_coalesce=True,
+                revalidate_completed=True,
+            )
+            if not replacement.success:
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
+                )
+            superseded_ids = replacement.superseded_audit_ids or (
+                [replacement.superseded_audit_id]
+                if replacement.superseded_audit_id
+                else []
+            )
+            for superseded_audit_id in superseded_ids:
+                self._record_metric(
+                    "record_stale_discarded",
+                    project_id,
+                    identifier,
+                    superseded_audit_id,
+                )
+                self._clear_retired_alert(
+                    project_id, identifier, superseded_audit_id
+                )
+            if not replacement.coalesced:
+                replacement_ids = replacement.audit_ids or (
+                    [replacement.audit_id] if replacement.audit_id else []
+                )
+                for replacement_audit_id in replacement_ids:
+                    self._record_metric(
+                        "record_queued",
+                        project_id,
+                        identifier,
+                        replacement_audit_id,
+                    )
+            return ResultOutcome(
+                success=False,
+                audit_id=result.audit_id,
+                reason=ResultRejection.CURRENT_EVIDENCE_MISMATCH,
+                cancelled_audit_ids=superseded_ids,
             )
 
         if result.verdict == Verdict.PASS:
@@ -3748,6 +4018,88 @@ def _load_applied_attempt_log(
         if len(matches) == 1:
             result[next(iter(matches))] = applied_at
     return result
+
+
+def _tracker_evidence_projection_for_audit(
+    doc: TerminalAuditMetadata,
+    *,
+    audit_id: str,
+    project_id: str,
+    task_id: str,
+) -> tuple[bool, EvidenceFingerprint | None]:
+    """Return a durable tracker projection and whether its ledger is present.
+
+    Missing ledgers or missing per-audit rows identify backward-compatible
+    legacy records.  A matching row that is malformed, duplicated, or
+    cross-scope is reported as unavailable so result application fails closed
+    instead of falling back to weaker evidence.
+    """
+
+    if _TRACKER_EVIDENCE_PROJECTIONS_KEY not in doc.unknown_fields:
+        return False, None
+    raw_rows = doc.unknown_fields.get(_TRACKER_EVIDENCE_PROJECTIONS_KEY)
+    if not isinstance(raw_rows, list):
+        return True, None
+    matching = [
+        row
+        for row in raw_rows
+        if isinstance(row, Mapping) and str(row.get("audit_id") or "") == audit_id
+    ]
+    # A document can legitimately contain both pre-ledger records and newer
+    # records that caused the ledger key to be introduced.  No matching row
+    # therefore retains the legacy exact-fingerprint path; a matching row
+    # that is duplicated or malformed remains a fail-closed corruption.
+    if not matching:
+        return False, None
+    if len(matching) != 1:
+        return True, None
+    row = matching[0]
+    digest = row.get("digest")
+    if (
+        row.get("version") != 1
+        or str(row.get("project_id") or "") != project_id
+        or str(row.get("task_id") or "") != task_id
+        or not isinstance(digest, str)
+    ):
+        return True, None
+    try:
+        return True, EvidenceFingerprint(digest)
+    except (TypeError, ValueError):
+        return True, None
+
+
+def _record_tracker_evidence_projections(
+    unknown_fields: Mapping[str, Any],
+    records: Sequence[TerminalAuditRecord],
+    fingerprint: EvidenceFingerprint,
+) -> dict[str, Any]:
+    """Append immutable per-audit tracker projections for newly staged work."""
+
+    new_unknown = dict(unknown_fields)
+    if not records:
+        return new_unknown
+    raw_rows = new_unknown.get(_TRACKER_EVIDENCE_PROJECTIONS_KEY, [])
+    rows = (
+        [dict(row) for row in raw_rows if isinstance(row, Mapping)]
+        if isinstance(raw_rows, list)
+        else []
+    )
+    new_ids = {record.audit_id for record in records}
+    rows = [
+        row for row in rows if str(row.get("audit_id") or "") not in new_ids
+    ]
+    rows.extend(
+        {
+            "version": 1,
+            "audit_id": record.audit_id,
+            "project_id": record.project_id,
+            "task_id": record.task_id,
+            "digest": fingerprint.digest,
+        }
+        for record in records
+    )
+    new_unknown[_TRACKER_EVIDENCE_PROJECTIONS_KEY] = rows
+    return new_unknown
 
 
 def _last_applied_status(

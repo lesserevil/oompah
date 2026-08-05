@@ -47,6 +47,7 @@ raising.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
@@ -187,6 +188,15 @@ def _schedule_durable_task_status(
     if job is None:
         raise RuntimeError("durable task status handoff was not scheduled")
     return True
+
+
+def _project_mutation_lock(project_store: Any, project_id: str | None):
+    """Return the managed project's cross-path tracker mutation fence."""
+
+    operation = getattr(project_store, "project_write_lock", None)
+    if not project_id or not callable(operation):
+        return contextlib.nullcontext()
+    return operation(project_id)
 
 
 def _auditor_validation_success_handler(
@@ -909,7 +919,8 @@ def _exec_oompah_task_command(
                 )
             )
             if not durable:
-                task_tracker.update_issue(args.identifier, status=args.status)
+                with _project_mutation_lock(project_store, project_id):
+                    task_tracker.update_issue(args.identifier, status=args.status)
                 observer = getattr(
                     coordination_service, "_observe_task_handoff_mutation", None
                 )
@@ -987,7 +998,8 @@ def _exec_oompah_task_command(
                 )
             )
             if not durable:
-                task_tracker.add_label(args.identifier, args.label)
+                with _project_mutation_lock(project_store, project_id):
+                    task_tracker.add_label(args.identifier, args.label)
             observer = getattr(
                 coordination_service, "_observe_task_handoff_mutation", None
             )
@@ -1029,7 +1041,8 @@ def _exec_oompah_task_command(
                     "Error: status labels cannot be removed directly; set the "
                     "intended destination status instead"
                 )
-            task_tracker.remove_label(args.identifier, args.label)
+            with _project_mutation_lock(project_store, project_id):
+                task_tracker.remove_label(args.identifier, args.label)
             return f"Label removed: {args.label}"
 
         if args.subcommand == "set-dependency":
@@ -1039,21 +1052,25 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            if getattr(args, "hard_start", False) is True:
-                task_tracker.add_start_dependency(args.identifier, args.depends_on)
-                kind = "Hard-start dependency"
-            else:
-                task_tracker.add_dependency(args.identifier, args.depends_on)
-                kind = "Dependency"
+            with _project_mutation_lock(project_store, project_id):
+                if getattr(args, "hard_start", False) is True:
+                    task_tracker.add_start_dependency(args.identifier, args.depends_on)
+                    kind = "Hard-start dependency"
+                else:
+                    task_tracker.add_dependency(args.identifier, args.depends_on)
+                    kind = "Dependency"
             return f"{kind} set: {args.identifier} depends on {args.depends_on}"
 
         if args.subcommand == "remove-dependency":
-            if getattr(args, "hard_start", False) is True:
-                task_tracker.remove_start_dependency(args.identifier, args.depends_on)
-                kind = "Hard-start dependency"
-            else:
-                task_tracker.remove_dependency(args.identifier, args.depends_on)
-                kind = "Dependency"
+            with _project_mutation_lock(project_store, project_id):
+                if getattr(args, "hard_start", False) is True:
+                    task_tracker.remove_start_dependency(
+                        args.identifier, args.depends_on
+                    )
+                    kind = "Hard-start dependency"
+                else:
+                    task_tracker.remove_dependency(args.identifier, args.depends_on)
+                    kind = "Dependency"
             return (
                 f"{kind} removed: {args.identifier} no longer depends on "
                 f"{args.depends_on}"
@@ -1067,13 +1084,14 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            issue = task_tracker.create_issue(
-                title=args.title,
-                issue_type=args.issue_type,
-                description=getattr(args, "description", None),
-                priority=_priority_int(getattr(args, "priority", None)),
-                labels=getattr(args, "labels", None),
-            )
+            with _project_mutation_lock(project_store, project_id):
+                issue = task_tracker.create_issue(
+                    title=args.title,
+                    issue_type=args.issue_type,
+                    description=getattr(args, "description", None),
+                    priority=_priority_int(getattr(args, "priority", None)),
+                    labels=getattr(args, "labels", None),
+                )
             url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
             output = f"Created: {issue.identifier} - {issue.title}"
             return f"{output}\nURL: {url}" if url else output
@@ -1086,14 +1104,15 @@ def _exec_oompah_task_command(
             )
             if denial is not None:
                 return denial
-            issue = task_tracker.create_issue(
-                title=args.title,
-                issue_type=args.issue_type,
-                description=getattr(args, "description", None),
-                priority=_priority_int(getattr(args, "priority", None)),
-                labels=None,
-                parent=args.parent_id,
-            )
+            with _project_mutation_lock(project_store, project_id):
+                issue = task_tracker.create_issue(
+                    title=args.title,
+                    issue_type=args.issue_type,
+                    description=getattr(args, "description", None),
+                    priority=_priority_int(getattr(args, "priority", None)),
+                    labels=None,
+                    parent=args.parent_id,
+                )
             url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
             output = f"Created: {issue.identifier} - {issue.title}"
             return f"{output}\nURL: {url}" if url else output

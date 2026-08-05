@@ -641,6 +641,65 @@ class TestExecOompahTaskCommand:
         assert payload["prior_generation"] == ""
         assert payload["run_id"] == ""
 
+    def test_child_create_holds_managed_project_mutation_fence(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        project_store = MagicMock()
+        project_store.get.return_value = None
+        project_lock = threading.RLock()
+        project_store.project_write_lock.return_value = project_lock
+
+        def create_issue(**kwargs):
+            assert project_lock._is_owned()  # type: ignore[attr-defined]
+            assert kwargs["parent"] == "EPIC-1"
+            return Issue(
+                id="CHILD-1",
+                identifier="CHILD-1",
+                title="Child",
+                description="details",
+                state="Backlog",
+                issue_type="task",
+                project_id="proj",
+                parent_id="EPIC-1",
+            )
+
+        tracker.create_issue.side_effect = create_issue
+        result = _exec_oompah_task_command(
+            "oompah task child-create EPIC-1 --title Child "
+            "--description details",
+            tracker,
+            "proj",
+            project_store=project_store,
+        )
+
+        assert result == "Created: CHILD-1 - Child"
+        project_store.project_write_lock.assert_called_once_with("proj")
+
+    def test_nonterminal_status_change_holds_managed_project_mutation_fence(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        project_store = MagicMock()
+        project_lock = threading.RLock()
+        project_store.project_write_lock.return_value = project_lock
+
+        def update_issue(identifier, **fields):
+            assert project_lock._is_owned()  # type: ignore[attr-defined]
+            assert identifier == "CHILD-1"
+            assert fields == {"status": "Open"}
+
+        tracker.update_issue.side_effect = update_issue
+        result = _exec_oompah_task_command(
+            "oompah task set-status CHILD-1 Open",
+            tracker,
+            "proj",
+            project_store=project_store,
+        )
+
+        assert result == "Status set to: Open"
+        project_store.project_write_lock.assert_called_once_with("proj")
+
     def test_view_formats_tracker_detail_without_http(self):
         from oompah.acp_tools import _exec_oompah_task_command
 

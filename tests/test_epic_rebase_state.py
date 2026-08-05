@@ -112,6 +112,37 @@ def _nested_epic_fixture(orch, *, parent_id: str = "EPIC-PARENT"):
 
 
 class TestSetEpicRebaseState:
+    def test_same_identifier_isolated_across_projects(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        orch._set_epic_rebase_state(
+            "EPIC-1", EpicRebaseState.STALE, project_id="project-a"
+        )
+        orch._set_epic_rebase_state(
+            "EPIC-1", EpicRebaseState.REBASING, project_id="project-b"
+        )
+
+        assert orch._get_epic_rebase_state(
+            "EPIC-1", project_id="project-a"
+        ) is EpicRebaseState.STALE
+        assert orch._get_epic_rebase_state(
+            "EPIC-1", project_id="project-b"
+        ) is EpicRebaseState.REBASING
+        assert set(orch._epic_rebase_states) == {
+            "project-a::EPIC-1",
+            "project-b::EPIC-1",
+        }
+        restarted = _make_orchestrator(tmp_path)
+        assert restarted._get_epic_rebase_state(
+            "EPIC-1", project_id="project-a"
+        ) is EpicRebaseState.STALE
+        assert restarted._get_epic_rebase_state(
+            "EPIC-1", project_id="project-b"
+        ) is EpicRebaseState.REBASING
+
     def test_sets_state_and_updates_timestamp(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
