@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:51:35.298538Z'
+updated_at: '2026-08-05T01:52:11.725719Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,13 +60,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 039409f9-c1b5-4d94-9c8f-7bcaa808b1b2
 oompah.task_costs:
-  total_input_tokens: 48349
-  total_output_tokens: 328
+  total_input_tokens: 48508
+  total_output_tokens: 4803
   total_cost_usd: 0.0
   by_model:
     opus:
-      input_tokens: 48349
-      output_tokens: 328
+      input_tokens: 48508
+      output_tokens: 4803
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 328
     cost_usd: 0.0
     recorded_at: '2026-08-05T01:24:52.458610+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 159
+    output_tokens: 4475
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:52:07.518080+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-818__20260805T012419Z
@@ -167,5 +173,15 @@ author: oompah
 created: 2026-08-05 01:51
 ---
 Fenced stalled-task watchdog reopen against exact failing gate evidence: authoritative combined-tree gate result at the exact accepted head now dominates any softer merge/audit/branch/CI signal; integration-record state=blocked at unchanged branch head also dominates; StalledTaskDecision, watchdog comment, and structured event now expose evidence_head/result/generation. 16 new deterministic tests cover the OOMPAH-814 interleaving, older-pass+newer-fail, pass/fail on different heads, duplicate runs, and restart reconciliation. 106/106 stalled_task_watchdog tests pass, 472/472 across the wider orchestrator/quality-gate suite.
+---
+author: oompah
+created: 2026-08-05 01:52
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 107
+- Tokens: 159 in / 4.5K out [4.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26m 2s
+- Log: OOMPAH-818__20260805T012617Z.jsonl
 ---
 <!-- COMMENTS:END -->
