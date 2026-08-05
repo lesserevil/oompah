@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:44:50.597184Z'
-updated_at: '2026-08-05T21:41:02.019225Z'
+updated_at: '2026-08-05T21:41:26.658929Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,6 +106,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-05T21:18:20.629995+00:00'
     branch_key: OOMPAH-841
+oompah.task_costs:
+  total_input_tokens: 82
+  total_output_tokens: 17251
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 82
+      output_tokens: 17251
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 82
+    output_tokens: 17251
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T21:41:24.145691+00:00'
 ---
 ## Summary
 
@@ -213,5 +229,15 @@ Safe evidence:
 - guard_bootstrap_tests: trusted_provider_node_bootstrap, retains_guard_for_heavy_descendant, ignores_task_path_node_lookalike, executables_cannot_be_task_writable, install_rejects_entrypoint_inode_replacement, task_controlled_shape_cannot_bypass (4-way)
 - codex_backend_tests: managed_native_cli_fences_exact_provider_bootstrap, reads_only_prefix_of_large_direct_binary, rejects_task_writable_direct_codex
 - lease_recovery_tests: owner_claim_retires_exact_advertised_legacy_provider_only, stale_validation_generation_cannot_cancel_current_runtime, same_generation_aba_replacement_fails_closed, exact_owner_cancellation_rejects_same_generation_aba_replacement, legacy_provider_root_detection_is_specific (5-way), legacy_provider_root_validation_owner_degrades_aggregate_health
+---
+author: oompah
+created: 2026-08-05 21:41
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 76
+- Tokens: 82 in / 17.3K out [17.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 1s
+- Log: OOMPAH-841__20260805T211832Z.jsonl
 ---
 <!-- COMMENTS:END -->
