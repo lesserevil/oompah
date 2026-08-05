@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T17:00:12.914689Z'
+updated_at: '2026-08-05T17:06:33.594455Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-08-05 17:00
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 17:06
+---
+Understanding: I've reviewed the audit findings from the previous pass. The key issues to address are: (1) _integration_decision logic must check if a task is blocked by active integration queue state before attempting new integration_attempts; (2) Universal facts must overlay tracker integration metadata with the durable IntegrationQueueStore to prevent duplicate active integrations; (3) Terminal audit facts must preserve queued/running revisionless metadata dispositions. I'm now investigating the current implementation and testing to identify exact repairs needed.
 ---
 <!-- COMMENTS:END -->
