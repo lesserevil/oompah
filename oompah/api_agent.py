@@ -40,6 +40,11 @@ from oompah.auditor import (
     submit_auditor_result,
 )
 from oompah.provider_health import openai_chat_completions_url
+from oompah.validation_resource_lease import (
+    ValidationResourceLease,
+    LeaseOwner,
+    get_global_lease,
+)
 
 logger = logging.getLogger(__name__)
 
