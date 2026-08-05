@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T04:47:09.740583Z'
+updated_at: '2026-08-05T04:53:42.447827Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -979,5 +979,10 @@ author: oompah
 created: 2026-08-05 04:47
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 04:53
+---
+Understanding: I'm verifying the complete explicit Claude/Codex model tiers implementation. Previous agents completed backend descriptors (supports_manual_model_selection separated from has_catalog), UI with manual model entry and SDK fallback, role store validation, and dispatch tests. The branch includes commits ab00e7cf3 and 5cf99179e merged via PR #564. Testing auth/API boundaries, configuration round-trip, and dispatch propagation. Will verify submission readiness.
 ---
 <!-- COMMENTS:END -->
