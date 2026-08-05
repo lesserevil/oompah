@@ -12,10 +12,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:24:39.609841Z'
+updated_at: '2026-08-05T05:25:06.199487Z'
 work_branch: OOMPAH-818
 target_branch: main
-review_url: https://github.com/lesserevil/oompah/pull/716
+review_url: ''
 review_number: '716'
 review_head: null
 merged_at: null
@@ -101,7 +101,7 @@ oompah.integration:
   head_sha: e3140b65f4958a4b7f89a1fc414bb53e88215dc4
   submitted_at: '2026-08-05T03:02:39.901294+00:00'
   updated_at: '2026-08-05T03:02:39.901294+00:00'
-oompah.review_url: https://github.com/lesserevil/oompah/pull/716
+oompah.review_url: ''
 oompah.review_number: '716'
 oompah.work_branch: OOMPAH-818
 oompah.target_branch: main
@@ -312,5 +312,19 @@ author: oompah
 created: 2026-08-05 05:24
 ---
 Reflow accepted exact head e3140b65 after OOMPAH-820 exact-head fencing reached terminal Merged state.
+---
+author: oompah
+created: 2026-08-05 05:25
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/716
+Reviewed head: `f361f5dfe831ff336f961aa27b7d0598cb1f45a0`
+Accepted submission head: `e3140b65f4958a4b7f89a1fc414bb53e88215dc4`
+Source branch: `OOMPAH-818`
+Target branch: `main`
+Reason: review head f361f5dfe831ff336f961aa27b7d0598cb1f45a0 does not match accepted submission head e3140b65f4958a4b7f89a1fc414bb53e88215dc4
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
