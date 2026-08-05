@@ -20953,6 +20953,13 @@ class Orchestrator:
         newest comment when these machine signals are non-decisive.  Provider
         failures are recorded as technical evidence so an unavailable forge
         cannot be mistaken for a human decision.
+
+        The payload also carries the exact accepted head SHA from the task's
+        integration record and the latest authoritative combined-tree gate
+        outcome (head, status, generation).  The classifier uses these to
+        fence :data:`NEEDS_CI_FIX` reopen against stale focused/SCM CI
+        signals — a newer failing gate at the exact accepted head must
+        dominate an older passing SCM check.  See OOMPAH-818.
         """
         evidence: dict[str, Any] = {
             "issue": {
@@ -20965,6 +20972,34 @@ class Orchestrator:
                 if getattr(issue, key, None) not in (None, "")
             }
         }
+        # Integration record: the tracker's authoritative view of the
+        # accepted head and task branch identity used by the combined-tree
+        # gate.  Emitting it before any provider call makes an SCM outage
+        # non-fatal for the stalled-task fence.
+        integration_record = getattr(issue, "integration", None)
+        if integration_record is not None:
+            try:
+                integration_dict = (
+                    integration_record.to_dict()
+                    if hasattr(integration_record, "to_dict")
+                    else dict(integration_record)
+                    if isinstance(integration_record, Mapping)
+                    else {}
+                )
+            except Exception:  # noqa: BLE001 - malformed records are unknown evidence
+                integration_dict = {}
+            if integration_dict:
+                evidence["integration"] = integration_dict
+        # Latest authoritative combined-tree gate outcome for this exact
+        # (project, task) pair.  This is only recorded when the previous
+        # gate failed at the exact accepted head, which is exactly the
+        # OOMPAH-814 race the fence must dominate.
+        gate_snapshot = self._collect_stalled_watchdog_gate_snapshot(
+            project_id,
+            issue,
+        )
+        if gate_snapshot:
+            evidence["gate"] = gate_snapshot
         metadata: dict[str, Any] = {}
         try:
             raw_metadata = tracker.get_metadata(issue.identifier)
@@ -21061,6 +21096,70 @@ class Orchestrator:
                 f"SCM evidence collection failed: {type(exc).__name__}"
             )
         return evidence
+
+    def _collect_stalled_watchdog_gate_snapshot(
+        self,
+        project_id: str | None,
+        issue: Issue,
+    ) -> dict[str, Any]:
+        """Return the exact-head authoritative gate outcome, if remembered.
+
+        ``_quality_gate_outcomes`` retains the most recent non-passing gate
+        result for a (project, task) pair; a subsequent passing run clears
+        the entry.  Surfacing the head, status, and (when known) the
+        delivery-authority generation lets
+        :func:`~oompah.stalled_task_watchdog.classify_stalled_task` fence a
+        NEEDS_CI_FIX reopen against the OOMPAH-814 race where a passing
+        focused/SCM CI verdict raced ahead of the authoritative failing
+        combined-tree gate at the exact same accepted head.
+        """
+        snapshot: dict[str, Any] = {}
+        lock = getattr(self, "_quality_gate_outcomes_lock", None)
+        outcomes = getattr(self, "_quality_gate_outcomes", None)
+        if lock is None or outcomes is None:
+            return snapshot
+        task_id = str(getattr(issue, "identifier", "") or "").strip()
+        pid = str(project_id or "").strip()
+        if not task_id or not pid:
+            return snapshot
+        with lock:
+            result = outcomes.get((pid, task_id))
+        if result is None:
+            return snapshot
+        head_sha = str(getattr(result, "head_sha", "") or "").strip().lower()
+        status = str(getattr(result, "status", "") or "").strip().lower()
+        if not status:
+            return snapshot
+        snapshot.update({
+            "head_sha": head_sha,
+            "status": status,
+            "verdict": status,
+            "command": str(getattr(result, "command", "") or ""),
+            "cached": bool(getattr(result, "cached", False)),
+        })
+        # Compare-and-set generation: standalone delivery authority for this
+        # exact (project, task).  A revoked authority means the accepted head
+        # has moved and the gate outcome is stale — the classifier still
+        # sees the head/status pair but the generation surfaces the CAS token
+        # in the watchdog comment and structured event.
+        authority_lock = getattr(
+            self, "_standalone_delivery_authority_lock", None
+        )
+        authorities = getattr(self, "_standalone_delivery_authorities", None)
+        if authority_lock is not None and authorities is not None:
+            with authority_lock:
+                authority = authorities.get((pid, task_id))
+                if authority is not None:
+                    generation = str(getattr(authority, "generation", "") or "").strip()
+                    if generation:
+                        snapshot["generation"] = generation
+                        snapshot["authority_generation"] = generation
+                    authority_head = str(
+                        getattr(authority, "head_sha", "") or ""
+                    ).strip().lower()
+                    if authority_head and not snapshot.get("head_sha"):
+                        snapshot["head_sha"] = authority_head
+        return snapshot
 
     def _reconcile_stalled_watchdog_reopens(
         self,

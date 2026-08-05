@@ -985,6 +985,440 @@ class TestOrchestratorIntegration:
 
 
 # ---------------------------------------------------------------------------
+# OOMPAH-818: Fence stalled-task reopen against exact failing gate evidence
+# ---------------------------------------------------------------------------
+
+
+_OOMPAH_814_HEAD = "254b131c713bece56500a72408f796c46bfee8d0"
+_REPAIR_HEAD = "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f"
+
+
+def _oompah_814_evidence(
+    *,
+    ci_status: str = "passed",
+    integration_state: str = "blocked",
+    gate_status: str | None = "failed",
+    gate_head: str = _OOMPAH_814_HEAD,
+    branch_head: str | None = None,
+    accepted_head: str | None = None,
+    generation: str = "gen-authoritative-42",
+) -> dict:
+    """Build the deterministic OOMPAH-814-shaped evidence envelope."""
+    ev: dict = {
+        "integration": {
+            "state": integration_state,
+            "head_sha": accepted_head or _OOMPAH_814_HEAD,
+            "task_branch": "OOMPAH-814",
+        },
+        "branch": {
+            "canonical_ref": "main",
+            "head_sha": branch_head or _OOMPAH_814_HEAD,
+        },
+        "ci": {"status": ci_status},
+    }
+    if gate_status is not None:
+        ev["gate"] = {
+            "head_sha": gate_head,
+            "status": gate_status,
+            "generation": generation,
+        }
+    return ev
+
+
+class TestGateFailureFencesWatchdogReopen:
+    """OOMPAH-818 acceptance: the OOMPAH-814 sequence cannot report passing."""
+
+    def test_authoritative_gate_failure_dominates_passing_ci(self):
+        """Gate failed at exact accepted head → watchdog must not reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=_oompah_814_evidence(),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+        assert decision.evidence_result in {"failed", "fail", "failure"}
+        assert decision.evidence_generation == "gen-authoritative-42"
+        assert "dominates" in decision.evidence.lower()
+
+    def test_gate_failure_immediately_before_watchdog_classification(self):
+        """Gate completes with failures → next watchdog tick must not reopen."""
+        # Simulate the exact interleaving reported in the incident: gate
+        # completed with 2 failures, task moved to Needs CI Fix; the next
+        # watchdog run must see the failing exact-head result and refuse.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [
+                _comment(
+                    "oompah",
+                    "Combined-tree quality gate failed: 2 test failures.",
+                ),
+            ],
+            evidence=_oompah_814_evidence(),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_failure_during_watchdog_classification(self):
+        """Older pass evidence + newer fail → newer fail dominates."""
+        # Older passing SCM CI check is still visible, but a newer
+        # authoritative gate result at the same accepted head is failing.
+        # The newer failing result must dominate.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [_comment("ci-bot", "CI checks are green on this branch.")],
+            evidence=_oompah_814_evidence(
+                ci_status="passed",
+                gate_status="failed",
+            ),
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.evidence_result in {"failed", "fail", "failure"}
+
+    def test_pass_on_different_head_does_not_reopen_needs_ci_fix(self):
+        """A passing gate on a stale head must not reopen the current head."""
+        # Gate reports a passing result but at a DIFFERENT head from the
+        # accepted head.  This must not become an actionable reopen.
+        stale_pass_head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "gate": {
+                    "head_sha": stale_pass_head,
+                    "status": "passed",
+                    "generation": "gen-stale",
+                },
+                "ci": {"status": "passed"},
+            },
+            run_id=22,
+        )
+        # The gate result is on a different head, so the primary dominance
+        # fence does not fire.  But the integration-state fence catches the
+        # regression: branch head still equals accepted head, so no repair
+        # has been pushed and we must not reopen.
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_pass_at_exact_accepted_head_reopens_with_evidence(self):
+        """A newer passing gate on the exact accepted head is safe to reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "ready",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "gate": {
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "status": "passed",
+                    "generation": "gen-passed-777",
+                },
+            },
+            run_id=22,
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+        assert decision.evidence_result == "passed"
+        assert decision.evidence_generation == "gen-passed-777"
+
+    def test_pass_on_advanced_head_after_repair_can_reopen(self):
+        """A repair push moves the branch past accepted head → safe to reopen."""
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "ready",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _REPAIR_HEAD},
+                "ci": {"status": "passed"},
+            },
+            run_id=23,
+        )
+        assert decision.classification == "actionable"
+        assert decision.action == "reopen"
+        assert decision.evidence_head == _REPAIR_HEAD
+
+    def test_ci_passing_at_same_accepted_head_is_stale(self):
+        """SCM CI passing at unchanged accepted head is stale evidence."""
+        # This is the concrete OOMPAH-814 shape: the SCM (focused) CI shows
+        # passing, but the branch head is unchanged from the accepted head
+        # that the combined-tree gate failed on.
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD},
+                "ci": {"status": "passed"},
+            },
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_duplicate_watchdog_runs_stay_idempotent(self):
+        """Two consecutive runs against the same failing gate stay idempotent."""
+        evidence = _oompah_814_evidence()
+        first = classify_stalled_task(
+            "OOMPAH-814", NEEDS_CI_FIX, [], evidence=evidence, run_id=22
+        )
+        assert first.classification == "insufficient_evidence"
+        # Sentinel from first run is now in the comments — but the watchdog
+        # never actually acted (action="none"), so it does not post a
+        # sentinel and a second run must also refuse.
+        second = classify_stalled_task(
+            "OOMPAH-814", NEEDS_CI_FIX, [], evidence=evidence, run_id=23
+        )
+        assert second.classification == "insufficient_evidence"
+        assert second.action == "none"
+        # Same authoritative evidence surfaced in both decisions.
+        assert first.evidence_head == second.evidence_head == _OOMPAH_814_HEAD
+        assert first.evidence_generation == second.evidence_generation
+
+    def test_restart_reconciliation_still_dominates(self):
+        """After a service restart the persisted evidence still dominates."""
+        # A prior watchdog sentinel exists.  In a naive rerun the idempotency
+        # check would skip the task; but if a caller supplies fresh
+        # authoritative evidence the failing exact-head result must still
+        # dominate any softer reopen path.
+        prior_decision = StalledTaskDecision(
+            task_id="OOMPAH-814",
+            project_id=None,
+            stalled_status=NEEDS_CI_FIX,
+            classification="insufficient_evidence",
+            action="none",
+            evidence="stale evidence",
+        )
+        comments = [{"author": "oompah", "body": build_watchdog_comment(prior_decision)}]
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            comments,
+            evidence=_oompah_814_evidence(),
+            run_id=24,
+        )
+        # Either the idempotency short-circuit fires (already_actioned) or
+        # the fence re-runs and re-issues the same insufficient_evidence
+        # verdict.  Neither can produce an actionable reopen.
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_needs_rebase_gate_failure_dominates(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_REBASE,
+            [],
+            evidence=_oompah_814_evidence(gate_status="needs_rebase"),
+            run_id=25,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_result == "needs_rebase"
+
+    def test_needs_rebase_ci_stale_at_accepted_head(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_REBASE,
+            [],
+            evidence={
+                "integration": {
+                    "state": "blocked",
+                    "head_sha": _OOMPAH_814_HEAD,
+                    "task_branch": "OOMPAH-814",
+                },
+                "branch": {"head_sha": _OOMPAH_814_HEAD, "scm_state": "clean"},
+                "ci": {"status": "passed"},
+            },
+            run_id=25,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+
+    def test_gate_result_exposed_in_watchdog_comment(self):
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=_oompah_814_evidence(),
+            run_id=42,
+        )
+        body = build_watchdog_comment(decision)
+        assert _OOMPAH_814_HEAD in body
+        assert "Evidence head" in body
+        assert "Evidence result" in body
+        assert "Evidence generation" in body
+        assert "gen-authoritative-42" in body
+
+    def test_structured_event_exposes_gate_result(self):
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: _oompah_814_evidence(),
+        )
+        assert result.tasks_insufficient_evidence == 1
+        assert result.actions_taken == 0
+        snapshot = result.to_dict()
+        assert snapshot["decisions"]
+        decision = snapshot["decisions"][0]
+        assert decision["evidence_head"] == _OOMPAH_814_HEAD
+        assert decision["evidence_result"] in {"failed", "fail", "failure"}
+        assert decision["evidence_generation"] == "gen-authoritative-42"
+
+    def test_watchdog_audit_does_not_reopen_or_cancel_integration(self):
+        """OOMPAH-818 acceptance: OOMPAH-814 sequence cannot reopen."""
+        # This mirrors the exact sequence in the incident report — the task
+        # is Needs CI Fix, integration record shows the failing accepted
+        # head, and a passing focused/SCM CI check is visible.  The
+        # watchdog must not reopen and must not cause the integration row
+        # to be cancelled downstream.
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        result = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: _oompah_814_evidence(),
+        )
+        assert result.actions_taken == 0
+        assert result.tasks_actionable == 0
+        # No status change → no downstream integration-row cancellation.
+        tracker.update_issue.assert_not_called()
+
+    def test_older_pass_and_newer_fail_from_evidence_provider(self):
+        """Deterministic interleaving: repeated audit with newer failing evidence."""
+        issue = _make_issue("OOMPAH-814", NEEDS_CI_FIX)
+        # First tick: only the older passing signal is available (gate not
+        # yet complete).  Because integration record is blocked at the
+        # accepted head and no advance has happened, the fence still holds.
+        older_evidence = {
+            "integration": {
+                "state": "blocked",
+                "head_sha": _OOMPAH_814_HEAD,
+                "task_branch": "OOMPAH-814",
+            },
+            "branch": {"head_sha": _OOMPAH_814_HEAD},
+            "ci": {"status": "passed"},
+        }
+        tracker = _make_tracker([issue], {"OOMPAH-814": []})
+        first = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=22,
+            evidence_provider=lambda *_a: older_evidence,
+        )
+        assert first.actions_taken == 0
+        # Second tick: the authoritative failing gate is now visible.  The
+        # decision remains insufficient_evidence and now records the exact
+        # failing head/result/generation for observability.
+        tracker.reset_mock()
+        # Ensure fetch_issues_by_states still returns the same issue.
+        tracker.fetch_issues_by_states.return_value = [issue]
+        tracker.fetch_comments.side_effect = lambda iid: []
+        second = run_watchdog_audit(
+            [(None, tracker)],
+            run_id=23,
+            evidence_provider=lambda *_a: _oompah_814_evidence(
+                ci_status="passed",
+                gate_status="failed",
+            ),
+        )
+        assert second.actions_taken == 0
+        decisions = second.decisions
+        assert decisions and decisions[0].evidence_head == _OOMPAH_814_HEAD
+
+    def test_orchestrator_evidence_carries_gate_and_integration(self, tmp_path):
+        """The orchestrator collects integration record and gate outcome."""
+        # Import here so the shared fixtures/helpers above stay stable.
+        from oompah.integration import IntegrationRecord
+        from oompah.quality_gate import QualityGateResult
+
+        project = MagicMock()
+        project.id = "project-1"
+        project.default_branch = "main"
+        project.repo_url = "https://github.com/example/repo.git"
+        project.access_token = None
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = Issue(
+            id="OOMPAH-814",
+            identifier="OOMPAH-814",
+            title="stalled",
+            state=NEEDS_CI_FIX,
+            work_branch="OOMPAH-814",
+        )
+        issue.integration = IntegrationRecord(
+            state="blocked",
+            task_branch="OOMPAH-814",
+            base_branch="epic-e",
+            head_sha=_OOMPAH_814_HEAD,
+            attempts=1,
+            last_error="Combined-tree quality gate failed",
+        )
+        orch._quality_gate_outcomes[("project-1", "OOMPAH-814")] = QualityGateResult(
+            status="failed",
+            head_sha=_OOMPAH_814_HEAD,
+            command="make test",
+            output_tail="2 failures",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {}
+        provider = MagicMock()
+        provider.is_available.return_value = True
+        provider.get_review.return_value = None
+        provider.find_pr_for_branch.return_value = None
+        provider.get_branch_head_sha.return_value = _OOMPAH_814_HEAD
+        provider.get_branch_ci_status.return_value = "passed"
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            evidence = orch._collect_stalled_watchdog_evidence(
+                "project-1", issue, tracker
+            )
+        assert evidence["integration"]["head_sha"] == _OOMPAH_814_HEAD
+        assert evidence["integration"]["state"] == "blocked"
+        assert evidence["gate"]["head_sha"] == _OOMPAH_814_HEAD
+        assert evidence["gate"]["status"] == "failed"
+
+        decision = classify_stalled_task(
+            "OOMPAH-814",
+            NEEDS_CI_FIX,
+            [],
+            evidence=evidence,
+            run_id=22,
+        )
+        assert decision.classification == "insufficient_evidence"
+        assert decision.action == "none"
+        assert decision.evidence_head == _OOMPAH_814_HEAD
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
