@@ -21,6 +21,7 @@ import re
 from typing import Any
 
 from oompah.models import Issue
+from oompah.projects import sanitize_branch_identifier
 from oompah.statuses import ARCHIVED, MERGED, canonicalize_status
 from oompah.work_decision import WorkDecision, evaluate_task
 from oompah.workflow_facts import (
@@ -70,7 +71,8 @@ def _required_text(value: object, name: str) -> str:
 def epic_branch(identifier: str) -> str:
     """Return the service-owned branch identity for an epic."""
 
-    return f"epic-{_required_text(identifier, 'identifier')}"
+    raw = _required_text(identifier, "identifier")
+    return f"epic-{sanitize_branch_identifier(raw)}"
 
 
 def resolve_epic_target(
@@ -252,6 +254,11 @@ class EpicFactCollector:
             if parent is None:
                 raise EpicTargetResolutionError(
                     f"parent {parent_id} for {root.identifier} is unavailable"
+                )
+            if parent.project_id and str(parent.project_id) != self.project_id:
+                raise EpicTargetResolutionError(
+                    f"parent {parent.identifier} for {root.identifier} escaped "
+                    f"project {self.project_id}"
                 )
         target = resolve_epic_target(
             root, parent=parent, default_branch=self.default_branch
