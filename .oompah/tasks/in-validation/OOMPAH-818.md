@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T05:33:50.732943Z'
+updated_at: '2026-08-05T05:42:48.848518Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/718
@@ -114,7 +114,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Done
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -162,7 +162,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -174,6 +174,40 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-05T03:03:22.057058+00:00'
+  - version: 1
+    audit_id: audit-e913d52ad78b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T05:42:38.136978+00:00'
+  - version: 1
+    audit_id: audit-5655290fb5cc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e50543937b73d1ce5bf3268b8dfa7037e75958b93afba41ca29a9e423c2aa2bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T05:42:38.136978+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-885c15bc709c
@@ -332,5 +366,10 @@ author: oompah
 created: 2026-08-05 05:33
 ---
 Branch quality gate passed for `e3140b65f4958a4b7f89a1fc414bb53e88215dc4` using `make test` in 447.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 05:42
+---
+YOLO: merged PR #718.
 ---
 <!-- COMMENTS:END -->
