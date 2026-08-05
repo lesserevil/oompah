@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T07:52:33.968253Z'
+updated_at: '2026-08-05T07:52:59.518326Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -101,7 +101,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-814
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,13 +124,27 @@ oompah.terminal_audit:
       ended_at: '2026-08-05T07:52:22.746464+00:00'
       failure_reason: ACP turn timeout exceeded
       next_retry_at: '2026-08-05T07:52:32.746435+00:00'
+    - version: 1
+      attempt_id: attempt-f60b34523fb9
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
+      created_at: '2026-08-05T07:52:50.939780+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T07:52:50.939780+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-814
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-05T06:48:25.196547+00:00'
-    updated_at: '2026-08-05T07:52:22.746464+00:00'
+    updated_at: '2026-08-05T07:52:50.939780+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c16cf3ad81a3
@@ -149,6 +163,20 @@ oompah.terminal_audit:
     ended_at: '2026-08-05T07:52:22.746464+00:00'
     failure_reason: ACP turn timeout exceeded
     next_retry_at: '2026-08-05T07:52:32.746435+00:00'
+  - version: 1
+    attempt_id: attempt-f60b34523fb9
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 99ac38f6d5aa6b6c35f01f80231d76e15e2d00687473ce38ff30e8ea53eca851
+    created_at: '2026-08-05T07:52:50.939780+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T07:52:50.939780+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-814
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -552,5 +580,15 @@ author: oompah
 created: 2026-08-05 07:52
 ---
 Auditor attempt ended: ACP turn timeout exceeded. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-05 07:52
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-05 07:52
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
