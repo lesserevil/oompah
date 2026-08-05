@@ -232,6 +232,56 @@ _NONTERMINAL_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.INFRASTRUCTURE_ERROR,
     FailureClassification.POLICY_INCOMPATIBILITY,
 })
+_INFRASTRUCTURE_RETRYABLE_CLASSES: frozenset[FailureClassification] = frozenset({
+    FailureClassification.NO_AUDITOR,
+    FailureClassification.INFRASTRUCTURE_ERROR,
+    FailureClassification.POLICY_INCOMPATIBILITY,
+})
+
+
+def _terminal_attempt(record: TerminalAuditRecord) -> AuditAttempt | None:
+    """Get the final attempt from a completed audit record.
+
+    Returns ``None`` if the record has no attempts (unexpected).
+    The terminal attempt is the last one in the attempts sequence.
+    """
+    if not record.attempts:
+        return None
+    return record.attempts[-1]
+
+
+def is_audit_infrastructure_retryable(record: TerminalAuditRecord) -> bool:
+    """Determine if a completed audit record can be retried via infrastructure recovery.
+
+    Infrastructure recovery is allowed when the TERMINAL (final) attempt's
+    failure classification is one of the retryable infrastructure classifications.
+    Earlier attempt history is preserved but not a barrier to retry.
+
+    Returns ``False`` if the record is not completed or has no attempts.
+    """
+    if record.request_state != RequestState.COMPLETED:
+        return False
+    terminal = _terminal_attempt(record)
+    if terminal is None or terminal.failure_classification is None:
+        return False
+    return terminal.failure_classification in _INFRASTRUCTURE_RETRYABLE_CLASSES
+
+
+def is_audit_evidence_retryable(record: TerminalAuditRecord) -> bool:
+    """Determine if a completed audit record can be retried via evidence addendum.
+
+    Evidence recovery is allowed only when the TERMINAL (final) attempt's
+    failure classification is MISSING_EVIDENCE. Earlier attempts are
+    irrelevant to the retry decision.
+
+    Returns ``False`` if the record is not completed or has no attempts.
+    """
+    if record.request_state != RequestState.COMPLETED:
+        return False
+    terminal = _terminal_attempt(record)
+    if terminal is None or terminal.failure_classification is None:
+        return False
+    return terminal.failure_classification in _EVIDENCE_REARM_CLASSES
 
 
 def classify_failure_to_status(
@@ -1077,23 +1127,11 @@ class TerminalTransitionCoordinator:
                                 evidence_addendum is not None
                                 and locked_fingerprint is not None
                                 and record.evidence_fingerprint == locked_fingerprint
-                                and all(
-                                    attempt.failure_classification
-                                    in _EVIDENCE_REARM_CLASSES
-                                    for attempt in record.attempts
-                                )
+                                and is_audit_evidence_retryable(record)
                             )
                             or (
                                 evidence_addendum is None
-                                and all(
-                                    attempt.failure_classification
-                                    in {
-                                        FailureClassification.NO_AUDITOR,
-                                        FailureClassification.INFRASTRUCTURE_ERROR,
-                                        FailureClassification.POLICY_INCOMPATIBILITY,
-                                    }
-                                    for attempt in record.attempts
-                                )
+                                and is_audit_infrastructure_retryable(record)
                             )
                         )
                     ),
@@ -3393,6 +3431,8 @@ __all__ = [
     "TerminalTransitionCoordinator",
     "TransitionResult",
     "classify_failure_to_status",
+    "is_audit_evidence_retryable",
+    "is_audit_infrastructure_retryable",
     "route_failure_status",
     "_stamp_epic_audit_repair",
 ]

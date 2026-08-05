@@ -1888,6 +1888,52 @@ def _exhausted_missing_evidence_record() -> TerminalAuditRecord:
     )
 
 
+def _exhausted_mixed_attempt_record() -> TerminalAuditRecord:
+    """Create a record with mixed attempt history (finalization_failure + terminal no_auditor).
+    
+    This reproduces OOMPAH-745: a task with multiple failed attempts from
+    different failures, ending with NO_AUDITOR. The record should still be
+    retryable via infrastructure recovery because the TERMINAL attempt is NO_AUDITOR.
+    """
+    fingerprint = _fingerprint()
+    attempts = [
+        AuditAttempt(
+            attempt_id="finalization-failure-1",
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.FINALIZATION_FAILURE,
+            failure_reason=(
+                "audit result could not be applied to tracker: "
+                "connection timeout after 30s"
+            ),
+            ended_at="2026-07-31T00:01:00+00:00",
+        ),
+        AuditAttempt(
+            attempt_id="no-auditor-terminal",
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.NO_AUDITOR,
+            failure_reason="maximum attempts reached without auditor candidate",
+            ended_at="2026-07-31T00:02:00+00:00",
+        ),
+    ]
+    return TerminalAuditRecord(
+        audit_id="audit-mixed-attempts",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=attempts,
+        previous_state=MERGED,
+        created_at="2026-07-31T00:00:00+00:00",
+    )
+
+
 class TestRetryFailedAudit:
     @staticmethod
     def _owner_project():
@@ -2141,6 +2187,101 @@ class TestRetryFailedAudit:
                 },
             )
         )
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+
+    def test_mixed_attempt_history_infrastructure_retry_succeeds(self) -> None:
+        """OOMPAH-745: mixed attempt history should not block infrastructure retry.
+
+        A task with multiple failed attempts (e.g., FINALIZATION_FAILURE then NO_AUDITOR)
+        should be retryable via infrastructure recovery if the TERMINAL attempt is
+        retryable (NO_AUDITOR). Earlier attempts' classifications should not block retry.
+        """
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        mixed = _exhausted_mixed_attempt_record()
+        _seed_metadata(tracker, [mixed])
+        coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
+
+        # The owner should be able to retry infrastructure even with mixed history
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Auditor provider repaired and redeployed.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert result.status_staged is True
+        assert result.superseded_audit_id == mixed.audit_id
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        
+        # Verify the mixed history is preserved but a fresh record is created
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(stored.pending_chain) == 2
+        old, fresh = stored.pending_chain
+        assert old.request_state == RequestState.SUPERSEDED
+        assert old.attempts == mixed.attempts  # History preserved
+        assert fresh.request_state == RequestState.PENDING
+        assert fresh.evidence_fingerprint == mixed.evidence_fingerprint
+        assert fresh.attempts == []  # Fresh record has no attempts yet
+        
+        # Alert should be cleared after retry
+        assert (
+            "clear_actionable_alert",
+            (PROJECT_ID, TASK_ID, mixed.audit_id),
+        ) in metrics.calls
+
+    def test_mixed_attempt_history_evidence_retry_requires_terminal_missing_evidence(self) -> None:
+        """Evidence recovery requires the TERMINAL attempt to be MISSING_EVIDENCE.
+
+        Even if earlier attempts were MISSING_EVIDENCE, if the terminal attempt
+        is a different failure type, evidence recovery should fail.
+        """
+        tracker = _MemoryTracker()
+        mixed = replace(
+            _exhausted_missing_evidence_record(),
+            attempts=[
+                _exhausted_missing_evidence_record().attempts[0],  # MISSING_EVIDENCE
+                AuditAttempt(
+                    attempt_id="no-auditor-terminal",
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=_exhausted_missing_evidence_record().evidence_fingerprint,
+                    request_state=RequestState.COMPLETED,
+                    verdict=Verdict.FAIL,
+                    failure_classification=FailureClassification.NO_AUDITOR,
+                    failure_reason="no auditor available",
+                    ended_at="2026-07-31T00:02:00+00:00",
+                ),
+            ],
+        )
+        tracker_obj = _MemoryTracker()
+        _seed_metadata(tracker_obj, [mixed])
+        coordinator = _coordinator(tracker_obj, post_comments=False)
+
+        # Evidence recovery should fail because terminal attempt is NO_AUDITOR
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue("Needs Human"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Evidence supplied",
+                self._owner_project(),
+                evidence_fingerprint=mixed.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": mixed.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+
         assert result.success is False
         assert result.reason == "audit_not_retryable"
 
