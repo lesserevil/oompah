@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:44:30.340287Z'
+updated_at: '2026-08-05T01:47:34.641779Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-05 01:44
 ---
 Discovery & implementation: The root cause was in \`stalled_task_watchdog._current_evidence_decision\` — for NEEDS_CI_FIX it accepted any \`ci_status == passed\` without checking that the SCM CI verdict actually applied to the exact accepted head. The combined-tree gate is a LOCAL run; the SCM \`get_branch_ci_status\` can legitimately show 'passed' for focused checks at the same head where the local gate failed. Fix implemented in oompah/stalled_task_watchdog.py: (1) \`WatchdogEvidence\` gained \`gate\` and \`integration\` fields with normalisation; (2) \`_evidence_signals\` extracts accepted_head_sha, branch_head_sha, gate_head_sha, gate_status, gate_generation, integration_state; (3) \`_current_evidence_decision\` now has an authoritative-gate fence that fires FIRST for NEEDS_CI_FIX/NEEDS_REBASE — a failing exact-head gate result dominates any softer passing signal, and an integration record state==blocked with unchanged branch head also dominates; passing SCM CI at the accepted head returns insufficient_evidence when branch head hasn't advanced; (4) StalledTaskDecision gained evidence_head/result/generation and they appear in build_watchdog_comment and to_dict for structured events. In orchestrator.py: \`_collect_stalled_watchdog_evidence\` now emits the tracker's integration record and (via new \`_collect_stalled_watchdog_gate_snapshot\`) the authoritative gate outcome and delivery-authority generation. 16 new deterministic tests cover: gate failure before/during classification, older-pass+newer-fail, pass/fail on different heads, duplicate runs, restart reconciliation, exposed head/result/gen in comment and event. All 106 tests pass.
+---
+author: oompah
+created: 2026-08-05 01:47
+---
+Do not submit the current draft as described in comment #8: it still fails the durable-authority/action-fence acceptance blocker in #7.  cannot be the latest authoritative source across restart, and classification-time inspection is not an action-time CAS. Wire the matching IntegrationQueueStore row into evidence, persist/compare a concrete row generation (or exact immutable tuple), and immediately re-read that same task/head/state/generation under the mutation authority before Open. If any dimension changed, abort the reopen. Add tests that mutate the durable queue between classification and update, and rebuild the orchestrator with only persisted queue/tracker state. Passing classifier tests alone are insufficient.
 ---
 <!-- COMMENTS:END -->
