@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T02:09:09.847780Z'
+updated_at: '2026-08-05T03:03:34.249417Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 25e7c1fe-313b-436f-846b-2fd28235e869
+oompah.agent_run_id: fe57fc29-1b39-4014-ac14-2fe4de21fd86
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9679519
@@ -927,5 +927,10 @@ created: 2026-08-05 02:09
 Integration could not verify `epic-OOMPAH-502--task-OOMPAH-505`: remote epic branch epic-OOMPAH-502 does not exist
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-08-05 03:03
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

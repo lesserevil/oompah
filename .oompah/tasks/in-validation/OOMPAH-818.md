@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-818
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Fence stalled-task reopen against exact failing gate evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T03:02:49.127631Z'
+updated_at: '2026-08-05T03:03:25.953049Z'
 work_branch: OOMPAH-818
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/716
@@ -130,7 +130,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-818
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -142,6 +142,23 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-08-05T02:08:44.848271+00:00'
+  - version: 1
+    audit_id: audit-53ec20c0eae4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-818
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b8b2f37caf0089349be48ed9e1a639ed828026f94468c731e8a299270c41be54
+    attempts: []
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-05T03:03:22.057058+00:00'
   attempt_history: []
 ---
 ## Summary
