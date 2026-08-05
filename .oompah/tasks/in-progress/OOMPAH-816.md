@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-816
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Serialize heavyweight auditor validation with exact quality gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:40:35.129654Z'
+updated_at: '2026-08-05T00:43:15.663056Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: eedd2876-22b5-4ed4-a8c6-71ca05c452fe
+oompah.agent_run_id: eb00bf05-76d8-4991-8cb3-a53c8784bca9
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-816
 oompah.integration:
   version: 2
