@@ -67,6 +67,7 @@ def _record() -> TerminalAuditRecord:
         requested_by=ContributorIdentity("alice", "github"),
         previous_state="In Validation",
         created_at="2026-07-28T00:00:00Z",
+        source_generation=4,
     )
 
 
@@ -143,6 +144,19 @@ class TestSerialization:
             replace(_record(), selected_ref="origin/main")
         with pytest.raises(ValueError, match="must equal"):
             AuditRevisionBinding("a" * 40, "b" * 40)
+
+    def test_legacy_record_without_source_generation_defaults_to_one(self) -> None:
+        data = _record().to_dict()
+        data.pop("source_generation")
+
+        assert TerminalAuditRecord.from_dict(data).source_generation == 1
+
+    def test_source_generation_must_be_positive(self) -> None:
+        data = _record().to_dict()
+        data["source_generation"] = 0
+
+        with pytest.raises(ValueError, match="positive integer"):
+            TerminalAuditRecord.from_dict(data)
 
     @pytest.mark.parametrize(
         "record_type, payload, missing",

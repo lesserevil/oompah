@@ -708,9 +708,11 @@ async def test_submission_acceptance_revokes_worker_authority(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_worker_exit_routes_revoked_submission_to_exact_project(tmp_path):
+async def test_worker_exit_routes_revoked_submission_to_normalized_exact_project(
+    tmp_path,
+):
     orch = _orchestrator(tmp_path)
-    issue = _issue(project_id="project-a")
+    issue = _issue(project_id="  project-a  ")
     record = IntegrationRecord(state="ready", head_sha="a" * 40)
     entry = RunningEntry(
         worker_task=asyncio.create_task(asyncio.sleep(0)),
@@ -854,7 +856,7 @@ async def test_revoked_submission_preserves_replacement_installed_during_recover
 @pytest.mark.asyncio
 async def test_non_revoked_submission_exit_keeps_ordinary_retry_path(tmp_path):
     orch = _orchestrator(tmp_path)
-    issue = _issue(project_id="project-a")
+    issue = _issue(project_id="  project-a  ")
     record = IntegrationRecord(state="ready", head_sha="a" * 40)
     entry = RunningEntry(
         worker_task=asyncio.create_task(asyncio.sleep(0)),

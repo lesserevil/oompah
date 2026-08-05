@@ -15,6 +15,7 @@ from oompah.archived_evidence_collector import SafetyFailureMode
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator, _AuditCandidateScan
 from oompah.projects import ProjectError
+from oompah.roles import Candidate
 from oompah.terminal_audit import (
     AuditAttempt,
     EvidenceFingerprint,
@@ -30,6 +31,8 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
     TerminalAuditMetadataStore,
 )
+from oompah.terminal_audit_workflow import TerminalAuditWorkflow
+from oompah.workflow_jobs import WorkflowJobState, WorkflowJobStore
 
 
 def _record(*, infrastructure_attempts: bool) -> TerminalAuditRecord:
@@ -530,3 +533,89 @@ def test_unsafe_metadata_archive_is_not_recorded_as_transport_failure() -> None:
     orchestrator._reconcile_and_release_audit_budget.assert_called_once_with(
         "metadata-audit-reservation-key"
     )
+
+
+def test_unsafe_metadata_archive_retires_pre_materialized_durable_job(
+    tmp_path,
+) -> None:
+    orchestrator = _metadata_archive_orchestrator(comments=[])
+    orchestrator.terminal_transition_coordinator = SimpleNamespace(
+        apply_audit_result=AsyncMock(
+            return_value=SimpleNamespace(success=True, applied_status="Backlog")
+        )
+    )
+    orchestrator._record_audit_outcome_ownership = MagicMock()
+    orchestrator._audit_metrics = {"last_error": None}
+    issue, record = _metadata_issue_and_record()
+    snapshot = orchestrator._revisionless_archive_evidence(issue, record)
+    assert snapshot is not None and not snapshot.passed()
+
+    store = WorkflowJobStore(str(tmp_path / "workflow.sqlite3"))
+    workflow = TerminalAuditWorkflow(store)
+    orchestrator.terminal_audit_workflow = workflow
+    queued = workflow.ensure(record)
+
+    asyncio.run(orchestrator._route_unsafe_metadata_archive(issue, record, snapshot))
+
+    assert store.get(queued.job_id).state is WorkflowJobState.CANCELLED
+    assert not [
+        job
+        for job in store.list_jobs(project_id="proj-1", task_id="OOMPAH-803")
+        if job.state
+        in {
+            WorkflowJobState.QUEUED,
+            WorkflowJobState.RUNNING,
+            WorkflowJobState.RETRY_WAIT,
+        }
+    ]
+    store.close()
+
+
+def test_safe_revisionless_archive_restarts_with_one_durable_attempt(
+    tmp_path,
+) -> None:
+    orchestrator = _metadata_archive_orchestrator(
+        comments=[
+            {
+                "text": (
+                    "Archiving as an exact duplicate of the earlier, more "
+                    "actionable OOMPAH-775."
+                )
+            }
+        ]
+    )
+    issue, record = _metadata_issue_and_record()
+    snapshot = orchestrator._revisionless_archive_evidence(issue, record)
+    assert snapshot is not None and snapshot.passed()
+
+    db_path = str(tmp_path / "workflow.sqlite3")
+    store = WorkflowJobStore(db_path)
+    workflow = TerminalAuditWorkflow(store)
+    queued = workflow.ensure(record)
+    store.close()
+
+    reopened_store = WorkflowJobStore(db_path)
+    reopened = TerminalAuditWorkflow(reopened_store)
+    duplicate_metadata_identity = replace(record, audit_id="audit-803-reconciled")
+    replayed = reopened.ensure(duplicate_metadata_identity)
+    running = reopened.start(
+        record,
+        attempt_id="attempt-803",
+        candidate=Candidate("provider-a", "model-a"),
+    )
+
+    assert replayed.job_id == queued.job_id
+    assert running is not None
+    assert running.attempts == 1
+    assert (
+        reopened.start(
+            duplicate_metadata_identity,
+            attempt_id="attempt-803-duplicate",
+            candidate=Candidate("provider-b", "model-b"),
+        )
+        is None
+    )
+    assert len(
+        reopened_store.list_jobs(project_id="proj-1", task_id="OOMPAH-803")
+    ) == 1
+    reopened_store.close()

@@ -2,8 +2,10 @@
 
 The terminal-audit metadata remains the authoritative evidence and attempt
 history.  This module adds the missing execution ledger: one leased workflow
-job owns one exact audit/evidence identity, while the coordinator remains the
-only component allowed to apply a verdict to tracker state.
+job owns one exact project/task/target/evidence generation, while its claimed
+checkpoint fences callbacks to one audit and attempt identity.  The
+coordinator remains the only component allowed to apply a verdict to tracker
+state.
 
 Provider prose, comments, prompts, and command output are deliberately not
 accepted as checkpoint data.  Durable checkpoints contain only bounded,
@@ -23,6 +25,7 @@ from typing import Any, Mapping
 
 from oompah.terminal_audit import RequestState, TerminalAuditRecord
 from oompah.workflow_jobs import (
+    ACTIVE_JOB_STATES,
     WorkflowFailureCategory,
     WorkflowJob,
     WorkflowJobLeaseLost,
@@ -33,13 +36,31 @@ from oompah.workflow_jobs import (
 
 
 TERMINAL_AUDIT_JOB_ACTION = "terminal_audit"
-TERMINAL_AUDIT_WORKFLOW_VERSION = 1
+TERMINAL_AUDIT_WORKFLOW_VERSION = 2
 _MAX_CHECKPOINT_TEXT = 512
 _MAX_CHECKPOINT_BYTES = 4096
 _SENSITIVE_RE = re.compile(
     r"(?:bearer\s+\S+|(?:api[_-]?key|authorization|password|secret|token)\s*[:=]\s*\S+)",
     re.IGNORECASE,
 )
+
+AuditAttemptIdentity = tuple[str, str, str, str]
+
+
+def audit_attempt_identity(
+    project_id: object,
+    task_id: object,
+    audit_id: object,
+    attempt_id: object,
+) -> AuditAttemptIdentity:
+    """Return the complete identity of one live terminal-audit attempt."""
+
+    return (
+        _required_text(project_id, "project_id"),
+        _required_text(task_id, "task_id"),
+        _required_text(audit_id, "audit_id"),
+        _required_text(attempt_id, "attempt_id"),
+    )
 
 
 class AuditWorkflowPhase(str, Enum):
@@ -154,13 +175,18 @@ class TerminalAuditWorkflow:
 
     @staticmethod
     def generation(record: TerminalAuditRecord) -> str:
-        """Return a stable generation fenced to exact audit evidence."""
+        """Return the canonical target/evidence generation.
+
+        ``audit_id`` is a callback fence chosen after a generation is
+        staged; it is not part of the work itself.  Excluding it here makes
+        concurrent webhook, review, and reconciliation requests converge on
+        one durable owner for the same project/task/target/evidence tuple.
+        """
 
         payload = {
             "version": TERMINAL_AUDIT_WORKFLOW_VERSION,
             "project_id": record.project_id,
             "task_id": record.task_id,
-            "audit_id": record.audit_id,
             "target_state": record.target_state.value,
             "evidence_fingerprint": record.evidence_fingerprint.digest,
         }
@@ -172,14 +198,24 @@ class TerminalAuditWorkflow:
             (
                 record.project_id,
                 record.task_id,
-                record.audit_id,
+                record.target_state.value,
                 record.evidence_fingerprint.digest,
             )
         )
 
+    @staticmethod
+    def scheduling_lane(record: TerminalAuditRecord) -> str:
+        """Return the target-specific replacement lane for one task."""
+
+        return f"terminal-audit:{record.target_state.value}"
+
     @classmethod
     def spec(
-        cls, record: TerminalAuditRecord, *, max_attempts: int = 3
+        cls,
+        record: TerminalAuditRecord,
+        *,
+        max_attempts: int = 3,
+        idempotency_key: str | None = None,
     ) -> WorkflowJobSpec:
         """Build immutable work for one exact audit request."""
 
@@ -190,32 +226,292 @@ class TerminalAuditWorkflow:
             task_id=record.task_id,
             generation=cls.generation(record),
             action=TERMINAL_AUDIT_JOB_ACTION,
-            idempotency_key=cls.idempotency_key(record),
+            idempotency_key=idempotency_key or cls.idempotency_key(record),
             phase=AuditWorkflowPhase.QUEUED.value,
+            scheduling_lane=cls.scheduling_lane(record),
             expected_evidence_revision=record.evidence_fingerprint.digest,
             max_attempts=max_attempts,
         )
 
     def _matching_jobs(self, record: TerminalAuditRecord) -> tuple[WorkflowJob, ...]:
+        """Return every activation of one semantic target/evidence job."""
+
         return tuple(
             job
             for job in self.store.list_jobs(
                 project_id=record.project_id,
                 task_id=record.task_id,
+                generation=self.generation(record),
+                actions=(TERMINAL_AUDIT_JOB_ACTION,),
+                scheduling_lanes=(self.scheduling_lane(record),),
+                expected_evidence_revisions=(
+                    record.evidence_fingerprint.digest,
+                ),
                 limit=1000,
+                newest_first=True,
             )
             if job.action == TERMINAL_AUDIT_JOB_ACTION
             and job.generation == self.generation(record)
-            and job.idempotency_key == self.idempotency_key(record)
+            and job.scheduling_lane == self.scheduling_lane(record)
+            and job.expected_evidence_revision
+            == record.evidence_fingerprint.digest
         )
 
     def ensure(self, record: TerminalAuditRecord) -> WorkflowJob:
-        """Persist or replay the exact audit job without reviving terminal work."""
+        """Persist or replay one canonical audit generation.
 
-        matches = self._matching_jobs(record)
-        if matches:
-            return matches[0]
-        return self.store.enqueue(self.spec(record, max_attempts=self.max_attempts))
+        A new evidence generation atomically replaces only older work for the
+        same terminal target.  ``Done`` and ``Merged`` are separate lanes, so
+        materializing the latter cannot cancel the former in an ordered audit
+        chain.
+        """
+
+        semantic_jobs = self._matching_jobs(record)
+        active = [job for job in semantic_jobs if job.state in ACTIVE_JOB_STATES]
+        reusable = [
+            job
+            for job in semantic_jobs
+            if job.state
+            in {WorkflowJobState.COMPLETED, WorkflowJobState.EXHAUSTED}
+        ]
+        selected = max(active, key=lambda job: job.enqueue_sequence) if active else None
+        if selected is None and reusable:
+            # A later authorized rearm may have produced a newer terminal
+            # decision for the same immutable evidence.  The latest durable
+            # activation is authoritative; an older PASS must not mask a
+            # later exhaustion (or vice versa).
+            selected = max(reusable, key=lambda job: job.enqueue_sequence)
+        needs_fresh_activation = selected is None and bool(semantic_jobs)
+        idempotency_key = (
+            selected.idempotency_key
+            if selected is not None
+            else (
+                f"{self.idempotency_key(record)}:activation:"
+                f"{record.source_generation}"
+                if needs_fresh_activation
+                else self.idempotency_key(record)
+            )
+        )
+        write = self.store.enqueue_replacing_lane(
+            self.spec(
+                record,
+                max_attempts=self.max_attempts,
+                idempotency_key=idempotency_key,
+            ),
+            source_generation=record.source_generation,
+            require_source_advance=needs_fresh_activation,
+            reason="superseded by a newer terminal-audit evidence generation",
+            now=self.clock(),
+        )
+        if not write.accepted or write.job is None:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit source generation is stale"
+            )
+        return write.job
+
+    @staticmethod
+    def _validate_rearm_authorization(
+        record: TerminalAuditRecord,
+        prior_audit_id: str,
+        authorization: Mapping[str, Any],
+    ) -> None:
+        """Validate the coordinator's bounded, durable owner-rearm proof."""
+
+        if not isinstance(authorization, Mapping):
+            raise AuditWorkflowIdentityError(
+                "terminal-audit rearm authorization is missing"
+            )
+        expected: dict[str, object] = {
+            "version": 1,
+            "audit_id": record.audit_id,
+            "superseded_audit_id": prior_audit_id,
+            "project_id": record.project_id,
+            "task_id": record.task_id,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+            "source_generation": record.source_generation,
+        }
+        for key, value in expected.items():
+            if authorization.get(key) != value:
+                raise AuditWorkflowIdentityError(
+                    f"terminal-audit rearm authorization {key} does not match"
+                )
+        actor = authorization.get("actor")
+        if not isinstance(actor, Mapping) or not str(actor.get("identity") or "").strip():
+            raise AuditWorkflowIdentityError(
+                "terminal-audit rearm authorization lacks owner identity"
+            )
+        if str(authorization.get("mode") or "") not in {
+            "evidence_addendum",
+            "infrastructure_recovery",
+        }:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit rearm authorization mode is invalid"
+            )
+        for key in ("reason", "authorized_at"):
+            if not str(authorization.get(key) or "").strip():
+                raise AuditWorkflowIdentityError(
+                    f"terminal-audit rearm authorization lacks {key}"
+                )
+
+    def rearm(
+        self,
+        record: TerminalAuditRecord,
+        *,
+        authorization: Mapping[str, Any],
+    ) -> WorkflowJob:
+        """Rearm one semantic job only with coordinator-issued owner proof."""
+
+        terminal_candidates = [
+            job
+            for job in self._matching_jobs(record)
+            if job.state
+            in {WorkflowJobState.COMPLETED, WorkflowJobState.EXHAUSTED}
+        ]
+        if terminal_candidates:
+            terminal = max(
+                terminal_candidates,
+                key=lambda job: job.enqueue_sequence,
+            )
+            prior_audit_id = str((terminal.checkpoint or {}).get("audit_id") or "")
+            if not prior_audit_id:
+                raise AuditWorkflowIdentityError(
+                    "terminal-audit job is not eligible for owner rearm"
+                )
+        else:
+            prior_audit_id = str(
+                authorization.get("superseded_audit_id")
+                if isinstance(authorization, Mapping)
+                else ""
+            ).strip()
+            if not prior_audit_id:
+                raise AuditWorkflowIdentityError(
+                    "terminal-audit rearm authorization is missing prior identity"
+                )
+        # Validate before ``ensure`` advances the lane or supersedes a
+        # different live evidence generation.  A rejected proof must be
+        # observationally read-only, including after a workflow-DB rebuild
+        # where the prior terminal row is no longer present.
+        self._validate_rearm_authorization(
+            record,
+            prior_audit_id,
+            authorization,
+        )
+
+        existing = self.ensure(record)
+        if existing.state in ACTIVE_JOB_STATES:
+            return existing
+        checkpoint_audit_id = str(
+            (existing.checkpoint or {}).get("audit_id") or ""
+        )
+        if existing.state not in {
+            WorkflowJobState.COMPLETED,
+            WorkflowJobState.EXHAUSTED,
+        } or not checkpoint_audit_id:
+            raise AuditWorkflowIdentityError(
+                "terminal-audit job is not eligible for owner rearm"
+            )
+        return self.store.rearm_terminal_job(
+            existing.job_id,
+            generation=self.generation(record),
+            phase=AuditWorkflowPhase.QUEUED.value,
+            reason="coordinator-authorized owner rearm",
+            now=self.clock(),
+        )
+
+    def retire_resolved(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        records: tuple[TerminalAuditRecord, ...] | list[TerminalAuditRecord],
+    ) -> int:
+        """Retire non-finalizing jobs already resolved in tracker metadata.
+
+        This reconciles the cross-store crash window where the coordinator
+        completed an unsafe metadata-only archive but the process died before
+        the workflow row could be cancelled.  Typed FINALIZING jobs remain
+        owned by result replay and are never retired here.
+        """
+
+        live_by_identity = {
+            (
+                record.target_state.value,
+                record.evidence_fingerprint.digest,
+            )
+            for record in records
+            if record.project_id == project_id
+            and record.task_id == task_id
+            and record.request_state
+            in {
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            }
+        }
+        terminal_by_identity = {
+            (
+                record.target_state.value,
+                record.evidence_fingerprint.digest,
+            )
+            for record in records
+            if record.project_id == project_id
+            and record.task_id == task_id
+            and record.request_state
+            in {
+                RequestState.COMPLETED,
+                RequestState.SUPERSEDED,
+                RequestState.CANCELLED,
+            }
+        } - live_by_identity
+        retired = 0
+        for job in self.store.list_jobs(
+            project_id=project_id,
+            task_id=task_id,
+            states=tuple(ACTIVE_JOB_STATES),
+            actions=(TERMINAL_AUDIT_JOB_ACTION,),
+            limit=1000,
+        ):
+            if (
+                job.action != TERMINAL_AUDIT_JOB_ACTION
+                or job.phase == AuditWorkflowPhase.FINALIZING.value
+            ):
+                continue
+            target = job.scheduling_lane.removeprefix("terminal-audit:")
+            if (
+                target,
+                str(job.expected_evidence_revision or ""),
+            ) not in terminal_by_identity:
+                continue
+            self.store.cancel(
+                job.job_id,
+                generation=job.generation,
+                reason="tracker metadata already resolved terminal-audit generation",
+                now=self.clock(),
+            )
+            retired += 1
+        return retired
+
+    def retire(self, record: TerminalAuditRecord, *, reason: str) -> int:
+        """Cancel active work for one exact generation without taking its lease.
+
+        This is the fail-closed boundary for synchronous preflights which
+        authoritatively resolve an audit before a provider launch.  Every
+        cancellation is fenced by the immutable generation; sibling targets
+        and newer evidence remain untouched.
+        """
+
+        retired = 0
+        for job in self._matching_jobs(record):
+            if job.state not in ACTIVE_JOB_STATES:
+                continue
+            self.store.cancel(
+                job.job_id,
+                generation=self.generation(record),
+                reason=_safe_text(reason, "reason"),
+                now=self.clock(),
+            )
+            retired += 1
+        return retired
 
     def _decision_from_job(
         self, record: TerminalAuditRecord, job: WorkflowJob
@@ -331,39 +627,12 @@ class TerminalAuditWorkflow:
         raw_questions = tuple(getattr(result, "questions", ()) or ())
         raw_instructions = tuple(getattr(result, "instructions", ()) or ())
         raw_auditor = getattr(result, "auditor", None)
-        identity_payload = {
-            "audit_id": getattr(result, "audit_id", None),
-            "target_state": target,
-            "evidence_fingerprint": fingerprint,
-            "attempt_id": attempt_id,
-            "verdict": verdict,
-            "failure_classification": getattr(
-                getattr(result, "failure_classification", None), "value", None
-            ),
-            "message": str(getattr(result, "message", "") or ""),
-            "safe_evidence": {
-                str(key): str(value) for key, value in raw_safe_evidence.items()
-            },
-            "questions": [str(value) for value in raw_questions],
-            "instructions": [str(value) for value in raw_instructions],
-            "auditor": (
-                {
-                    "identity": getattr(raw_auditor, "identity", None),
-                    "source": getattr(raw_auditor, "source", None),
-                }
-                if raw_auditor is not None
-                else None
-            ),
-        }
         payload: dict[str, Any] = {
             "audit_id": _safe_text(getattr(result, "audit_id", None), "audit_id"),
             "target_state": _safe_text(target, "target_state"),
             "evidence_fingerprint": _safe_text(fingerprint, "evidence_fingerprint"),
             "attempt_id": _safe_text(attempt_id, "attempt_id"),
             "verdict": _safe_text(verdict, "verdict"),
-            "result_digest": hashlib.sha256(
-                _canonical(identity_payload).encode()
-            ).hexdigest(),
             "message": _SENSITIVE_RE.sub(
                 "[REDACTED]", str(getattr(result, "message", "") or "")
             )[:_MAX_CHECKPOINT_TEXT],
@@ -403,6 +672,13 @@ class TerminalAuditWorkflow:
                     else None
                 ),
             }
+        # Bind the digest to the exact bounded representation which recovery
+        # will deserialize.  Hashing the unbounded provider payload would make
+        # a redacted/truncated checkpoint unverifiable and provide no
+        # corruption fence at replay time.
+        payload["result_digest"] = hashlib.sha256(
+            _canonical(payload).encode()
+        ).hexdigest()
         return payload
 
     def _validate_owned_identity(
@@ -456,7 +732,12 @@ class TerminalAuditWorkflow:
     ) -> WorkflowJob | None:
         """Claim queued ownership and checkpoint the selected candidate."""
 
-        existing = self.ensure(record)
+        try:
+            existing = self.ensure(record)
+        except AuditWorkflowIdentityError:
+            # A late metadata snapshot cannot claim after a newer source
+            # generation has advanced this target lane.
+            return None
         if existing.state is WorkflowJobState.RUNNING:
             # A running row belongs to the exact lease which launched it.
             # Returning that token to a later plan would let a new attempt
@@ -558,14 +839,13 @@ class TerminalAuditWorkflow:
         """Return bounded result checkpoints which still need acknowledgement."""
 
         return tuple(
-            job
-            for job in self.store.list_jobs(
+            self.store.list_jobs(
                 project_id=project_id,
                 states=(WorkflowJobState.RUNNING,),
+                actions=(TERMINAL_AUDIT_JOB_ACTION,),
+                phases=(AuditWorkflowPhase.FINALIZING.value,),
                 limit=limit,
             )
-            if job.action == TERMINAL_AUDIT_JOB_ACTION
-            and job.phase == AuditWorkflowPhase.FINALIZING.value
         )
 
     def reclaim_finalizing(
@@ -573,7 +853,7 @@ class TerminalAuditWorkflow:
         job: WorkflowJob,
         record: TerminalAuditRecord,
         *,
-        active_attempt_ids: set[str],
+        active_attempt_identities: set[AuditAttemptIdentity],
     ) -> WorkflowJob | None:
         """Take over one exact abandoned finalization after restart."""
 
@@ -588,7 +868,12 @@ class TerminalAuditWorkflow:
             attempt_id=attempt_id,
             allowed_phases=(AuditWorkflowPhase.FINALIZING,),
         )
-        if attempt_id in active_attempt_ids:
+        if audit_attempt_identity(
+            job.project_id,
+            job.task_id,
+            checkpoint.get("audit_id"),
+            attempt_id,
+        ) in active_attempt_identities:
             return None
         if job.lease_token is None:
             raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
@@ -608,6 +893,15 @@ class TerminalAuditWorkflow:
             raise WorkflowJobLeaseLost(f"terminal-audit job has no lease: {job.job_id}")
         checkpoint = dict(job.to_dict().get("checkpoint") or {})
         failures = int(checkpoint.get("finalization_failures") or 0) + 1
+        if failures >= self.max_attempts:
+            return self.action_required(
+                job,
+                action_code="finalization_transport_exhausted",
+                reason=(
+                    "terminal-audit result finalization exhausted its bounded "
+                    "transport retry budget"
+                ),
+            )
         checkpoint["finalization_failures"] = failures
         checkpoint["finalization_retry_at"] = self.clock() + max(
             self.retry_delay_seconds,
@@ -627,7 +921,7 @@ class TerminalAuditWorkflow:
         self,
         job: WorkflowJob,
         *,
-        active_attempt_ids: set[str],
+        active_attempt_identities: set[AuditAttemptIdentity],
     ) -> WorkflowJob | None:
         """Bound recovery for a pre-cutover finalizing checkpoint.
 
@@ -640,7 +934,12 @@ class TerminalAuditWorkflow:
 
         checkpoint = job.checkpoint or {}
         attempt_id = _required_text(checkpoint.get("attempt_id"), "attempt_id")
-        if attempt_id in active_attempt_ids:
+        if audit_attempt_identity(
+            job.project_id,
+            job.task_id,
+            checkpoint.get("audit_id"),
+            attempt_id,
+        ) in active_attempt_identities:
             return None
         if (
             job.action != TERMINAL_AUDIT_JOB_ACTION
@@ -666,9 +965,53 @@ class TerminalAuditWorkflow:
             reason="pre-cutover finalizing result requires a fresh exact attempt",
         )
 
+    def quarantine_finalizing(
+        self,
+        job: WorkflowJob,
+        *,
+        active_attempt_identities: set[AuditAttemptIdentity],
+        reason: str,
+    ) -> WorkflowJob | None:
+        """Terminalize one corrupt abandoned result without blocking siblings."""
+
+        checkpoint = job.checkpoint or {}
+        raw_audit_id = str(checkpoint.get("audit_id") or "").strip()
+        raw_attempt_id = str(checkpoint.get("attempt_id") or "").strip()
+        if raw_audit_id and raw_attempt_id and audit_attempt_identity(
+            job.project_id,
+            job.task_id,
+            raw_audit_id,
+            raw_attempt_id,
+        ) in active_attempt_identities:
+            return None
+        if (
+            job.action != TERMINAL_AUDIT_JOB_ACTION
+            or job.state is not WorkflowJobState.RUNNING
+            or job.phase != AuditWorkflowPhase.FINALIZING.value
+            or job.lease_token is None
+        ):
+            raise AuditWorkflowIdentityError(
+                "corrupt finalizing job identity does not match"
+            )
+        reclaimed = self.store.reclaim_abandoned(
+            job.job_id,
+            job.lease_token,
+            lease_owner=self.lease_owner,
+            lease_seconds=self.lease_seconds,
+            expected_phase=AuditWorkflowPhase.FINALIZING.value,
+            now=self.clock(),
+        )
+        return self.action_required(
+            reclaimed,
+            action_code="corrupt_finalization_checkpoint",
+            reason=reason,
+        )
+
     @staticmethod
     def finalizing_result_payload(job: WorkflowJob) -> Mapping[str, Any]:
-        checkpoint = job.checkpoint or {}
+        # Jobs freeze nested JSON values on read.  Digest verification and the
+        # coordinator replay contract both require an ordinary JSON mapping.
+        checkpoint = job.to_dict().get("checkpoint") or {}
         result = checkpoint.get("result")
         if not isinstance(result, Mapping):
             raise AuditWorkflowIdentityError("finalizing result checkpoint is missing")
@@ -683,7 +1026,33 @@ class TerminalAuditWorkflow:
                 raise AuditWorkflowIdentityError(
                     f"finalizing result checkpoint lacks {key}"
                 )
-        return result
+        for key in (
+            "audit_id",
+            "target_state",
+            "evidence_fingerprint",
+            "attempt_id",
+        ):
+            if str(result.get(key) or "") != str(checkpoint.get(key) or ""):
+                raise AuditWorkflowIdentityError(
+                    f"finalizing result checkpoint {key} does not match owner"
+                )
+        supplied_digest = str(result.get("result_digest") or "")
+        if len(supplied_digest) != 64 or any(
+            character not in "0123456789abcdef" for character in supplied_digest
+        ):
+            raise AuditWorkflowIdentityError(
+                "finalizing result checkpoint lacks a valid digest"
+            )
+        digest_payload = dict(result)
+        digest_payload.pop("result_digest", None)
+        expected_digest = hashlib.sha256(
+            _canonical(digest_payload).encode()
+        ).hexdigest()
+        if supplied_digest != expected_digest:
+            raise AuditWorkflowIdentityError(
+                "finalizing result checkpoint digest does not match"
+            )
+        return dict(result)
 
     def retry(
         self,
@@ -718,22 +1087,52 @@ class TerminalAuditWorkflow:
         # Persist the bounded operator action before closing the lease.  The
         # human-readable reason remains in the job error field, never in the
         # structured checkpoint consumed by workflow decisions.
-        record_data = job.checkpoint or {}
+        # WorkflowJob freezes nested JSON as mapping proxies.  Work from its
+        # public serialized form so a preserved typed result remains JSON
+        # serializable when the ACTION_REQUIRED checkpoint is written.
+        record_data = job.to_dict().get("checkpoint") or {}
         if record is not None:
             record_data = {
                 "audit_id": record.audit_id,
                 "target_state": record.target_state.value,
                 "evidence_fingerprint": record.evidence_fingerprint.digest,
             }
+        fallback_target = job.scheduling_lane.removeprefix("terminal-audit:")
         checkpoint = {
             "version": TERMINAL_AUDIT_WORKFLOW_VERSION,
-            "audit_id": _safe_text(record_data.get("audit_id"), "audit_id"),
-            "target_state": _safe_text(record_data.get("target_state"), "target_state"),
+            "audit_id": _safe_text(
+                record_data.get("audit_id") or f"workflow-job:{job.job_id}",
+                "audit_id",
+            ),
+            "target_state": _safe_text(
+                record_data.get("target_state") or fallback_target,
+                "target_state",
+            ),
             "evidence_fingerprint": _safe_text(
-                record_data.get("evidence_fingerprint"), "evidence_fingerprint"
+                record_data.get("evidence_fingerprint")
+                or job.expected_evidence_revision,
+                "evidence_fingerprint",
             ),
             "action_code": _safe_text(action_code, "action_code"),
         }
+        # An exhausted/corrupt finalizer still has to project one exact
+        # retryable attempt into tracker metadata.  Preserve the bounded owner
+        # identity when it is available so ACTION_REQUIRED recovery can finish
+        # that attempt instead of manufacturing an unrelated no-auditor row.
+        for key in (
+            "attempt_id",
+            "workflow_job_id",
+            "job_attempt",
+            "result_idempotency",
+            "verdict",
+            "failure_classification",
+        ):
+            value = record_data.get(key)
+            if value is not None:
+                checkpoint[key] = value
+        result_data = record_data.get("result")
+        if isinstance(result_data, Mapping):
+            checkpoint["result"] = dict(result_data)
         if len(_canonical(checkpoint).encode()) > _MAX_CHECKPOINT_BYTES:
             raise ValueError(
                 "terminal-audit action checkpoint exceeds the durable size bound"
@@ -800,14 +1199,27 @@ class TerminalAuditWorkflow:
         self,
         record: TerminalAuditRecord,
         *,
-        active_attempt_ids: set[str] | None = None,
+        active_attempt_identities: set[AuditAttemptIdentity] | None = None,
     ) -> AuditWorkflowDecision:
         """Requeue an owned audit after restart when no live attempt remains."""
 
         job = self.ensure(record)
         if job.state is WorkflowJobState.RUNNING:
             attempt_id = (job.checkpoint or {}).get("attempt_id")
-            if active_attempt_ids is None or attempt_id in active_attempt_ids:
+            active_identity = (
+                audit_attempt_identity(
+                    job.project_id,
+                    job.task_id,
+                    (job.checkpoint or {}).get("audit_id"),
+                    attempt_id,
+                )
+                if attempt_id and (job.checkpoint or {}).get("audit_id")
+                else None
+            )
+            if (
+                active_attempt_identities is None
+                or active_identity in active_attempt_identities
+            ):
                 return self._decision_from_job(record, job)
             if job.phase == AuditWorkflowPhase.FINALIZING.value:
                 # A typed result is already durable.  The replay lane takes

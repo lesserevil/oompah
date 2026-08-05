@@ -93,6 +93,23 @@ class FailureClassification(str, Enum):
         return _parse_enum(cls, raw)
 
 
+class AuditAttemptOrigin(str, Enum):
+    """Trusted internal provenance for coordinator-authored attempts.
+
+    Auditor result payloads cannot set this field.  It exists so later owner
+    recovery can distinguish a coordinator's bounded retry-exhaustion
+    projection from a substantive ``NEEDS_HUMAN`` verdict submitted by an
+    auditor.
+    """
+
+    COORDINATOR_RETRY_EXHAUSTION = "coordinator_retry_exhaustion"
+    COORDINATOR_ABANDONED_RECOVERY = "coordinator_abandoned_recovery"
+
+    @classmethod
+    def from_raw(cls, raw: Any) -> "AuditAttemptOrigin":
+        return _parse_enum(cls, raw)
+
+
 # Common names used by coordinator callers are kept as aliases, while the
 # serialized vocabulary remains owned by the canonical types above.
 AuditVerdict = Verdict
@@ -164,6 +181,17 @@ def _optional_non_negative_int(
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(
             f"{type_name} optional field {key!r} must be a non-negative integer"
+        )
+    return value
+
+
+def _optional_positive_int(
+    raw: Mapping[str, Any], key: str, type_name: str, *, default: int = 1
+) -> int:
+    value = raw.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            f"{type_name} optional field {key!r} must be a positive integer"
         )
     return value
 
@@ -984,6 +1012,7 @@ class AuditAttempt:
     next_retry_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    origin: AuditAttemptOrigin | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
@@ -998,6 +1027,8 @@ class AuditAttempt:
             self.failure_classification = FailureClassification.from_raw(
                 self.failure_classification
             )
+        if self.origin is not None:
+            self.origin = AuditAttemptOrigin.from_raw(self.origin)
         if self.requested_by is not None and not isinstance(
             self.requested_by, ContributorIdentity
         ):
@@ -1047,6 +1078,8 @@ class AuditAttempt:
             result["verdict"] = self.verdict.value
         if self.failure_classification is not None:
             result["failure_classification"] = self.failure_classification.value
+        if self.origin is not None:
+            result["origin"] = self.origin.value
         if self.requested_by is not None:
             result["requested_by"] = self.requested_by.to_dict()
         if self.created_at is not None:
@@ -1082,6 +1115,11 @@ class AuditAttempt:
             failure_classification=(
                 FailureClassification.from_raw(data["failure_classification"])
                 if "failure_classification" in data
+                else None
+            ),
+            origin=(
+                AuditAttemptOrigin.from_raw(data["origin"])
+                if "origin" in data
                 else None
             ),
             requested_by=(
@@ -1124,6 +1162,7 @@ class TerminalAuditRecord:
     updated_at: str | None = None
     selected_ref: str | None = None
     selected_sha: str | None = None
+    source_generation: int = 1
 
     def __post_init__(self) -> None:
         for name in ("audit_id", "project_id", "task_id"):
@@ -1154,6 +1193,14 @@ class TerminalAuditRecord:
         if binding is not None:
             self.selected_ref = binding.selected_ref
             self.selected_sha = binding.selected_sha
+        if (
+            isinstance(self.source_generation, bool)
+            or not isinstance(self.source_generation, int)
+            or self.source_generation < 1
+        ):
+            raise ValueError(
+                "TerminalAuditRecord.source_generation must be a positive integer"
+            )
 
     @property
     def id(self) -> str:
@@ -1177,6 +1224,7 @@ class TerminalAuditRecord:
             "request_state": self.request_state.value,
             "evidence_fingerprint": self.evidence_fingerprint.to_dict(),
             "attempts": [attempt.to_dict() for attempt in self.attempts],
+            "source_generation": self.source_generation,
         }
         if self.requested_by is not None:
             result["requested_by"] = self.requested_by.to_dict()
@@ -1220,6 +1268,9 @@ class TerminalAuditRecord:
             updated_at=_optional_string(data, "updated_at", cls.__name__),
             selected_ref=_optional_string(data, "selected_ref", cls.__name__),
             selected_sha=_optional_string(data, "selected_sha", cls.__name__),
+            source_generation=_optional_positive_int(
+                data, "source_generation", cls.__name__
+            ),
         )
 
 
@@ -1305,6 +1356,7 @@ AuditRecord = TerminalAuditRecord
 __all__ = [
     "CURRENT_VERSION",
     "AuditAttempt",
+    "AuditAttemptOrigin",
     "AuditRecord",
     "AuditRevisionBinding",
     "AuditVerdict",
