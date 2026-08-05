@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T16:40:21.787961Z'
+updated_at: '2026-08-05T16:45:36.125668Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -1379,5 +1379,10 @@ tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_
 [gw3] [  9%] PASSED tests/test_budget_free_tier_dispatch.py::TestIsModelExplicitlyFree::test_output_nonzero_returns_false 
 tests/test_budget_free_tier_dispatch.py::TestWouldDispatchOnFreeModel::test_free_model_returns_truthy_model_name 
 ```
+---
+author: oompah
+created: 2026-08-05 16:45
+---
+Diagnosis: the product head is still clean and its official make test passed 15,452 tests. The server did not execute a new combined gate after resubmission; it replayed the persisted 48.94-second cached failure for exact head 9ea2b5523 (truncated at 9% with only PASS lines). OOMPAH-838 now tracks the precise bug: IntegrationQueueStore sets retry_forced on explicit retry, then claim_next clears it before returning the claimed item, so execute_integration always receives retry_forced=False. Keep this task's exact branch/head unchanged. After OOMPAH-838 is deployed, rearm this blocked same-head row once so the fresh exact gate runs naturally.
 ---
 <!-- COMMENTS:END -->
