@@ -11,7 +11,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-08-04T22:01:00.091773Z'
-updated_at: '2026-08-05T17:16:27.912604Z'
+updated_at: '2026-08-05T17:17:54.610528Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-810
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-05 17:16
 ---
 Understanding: the approved auditor command can exit successfully while its result remains trapped between subprocess completion, liveness cleanup, output paging, and ACP/provider delivery. I will trace those boundaries, establish one bounded durable result or precise transport failure with race-safe state transitions, add focused regression tests, and verify the affected Makefile checks.
+---
+author: oompah
+created: 2026-08-05 17:17
+---
+Discovery: _exec_run_command waits on communicate() and clears ToolLivenessMonitor in finally, while the monitor uses Popen.poll(). A shell may exit before descendants close inherited stdout/stderr, making reconciliation see no live child and retire the ACP session while the handler is still draining output. There is no result_pending/durable-delivery state, so the liveness owner can disappear before an ACP tool_result is emitted. I am tracing backend event delivery and will close this race with bounded, exactly-once result state.
 ---
 <!-- COMMENTS:END -->
