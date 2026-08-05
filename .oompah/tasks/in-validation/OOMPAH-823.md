@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-823
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Bootstrap lifecycle reconciliation retry backoff onto main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T06:45:32.566233Z'
-updated_at: '2026-08-05T07:42:32.913681Z'
+updated_at: '2026-08-05T07:54:03.422231Z'
 work_branch: OOMPAH-823
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/719
@@ -31,6 +31,45 @@ oompah.review_number: '719'
 oompah.work_branch: OOMPAH-823
 oompah.target_branch: main
 oompah.review_head: d509c08214c45bb7c0e4f93c1d42e57a01633f87
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a40e05f2de1d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-823
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 40cf76507cb99b49895f29bbefc51870fbbed30c3e0e012c48a97d0f6d6f6a34
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T07:53:06.996118+00:00'
+  - version: 1
+    audit_id: audit-76196b8784e7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-823
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 40cf76507cb99b49895f29bbefc51870fbbed30c3e0e012c48a97d0f6d6f6a34
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-05T07:53:06.996118+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -63,5 +102,15 @@ author: oompah
 created: 2026-08-05 07:41
 ---
 Branch quality gate passed for `d509c08214c45bb7c0e4f93c1d42e57a01633f87` using `make test` in 772.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-05 07:53
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-05 07:54
+---
+YOLO: merged PR #719.
 ---
 <!-- COMMENTS:END -->
