@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T00:38:32.940940Z'
-updated_at: '2026-08-05T00:57:43.385182Z'
+updated_at: '2026-08-05T00:58:02.212843Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-816
 target_branch: null
 review_url: null
@@ -57,13 +56,13 @@ oompah.integration:
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   updated_at: '2026-08-05T00:43:34.229499+00:00'
 oompah.task_costs:
-  total_input_tokens: 46376
-  total_output_tokens: 297
+  total_input_tokens: 47030
+  total_output_tokens: 474
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46376
-      output_tokens: 297
+      input_tokens: 47030
+      output_tokens: 474
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +71,12 @@ oompah.task_costs:
     output_tokens: 297
     cost_usd: 0.0
     recorded_at: '2026-08-05T00:40:25.700464+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 654
+    output_tokens: 177
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T00:57:56.002637+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-816__20260805T004004Z
@@ -151,5 +156,15 @@ author: oompah
 created: 2026-08-05 00:55
 ---
 Further acceptance constraints: heavyweight classification must be fail-closed per every shell segment; a lightweight token anywhere cannot bypass 'echo x; make test' or 'make test && git status'. Cover uv run pytest, python -m pytest, options, tests paths, node IDs, and compound commands. BranchQualityGate must acquire unconditionally for its configured exact command after exact cache lookup, not use arbitrary-agent classification. Wire OOMPAH_HEAVYWEIGHT_CAPACITY through ServiceConfig and .env.example with validated parsing; no module-global os.environ initialization or Path.home state. Use service-owned configured state root with safe permissions, schema/version, fsync/atomic replace, corruption quarantine, and actual interprocess lock. Tool liveness/command timeout begins only after lease acquisition; queued auditors observe cancellation/session liveness separately. Compatible evidence reuse must key repo identity + exact SHA + exact command/gate version and never reuse failed/interrupted evidence.
+---
+author: oompah
+created: 2026-08-05 00:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 37
+- Tokens: 654 in / 177 out [831 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 31s
+- Log: OOMPAH-816__20260805T004341Z.jsonl
 ---
 <!-- COMMENTS:END -->
