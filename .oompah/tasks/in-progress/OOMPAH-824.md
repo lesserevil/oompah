@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-824
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bootstrap heavyweight validation arbitration onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T08:20:43.452790Z'
+updated_at: '2026-08-05T11:11:48.225310Z'
 work_branch: null
 target_branch: null
 review_url: null
