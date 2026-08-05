@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T03:09:46.087231Z'
-updated_at: '2026-08-05T04:07:12.816967Z'
+updated_at: '2026-08-05T04:22:01.181691Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,5 +57,10 @@ author: oompah
 created: 2026-08-05 04:07
 ---
 Final independent review rejected exact head 43a8b531 before submission. Four remaining fail-closed gaps are under repair: delayed open/reopen webhook writes bypass task ownership/exact review-head CAS; bridge timeout cancellation can release ownership while uncancellable worker side effects continue; authority-owned review metadata writes can swallow required-field failures and still move In Review; and native Markdown compatibility does not mirror review_head, allowing stale top-level evidence to override namespaced updates. The existing exact-head/audit-chain tests remain green. New race/persistence regressions and another exact-head review are required; server stays paused.
+---
+author: oompah
+created: 2026-08-05 04:22
+---
+Final concurrency-review repairs pushed at f3b9f9bc5dad4cae876f081b45a6cece2eb72341. Added task-owned open/reopen webhook adoption with fresh tracker generation CAS, signed webhook head parsing, exact live forge review identity/source/target/head validation, strict grouped metadata persistence, and In Review only after persisted evidence verifies. Terminal staging now runs in a shielded inner lock owner; bridge timeout no longer cancels it, so submit cannot cross outstanding to_thread/coordinator work. Authority-owned metadata failures now fail closed, and native Markdown mirrors oompah.review_head to review_head. Verification: 749 affected workflow/concurrency/webhook tests passed; 383 terminal-audit/native tracker tests passed; full standalone 56/56; terminal mutation scan 8/8; check-secrets, compile, and diff-check passed. Branch remains unsubmitted for independent final review.
 ---
 <!-- COMMENTS:END -->
