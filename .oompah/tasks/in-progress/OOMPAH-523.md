@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:11:58.412853Z'
-updated_at: '2026-08-05T04:52:45.587402Z'
+updated_at: '2026-08-05T04:53:07.597897Z'
 work_branch: epic-OOMPAH-521--task-OOMPAH-523
 target_branch: null
 review_url: null
@@ -842,5 +842,10 @@ author: oompah
 created: 2026-08-05 04:52
 ---
 Verification: auth-specific tests pass (73 before synchronization, 73 in the synchronized auth subset; 109 combined startup/favicon/build/docs checks), the directly affected server/WebSocket/webhook suite passes 998 tests on the synchronized head, and make check-secrets passes with only the existing null-byte shell warning. make setup remains unavailable because uv fails its DBus transient-scope check in this environment.
+---
+author: oompah
+created: 2026-08-05 04:53
+---
+Completion: published the synchronized task branch at the current main-integrated head. OOMPAH-523’s ASGI Basic-auth enforcement is verified across HTTP, mounts, MCP, WebSocket, health, and forge webhook boundaries; exact exemptions, redaction, startup wiring, and regression suites are all covered. The branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
