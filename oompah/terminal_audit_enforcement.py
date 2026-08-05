@@ -25,7 +25,7 @@ import tempfile
 import threading
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -48,6 +48,7 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
     TerminalAuditMetadataStore,
     TerminalAuditMetadataQuarantinedError,
 )
@@ -66,6 +67,9 @@ LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 1
 DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE = 4
+DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS = 5
+DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS = 30.0
+DEFAULT_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS = 3600.0
 
 _TERMINAL_STATUS_RANK = {
     status_key(DONE): 1,
@@ -501,19 +505,20 @@ class TerminalAuditEnforcement:
             self._state_corrupt = True
             return {}
 
-    def _persist(self, root: Mapping[str, Any]) -> None:
+    def _persist(self, root: Mapping[str, Any]) -> bool:
         if self._state_corrupt:
             logger.error(
                 "terminal-audit enforcement state is quarantined; refusing to overwrite corrupt service state"
             )
-            return
+            return False
         payload = self.state.to_dict()
         if self._save_state_callback is not None:
             try:
                 self._save_state_callback({SERVICE_STATE_KEY: payload})
             except Exception as exc:  # pragma: no cover - defensive callback boundary
                 self._error("service_state_write_failed", exc)
-            return
+                return False
+            return True
         assert self.state_path is not None
         path = Path(self.state_path)
         with _state_lock(str(path)):
@@ -529,6 +534,7 @@ class TerminalAuditEnforcement:
             finally:
                 if os.path.exists(temp_name):
                     os.unlink(temp_name)
+        return True
 
     def _error(self, code: str, exc: BaseException | None = None) -> None:
         if code not in self.errors:
@@ -1036,6 +1042,11 @@ class TerminalAuditEnforcement:
         result.setdefault("reconciled", 0)
         result.setdefault("failed", 0)
         result.setdefault("pending", 0)
+        result.setdefault("retry_pending", 0)
+        result.setdefault("retry_due", 0)
+        result.setdefault("exhausted", 0)
+        result.setdefault("action_required", False)
+        result.setdefault("next_retry_at", None)
         result.setdefault("errors", [])
         return result
 
@@ -1061,38 +1072,149 @@ class TerminalAuditEnforcement:
         }
 
     @staticmethod
-    def _lifecycle_counts(records: list[Mapping[str, Any]]) -> dict[str, int]:
+    def _lifecycle_timestamp(value: Any) -> datetime | None:
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _lifecycle_retry_delay(
+        attempts: int,
+        *,
+        retry_backoff_seconds: float,
+        retry_max_backoff_seconds: float,
+    ) -> float:
+        exponent = max(int(attempts) - 1, 0)
+        delay = float(retry_backoff_seconds)
+        ceiling = float(retry_max_backoff_seconds)
+        for _ in range(exponent):
+            if delay >= ceiling / 2:
+                return ceiling
+            delay *= 2
+        return min(delay, ceiling)
+
+    @staticmethod
+    def _lifecycle_source_fingerprint(tracker: TrackerProtocol, issue: Issue) -> str:
+        """Fingerprint only inputs whose repair may be changed by an operator."""
+
+        metadata: Any
+        try:
+            metadata = tracker.get_metadata(str(issue.identifier))
+        except Exception as exc:  # noqa: BLE001 - a failed read is itself stable input
+            metadata = {"unavailable": type(exc).__name__}
+        terminal_metadata = (
+            metadata.get(METADATA_KEY)
+            if isinstance(metadata, Mapping)
+            else {"invalid": type(metadata).__name__}
+        )
+        payload = {
+            "state": canonicalize_status(getattr(issue, "state", "")),
+            "parent_id": str(getattr(issue, "parent_id", "") or ""),
+            "terminal_audit": terminal_metadata,
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def _lifecycle_counts(
+        cls,
+        records: list[Mapping[str, Any]],
+        *,
+        now: datetime,
+    ) -> dict[str, Any]:
         completed = sum(1 for row in records if row.get("status") == "completed")
         reconciled = sum(
             1
             for row in records
             if row.get("status") == "completed" and row.get("outcome") == "reconciled"
         )
-        failed = sum(1 for row in records if row.get("status") == "failed")
+        retry_rows = [row for row in records if row.get("status") == "failed"]
+        exhausted = sum(1 for row in records if row.get("status") == "exhausted")
+        failed = len(retry_rows) + exhausted
         pending = sum(1 for row in records if row.get("status") == "pending")
+        retry_times = [
+            retry_at
+            for row in retry_rows
+            if (retry_at := cls._lifecycle_timestamp(row.get("next_attempt_at")))
+            is not None
+        ]
+        next_retry = min(retry_times) if retry_times else None
         return {
             "total": len(records),
             "processed": completed,
             "reconciled": reconciled,
             "failed": failed,
             "pending": pending,
+            "retry_pending": len(retry_rows),
+            "retry_due": sum(retry_at <= now for retry_at in retry_times),
+            "exhausted": exhausted,
+            "action_required": bool(exhausted),
+            "next_retry_at": next_retry.isoformat() if next_retry is not None else None,
         }
+
+    @classmethod
+    def _refresh_lifecycle_summary(
+        cls,
+        queue: dict[str, Any],
+        *,
+        now: datetime,
+        scan_errors: Iterable[str] = (),
+    ) -> None:
+        records = queue.get("records", [])
+        queue.update(cls._lifecycle_counts(records, now=now))
+        row_errors = [
+            f"{row.get('project_id')}/{row.get('task_id')}: {row.get('last_error')}"
+            for row in records
+            if row.get("status") in {"failed", "exhausted"} and row.get("last_error")
+        ]
+        queue["errors"] = list(
+            dict.fromkeys([*(str(value) for value in scan_errors), *row_errors])
+        )[-50:]
+        if not records:
+            queue["status"] = "degraded" if queue["errors"] else "idle"
+        elif queue["failed"] or queue["errors"]:
+            queue["status"] = "degraded"
+        elif queue["pending"]:
+            queue["status"] = "migrating"
+        else:
+            queue["status"] = "complete"
 
     def _lifecycle_prepare_queue(
         self,
         scopes: list[tuple[str, TrackerProtocol]],
         *,
-        root: Mapping[str, Any],
-    ) -> tuple[dict[str, Any], dict[tuple[str, str], tuple[TrackerProtocol, Issue]]]:
-        """Discover Merged rows and persist their bounded work projection."""
+        now: datetime,
+        max_attempts: int,
+        retry_backoff_seconds: float,
+        retry_max_backoff_seconds: float,
+    ) -> tuple[
+        dict[str, Any],
+        dict[tuple[str, str], tuple[TrackerProtocol, Issue]],
+        set[str],
+        bool,
+    ]:
+        """Discover Merged rows and prepare one coalesced durable projection."""
 
         current: dict[tuple[str, str], tuple[TrackerProtocol, Issue]] = {}
         merged_keys: set[tuple[str, str]] = set()
+        unavailable_projects: set[str] = set()
         scan_errors: list[str] = []
         for project_id, tracker in scopes:
             try:
                 issues = self._all_issues(tracker)
             except Exception as exc:  # noqa: BLE001 - isolate one project
+                unavailable_projects.add(str(project_id))
                 scan_errors.append(f"scan_failed:{project_id}:{type(exc).__name__}")
                 continue
             for issue in issues:
@@ -1132,50 +1254,133 @@ class TerminalAuditEnforcement:
                 by_key[key] = row
                 records.append(row)
 
-        counts = self._lifecycle_counts(records)
-        errors = [
-            str(value)
-            for value in (raw.get("errors", []) if isinstance(raw, Mapping) else [])
-            if isinstance(value, str)
-        ]
-        errors = [error for error in errors if not error.startswith("scan_failed:")]
-        errors = list(dict.fromkeys([*errors, *scan_errors]))[-50:]
-        if not records:
-            status = "degraded" if scan_errors else "idle"
-        elif counts["pending"]:
-            status = "degraded" if counts["failed"] or scan_errors else "migrating"
-        else:
-            status = "degraded" if scan_errors else "complete"
+        # Additive migration for the original unbounded ledger.  Rows already
+        # beyond the retry budget become actionable immediately on deployment
+        # instead of receiving one more attempt.  A later operator change to
+        # the relevant task/terminal-audit metadata automatically opens a new
+        # bounded retry epoch.
+        for row in records:
+            status = str(row.get("status", "pending"))
+            if status not in {"pending", "failed", "exhausted", "completed"}:
+                status = "pending"
+                row["status"] = status
+            attempts = row.get("attempts", 0)
+            if isinstance(attempts, bool):
+                attempts = 0
+            try:
+                attempts = max(int(attempts), 0)
+            except (TypeError, ValueError):
+                attempts = 0
+            row["attempts"] = attempts
+            tracker_issue = current.get(
+                (str(row.get("project_id", "")), str(row.get("task_id", "")))
+            )
+            if status == "failed" and attempts >= max_attempts:
+                row["status"] = status = "exhausted"
+                row.setdefault("exhausted_at", str(row.get("updated_at") or now.isoformat()))
+                row.pop("next_attempt_at", None)
+                if tracker_issue is not None:
+                    row["failure_fingerprint"] = self._lifecycle_source_fingerprint(
+                        *tracker_issue
+                    )
+            elif status == "failed" and self._lifecycle_timestamp(
+                row.get("next_attempt_at")
+            ) is None:
+                updated_at = self._lifecycle_timestamp(row.get("updated_at")) or now
+                delay = self._lifecycle_retry_delay(
+                    attempts,
+                    retry_backoff_seconds=retry_backoff_seconds,
+                    retry_max_backoff_seconds=retry_max_backoff_seconds,
+                )
+                row["next_attempt_at"] = (updated_at + timedelta(seconds=delay)).isoformat()
+            elif status == "exhausted" and tracker_issue is not None:
+                fingerprint = self._lifecycle_source_fingerprint(*tracker_issue)
+                previous = row.get("failure_fingerprint")
+                task_reappeared = (
+                    row.get("last_error") == "task_not_present_in_current_snapshot"
+                )
+                if task_reappeared or (
+                    isinstance(previous, str) and previous and previous != fingerprint
+                ):
+                    try:
+                        retry_epochs = (
+                            max(int(row.get("retry_epochs", 0) or 0), 0) + 1
+                        )
+                    except (TypeError, ValueError):
+                        retry_epochs = 1
+                    row.update(
+                        {
+                            "status": "pending",
+                            "attempts": 0,
+                            "last_error": None,
+                            "retry_epochs": retry_epochs,
+                        }
+                    )
+                    for key in (
+                        "next_attempt_at",
+                        "exhausted_at",
+                        "failure_fingerprint",
+                    ):
+                        row.pop(key, None)
+                elif not isinstance(previous, str) or not previous:
+                    row["failure_fingerprint"] = fingerprint
+
+        try:
+            cursor = max(int(raw.get("cursor", 0) or 0), 0)
+        except (TypeError, ValueError):
+            cursor = 0
         queue = {
             "version": LIFECYCLE_RECONCILIATION_VERSION,
-            "status": status,
             "records": records,
-            "cursor": int(raw.get("cursor", 0) or 0) if isinstance(raw, Mapping) else 0,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "errors": errors,
-            **counts,
+            "cursor": cursor,
+            "updated_at": str(raw.get("updated_at") or now.isoformat()),
         }
+        self._refresh_lifecycle_summary(queue, now=now, scan_errors=scan_errors)
+        comparable_raw = dict(raw) if isinstance(raw, Mapping) else {}
+        changed = comparable_raw != queue
+        if changed:
+            queue["updated_at"] = now.isoformat()
         self._set_lifecycle_state(queue)
-        self._persist(root)
-        return queue, current
+        return queue, current, unavailable_projects, changed
 
     def reconcile_lifecycle_batch(
         self,
         scopes: Iterable[tuple[str, TrackerProtocol]],
         *,
         batch_size: int = DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
+        max_attempts: int = DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
+        retry_backoff_seconds: float = (
+            DEFAULT_LIFECYCLE_RECONCILIATION_RETRY_BACKOFF_SECONDS
+        ),
+        retry_max_backoff_seconds: float = (
+            DEFAULT_LIFECYCLE_RECONCILIATION_MAX_BACKOFF_SECONDS
+        ),
+        now: datetime | None = None,
     ) -> dict[str, Any]:
         """Process a bounded, durable batch of legacy lifecycle repairs.
 
-        Discovery and each row's outcome are persisted before the method
-        returns.  A crash leaves the current row pending; repeating it is safe
-        because the tracker status and lifecycle ledger are both checked before
-        any repair is applied.  A failing row is isolated and remains visible
-        for a later retry without preventing other rows from converging.
+        Discovery, outcomes, and cursor movement share a coalesced end-of-batch
+        checkpoint.  Only a repair intent immediately preceding an external
+        status write receives its own fail-closed checkpoint.  A crash leaves
+        that row recoverable because tracker status and lifecycle metadata are
+        checked before the repair is repeated.  Failing rows use durable,
+        bounded retry epochs and never prevent fresh pending rows converging.
         """
 
         if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
             raise ValueError("batch_size must be a positive integer")
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts <= 0:
+            raise ValueError("max_attempts must be a positive integer")
+        retry_backoff_seconds = float(retry_backoff_seconds)
+        retry_max_backoff_seconds = float(retry_max_backoff_seconds)
+        if retry_backoff_seconds <= 0:
+            raise ValueError("retry_backoff_seconds must be positive")
+        if retry_max_backoff_seconds < retry_backoff_seconds:
+            raise ValueError("retry_max_backoff_seconds must be at least retry_backoff_seconds")
+        current_time = now or datetime.now(timezone.utc)
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
+        current_time = current_time.astimezone(timezone.utc)
         scope_list = [(str(project_id), tracker) for project_id, tracker in (
             scopes.items() if isinstance(scopes, Mapping) else scopes
         )]
@@ -1187,13 +1392,56 @@ class TerminalAuditEnforcement:
                     self.state = loaded
                     self.errors = list(dict.fromkeys([*self.errors, *loaded.errors]))
                 self._state_loaded = True
-            queue, current = self._lifecycle_prepare_queue(scope_list, root=root)
+            (
+                queue,
+                current,
+                unavailable_projects,
+                prepared_changed,
+            ) = self._lifecycle_prepare_queue(
+                scope_list,
+                now=current_time,
+                max_attempts=max_attempts,
+                retry_backoff_seconds=retry_backoff_seconds,
+                retry_max_backoff_seconds=retry_max_backoff_seconds,
+            )
             records = queue["records"]
-            eligible = [
-                (index, row)
-                for index, row in enumerate(records)
-                if row.get("status") in {"pending", "failed"}
-            ][:batch_size]
+            cursor = int(queue.get("cursor", 0) or 0)
+            record_count = len(records)
+
+            def _cursor_order(index: int) -> int:
+                return (index - cursor) % record_count if record_count else 0
+
+            pending = sorted(
+                (
+                    (index, row)
+                    for index, row in enumerate(records)
+                    if row.get("status") == "pending"
+                    and str(row.get("project_id", "")) not in unavailable_projects
+                ),
+                key=lambda item: _cursor_order(item[0]),
+            )
+            eligible = pending[:batch_size]
+            remaining = batch_size - len(eligible)
+            if remaining:
+                due_failed = sorted(
+                    (
+                        (index, row)
+                        for index, row in enumerate(records)
+                        if row.get("status") == "failed"
+                        and str(row.get("project_id", "")) not in unavailable_projects
+                        and (
+                            self._lifecycle_timestamp(row.get("next_attempt_at"))
+                            or current_time
+                        )
+                        <= current_time
+                    ),
+                    key=lambda item: (
+                        self._lifecycle_timestamp(item[1].get("next_attempt_at"))
+                        or current_time,
+                        _cursor_order(item[0]),
+                    ),
+                )
+                eligible.extend(due_failed[:remaining])
             for index, row in eligible:
                 project_id = str(row["project_id"])
                 task_id = str(row["task_id"])
@@ -1270,11 +1518,12 @@ class TerminalAuditEnforcement:
                                     # sees the persisted conflict and can
                                     # finish metadata without mutating status
                                     # a second time.
-                                    queue["updated_at"] = datetime.now(
-                                        timezone.utc
-                                    ).isoformat()
+                                    queue["updated_at"] = current_time.isoformat()
                                     self._set_lifecycle_state(queue)
-                                    self._persist(self._load_root_state())
+                                    if not self._persist(self._load_root_state()):
+                                        raise RuntimeError(
+                                            "lifecycle intent was not durably persisted"
+                                        )
                                 except Exception as exc:  # noqa: BLE001 - row isolation
                                     error = f"lifecycle_intent_persist_failed:{type(exc).__name__}"
                                 if error is None:
@@ -1292,52 +1541,71 @@ class TerminalAuditEnforcement:
                                     except Exception as exc:  # noqa: BLE001 - row isolation
                                         error = f"lifecycle_repair_failed:{type(exc).__name__}"
                 row["attempts"] = int(row.get("attempts", 0) or 0) + 1
-                row["updated_at"] = datetime.now(timezone.utc).isoformat()
+                row["updated_at"] = current_time.isoformat()
                 if error is None:
-                    row.update({"status": "completed", "outcome": outcome, "last_error": None})
+                    row.update(
+                        {"status": "completed", "outcome": outcome, "last_error": None}
+                    )
+                    for key in (
+                        "next_attempt_at",
+                        "exhausted_at",
+                        "failure_fingerprint",
+                    ):
+                        row.pop(key, None)
                 else:
-                    row.update({"status": "failed", "last_error": error})
-                    queue["errors"] = list(
-                        dict.fromkeys(
-                            [
-                                *queue.get("errors", []),
-                                f"{project_id}/{task_id}: {error}",
-                            ]
+                    row.update(
+                        {
+                            "status": "failed",
+                            "last_error": error,
+                            "failure_fingerprint": (
+                                self._lifecycle_source_fingerprint(*tracker_issue)
+                                if tracker_issue is not None
+                                else None
+                            ),
+                        }
+                    )
+                    if row["attempts"] >= max_attempts:
+                        row["status"] = "exhausted"
+                        row["exhausted_at"] = current_time.isoformat()
+                        row.pop("next_attempt_at", None)
+                    else:
+                        delay = self._lifecycle_retry_delay(
+                            row["attempts"],
+                            retry_backoff_seconds=retry_backoff_seconds,
+                            retry_max_backoff_seconds=retry_max_backoff_seconds,
                         )
-                    )[-50:]
-                queue["cursor"] = index + 1
-                queue.update(self._lifecycle_counts(records))
-                scan_degraded = any(
-                    str(value).startswith("scan_failed:")
-                    for value in queue.get("errors", [])
+                        row["next_attempt_at"] = (
+                            current_time + timedelta(seconds=delay)
+                        ).isoformat()
+                queue["cursor"] = (index + 1) % record_count if record_count else 0
+                self._refresh_lifecycle_summary(
+                    queue,
+                    now=current_time,
+                    scan_errors=(
+                        value
+                        for value in queue.get("errors", [])
+                        if str(value).startswith("scan_failed:")
+                    ),
                 )
-                queue["status"] = (
-                    "degraded"
-                    if queue["failed"] or scan_degraded
-                    else "migrating"
-                    if queue["pending"]
-                    else "complete"
-                )
-                queue["updated_at"] = datetime.now(timezone.utc).isoformat()
+                queue["updated_at"] = current_time.isoformat()
                 self._set_lifecycle_state(queue)
-                self._persist(self._load_root_state())
-            queue.update(self._lifecycle_counts(records))
-            scan_degraded = any(
-                str(value).startswith("scan_failed:")
-                for value in queue.get("errors", [])
+            self._refresh_lifecycle_summary(
+                queue,
+                now=current_time,
+                scan_errors=(
+                    value
+                    for value in queue.get("errors", [])
+                    if str(value).startswith("scan_failed:")
+                ),
             )
-            queue["status"] = (
-                "degraded"
-                if queue["failed"] or scan_degraded
-                else "migrating"
-                if queue["pending"]
-                else "complete"
-                if records
-                else "idle"
-            )
-            queue["updated_at"] = datetime.now(timezone.utc).isoformat()
+            if eligible:
+                queue["updated_at"] = current_time.isoformat()
             self._set_lifecycle_state(queue)
-            self._persist(self._load_root_state())
+            if prepared_changed or eligible:
+                # Outcomes and cursor movement share one checkpoint.  The only
+                # extra writes above are the fail-closed intent checkpoints
+                # immediately preceding an external tracker mutation.
+                self._persist(self._load_root_state())
             return self.lifecycle_reconciliation_status()
 
     def _finalize_incompatible_shared_epic_merged(
