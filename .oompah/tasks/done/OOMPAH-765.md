@@ -17,7 +17,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-08-04T13:55:54.087142Z'
-updated_at: '2026-08-05T08:07:52.924277Z'
+updated_at: '2026-08-05T08:07:59.978558Z'
 work_branch: epic-OOMPAH-765
 target_branch: epic-OOMPAH-763
 review_url: https://github.com/lesserevil/oompah/pull/714
@@ -97,8 +97,11 @@ oompah.terminal_audit:
     audit_ids:
     - audit-17b3b9d996a9
     kind: result
-    applied: true
+    applied: false
     retired_at: '2026-08-04T17:08:47.135181+00:00'
+    lifecycle_reconciled: true
+    reconciled_to: Done
+    retired_reason: shared_epic_parent_not_landed
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-765
@@ -124,6 +127,22 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T17:08:47.135199+00:00'
     applied_at: '2026-08-04T17:08:58.237373+00:00'
+    retired_by_reconciliation: true
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-05T08:07:55.125992+00:00'
+  oompah.terminal_override_records: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-765
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-765 to Merged: parent epic
+      OOMPAH-763 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-d5e425f65f54
+    created_at: '2026-08-05T08:07:55.125992+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -165,7 +184,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-765
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +212,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-04T17:00:39.012622+00:00'
-    updated_at: '2026-08-04T17:08:47.134969+00:00'
+    updated_at: '2026-08-05T08:07:55.125992+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ded794f8821
@@ -556,5 +575,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 54s
 - Log: OOMPAH-765__20260804T170628Z.jsonl
+---
+author: oompah
+created: 2026-08-05 08:07
+---
+Lifecycle reconciliation restored OOMPAH-765 to audited Done: Cannot transition shared-epic child OOMPAH-765 to Merged: parent epic OOMPAH-763 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
