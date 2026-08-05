@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:40:28.759762Z'
+updated_at: '2026-08-05T01:40:48.779223Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 54a9cee5-62a0-4625-91d1-aac85d6b015e
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9678767
@@ -242,12 +242,14 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-502--task-OOMPAH-505
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
-  updated_at: '2026-08-05T01:36:09.660480+00:00'
+  head_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+  submitted_at: '2026-08-05T01:40:38.989374+00:00'
+  updated_at: '2026-08-05T01:40:38.989374+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-505__20260805T010706Z
@@ -726,5 +728,10 @@ author: oompah
 created: 2026-08-05 01:40
 ---
 Completion: OOMPAH-505 is ready for integration at clean, pushed head e1b0f4846. The landed implementation exposes manual ACP model selection independently from catalog discovery, validates and persists explicit role candidates with SDK-default fallback, propagates Claude/Codex models through dispatch and telemetry, documents operator entry, and retains provider health/credentials/whitelist behavior. Verification: 570 focused feature tests + 485 auth/access-control neighbor tests passed; secret scan clean.
+---
+author: oompah
+created: 2026-08-05 01:40
+---
+Completed explicit Claude/Codex model tiers; validated 570 feature tests, 485 auth/access-control neighbor tests, and make check-secrets; pushed clean head e1b0f4846.
 ---
 <!-- COMMENTS:END -->
