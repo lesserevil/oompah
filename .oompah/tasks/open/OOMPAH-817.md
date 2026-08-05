@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:04:50.363142Z'
-updated_at: '2026-08-05T01:08:25.871141Z'
+updated_at: '2026-08-05T01:09:25.293286Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-817
 target_branch: null
 review_url: null
@@ -22,14 +22,49 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 8f17a9efe143d1c24e084b6d486c54c8213a0ca099304e8b6e7c26c6abed989e
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-05T01:09:16.440575+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d2ef5cec-8899-4c51-b5ba-8b804c5a48c4
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-05T01:07:56.987978+00:00'
-  claim_expires_at: '2026-08-05T01:37:56.987978+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed all 10 active non-terminal peer tasks (OOMPAH-763,\
+    \ OOMPAH-767\u2013771, OOMPAH-807\u2013816). None address the specific bug of\
+    \ recovery checkpoint objects not being transferred/fetched into the authoritative\
+    \ repository before publishing recovery refs in `preserve_worktree_changes`. OOMPAH-814\
+    \ is a related incident that triggered discovery of this bug but tracks test fixture\
+    \ determinism, not the persistence failure itself. The remaining tasks cover workflow\
+    \ engine architecture, scheduling, dispatch fencing, integration queue management,\
+    \ and resource leasing\u2014all distinct from recovery checkpoint durability.\
+    \ OOMPAH-817 is a focused bug fix with no active duplicate.\nI'll analyze the\
+    \ provided task corpus to determine whether OOMPAH-817 is a duplicate of any existing\
+    \ active task.\n\n**Understanding OOMPAH-817**:\n- Core issue: `preserve_worktree_changes`\
+    \ creates recovery checkpoints in standalone clone object databases, then attempts\
+    \ to publish recovery refs in the authoritative repo, but the repo lacks the checkpoint\
+    \ objects \u2192 `update-ref` fails with \"nonexistent object\"\n- Impact: Task\
+    \ left In Progress with no running worker/recovery path\n- Solution scope: Transfer/fetch\
+    \ objects into authoritative repo before publishing recovery refs, or store refs\
+    \ in the object database owning the checkpoint\n- Specific to: recovery checkpoint\
+    \ durability across linked worktrees and standalone clones\n\n**Reviewing active\
+    \ (non-terminal) peer tasks**:\n\n1. **OOMPAH-763** (In Progress, epic): Workflow\
+    \ engine migration\u2014broader scope, covers multiple domains\n2. **OOMPAH-767**\
+    \ through **OOMPAH-771**: Workflow engine child epics\u2014each addresses specific\
+    \ domain (facts, decisions, jobs, liveness, retirement)\n3. **OOMPAH-807** (Open,\
+    \ task): Revisionless audits for metadata-only Archived\u2014audit lifecycle,\
+    \ different scope\n4. **OOMPAH-808** (Open, task): Fence nested-epic dispatch\
+    \ until prerequisite code reachable\u2014dispatch fencing, different issue\n5.\
+    \ **OOMPAH-809** (Open, task): Reserve workflow-repair capacity\u2014scheduler\
+    \ capacity starvation, unrelated to object persistence\n6. **OOMPAH-810** (Open,\
+    \ task): Return completed auditor command results\u2014ACP session transport,\
+    \ unrelated\n7. **OOMPAH-811** (Open, task): Atomically rearm integration ownership\
+    \ on rebase\u2014integration queue saga, different problem\n8. **OOMPAH-814**\
+    \ (Ready to Integrate, task): Make submit-queue fixtures deterministic\u2014test\
+    \ fixture concurrency, unrelated\n9. **OOMPAH-815** (In Progress, task): Preserve\
+    \ accepted child branch identity\u2014branch identity fencing, different issue\n\
+    10. **OOMPAH-816** (In Progress, task): Serialize heavyweight auditor validation\u2014\
+    resource lease for validation commands, unrelated"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -45,6 +80,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   updated_at: '2026-08-05T01:08:20.587903+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2022
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2022
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2022
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:09:16.439250+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-817__20260805T010831Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-817
+    source_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
+    completed_at: '2026-08-05T01:09:16.488925+00:00'
 ---
 ## Summary
 
@@ -67,5 +128,15 @@ author: oompah
 created: 2026-08-05 01:08
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 01:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 6s
+- Log: OOMPAH-817__20260805T010831Z.jsonl
 ---
 <!-- COMMENTS:END -->
