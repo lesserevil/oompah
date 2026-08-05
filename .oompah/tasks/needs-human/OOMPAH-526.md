@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-526
 type: chore
-status: In Validation
+status: Needs Human
 priority: 1
 title: Document and validate secure htpasswd deployment and recovery
 parent: OOMPAH-521
@@ -15,7 +15,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-28T18:13:23.306052Z'
-updated_at: '2026-08-05T00:02:29.420678Z'
+updated_at: '2026-08-05T00:02:39.556708Z'
 work_branch: epic-OOMPAH-521
 target_branch: null
 review_url: null
@@ -79,8 +79,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-d04490732e74
-    applied: false
+    applied: true
     created_at: '2026-08-05T00:02:28.136655+00:00'
+    applied_at: '2026-08-05T00:02:38.183569+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -471,5 +472,12 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 44s
 - Log: OOMPAH-526__20260804T234936Z.jsonl
+---
+author: oompah
+created: 2026-08-05 00:02
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
