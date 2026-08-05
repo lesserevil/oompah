@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-08-05T19:34:18.722983Z'
+updated_at: '2026-08-05T19:39:36.963433Z'
 work_branch: epic-OOMPAH-545
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/579
@@ -34,7 +34,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-545
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -59,13 +59,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-05T19:34:19.034314+00:00'
+    - version: 1
+      attempt_id: attempt-be621b408a9a
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: add0e4e090f73f0d9b572c9b1a50e5f64e1f2ddc60b05e43464871e9107eecfa
+      created_at: '2026-08-05T19:39:35.475470+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-05T19:39:35.475470+00:00'
+      branch_key: epic-OOMPAH-545
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T19:23:58.398298+00:00'
-    updated_at: '2026-08-05T19:34:09.034345+00:00'
+    updated_at: '2026-08-05T19:39:35.475470+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4f0c841efb2a
@@ -86,6 +100,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-05T19:34:19.034314+00:00'
+  - version: 1
+    attempt_id: attempt-be621b408a9a
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: add0e4e090f73f0d9b572c9b1a50e5f64e1f2ddc60b05e43464871e9107eecfa
+    created_at: '2026-08-05T19:39:35.475470+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-05T19:39:35.475470+00:00'
+    branch_key: epic-OOMPAH-545
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 32
   total_output_tokens: 828
