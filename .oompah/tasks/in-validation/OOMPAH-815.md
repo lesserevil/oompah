@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T15:52:33.443313Z'
+updated_at: '2026-08-05T15:56:58.746111Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-815
 target_branch: null
 review_url: null
@@ -396,5 +396,10 @@ author: oompah
 created: 2026-08-05 15:52
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 15:56
+---
+Audit-infrastructure note for any later retry: OOMPAH-831/OOMPAH-832 track a deployed tool-contract bug. Use the advertised search_files/read_file tools with one literal pattern at a time and already-approved git status/log/show/branch/rev-parse/diff commands; do not use git ls-remote, git for-each-ref, wc, arbitrary scripting, or compound output redirection. This is tool guidance only, not a requested verdict; exact-head evidence and acceptance judgment remain the auditor’s.
 ---
 <!-- COMMENTS:END -->
