@@ -10814,12 +10814,13 @@ class Orchestrator:
     ) -> int:
         """Cancel stale delivery rows whose tracker task left the queue lane.
 
-        A row is retired whenever the task's tracker status is anything other
-        than READY_TO_INTEGRATE.  The previous guard (only terminal states plus
-        IN_VALIDATION/NEEDS_HUMAN) left rows alive when a task was moved back
-        to Open, which caused the gate to continue running or re-launch after
-        operator rejection — the live race reproduced repeatedly on OOMPAH-655,
-        OOMPAH-653, and OOMPAH-658.
+        A row is normally retired whenever the task's tracker status is
+        anything other than READY_TO_INTEGRATE.  One exact exception preserves
+        a blocked row while its task is in the matching repair state: that row
+        is the durable authoritative failure evidence used by the stalled-task
+        watchdog and by the repair worker.  Open, terminal, reassigned, or
+        mismatched rows are still retired, preventing rejected work from
+        relaunching its old gate.
 
         We also cancel the gate generation for each retired row.  The row
         retirement stops the queue item from being picked up again, while the
@@ -10842,6 +10843,24 @@ class Orchestrator:
             # Any status other than READY_TO_INTEGRATE means the task has left
             # the queue lane (rejected back to Open, terminal, reassigned, etc.).
             if issue is not None and status == READY_TO_INTEGRATE:
+                continue
+            integration = getattr(issue, "integration", None)
+            if isinstance(integration, Mapping):
+                integration_head = integration.get("head_sha")
+                integration_branch = integration.get("task_branch")
+            else:
+                integration_head = getattr(integration, "head_sha", "")
+                integration_branch = getattr(integration, "task_branch", "")
+            preserves_exact_failure = bool(
+                issue is not None
+                and item.state == "blocked"
+                and status in {NEEDS_CI_FIX, NEEDS_REBASE}
+                and str(integration_head or "").strip().lower()
+                == str(item.head_sha or "").strip().lower()
+                and str(integration_branch or "").strip()
+                == str(item.task_branch or "").strip()
+            )
+            if preserves_exact_failure:
                 continue
             if self.integration_queue.cancel(
                 project_id,
@@ -21936,6 +21955,7 @@ class Orchestrator:
             projects_and_trackers,
             run_id=run_id,
             evidence_provider=self._collect_stalled_watchdog_evidence,
+            reopen_executor=self._execute_stalled_watchdog_reopen,
         )
 
         self._maintenance_status["stalled_task_watchdog"] = result.to_dict()
@@ -22106,64 +22126,214 @@ class Orchestrator:
         project_id: str | None,
         issue: Issue,
     ) -> dict[str, Any]:
-        """Return the exact-head authoritative gate outcome, if remembered.
+        """Return durable exact-head gate authority from the integration row."""
 
-        ``_quality_gate_outcomes`` retains the most recent non-passing gate
-        result for a (project, task) pair; a subsequent passing run clears
-        the entry.  Surfacing the head, status, and (when known) the
-        delivery-authority generation lets
-        :func:`~oompah.stalled_task_watchdog.classify_stalled_task` fence a
-        NEEDS_CI_FIX reopen against the OOMPAH-814 race where a passing
-        focused/SCM CI verdict raced ahead of the authoritative failing
-        combined-tree gate at the exact same accepted head.
-        """
-        snapshot: dict[str, Any] = {}
-        lock = getattr(self, "_quality_gate_outcomes_lock", None)
-        outcomes = getattr(self, "_quality_gate_outcomes", None)
-        if lock is None or outcomes is None:
-            return snapshot
         task_id = str(getattr(issue, "identifier", "") or "").strip()
         pid = str(project_id or "").strip()
         if not task_id or not pid:
-            return snapshot
-        with lock:
-            result = outcomes.get((pid, task_id))
-        if result is None:
-            return snapshot
-        head_sha = str(getattr(result, "head_sha", "") or "").strip().lower()
-        status = str(getattr(result, "status", "") or "").strip().lower()
-        if not status:
-            return snapshot
-        snapshot.update({
-            "head_sha": head_sha,
+            return {}
+        row = self.integration_queue.get(pid, task_id)
+        if row is None:
+            return {}
+        queue_state = str(row.state or "").strip().lower()
+        status = {
+            "blocked": "failed",
+            "integrated": "passed",
+        }.get(queue_state, queue_state)
+        generation = f"integration-queue-v1:{row.authority_generation()}"
+        return {
+            "head_sha": str(row.head_sha or "").strip().lower(),
+            "task_branch": str(row.task_branch or "").strip(),
             "status": status,
             "verdict": status,
-            "command": str(getattr(result, "command", "") or ""),
-            "cached": bool(getattr(result, "cached", False)),
-        })
-        # Compare-and-set generation: standalone delivery authority for this
-        # exact (project, task).  A revoked authority means the accepted head
-        # has moved and the gate outcome is stale — the classifier still
-        # sees the head/status pair but the generation surfaces the CAS token
-        # in the watchdog comment and structured event.
-        authority_lock = getattr(
-            self, "_standalone_delivery_authority_lock", None
+            "queue_state": queue_state,
+            "last_error": str(row.last_error or ""),
+            "attempts": row.attempts,
+            "updated_at": row.updated_at,
+            "generation": generation,
+            "authority_generation": generation,
+        }
+
+    def _execute_stalled_watchdog_reopen(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Bridge a maintenance-thread reopen into shared task authority."""
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                logger.warning(
+                    "Refusing synchronous stalled-task reopen on the dispatch loop"
+                )
+                return False
+            return bool(
+                asyncio.run_coroutine_threadsafe(
+                    self._execute_stalled_watchdog_reopen_under_authority(
+                        project_id,
+                        issue,
+                        tracker,
+                        decision,
+                        comment_body,
+                    ),
+                    loop,
+                ).result()
+            )
+        if self._running_loop() is not None:
+            logger.warning(
+                "Refusing stalled-task reopen without a synchronous authority bridge"
+            )
+            return False
+        return bool(
+            asyncio.run(
+                self._execute_stalled_watchdog_reopen_under_authority(
+                    project_id,
+                    issue,
+                    tracker,
+                    decision,
+                    comment_body,
+                )
+            )
         )
-        authorities = getattr(self, "_standalone_delivery_authorities", None)
-        if authority_lock is not None and authorities is not None:
-            with authority_lock:
-                authority = authorities.get((pid, task_id))
-                if authority is not None:
-                    generation = str(getattr(authority, "generation", "") or "").strip()
-                    if generation:
-                        snapshot["generation"] = generation
-                        snapshot["authority_generation"] = generation
-                    authority_head = str(
-                        getattr(authority, "head_sha", "") or ""
-                    ).strip().lower()
-                    if authority_head and not snapshot.get("head_sha"):
-                        snapshot["head_sha"] = authority_head
-        return snapshot
+
+    async def _execute_stalled_watchdog_reopen_under_authority(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Execute the blocking watchdog CAS under shared issue authority."""
+
+        issue_id = str(
+            getattr(issue, "id", None)
+            or getattr(issue, "identifier", "")
+            or ""
+        ).strip()
+        if not issue_id:
+            return False
+        async with self.issue_transition_lock(issue_id):
+            return await asyncio.to_thread(
+                self._execute_stalled_watchdog_reopen_locked,
+                project_id,
+                issue,
+                tracker,
+                decision,
+                comment_body,
+            )
+
+    def _stalled_watchdog_branch_head(
+        self,
+        project_id: str,
+        task_branch: str,
+    ) -> str:
+        """Return the current forge head for one actionable task branch."""
+
+        pid = str(project_id or "").strip()
+        branch = str(task_branch or "").strip()
+        if not pid or not branch or self.project_store is None:
+            return ""
+        project = self.project_store.get(pid)
+        if project is None:
+            return ""
+        provider = detect_provider(
+            str(getattr(project, "repo_url", "") or ""),
+            access_token=getattr(project, "access_token", None),
+        )
+        if provider is None or not provider.is_available():
+            return ""
+        repo = extract_repo_slug(str(getattr(project, "repo_url", "") or ""))
+        return str(provider.get_branch_head_sha(repo, branch) or "").strip().lower()
+
+    def _execute_stalled_watchdog_reopen_locked(
+        self,
+        project_id: str | None,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        decision: Any,
+        comment_body: str,
+    ) -> bool:
+        """Apply a reopen while issue, queue, tracker, and SCM evidence agree."""
+
+        identifier = str(getattr(issue, "identifier", "") or "").strip()
+        expected_status = canonicalize_status(
+            str(getattr(decision, "stalled_status", "") or "")
+        )
+        decision_head = str(
+            getattr(decision, "evidence_head", "") or ""
+        ).strip().lower()
+        pid = str(project_id or "").strip()
+
+        def _apply(_row: Any | None = None) -> bool:
+            current = tracker.fetch_issue_detail(identifier)
+            if current is None or canonicalize_status(current.state) != expected_status:
+                return False
+            if _row is not None:
+                integration = getattr(current, "integration", None)
+                if integration is None:
+                    return False
+                if isinstance(integration, Mapping):
+                    integration_head = integration.get("head_sha")
+                    integration_branch = integration.get("task_branch")
+                else:
+                    integration_head = getattr(integration, "head_sha", "")
+                    integration_branch = getattr(integration, "task_branch", "")
+                accepted_head = str(integration_head or "").strip().lower()
+                accepted_branch = str(integration_branch or "").strip()
+                if not accepted_head or accepted_head != str(_row.head_sha).lower():
+                    return False
+                if not accepted_branch or accepted_branch != str(_row.task_branch):
+                    return False
+                if not decision_head:
+                    return False
+                try:
+                    branch_head = self._stalled_watchdog_branch_head(
+                        pid,
+                        accepted_branch,
+                    )
+                except Exception as exc:  # noqa: BLE001 - evidence fails closed
+                    logger.warning(
+                        "Could not revalidate stalled-task branch %s: %s",
+                        accepted_branch,
+                        exc,
+                    )
+                    return False
+                if branch_head != decision_head:
+                    return False
+            tracker.add_comment(identifier, comment_body, author="oompah")
+            tracker.update_issue(identifier, status=OPEN)
+            return True
+
+        generation = str(
+            getattr(decision, "evidence_generation", "") or ""
+        ).strip().lower()
+        queue_prefix = "integration-queue-v1:"
+        if pid and generation.startswith(queue_prefix):
+            return self.integration_queue.run_if_generation(
+                pid,
+                identifier,
+                expected_generation=generation[len(queue_prefix) :],
+                action=_apply,
+            )
+        if pid:
+            # A missing generation is only compatible with historical/manual
+            # stalled work that truly has no durable queue authority.  Fence
+            # that absence through the tracker mutation so a current or
+            # replacement queue row cannot be bypassed by prose fallback.
+            return self.integration_queue.run_if_absent(
+                pid,
+                identifier,
+                action=lambda: _apply(),
+            )
+        # Unmanaged historical/manual stalled states have no integration
+        # queue. They still get a fresh tracker-state comparison immediately
+        # before mutation.
+        return _apply()
 
     def _reconcile_stalled_watchdog_reopens(
         self,
