@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-815
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Preserve accepted child branch identity across repair dispatch
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T00:29:12.870188Z'
-updated_at: '2026-08-05T00:29:12.870188Z'
+updated_at: '2026-08-05T00:29:44.148031Z'
 work_branch: null
 target_branch: null
 review_url: null

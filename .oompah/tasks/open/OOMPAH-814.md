@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T23:55:41.082395Z'
-updated_at: '2026-08-05T00:29:11.046922Z'
+updated_at: '2026-08-05T00:29:49.254498Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-814
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 30dc2b2075a48c6c542da55a46ad0285f492d527
   updated_at: '2026-08-05T00:28:06.750626+00:00'
-oompah.agent_run_id: 0ba33cbc-3db0-49ea-a34c-e558cfd92048
+oompah.agent_run_id: 33fd75e6-d4d8-460f-bef5-6f6c523755d0
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-814
 oompah.duplicate_screening:
   schema_version: 1
@@ -35,15 +35,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-814 is on
-    OOMPAH-814, not expected branch epic-OOMPAH-763--task-OOMPAH-814; refusing to
-    reset it
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: a4c104e1-0e8b-472d-9812-b42f54ddb75b
+  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
+  claimed_at: '2026-08-05T00:29:30.908855+00:00'
+  claim_expires_at: '2026-08-05T00:59:30.908855+00:00'
   retry_count: 1
-  retry_after: '2026-08-05T00:29:24.198457+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -179,5 +177,15 @@ author: oompah
 created: 2026-08-05 00:29
 ---
 Exact second-gate diagnosis: TestShouldDispatchCompleted._make_orchestrator creates a real OompahMarkdownTracker; all five cases reach _issue_has_children and scan ~282 native task files, while the fixture leaks two pools and five durable stores. Under full-gate load short_description exceeded 5s. Minimal fix: concrete tmp ProjectStore + no-I/O fetch_children tracker boundary, explicit executor/store cleanup, and assertion no real tracker factory runs. Same audit found TestDispatchSerializationByProject dynamically creates a fake Project and caches a real tracker under a MagicMock key; TestBudgetGateFreeTierBypass also uses a real legacy tracker and incompletely closes stores. Fix these direct-dispatch neighboring fixtures within this task, without raising timeouts; read-only diagnosis made no code changes.
+---
+author: oompah
+created: 2026-08-05 00:29
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-05 00:29
+---
+In-flight workaround for OOMPAH-815: preserved exact accepted head cb1446d4beba7ad83a1b67d94574ad5c01cf8814 by creating/pushing the server-derived branch epic-OOMPAH-763--task-OOMPAH-814 at the identical commit and switching the clean registered worktree to it. No reset, rewrite, code change, or deletion occurred; origin/OOMPAH-814 remains as recovery evidence. Task is Open and unclaimed so the server can retry implementation on the now-matching branch. OOMPAH-815 tracks the systemic accepted-branch identity defect.
 ---
 <!-- COMMENTS:END -->
