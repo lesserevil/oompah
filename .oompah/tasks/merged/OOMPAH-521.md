@@ -17,7 +17,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T18:10:41.609070Z'
-updated_at: '2026-08-05T00:30:15.958189Z'
+updated_at: '2026-08-05T00:30:21.509232Z'
 work_branch: epic-OOMPAH-521
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/567
@@ -128,8 +128,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-01046260fd67
-    applied: false
+    applied: true
     created_at: '2026-08-05T00:30:12.386420+00:00'
+    applied_at: '2026-08-05T00:30:20.254945+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -554,5 +555,23 @@ author: oompah
 created: 2026-08-05 00:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 00:30
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: e9681a58dd2755c00dc1af0ccd0e1296fbcc7535
+- merge_pr: #567
+- origin_main_head: e1b0f4846
+- child_task_commits: OOMPAH-522: 59f266727, OOMPAH-523: fb9526679 + 2c090848a, OOMPAH-524: ca4c062d7 + 224fd7305, OOMPAH-525: b463fc804 + 84806cbb2, OOMPAH-526: 0850b2e8b + 7859e7eac + 0f3a7bfd1
+- impl_files_verified: oompah/http_auth.py, oompah/client_auth.py
+- test_files_verified: tests/test_http_auth.py, tests/test_docs_authentication_contract.py
+- docs_verified: docs/authentication.md
+- prior_quality_gate: PASSED at 0f3a7bfd1c75 in 69.5s
+- prior_audits: Done PASS (attempt #1), Archived PASS (attempt #3)
 ---
 <!-- COMMENTS:END -->
