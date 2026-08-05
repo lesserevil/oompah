@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:27:05.163301Z'
+updated_at: '2026-08-05T01:27:33.348475Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -611,5 +611,10 @@ author: oompah
 created: 2026-08-05 01:27
 ---
 Verification: focused provider/role/API/UI suites pass (356 tests), ACP handoff/orchestrator/telemetry suites pass (375 tests), and make check-secrets passes. The test environment used a writable temporary OOMPAH_AGENT_LOG_DIR, avoiding the managed read-only default log path. I am running the remaining auth/JSON-boundary neighbor tests, then will verify clean/up-to-date git state and submit.
+---
+author: oompah
+created: 2026-08-05 01:27
+---
+Completion: OOMPAH-505 is fully present on the canonical task branch at e1b0f4846, which is clean and identical to origin. Manual ACP model-selection descriptors, server-side validation, role persistence/fallback, explicit Claude/Codex dispatch propagation, telemetry, documentation, and UI behavior are covered by the landed implementation. Verification totals: 356 provider/role/API/UI tests + 375 ACP/orchestrator/telemetry tests + 108 auth/JSON/access-control neighbor tests passed; make check-secrets passed. No additional commit or live configuration mutation is required in this session.
 ---
 <!-- COMMENTS:END -->
