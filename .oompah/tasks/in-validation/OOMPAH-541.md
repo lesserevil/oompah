@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-541
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Use resolved project identity in duplicate-screening task details
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:44:40.258209Z'
+updated_at: '2026-08-05T02:11:48.912294Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -22,6 +22,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/573
 oompah.review_number: '573'
 oompah.work_branch: OOMPAH-541
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cfbc20dc56a1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-541
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b6e3da817cd8357a40252cb3199c3211b8dc5496a5bac99ffb32310064d7b161
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-05T02:11:41.611401+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -51,5 +73,10 @@ author: oompah
 created: 2026-07-29 01:44
 ---
 Merged in PR #573 (main merge c6c445ccb) and deployed in service instance 0ccb73ac-e871-43d0-8c1e-d23827e4dd27. Live verification: both board and GET issue detail report OOMPAH-472 duplicate_screening state=checked, verdict=no_duplicate, checked_at=2026-07-29T01:21:00.553916Z. OOMPAH-480 remains Open and is currently running duplicate_screening, confirming the queue continues to drain. Focused suite: 48 passed; full suite: 13,095 passed, 7 skipped; CI passed on Python 3.11/3.12/3.13.
+---
+author: oompah
+created: 2026-08-05 02:11
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
