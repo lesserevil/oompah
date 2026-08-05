@@ -11,7 +11,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T14:38:32.101999Z'
-updated_at: '2026-08-05T16:33:56.305283Z'
+updated_at: '2026-08-05T16:34:02.212388Z'
 work_branch: OOMPAH-543
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/577
@@ -45,8 +45,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-885b974060d0
-    applied: false
+    applied: true
     created_at: '2026-08-05T16:33:52.774377+00:00'
+    applied_at: '2026-08-05T16:34:00.886463+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -149,5 +150,34 @@ author: oompah
 created: 2026-08-05 16:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-05 16:34
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 7b7341201
+- pr_number: 577
+- merged_on_main: true
+- merged_at: 2026-07-29
+- days_since_merge: 7
+- cli_symbol: oompah/task_cli.py:876 _cmd_remove_dependency
+- server_endpoint: oompah/server.py:12358 api_remove_dependency
+- tracker_protocol: oompah/tracker.py:263 remove_dependency
+- native_tracker: oompah/oompah_md_tracker.py:853 remove_dependency
+- github_tracker: oompah/github_tracker.py:2382 remove_dependency
+- gitlab_tracker: oompah/gitlab_tracker.py:709 remove_dependency
+- acp_tools: oompah/acp_tools.py:923
+- agents_md_updated: AGENTS.md:72,117
+- bootstrap_updated: oompah/agent_instructions.py:63,112,223,286
+- tests_cli: tests/test_task_cli.py (1187,1208,1518,1677)
+- tests_server: tests/test_server_dependencies.py (511,554,567,589,608,635)
+- tests_native_tracker: tests/test_oompah_md_tracker.py (316,336)
+- tests_github_tracker: tests/test_github_tracker.py (3852,3878,3895)
+- tests_gitlab_tracker: tests/test_gitlab_tracker.py (868,880)
+- tests_authority_boundary: tests/test_authority_boundary.py:681
 ---
 <!-- COMMENTS:END -->
