@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-05T08:06:50.481597Z'
+updated_at: '2026-08-05T08:06:58.207410Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -65,7 +65,7 @@ oompah.terminal_audit:
     - audit-1f697e890a52
     - audit-613578696210
     kind: result
-    applied: true
+    applied: false
     retired_at: '2026-08-03T20:51:35.221544+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -85,7 +85,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T20:51:41.193326+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-def73c9cef1d
@@ -100,7 +100,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T21:58:51.042257+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-c2f5960d4e00
@@ -115,7 +115,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T22:30:55.676947+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-a5fa63b78f93
@@ -130,7 +130,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T22:50:30.373916+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-1213210ecc2c
@@ -145,7 +145,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T23:28:06.948997+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-a5785f688b96
@@ -160,7 +160,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-03T23:52:16.653890+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-a42d41c14848
@@ -175,7 +175,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-04T00:03:18.659286+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-1f697e890a52
@@ -190,7 +190,7 @@ oompah.terminal_audit:
     applied_at: '2026-08-04T00:15:44.264420+00:00'
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
-    reconciled_at: '2026-08-04T00:22:12.898533+00:00'
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
     audit_id: audit-613578696210
@@ -203,6 +203,9 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T00:39:21.014933+00:00'
     applied_at: '2026-08-04T00:39:33.921929+00:00'
+    retired_by_reconciliation: true
+    retired_reason: shared_epic_parent_not_landed
+    reconciled_at: '2026-08-05T08:06:52.025178+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
@@ -303,6 +306,17 @@ oompah.terminal_audit:
     done_audit_ids:
     - audit-0b310adb4fa7
     created_at: '2026-08-04T00:22:12.898533+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-585 to Merged: parent epic
+      OOMPAH-584 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-0b310adb4fa7
+    created_at: '2026-08-05T08:06:52.025178+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -748,7 +762,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -796,7 +810,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-04T00:22:47.381547+00:00'
-    updated_at: '2026-08-04T00:39:21.014632+00:00'
+    updated_at: '2026-08-05T08:06:52.025178+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -1910,5 +1924,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 32s
 - Log: OOMPAH-585__20260804T003538Z.jsonl
+---
+author: oompah
+created: 2026-08-05 08:06
+---
+Lifecycle reconciliation restored OOMPAH-585 to audited Done: Cannot transition shared-epic child OOMPAH-585 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
