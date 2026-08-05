@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-05T18:31:15.672016Z'
+updated_at: '2026-08-05T18:31:34.904780Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,5 +84,10 @@ author: oompah
 created: 2026-08-05 15:53
 ---
 OOMPAH-815 attempt #1 was then terminated when safe `wc -l oompah/projects.py` became its third fatal denial, after `git ls-remote` and `git for-each-ref`; the intervening awk/sed mismatches were correctly recoverable. This confirms the bug is not one git subcommand: any demonstrably read-only inspection outside the allowlist needs either a supported catalog operation or the stable non-budget-consuming recoverable response. Preserve fatal handling for ambiguous/arbitrary execution.
+---
+author: oompah
+created: 2026-08-05 18:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->

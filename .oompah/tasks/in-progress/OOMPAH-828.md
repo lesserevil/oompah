@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:24:20.492002Z'
-updated_at: '2026-08-05T18:29:15.012828Z'
+updated_at: '2026-08-05T18:31:28.503416Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,29 @@ author: oompah
 created: 2026-08-05 18:29
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-05 18:31
+---
+## Understanding & Plan
+
+**Root Cause:** Two fingerprinting domains cannot match in terminal_audit_enforcement.py:_lifecycle_terminal_authorities:
+- request_archived_audit uses compute_evidence_fingerprint(requirements_text=reason)
+- _lifecycle_terminal_authorities requires compute_issue_evidence_fingerprint(current issue)
+- Archived authority is rejected despite being already applied
+
+**Implementation Plan:**
+1. Add target-aware lifecycle finality check in _lifecycle_terminal_authorities
+2. For Archived current state: accept PASS Archived when joined to applied terminal result/retirement intent
+3. Match on project/task/audit/attempt/target/fingerprint
+4. Classify legacy Merged repair as not_needed without mutation
+5. Keep all other reject cases: incomplete, failed, mismatched, retired, quarantined, unapplied
+
+**Relevant Files:**
+- terminal_audit_enforcement.py (_lifecycle_terminal_authorities)
+- archived_audit_requests.py (fingerprint contract)
+- terminal metadata/result-intent schemas
+
+**Verification:** Rows OOMPAH-452/453/455/456 should converge to completed/not_needed with zero status writes
 ---
 <!-- COMMENTS:END -->
