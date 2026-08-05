@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T21:29:59.448729Z'
-updated_at: '2026-08-05T15:54:27.803741Z'
+updated_at: '2026-08-05T16:00:37.558258Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-807
 target_branch: null
 review_url: null
@@ -315,5 +315,15 @@ author: oompah
 created: 2026-08-05 15:54
 ---
 Understanding: I am resuming the accepted revisionless Archived-audit patch. The preserved checkpoint is an explicitly superseded recovery commit; I will retain its recovery ref, replay the accepted product change on the current epic head, verify the metadata-only archive and recovery paths, then push and resubmit the exact clean head.
+---
+author: oompah
+created: 2026-08-05 16:00
+---
+Implementation: Rebased the accepted OOMPAH-807 product patch patch-equivalently onto current epic-OOMPAH-763 head 5d7cdb766. The superseded recovery checkpoint was excluded from the task branch but remains preserved at refs/oompah/recovery/OOMPAH-807-a56414cf4cc77996. The product change retains the narrow non-Git metadata workspace plus fail-closed archived evidence preflight; no fake branch or revision is introduced.
+---
+author: oompah
+created: 2026-08-05 16:00
+---
+Verification: 328 passed in 39.21s for the changed product suites (archive evidence, OOMPAH-803/workspace recovery, lifecycle, auditor contract, children, projects). 532 passed in 239.60s for adjacent terminal-audit/enforcement/coordinator/auditor-dispatch/orchestrator-handler suites. make terminal-audit-scan passed (8 identified, 8 allowlisted).
 ---
 <!-- COMMENTS:END -->
