@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T19:51:46.242503Z'
+updated_at: '2026-08-05T19:52:04.420836Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +192,15 @@ author: oompah
 created: 2026-08-05 19:48
 ---
 Discovery: PR #721’s failed run 31005918588 confirms the trigger: local evidence existed for 74c4b71c, forge CI failed test_close_gate.py, and the repaired 11c75e6c rerun passed. OOMPAH-826 itself has no remote PR/run yet. The preserved patch gates four adoption sites, but focused standalone recovery currently has 3 failures because restart/race/metadata tests still assert that an existing review skips the gate. More importantly, exact-head gating must be tested through the durable BranchQualityGate cache and the authority CAS, not only by changing one mock assertion; the unrelated uv.lock refresh will be removed.
+---
+author: oompah
+created: 2026-08-05 19:52
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 55
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 15s
+- Log: OOMPAH-826__20260805T194411Z.jsonl
 ---
 <!-- COMMENTS:END -->
