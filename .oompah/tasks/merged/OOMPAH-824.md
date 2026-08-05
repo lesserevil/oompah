@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T08:20:26.696471Z'
-updated_at: '2026-08-05T12:08:57.930304Z'
+updated_at: '2026-08-05T12:21:58.907285Z'
 work_branch: OOMPAH-824
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/720
@@ -352,5 +352,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 31s
 - Log: OOMPAH-824__20260805T120734Z.jsonl
+---
+author: oompah
+created: 2026-08-05 12:21
+---
+Post-deploy live arbitration proof on revision c14ca03f59078e6df06871488cf78f04477acb11: while exact OOMPAH-825 gate generation c7cfc68cbb234f6ebd35b38c2b00aa91 owned slot 0/capacity 1, a native broad auditor pytest probe registered as an auditor waiter (priority 10) and its executable payload marker remained absent. Withdrawing the probe authority returned rc=1, removed the durable waiter, launched no payload, and left OOMPAH-825 as the sole owner. A focused one-test control was intentionally classified light. No unrelated process was terminated and final capacity state retained only the live exact gate.
 ---
 <!-- COMMENTS:END -->
