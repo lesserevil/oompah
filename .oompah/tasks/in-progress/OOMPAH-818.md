@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T01:23:30.171988Z'
-updated_at: '2026-08-05T01:35:13.852218Z'
+updated_at: '2026-08-05T01:42:27.764964Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ author: oompah
 created: 2026-08-05 01:35
 ---
 Understanding: Root cause is in \`oompah/stalled_task_watchdog.py::_current_evidence_decision\`. For \`NEEDS_CI_FIX\`, the classifier trusts \`signals["ci_status"] in {passed,green,...}\` — which comes from \`provider.get_branch_ci_status(repo, branch)\` in \`orchestrator._collect_stalled_watchdog_evidence\`. That is the SCM's remote CI verdict at the current branch tip; the combined-tree quality gate is a local run whose failure sets NEEDS_CI_FIX. The two can disagree, so the watchdog reopened OOMPAH-814 seconds after the authoritative gate failed at 254b131c. Plan: (1) enrich evidence with accepted_head_sha (issue.integration.head_sha), latest authoritative gate outcome from _quality_gate_outcomes, and delivery-authority generation; (2) rewrite NEEDS_CI_FIX/NEEDS_REBASE path in _current_evidence_decision to require exact-head match and let a failing exact-head gate result dominate; (3) surface head/result/generation in StalledTaskDecision, watchdog comment, and to_dict() event; (4) add deterministic interleaving tests.
+---
+author: oompah
+created: 2026-08-05 01:42
+---
+Acceptance blocker from live review: do not use Orchestrator._quality_gate_outcomes as the reopen authority. That map is transient/in-memory, bounded, clears passing results, and is lost on restart, so it cannot satisfy restart reconciliation. The durable exact-head authority is IntegrationQueueStore (project/task/head/state/attempt/last_error/updated_at/lease/generation) plus accepted tracker integration metadata. For Needs CI Fix, a matching durable blocked row at the accepted head must fail closed and dominate provider branch CI; immediately before update_issue(Open), re-read/CAS the same queue row generation/head/state so a concurrent gate completion cannot be overwritten. Add restart and exact live gate-failure -> watchdog interleaving coverage. Preserve the existing draft only if it composes with this durable authority.
 ---
 <!-- COMMENTS:END -->
