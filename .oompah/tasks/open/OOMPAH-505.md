@@ -11,7 +11,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T01:06:54.240028Z'
+updated_at: '2026-08-05T01:07:45.902358Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
@@ -20,13 +20,17 @@ merged_at: null
 oompah.agent_run_id: b626fea1-3961-435b-b736-c9beeb209c35
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
-  total_input_tokens: 9628154
-  total_output_tokens: 34018
+  total_input_tokens: 9678325
+  total_output_tokens: 34242
   total_cost_usd: 0.0
   by_model:
     unknown:
       input_tokens: 9628154
       output_tokens: 34018
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 50171
+      output_tokens: 224
       cost_usd: 0.0
   runs:
   - profile: default
@@ -47,6 +51,12 @@ oompah.task_costs:
     output_tokens: 3105
     cost_usd: 0.0
     recorded_at: '2026-08-04T22:31:34.068318+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 50171
+    output_tokens: 224
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T01:07:35.168146+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -205,14 +215,20 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d5c3f8b67283deb1233212324e73ed0c069cec7ed1395c3914d5439917e290f7
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-05T01:07:35.177944+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d82d62d6-a2fc-43b6-a85e-86aaf39d3fac
-  claim_owner: 209db773-bcba-4efb-b625-7acd11d20c5f
-  claimed_at: '2026-08-05T01:06:16.808714+00:00'
-  claim_expires_at: '2026-08-05T01:36:16.808714+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Closest reviewed tasks were OOMPAH-502 and siblings OOMPAH-503\u2013\
+    510; all are terminal, and no active task duplicates OOMPAH-505\u2019s scope.\n\
+    Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: Closest reviewed tasks were OOMPAH-502 and siblings\
+    \ OOMPAH-503\u2013510; all are terminal, and no active task duplicates OOMPAH-505\u2019\
+    s scope."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -226,6 +242,16 @@ oompah.integration:
   base_branch: epic-OOMPAH-502
   base_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
   updated_at: '2026-08-05T01:06:47.324510+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-505__20260805T010706Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-502--task-OOMPAH-505
+    source_sha: e1b0f4846054bacac48e667295e2c00733d86d8c
+    completed_at: '2026-08-05T01:07:35.183200+00:00'
 ---
 ## Summary
 
@@ -503,5 +529,15 @@ author: oompah
 created: 2026-08-05 01:06
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 01:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.2K in / 224 out [50.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 2s
+- Log: OOMPAH-505__20260805T010706Z.jsonl
 ---
 <!-- COMMENTS:END -->
