@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-541
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Use resolved project identity in duplicate-screening task details
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-08-05T04:46:29.770780Z'
+updated_at: '2026-08-05T05:07:51.145140Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -22,6 +22,30 @@ oompah.work_branch: OOMPAH-541
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-e502fe2b43ed: '2026-08-05T05:07:47.862230+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-541
+    target_state: Archived
+    evidence_fingerprint: b6e3da817cd8357a40252cb3199c3211b8dc5496a5bac99ffb32310064d7b161
+    audit_ids:
+    - audit-cfbc20dc56a1
+    kind: result
+    applied: true
+    retired_at: '2026-08-05T05:07:47.862254+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-541
+    audit_id: audit-cfbc20dc56a1
+    attempt_id: attempt-e502fe2b43ed
+    target_state: Archived
+    evidence_fingerprint: b6e3da817cd8357a40252cb3199c3211b8dc5496a5bac99ffb32310064d7b161
+    status: Archived
+    audit_ids:
+    - audit-cfbc20dc56a1
+    applied: false
+    created_at: '2026-08-05T05:07:47.862274+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -29,7 +53,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-541
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,7 +93,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e502fe2b43ed
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -80,13 +104,16 @@ oompah.terminal_audit:
       started_at: '2026-08-05T04:46:18.828715+00:00'
       branch_key: OOMPAH-541
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-08-05T05:07:47.862022+00:00'
+      ended_at: '2026-08-05T05:07:47.862022+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-05T02:11:41.611401+00:00'
-    updated_at: '2026-08-05T04:46:18.828715+00:00'
+    updated_at: '2026-08-05T05:07:47.862022+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ac5e7e4358b6
