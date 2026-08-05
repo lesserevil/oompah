@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-505
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose and configure explicit Claude and Codex model tiers
 parent: OOMPAH-502
@@ -11,13 +11,13 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-28T15:06:01.649921Z'
-updated_at: '2026-08-05T04:29:47.758818Z'
+updated_at: '2026-08-05T04:46:57.654070Z'
 work_branch: epic-OOMPAH-502--task-OOMPAH-505
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 610fc107-fb78-4a79-8041-10ee5ecbdd7f
+oompah.agent_run_id: 8b7e679c-bd68-49a8-a6b2-fc380fb7457b
 oompah.work_branch: epic-OOMPAH-502--task-OOMPAH-505
 oompah.task_costs:
   total_input_tokens: 9679519
@@ -969,5 +969,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 18s
 - Log: OOMPAH-505__20260805T042729Z.jsonl
+---
+author: oompah
+created: 2026-08-05 04:46
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
