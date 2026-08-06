@@ -290,6 +290,7 @@ class TestCandidateFetchGitHub:
         candidates = orch._fetch_all_candidates()
         assert len(candidates) == 3
 
+    @pytest.mark.timeout(20)
     def test_github_issues_have_correct_tracker_kind(self, tmp_path):
         """tracker_kind='github_issues' is preserved on returned candidates."""
         gh_issue = _github_issue("GH_7", "acme/tasks#7", "7")
