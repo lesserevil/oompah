@@ -29,6 +29,7 @@ from oompah.duplicate_screening import (
     owner_resolution_record,
 )
 from oompah.events import EventBus, EventType
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
@@ -2099,3 +2100,87 @@ def test_verdict_from_before_claim_is_rejected():
     
     # No verdict found (old comment ignored)
     assert verdict is None
+
+
+@pytest.mark.parametrize(
+    "integration_state",
+    [
+        "working",
+        "ready",
+        "queued",
+        "integrating",
+        "blocked",
+        "integrated",
+        "needs_human",
+    ],
+)
+def test_owner_no_duplicate_preserves_unproven_integration_metadata(
+    integration_state,
+    caplog,
+):
+    """Owner resolution never erases an uncorrelated runtime or submission."""
+
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    exhausted = inconclusive_record(
+        new_claim_record(issue, owner="scheduler", retry_count=3),
+        retry_count=3,
+        retry_after=datetime.now(timezone.utc) - timedelta(seconds=1),
+        evidence="Bounded duplicate screening exhausted.",
+    )
+    integration = IntegrationRecord(
+        state=integration_state,
+        task_branch="epic-TASK-1--task-TASK-1",
+        base_branch="main",
+        head_sha="f" * 40 if integration_state != "working" else None,
+    ).to_dict()
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, exhausted.to_dict())
+    tracker.set_metadata_field(issue.identifier, "oompah.integration", integration)
+
+    with caplog.at_level("WARNING"):
+        assert orch._owner_resolve_duplicate_screening(
+            issue,
+            owner_login="project-owner",
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+            reason="Reviewed the active task set; no equivalent exists.",
+        )
+
+    assert tracker.get_metadata(issue.identifier)["oompah.integration"] == integration
+    assert "requires integration reassessment" in caplog.text
+    if integration_state == "working":
+        assert "lacks duplicate-preflight claim/run provenance" in caplog.text
+    else:
+        assert "immutable submission evidence" in caplog.text
+
+
+def test_owner_resolution_reconciliation_preserves_unproven_working_metadata(
+    caplog,
+):
+    """Restart reconciliation cannot erase a replacement implementation run."""
+
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    resolved_record = owner_resolution_record(
+        new_claim_record(issue, owner="scheduler"),
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="Confirmed: no active duplicate.",
+    )
+    integration = IntegrationRecord(
+        state="working",
+        task_branch="epic-TASK-1--task-TASK-1",
+        base_branch="main",
+    ).to_dict()
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, resolved_record.to_dict())
+    tracker.set_metadata_field(issue.identifier, "oompah.integration", integration)
+
+    observed = tracker.fetch_issue_detail(issue.identifier)
+    assert observed is not None
+    with caplog.at_level("WARNING"):
+        assert orch._reconcile_owner_duplicate_resolution_boundaries([observed]) == 1
+
+    assert tracker.fetch_issue_detail(issue.identifier).state == OPEN
+    assert tracker.get_metadata(issue.identifier)["oompah.integration"] == integration
+    assert "lacks duplicate-preflight claim/run provenance" in caplog.text
