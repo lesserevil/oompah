@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:20:19.060246Z'
+updated_at: '2026-08-06T18:39:11.015886Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-08-06 18:20
 ---
 Direct-owner implementation claimed after the deployed scheduler completed multiple ticks with ten available agent slots but normal_dispatch=0. Filed OOMPAH-864 for the distinct owner-resolution rearm deadlock. OOMPAH-863 repair now persists accepted head and delivery generation on durable review reservations, makes concurrent/restarted same-head sweeps observe (not acquire) the winning reservation, and suppresses stale capacity alerts in both the pre-gate capacity and post-gate CAS paths. Deterministic same-process and restart regressions plus schema-v1 migration coverage are added. Static parsing and diff check pass; independent review and leased tests remain before commit/submission.
+---
+author: oompah
+created: 2026-08-06 18:39
+---
+Concurrent same-head reservation and stale-alert repair is committed/rebased and independently accepted, including cross-process schema migration serialization and spawn-concurrent regression cleanup. make check-secrets and static checks pass. Focused serial/xdist verification will run after the currently queued OOMPAH-846 bundle.
 ---
 <!-- COMMENTS:END -->

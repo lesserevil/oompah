@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T16:40:22.315665Z'
+updated_at: '2026-08-06T18:39:08.632151Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -362,5 +362,10 @@ author: oompah
 created: 2026-08-06 16:40
 ---
 Latest independent P0 review rejected the restart repair on four exact races: cancellation can detach secure rollback then reopen admission; forced termination still destroys the worker before securing pre-provider audit authority; ambiguous metadata CAS is treated as successful cleanup and clears durable recovery; and implementation-retry dual-journal failure leaves an unpause admission window. Repair is adding shielded retirement, pre-cleanup securing, tri-state rollback outcomes, and atomic fail-closed unpause recovery with deterministic regressions.
+---
+author: oompah
+created: 2026-08-06 18:39
+---
+Lifecycle race repair is committed and rebased at exact head fac0729758cdd883b36b89c78fe75ff673f49746. Independent post-rebase composition review accepted restart-generation CAS, exact runtime retirement ownership, provider-to-retry lock ordering, task-handoff fencing, and duplicate-preflight compensation. make check-secrets and static checks pass; focused verification follows the active validation queue.
 ---
 <!-- COMMENTS:END -->

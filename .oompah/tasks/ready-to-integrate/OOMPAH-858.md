@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:38:59.220113Z'
+updated_at: '2026-08-06T18:39:18.301964Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -416,5 +416,20 @@ author: oompah
 created: 2026-08-06 18:38
 ---
 Excluded nested-container rollup edges from child integration dependencies (effective_dependencies, integration queue diagnostics, restart recovery, canonical candidate persistence, and cycle repair) and aligned test fixtures and the direct-maintenance submission fallback with the new branch_name/base_branch contract. Focused regressions across container, queue, worker submission, project-lock, and task-handoff suites (865 tests) pass; the OOMPAH-804/834 deadlock scenario is now reproducibly resolvable without status mutation.
+---
+author: oompah
+created: 2026-08-06 18:39
+---
+Agent completed successfully in 824s (7253 tokens)
+---
+author: oompah
+created: 2026-08-06 18:39
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 55, Tool calls: 35
+- Tokens: 41 in / 7.2K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 44s
+- Log: OOMPAH-858__20260806T182548Z.jsonl
 ---
 <!-- COMMENTS:END -->
