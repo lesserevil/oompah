@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:46:40.395618Z'
+updated_at: '2026-08-06T04:51:06.844456Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-06 04:46
 ---
 Discovery: get_snapshot() performs unrelated synchronous work before returning the local budget block, notably terminal-audit reconciliation and validation_resource_lease.status() (fresh SQLite/process reconciliation), plus project/review/workflow/health collectors. The free-tier assertions only need the budget projection; I will extract that projection into a single Orchestrator helper, route get_snapshot through it, and update the free-tier snapshot tests to assert the helper directly with explicit non-invocation checks.
+---
+author: oompah
+created: 2026-08-06 04:51
+---
+Implementation: added Orchestrator._budget_snapshot() as the single local-state budget projection and made get_snapshot() consume it, preserving the production budget shape. Updated the free-tier snapshot assertions to use the projection, strengthened the named regression to assert exactly one increment plus immediate active/count values, and added explicit assert-not-called coverage for audit, validation-lease, tracker, review, workflow, quality-gate, and running-state collectors.
 ---
 <!-- COMMENTS:END -->
