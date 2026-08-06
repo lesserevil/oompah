@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T02:00:27.338815Z'
+updated_at: '2026-08-06T02:00:35.909958Z'
 work_branch: OOMPAH-830
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/726
@@ -137,8 +137,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-c3b5cec9c554
-    applied: false
+    applied: true
     created_at: '2026-08-06T02:00:21.319842+00:00'
+    applied_at: '2026-08-06T02:00:33.933370+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -404,5 +405,26 @@ author: oompah
 created: 2026-08-06 01:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 02:00
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d101c5712fe359efdbfbc295b41ed0a9680faa83
+- merge_commit: 415d6fbf3e06547ebd65f5e48ad277b2497c0fb6
+- merge_parents: b98ebb40d (main) + d101c5712 (OOMPAH-830)
+- merge_pr: #726
+- merged_into_main: true (ancestor of origin/main HEAD)
+- chain_projection_class: oompah/server.py:2208 _TerminalAuditChainProjection
+- summary_function: oompah/server.py:2437 _issue_terminal_audit_summary
+- chain_projection_call_sites: server.py:3608, 13119, 13850
+- focused_tests_result: 70 passed in 1.22s (tests/test_terminal_status_interfaces.py)
+- regression_test_examples: test_completed_done_then_pending_merged_does_not_reuse_done_verdict, test_multistage_chain_projects_active_and_next_target, test_completed_chain_projects_final_applied_stage, test_superseded_retry_is_not_projected_as_current_stage, test_result_intent_window_is_visible_without_changing_stage_projection, test_list_and_detail_have_same_summary_fields
+- branch_gate_prior_result: make test PASS at d101c5712 in 637.9s
+- prior_done_audit: PASS (audit-5ffc50b0397d)
 ---
 <!-- COMMENTS:END -->
