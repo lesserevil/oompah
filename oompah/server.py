@@ -163,6 +163,10 @@ from oompah.projects import (
 )
 from oompah.integration_projection import IntegrationDependencyProjection
 from oompah.integration_queue import IntegrationQueueStore
+from oompah.work_decision_projection import (
+    operator_actionable_alerts,
+    project_work_decision_payload,
+)
 from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import TrackerError, normalize_priority_int
 from oompah.providers import ProviderStore
@@ -3393,6 +3397,49 @@ def _running_items_snapshot(orch: "Orchestrator") -> tuple[tuple[str, Any], ...]
     return tuple(running.items())
 
 
+def _work_decision_for_task(
+    orch: Any,
+    project_id: str | None,
+    identifier: str | None,
+    task: Any | None = None,
+) -> dict[str, Any] | None:
+    """Read one canonical decision without falling back to UI heuristics."""
+
+    task_id = str(identifier or "").strip()
+    if not task_id:
+        return None
+    getter = getattr(type(orch), "work_decision_projection", None)
+    if callable(getter):
+        try:
+            value = getter(orch, project_id, task_id, task)
+        except TypeError:
+            # Preserve compatibility with small embedders exposing the
+            # pre-task-context two-argument method.
+            try:
+                value = getter(orch, project_id, task_id)
+            except Exception:
+                logger.debug("workflow decision unavailable for %s", task_id)
+                value = None
+        except Exception:
+            logger.debug("workflow decision unavailable for %s", task_id)
+        else:
+            if isinstance(value, Mapping):
+                return dict(value)
+    # Lightweight test doubles and API-only embedders may expose the cache as
+    # a mapping rather than the orchestrator method.  Accept only serialized
+    # WorkDecision values and project them through the same boundary.
+    values = getattr(orch, "_work_decisions", None)
+    if isinstance(values, Mapping):
+        key = (str(project_id or "legacy"), task_id)
+        raw = values.get(key) or values.get(task_id)
+        if isinstance(raw, Mapping):
+            try:
+                return project_work_decision_payload(raw)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 def _sync_orchestrator_review_cache(
     orch: "Orchestrator",
     reviews_by_project: dict[str, list[ReviewRequest]],
@@ -3856,6 +3903,9 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
             "priority": issue.priority,
             "state": state,
             "tracker_state": tracker_state,
+            "work_decision": _work_decision_for_task(
+                orch, issue.project_id, issue.identifier, issue
+            ),
             "labels": issue.labels,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
@@ -4610,6 +4660,13 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     enriched["http_auth"] = _http_auth_reload_status()
     enriched["api_metrics"] = _api_metrics_snapshot()
     enriched["ws_sync_metrics"] = _ws_sync_get_metrics_snapshot()
+    # The compatibility ``alerts`` stream may contain task-local
+    # informational observations.  Global warning surfaces require an
+    # explicit action_required marker and are derived again here so API-only
+    # snapshots follow the same truthfulness rule as embedded mode.
+    enriched["global_alerts"] = operator_actionable_alerts(
+        enriched.get("alerts", ())
+    )
     alert = _ws_sync_get_alert()
     if alert:
         enriched["ws_sync_alert"] = alert
@@ -14407,6 +14464,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "description": issue.description,
             "priority": issue.priority,
             "state": issue.state,
+            "work_decision": _work_decision_for_task(
+                orch, project_id, issue.identifier, issue
+            ),
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": project_id,
@@ -14500,6 +14560,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
                     ),
                     "title": c.title,
                     "state": c.state,
+                    "work_decision": _work_decision_for_task(
+                        orch, c.project_id or project_id, c.identifier, c
+                    ),
                     "priority": c.priority,
                     "issue_type": c.issue_type,
                     "project_id": c.project_id or project_id,
@@ -14522,6 +14585,55 @@ async def api_issue_full_detail(identifier: str, request: Request):
         logger.error("Issue detail API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/tasks/{identifier}/work-decision")
+async def api_work_decision(project_id: str, identifier: str):
+    """Return the single redacted why-not-progressing projection for a task."""
+
+    try:
+        orch = _get_orchestrator()
+        tracker = _get_tracker(orch, project_id)
+        issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
+        if issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "task_not_found",
+                        "message": "Task was not found in the requested project",
+                    }
+                },
+                status_code=404,
+            )
+        decision = _work_decision_for_task(
+            orch, project_id, issue.identifier, issue
+        )
+        if decision is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "decision_unavailable",
+                        "message": "No current workflow decision is available yet",
+                    }
+                },
+                status_code=503,
+            )
+        return JSONResponse({"work_decision": decision})
+    except ValueError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    except Exception:
+        logger.exception(
+            "Workflow decision API error for project=%s task=%s",
+            project_id,
+            identifier,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": "Workflow decision unavailable"}},
             status_code=503,
         )
 
@@ -21430,6 +21542,14 @@ async def dashboard_content():
             project_names.get(row.get("project_id")),
         )
 
+    def decision_summary(row: dict[str, Any]) -> str:
+        decision = row.get("work_decision")
+        if not isinstance(decision, Mapping):
+            return "Decision pending"
+        owner = decision.get("owner") or decision.get("responsible_owner") or "unknown"
+        reason = decision.get("reason_text") or decision.get("reason_code") or "Evidence pending"
+        return f"{reason} (owner: {owner})"
+
     html = f"""
     <div class="stats">
       <div class="stat-card">
@@ -21457,7 +21577,7 @@ async def dashboard_content():
         <table>
           <thead><tr>
             <th>Issue</th><th>State</th><th>Turns</th><th>Last Event</th>
-            <th>Last Message</th><th>Started</th><th>Tokens</th>
+            <th>Last Message</th><th>Why / owner</th><th>Started</th><th>Tokens</th>
           </tr></thead>
           <tbody>
         """
@@ -21470,6 +21590,7 @@ async def dashboard_content():
               <td>{row["turn_count"]}</td>
               <td class="mono">{_esc(row.get("last_event") or "-")}</td>
               <td class="truncate">{_esc(row.get("last_message") or "-")}</td>
+              <td class="truncate">{_esc(decision_summary(row))}</td>
               <td class="mono">{fmt_time(row.get("started_at"))}</td>
               <td class="mono">{fmt_tokens(tokens.get("total_tokens", 0))}</td>
             </tr>
@@ -21483,7 +21604,7 @@ async def dashboard_content():
         html += """
         <table>
           <thead><tr>
-            <th>Issue</th><th>Attempt</th><th>Due At</th><th>Error</th>
+            <th>Issue</th><th>Attempt</th><th>Due At</th><th>Why / owner</th><th>Error</th>
           </tr></thead>
           <tbody>
         """
@@ -21493,6 +21614,7 @@ async def dashboard_content():
               <td class="mono">{_esc(row["issue_identifier"])}</td>
               <td>{row["attempt"]}</td>
               <td class="mono">{fmt_time(row.get("due_at"))}</td>
+              <td class="truncate">{_esc(decision_summary(row))}</td>
               <td class="truncate"><span class="badge badge-error">{_esc(row.get("error") or "-")}</span></td>
             </tr>
             """

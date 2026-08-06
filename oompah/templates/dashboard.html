@@ -333,6 +333,22 @@
       color: var(--border);
       font-style: italic;
     }
+    .work-decision-summary {
+      margin-top: 0.45rem;
+      padding: 0.35rem 0.45rem;
+      border-left: 2px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      font-size: 0.68rem;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+    .work-decision-meta,
+    .work-decision-prereqs,
+    .work-decision-action {
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .work-decision-action { color: var(--accent); }
     .intake-card-summary {
       display: flex;
       align-items: center;
@@ -1717,6 +1733,14 @@
       border-radius: 50%;
       background: var(--green);
       animation: pulse 1.5s ease-in-out infinite;
+    }
+    .work-decision-chip {
+      max-width: 18rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-muted);
+      font-family: system-ui, sans-serif;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -3515,13 +3539,19 @@ function renderRunningAgentChips(running, paused) {
     const id = esc(rawId);
     const runId = esc(r.run_id || '');
     const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
-    return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;,&quot;' + runId + '&quot;)">' +
+    const decision = r.work_decision || null;
+    const decisionLabel = decision
+      ? esc((decision.reason_text || decision.reason_code || 'Workflow decision') +
+        ' — owner: ' + (decision.owner || decision.responsible_owner || 'unknown'))
+      : 'Workflow decision unavailable';
+    return '<span class="running-agent-chip" role="status" aria-label="' + decisionLabel + '" title="' + decisionLabel + '" onclick="openActivityPanel(&quot;' + id + '&quot;,&quot;' + runId + '&quot;)">' +
       '<span class="dot"></span>' +
       displayId +
       (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
       (r.duplicate_preflight || r.work_kind === 'duplicate_screening'
         ? ' · screening'
         : '') +
+      (decision ? ' · <span class="work-decision-chip">' + esc(decision.reason_text || decision.reason_code || '') + '</span>' : '') +
     '</span>';
   }).join('');
   if (paused) {
@@ -3809,6 +3839,39 @@ function renderAlertCenter(alerts) {
       : '';
     center.setAttribute('data-alert-signature', signature);
   }
+}
+
+// Every task-facing status explanation is rendered from the server's single
+// WorkDecision projection. The board, detail panel, and agent chips all use
+// this helper so they cannot disagree about ownership or why work is waiting.
+function renderWorkDecisionSummary(decision, compact) {
+  if (!decision || typeof decision !== 'object') return '';
+  const owner = decision.owner || decision.responsible_owner || 'unknown owner';
+  const disposition = decision.disposition || 'unknown';
+  const reason = decision.reason_text || decision.reason_code || 'Workflow evidence is unavailable';
+  const action = decision.recovery_action || '';
+  const prereqs = Array.isArray(decision.prerequisites)
+    ? decision.prerequisites.map(p => p && p.subject).filter(Boolean).join(', ')
+    : '';
+  const detail = [
+    'Owner: ' + owner,
+    'Disposition: ' + disposition,
+    reason,
+    prereqs ? 'Prerequisites: ' + prereqs : '',
+    action ? 'Next action: ' + action : '',
+  ].filter(Boolean).join(' — ');
+  const label = esc(reason + '. Owner: ' + owner + '. Disposition: ' + disposition);
+  if (compact) {
+    return '<span class="work-decision-chip" role="status" aria-label="' + label + '" title="' + esc(detail) + '">' +
+      esc(reason) + '</span>';
+  }
+  return '<div class="work-decision-summary" role="status" aria-label="' + label + '">' +
+    '<div class="work-decision-main"><strong>' + esc(reason) + '</strong></div>' +
+    '<div class="work-decision-meta">Owner: ' + esc(owner) + ' · ' + esc(disposition) +
+      (decision.action_required ? ' · action required' : '') + '</div>' +
+    (prereqs ? '<div class="work-decision-prereqs">Prerequisites: ' + esc(prereqs) + '</div>' : '') +
+    (action ? '<div class="work-decision-action">Next: ' + esc(action) + '</div>' : '') +
+    '</div>';
 }
 
 function renderTerminalAuditHealth(health, hiddenByAlert) {
@@ -6091,6 +6154,7 @@ function createCard(issue) {
          data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
     <div class="card-desc" contenteditable="true" spellcheck="false"
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
+    ${renderWorkDecisionSummary(issue.work_decision, false)}
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
     ${renderCardTerminalAuditSummary(issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary)}
@@ -7531,6 +7595,7 @@ async function openDetailPanel(identifier) {
       <div class="detail-field-label">State</div>
       <div class="detail-field-value">${esc(detail.state)}</div>
     </div>
+    ${renderWorkDecisionSummary(detail.work_decision, false)}
     <div class="detail-field">
       <div class="detail-field-label">Priority</div>
       <div class="detail-field-value"><span class="priority-badge ${pClass}">P${detail.priority ?? 4}</span></div>
