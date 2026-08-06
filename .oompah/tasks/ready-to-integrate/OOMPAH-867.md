@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:45:43.245015Z'
+updated_at: '2026-08-06T22:45:55.060413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-867
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-06T22:23:29.153258+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-867
+  head_sha: c15f58451f148923d205d7016fa28ae949994fc7
+  submitted_at: '2026-08-06T22:45:49.805871+00:00'
+  updated_at: '2026-08-06T22:45:49.805871+00:00'
 ---
 ## Summary
 
@@ -236,5 +244,10 @@ created: 2026-08-06 22:45
 - Type hints throughout
 
 The unified resolver ensures fingerprint/workspace parity, fixing the regression where terminal-audit evidence fingerprinting could resolve canonical epic branches but workspace creation could not, leading to infrastructure exhaustion and Needs Human status for completed epics.
+---
+author: oompah
+created: 2026-08-06 22:45
+---
+Unified revision candidate resolver for terminal-audit workspace resolution. Fixed release-blocking regression where epic-OOMPAH-768 was resolved by fingerprinting but not by workspace creation, causing infrastructure exhaustion and Needs Human status for completed epics. Implemented ordered precedence resolver: immutable SHA → explicit branches → epic branches → default branch fallback. Ensures fingerprint/workspace parity by using the same unified logic in both paths.
 ---
 <!-- COMMENTS:END -->
