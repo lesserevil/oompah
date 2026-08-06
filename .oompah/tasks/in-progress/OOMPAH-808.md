@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T03:45:55.608027Z'
+updated_at: '2026-08-06T03:46:39.990422Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ author: oompah
 created: 2026-08-06 03:45
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 03:46
+---
+Understanding: nested-epic dispatch must prove hard-start prerequisite code is reachable from the actual immediate-parent lineage and private task base before workspace, claim, provider, or worker launch. I will trace the reconciled dispatch/base-selection paths, add a generation-safe fail-closed repair fence, and cover stale nested and unaffected top-level cases.
 ---
 <!-- COMMENTS:END -->
