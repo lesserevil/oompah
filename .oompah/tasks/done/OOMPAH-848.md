@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T18:30:06.409924Z'
+updated_at: '2026-08-06T18:30:35.074800Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -80,13 +80,17 @@ oompah.integration:
   submitted_at: '2026-08-06T17:52:16.050225+00:00'
   updated_at: '2026-08-06T18:11:59.757651+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2298
+  total_input_tokens: 16
+  total_output_tokens: 2746
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2298
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 448
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +99,12 @@ oompah.task_costs:
     output_tokens: 2298
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:42:02.511155+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 448
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T18:30:32.077537+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-848__20260806T044132Z
@@ -358,5 +368,15 @@ Safe evidence:
 - non_invocation_test: test_budget_projection_does_not_require_unrelated_live_state PASSED
 - public_routing_test: test_public_snapshot_routes_the_budget_projection PASSED
 - orchestrator_commits_atop_epic_763: 67fc9d8d3 (recovery checkpoint w/ orchestrator+tests) + 54c8abf8f (tests isolation)
+---
+author: oompah
+created: 2026-08-06 18:30
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 73, Tool calls: 52
+- Tokens: 6 in / 448 out [454 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 6s
+- Log: OOMPAH-848__20260806T181334Z.jsonl
 ---
 <!-- COMMENTS:END -->
