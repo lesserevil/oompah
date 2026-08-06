@@ -1104,6 +1104,8 @@ def _is_safe_git_ls_remote_inspection(tokens: list[str]) -> bool:
         pattern
         and not pattern.startswith("-")
         and _AUDITOR_SAFE_REF_PATTERN_RE.fullmatch(pattern)
+        and not _AUDITOR_PATH_ESCAPE_RE.search(pattern)
+        and not _AUDITOR_SECRET_PATH_RE.search(pattern)
         for pattern in patterns
     )
 
@@ -1127,6 +1129,7 @@ def _is_safe_git_for_each_ref_inspection(tokens: list[str]) -> bool:
         and not ref.startswith("-")
         and _AUDITOR_SAFE_REF_PATTERN_RE.fullmatch(ref)
         and not _AUDITOR_PATH_ESCAPE_RE.search(ref)
+        and not _AUDITOR_SECRET_PATH_RE.search(ref)
         for ref in refs
     )
 
@@ -1280,10 +1283,6 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
 
     normalized = str(command or "").strip()
     
-    # Early return for read-only inspection commands recognized as supported
-    if _is_read_only_inspection_command(normalized):
-        return _recoverable_read_only_denial()
-    
     # Security checks: HIGH-SEVERITY violations always fatal, checked first
     # before contract validation to prevent bypassing security via contract mismatches.
     if _AUDITOR_PATH_ESCAPE_RE.search(normalized):
@@ -1296,6 +1295,14 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
             "Error: auditor capability policy denied access to a credential-like "
             "file"
         )
+
+    # Safe-but-unsupported inspection forms are recoverable only after the
+    # command-wide path and credential fences have run.  Keeping this after
+    # the global checks prevents a permissive subcommand recognizer from
+    # downgrading a repository escape or secret read to an informational
+    # contract mismatch.
+    if _is_read_only_inspection_command(normalized):
+        return _recoverable_read_only_denial()
     
     # Check for state-changing mutations and dangerous constructs that must be
     # denied regardless of contract configuration

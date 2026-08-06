@@ -439,7 +439,11 @@ def test_oompah_542_and_815_read_only_fallbacks_do_not_consume_fatal_budget(
         "git ls-tree HEAD -- ../operator-data",
         "git ls-tree HEAD -- .env",
         "git ls-remote https://example.test/repository refs/heads/main",
+        "git ls-remote origin ../operator-data",
+        "git ls-remote origin /etc/passwd",
+        "git ls-remote origin .env",
         "git for-each-ref --format='%(refname:short)' ../refs",
+        "git for-each-ref refs/.env",
         "wc -l ../operator-data",
     ],
 )
