@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:40:59.946648Z'
+updated_at: '2026-08-06T13:46:28.715461Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
     the completed predecessor whose accepted-branch invariant regressed; OOMPAH-861
     records the new exact OOMPAH-860 post-accept repair reproduction and is not duplicate
     active work.'
-oompah.agent_run_id: a33a7b59-e651-4680-887e-dc51f00db7d7
+oompah.agent_run_id: b5c802c4-eb21-4153-96d5-bf6f387f474e
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-861
 oompah.integration:
   version: 2
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-08-06 13:30
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 13:46
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
