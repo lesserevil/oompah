@@ -85,7 +85,7 @@ def test_classify_work_kind_ordinary_implementation():
     """Ordinary implementation (no audit, no duplicate screening)."""
     issue = _issue()
     entry = _running_entry(issue)
-    
+
     assert entry.classify_work_kind() == "implementation"
 
 
@@ -93,7 +93,7 @@ def test_classify_work_kind_duplicate_screening():
     """Duplicate screening (duplicate_preflight=True, not audit)."""
     issue = _issue()
     entry = _running_entry(issue, duplicate_preflight=True)
-    
+
     assert entry.classify_work_kind() == "duplicate_screening"
 
 
@@ -106,13 +106,13 @@ def test_classify_work_kind_audit():
         audit_id="audit-1",
         audit_attempt_id="attempt-1",
     )
-    
+
     assert entry.classify_work_kind() == "audit"
 
 
 def test_classify_work_kind_audit_precedence_over_duplicate():
     """Audit takes precedence over duplicate_screening.
-    
+
     Although this should be rare in practice, the classifier must enforce
     that audit is the highest precedence.
     """
@@ -124,7 +124,7 @@ def test_classify_work_kind_audit_precedence_over_duplicate():
         audit_attempt_id="attempt-1",
         duplicate_preflight=True,  # Both flags set, audit wins
     )
-    
+
     assert entry.classify_work_kind() == "audit"
 
 
@@ -132,13 +132,13 @@ def test_classify_work_kind_duplicate_precedence_over_implementation():
     """Duplicate screening takes precedence over ordinary implementation."""
     issue = _issue()
     entry = _running_entry(issue, duplicate_preflight=True)
-    
+
     assert entry.classify_work_kind() == "duplicate_screening"
 
 
 def test_classify_work_kind_retiring_audit():
     """Retiring (post-PASS) auditor still classifies as audit.
-    
+
     Retirement state doesn't affect work_kind classification.
     """
     issue = _issue()
@@ -149,7 +149,7 @@ def test_classify_work_kind_retiring_audit():
         audit_attempt_id="attempt-1",
         retirement_pending=True,
     )
-    
+
     # work_kind still reflects the actual type of work being done
     assert entry.classify_work_kind() == "audit"
 
@@ -165,10 +165,10 @@ def test_state_snapshot_includes_correct_work_kind_implementation(tmp_path):
     issue = _issue()
     entry = _running_entry(issue)
     orch.state.running[issue.id] = entry
-    
+
     snapshot = orch.get_snapshot()
     running_row = snapshot["running"][0]
-    
+
     assert running_row["work_kind"] == "implementation"
 
 
@@ -178,10 +178,10 @@ def test_state_snapshot_includes_correct_work_kind_duplicate_screening(tmp_path)
     issue = _issue()
     entry = _running_entry(issue, duplicate_preflight=True)
     orch.state.running[issue.id] = entry
-    
+
     snapshot = orch.get_snapshot()
     running_row = snapshot["running"][0]
-    
+
     assert running_row["work_kind"] == "duplicate_screening"
 
 
@@ -196,10 +196,10 @@ def test_state_snapshot_includes_correct_work_kind_audit(tmp_path):
         audit_attempt_id="attempt-1",
     )
     orch.state.running[issue.id] = entry
-    
+
     snapshot = orch.get_snapshot()
     running_row = snapshot["running"][0]
-    
+
     assert running_row["work_kind"] == "audit"
     assert running_row["is_auditor"] is True
     assert running_row["audit_id"] == "audit-1"
@@ -218,10 +218,10 @@ def test_state_snapshot_includes_retiring_flag(tmp_path):
         retirement_pending=True,
     )
     orch.state.running[issue.id] = entry
-    
+
     snapshot = orch.get_snapshot()
     running_row = snapshot["running"][0]
-    
+
     assert running_row["retiring"] is True
     assert running_row["work_kind"] == "audit"
 
@@ -232,10 +232,10 @@ def test_state_snapshot_no_audit_fields_for_ordinary_work(tmp_path):
     issue = _issue()
     entry = _running_entry(issue)  # ordinary implementation
     orch.state.running[issue.id] = entry
-    
+
     snapshot = orch.get_snapshot()
     running_row = snapshot["running"][0]
-    
+
     assert running_row["is_auditor"] is False
     # Audit fields should be None for ordinary work
     assert running_row["audit_id"] is None
@@ -251,12 +251,12 @@ def test_state_snapshot_no_audit_fields_for_ordinary_work(tmp_path):
 async def test_api_agent_activity_work_kind_implementation(tmp_path):
     """Activity endpoint reports correct work_kind for implementation."""
     from oompah.server import app, _running_items_snapshot
-    
+
     orch = _orchestrator(tmp_path)
     issue = _issue()
     entry = _running_entry(issue)
     orch.state.running[issue.id] = entry
-    
+
     # Mock the orchestrator getter
     with patch("oompah.server._get_orchestrator", return_value=orch):
         # Simulate the activity endpoint logic
@@ -269,7 +269,7 @@ async def test_api_agent_activity_work_kind_implementation(tmp_path):
 async def test_api_agent_activity_work_kind_audit(tmp_path):
     """Activity endpoint reports correct work_kind for audit."""
     from oompah.server import _running_items_snapshot
-    
+
     orch = _orchestrator(tmp_path)
     issue = _issue()
     entry = _running_entry(
@@ -279,7 +279,7 @@ async def test_api_agent_activity_work_kind_audit(tmp_path):
         audit_attempt_id="attempt-1",
     )
     orch.state.running[issue.id] = entry
-    
+
     # Verify the entry has correct work_kind
     for _, test_entry in _running_items_snapshot(orch):
         if test_entry.identifier == "TEST-1":
@@ -290,7 +290,7 @@ async def test_api_agent_activity_work_kind_audit(tmp_path):
 async def test_api_agent_activity_includes_audit_identity_fields(tmp_path):
     """Activity endpoint includes is_auditor, audit_id, audit_attempt_id for audits."""
     from oompah.server import _running_items_snapshot
-    
+
     orch = _orchestrator(tmp_path)
     issue = _issue()
     entry = _running_entry(
@@ -300,7 +300,7 @@ async def test_api_agent_activity_includes_audit_identity_fields(tmp_path):
         audit_attempt_id="attempt-1",
     )
     orch.state.running[issue.id] = entry
-    
+
     for _, test_entry in _running_items_snapshot(orch):
         if test_entry.identifier == "TEST-1":
             assert getattr(test_entry, "is_auditor", False) is True
@@ -312,7 +312,7 @@ async def test_api_agent_activity_includes_audit_identity_fields(tmp_path):
 async def test_api_agent_activity_includes_retiring_flag(tmp_path):
     """Activity endpoint includes retiring flag for post-PASS auditors."""
     from oompah.server import _running_items_snapshot
-    
+
     orch = _orchestrator(tmp_path)
     issue = _issue()
     entry = _running_entry(
@@ -323,7 +323,7 @@ async def test_api_agent_activity_includes_retiring_flag(tmp_path):
         retirement_pending=True,
     )
     orch.state.running[issue.id] = entry
-    
+
     for _, test_entry in _running_items_snapshot(orch):
         if test_entry.identifier == "TEST-1":
             assert getattr(test_entry, "retirement_pending", False) is True
@@ -338,19 +338,19 @@ def test_work_kind_consistent_across_state_and_entry_classifier(tmp_path):
     """State snapshot and entry classifier agree for all work kinds."""
     orch = _orchestrator(tmp_path)
     issue = _issue()
-    
+
     # Test ordinary implementation
     entry = _running_entry(issue)
     orch.state.running[issue.id] = entry
     snapshot = orch.get_snapshot()
     assert snapshot["running"][0]["work_kind"] == entry.classify_work_kind()
-    
+
     # Test duplicate screening
     entry2 = _running_entry(issue, duplicate_preflight=True)
     orch.state.running[issue.id] = entry2
     snapshot = orch.get_snapshot()
     assert snapshot["running"][0]["work_kind"] == entry2.classify_work_kind()
-    
+
     # Test audit
     entry3 = _running_entry(
         issue,
@@ -367,14 +367,14 @@ def test_profile_name_alone_never_determines_work_kind(tmp_path):
     """Profile name does not determine work_kind; only entry flags do."""
     orch = _orchestrator(tmp_path)
     issue = _issue()
-    
+
     # Entry with "auditor" profile but not actually an auditor
     entry = _running_entry(issue)
     entry.agent_profile_name = "auditor"  # Just a profile name
-    
+
     # Should still be "implementation" because is_auditor=False
     assert entry.classify_work_kind() == "implementation"
-    
+
     # Now make it a real auditor
     entry2 = _running_entry(
         issue,
@@ -383,7 +383,7 @@ def test_profile_name_alone_never_determines_work_kind(tmp_path):
         audit_attempt_id="attempt-1",
     )
     entry2.agent_profile_name = "default"  # Any profile name
-    
+
     # Should be "audit" because is_auditor=True
     assert entry2.classify_work_kind() == "audit"
 
@@ -392,11 +392,11 @@ def test_duplicate_preflight_field_enables_duplicate_screening_classification(tm
     """duplicate_preflight field determines duplicate_screening classification."""
     orch = _orchestrator(tmp_path)
     issue = _issue()
-    
+
     # Without duplicate_preflight
     entry1 = _running_entry(issue)
     assert entry1.classify_work_kind() == "implementation"
-    
+
     # With duplicate_preflight
     entry2 = _running_entry(issue, duplicate_preflight=True)
     assert entry2.classify_work_kind() == "duplicate_screening"
@@ -406,11 +406,11 @@ def test_is_auditor_field_enables_audit_classification(tmp_path):
     """is_auditor field determines audit classification."""
     orch = _orchestrator(tmp_path)
     issue = _issue()
-    
+
     # Without is_auditor
     entry1 = _running_entry(issue)
     assert entry1.classify_work_kind() == "implementation"
-    
+
     # With is_auditor
     entry2 = _running_entry(
         issue,

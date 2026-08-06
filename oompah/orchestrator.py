@@ -31915,7 +31915,7 @@ class Orchestrator:
             name=f"worker-{issue.identifier}",
         )
 
-        self._register_running_entry(issue.id, RunningEntry(
+        running_entry = RunningEntry(
             worker_task=worker_task,
             identifier=issue.identifier,
             issue=running_issue,
@@ -31942,7 +31942,8 @@ class Orchestrator:
             assignment_id=assignment_id,
             run_id=run_id,
             authority_generation=authority_generation,
-        ))
+        )
+        self._register_running_entry(issue.id, running_entry)
 
         # Post dispatch comment in thread to avoid blocking event loop
         if auditor_plan is not None:
@@ -31975,15 +31976,7 @@ class Orchestrator:
                 running_issue,
             )
 
-        # Emit agent dispatched event on EventBus
-        # Use authoritative work_kind classifier: audit > duplicate_screening > implementation
-        dispatch_work_kind = (
-            "audit"
-            if auditor_plan is not None
-            else "duplicate_screening"
-            if duplicate_preflight
-            else "implementation"
-        )
+        # Emit agent dispatched event on EventBus.
         self.event_bus.emit(
             EventType.AGENT_DISPATCHED,
             {
@@ -31991,7 +31984,7 @@ class Orchestrator:
                 "identifier": issue.identifier,
                 "profile": profile_name,
                 "attempt": attempt,
-                "work_kind": dispatch_work_kind,
+                "work_kind": running_entry.classify_work_kind(),
             },
         )
         self._notify_observers()

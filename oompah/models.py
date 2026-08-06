@@ -1519,12 +1519,12 @@ class RunningEntry:
 
     def classify_work_kind(self) -> str:
         """Classify the authoritative work_kind for this entry.
-        
+
         Returns one of:
             "audit"               - is_auditor is True
             "duplicate_screening" - duplicate_preflight is True
             "implementation"      - ordinary implementation work
-        
+
         This classifier is the single source of truth for work_kind across
         all observability surfaces (state snapshots, activity responses,
         dispatch events). The precedence order matches the semantics: an
