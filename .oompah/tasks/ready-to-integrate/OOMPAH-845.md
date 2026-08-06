@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T12:08:18.514628Z'
+updated_at: '2026-08-06T15:01:15.992830Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-08-06 12:08
 ---
 Closed every helper-owned pool/store, pending task, async generator, default executor, retry timer, and scheduled termination in the saturated restart tests. Focused validation: 98 serial and 98 xdist tests passed; the four-state restart recovery test passed 20/20 four-way xdist repetitions. Terminal mutation scan, secret scan, diff check, and independent review passed.
+---
+author: oompah
+created: 2026-08-06 15:01
+---
+Additional saturated serial evidence from the successful OOMPAH-860 terminal audit at d5edb84f1: pytest reported RuntimeWarning that coroutine LogFileWatcher.start was never awaited, attributed only during later garbage collection in unittest.mock. This warning has appeared in earlier full-gate logs and fits OOMPAH-845's existing event-loop and pending-task cleanup scope. During review, confirm the submitted OOMPAH-845 head deterministically closes or avoids this coroutine ownership path; if not, return it for repair rather than accepting the warning as normal.
 ---
 <!-- COMMENTS:END -->
