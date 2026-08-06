@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:37:31.355805Z'
+updated_at: '2026-08-06T04:43:04.866698Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -202,7 +202,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -236,7 +236,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -292,6 +292,40 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-08-06T04:02:29.056807+00:00'
     updated_at: '2026-08-06T04:32:18.194114+00:00'
+  - version: 1
+    audit_id: audit-caed0f700c8e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+    attempts: []
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T04:42:59.822053+00:00'
+  - version: 1
+    audit_id: audit-8221cfa13f2b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+    attempts: []
+    requested_by:
+      version: 1
+      identity: standalone-ready-reconciliation
+      source: oompah
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T04:42:59.822053+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7974892cf5b3
