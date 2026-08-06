@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:01:32.379370Z'
+updated_at: '2026-08-06T04:02:17.974107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,10 @@ author: oompah
 created: 2026-08-06 04:01
 ---
 Discovery: HEAD predates the existing OOMPAH-821 stabilization patch. The exact outlier is TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick, which lacks the recovery stub while sibling tick tests already stub it. The storage-backed lifecycle construction outlier is TestCandidateFetchGitHub::test_github_issues_have_correct_tracker_kind; prior gate evidence uses a 20-second pytest marker for its cold startup. I will apply those scoped changes and preserve the global five-second timeout.
+---
+author: oompah
+created: 2026-08-06 04:02
+---
+Implementation: Added a scoped @pytest.mark.timeout(20) to the storage-backed GitHub lifecycle construction test. Stubbed _recover_release_addendum_leases in the repo-heal failure test and three adjacent epic-maintenance _tick tests, preserving their existing assertions and teardown handling. No production code or global timeout changed.
 ---
 <!-- COMMENTS:END -->
