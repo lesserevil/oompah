@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:27:40.984748Z'
+updated_at: '2026-08-06T06:33:17.189875Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ Plan:
 5. Add tests covering: quiesce during audit dispatch, graceful drain, restart resumption
 
 Starting code exploration next.
+---
+author: oompah
+created: 2026-08-06 06:33
+---
+Operator validation fence: OOMPAH-781 currently owns the shared validation lease for focused post-restack tests. The deployed main server does not yet contain OOMPAH-852, so your focused pytest bypassed that lease and raced it. Do not run any further pytest/unittest/make test commands until an operator comment explicitly clears the lane. Continue implementation and static inspection only; preserve failures as evidence and do not weaken assertions. OOMPAH-846 owns the remaining provider-boundary enforcement gap.
 ---
 <!-- COMMENTS:END -->

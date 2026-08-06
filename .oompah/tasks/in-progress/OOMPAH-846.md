@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T05:34:45.449945Z'
+updated_at: '2026-08-06T06:33:19.332407Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-08-06 05:34
 ---
 Live provider-boundary reproduction at 2026-08-06T05:30Z: while OOMPAH-852's exact gate was the sole recorded validation owner, Codex worker OOMPAH-853 launched an unleased full suite through an absolute Bash command that invoked scripts/run-tests.sh parallel. validation_resources continued to report only OOMPAH-852 plus the OOMPAH-821 auditor waiter. I verified ancestry and terminated only the unleased test process group. This confirms the O846 top-level shell/provider-spawn and operator-side broker requirements; classifier-only coverage is insufficient.
+---
+author: oompah
+created: 2026-08-06 06:33
+---
+Additional live evidence at 2026-08-06T06:32Z: while operator-focused OOMPAH-781 held the sole validation_resources slot, OOMPAH-854's server-managed MCP run_command launched 'python -m pytest tests/test_auditor_quiesce_fence.py -v' immediately and completed in 13s with no waiter. The running server is main f2b319 and OOMPAH-852 exists only on epic-OOMPAH-763, confirming the pre-deployment provider boundary still bypasses the shared lease. Preserve this as an acceptance regression; do not run O846 tests while OOMPAH-781 owns the lane.
 ---
 <!-- COMMENTS:END -->
