@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:13:44.222738Z'
-work_branch: null
+updated_at: '2026-08-06T05:14:11.608685Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 76de1f1705d2c49c194b4b015da286ed72a8022249d7dda6e00ae5520b1a3460
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4d4f0130-2074-45d3-ab41-e81bb6c2d9ee
+  claim_owner: 11468835-7c49-48df-a46d-b143af3a940a
+  claimed_at: '2026-08-06T05:13:57.500730+00:00'
+  claim_expires_at: '2026-08-06T05:43:57.500730+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 071bd140-fac0-49bb-93a8-f15254a6e28b
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 ---
 ## Summary
 
@@ -29,3 +48,11 @@ Live regression: OOMPAH-851 entered Needs Human on 2026-08-06 because duplicate 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 05:14
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
