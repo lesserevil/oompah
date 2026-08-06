@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-578
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Prune terminal worktrees that use the legacy epic-task branch shape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-07-30T03:51:32.496290Z'
+updated_at: '2026-08-06T04:48:55.090571Z'
 work_branch: OOMPAH-578
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/589
@@ -52,6 +52,28 @@ oompah.task_costs:
     output_tokens: 155
     cost_usd: 0.0
     recorded_at: '2026-07-30T03:45:20.313058+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6058ba047ef0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-578
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 04ead9f2975e5d456c6bd8de782eb966b00345592b78bd70c1379ee237b9cbaf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T04:48:49.630286+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -94,5 +116,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 52s
 - Log: OOMPAH-578__20260730T034233Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:48
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
