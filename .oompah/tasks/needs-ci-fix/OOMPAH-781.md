@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T07:02:34.451536Z'
+updated_at: '2026-08-06T07:09:58.182772Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -529,5 +529,10 @@ FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_f
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 07:09
+---
+Exact-gate failures were narrowed to three coupled regressions and repaired locally: Merged FAIL results now bypass the Done-PASS advance prerequisite so they can route to repair; completed Done fixtures now carry their required PASS attempt; adapter-contract epic tests no longer invoke intentionally incomplete live-forge doubles. Static compile and diff checks pass. Focused tests will run as soon as the authoritative OOMPAH-740 exact gate releases the single validation lease.
 ---
 <!-- COMMENTS:END -->

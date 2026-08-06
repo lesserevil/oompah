@@ -21,13 +21,17 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:09:46.089555Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-08-06T07:09:55.545431Z'
+work_branch: epic-OOMPAH-740
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/731
+review_number: '731'
 review_head: null
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/731
+oompah.review_number: '731'
+oompah.work_branch: epic-OOMPAH-740
+oompah.target_branch: main
 ---
 ## Summary
 
