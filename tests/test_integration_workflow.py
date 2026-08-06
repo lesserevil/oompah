@@ -2071,10 +2071,12 @@ async def test_missing_integration_fact_recovers_through_real_decision_and_worke
     tmp_path,
     existing_queue_row,
 ):
+    nested_target = "epic-OOMPAH-768--task-OOMPAH-804"
     task = issue("TASK-A")
     task.parent_id = "E-1"
     task.integration = None
     task.work_branch = "TASK-A"
+    task.target_branch = nested_target
     task.head_sha = "a" * 40
     tracker = MetadataTracker([task])
     queue = IntegrationQueueStore(str(tmp_path / "integration-queue.sqlite3"))
@@ -2085,6 +2087,7 @@ async def test_missing_integration_fact_recovers_through_real_decision_and_worke
             task_id="TASK-A",
             task_branch="TASK-A",
             head_sha="a" * 40,
+            base_branch=nested_target,
         )
     fact_collector = collector(tracker)
     jobs = WorkflowJobStore(str(tmp_path / "workflow-jobs.sqlite3"))
@@ -2131,10 +2134,63 @@ async def test_missing_integration_fact_recovers_through_real_decision_and_worke
     recovered = queue.get("project-1", "TASK-A")
     assert recovered is not None
     assert recovered.state == "ready"
+    assert recovered.base_branch == nested_target
     record = tracker.fetch_issue_detail("TASK-A").integration
     assert record.state == "ready"
     assert record.task_branch == "TASK-A"
+    assert record.base_branch == nested_target
     assert record.head_sha == "a" * 40
+
+
+@pytest.mark.asyncio
+async def test_integration_recovery_preserves_recorded_nested_target(tmp_path):
+    nested_target = "epic-OOMPAH-768--task-OOMPAH-804"
+    task = issue("TASK-A")
+    task.parent_id = "E-1"
+    task.target_branch = "epic/E-1"
+    task.integration = replace(task.integration, base_branch=nested_target)
+    tracker = MetadataTracker([task])
+    fact_collector = collector(tracker)
+    decision = evaluate_task(task, fact_collector.collect("TASK-A"))
+    queue = IntegrationQueueStore(str(tmp_path / "integration-queue.sqlite3"))
+    backend = OrchestratorIntegrationActionBackend(
+        SimpleNamespace(
+            integration_queue=queue,
+            project_store=SimpleNamespace(
+                epic_branch_name=lambda epic_id: f"epic/{epic_id}"
+            ),
+        ),
+        SimpleNamespace(
+            project_id="project-1",
+            tracker=tracker,
+            collector=fact_collector,
+        ),
+    )
+    context = SimpleNamespace(
+        job=SimpleNamespace(
+            project_id="project-1",
+            task_id="TASK-A",
+            generation="generation-1",
+            checkpoint={
+                "revalidation": {
+                    "evidence_revision": decision.evidence_revision,
+                    "details": {
+                        "integration_queue_present": False,
+                        "task_branch": task.integration.task_branch,
+                        "task_head": task.integration.head_sha,
+                    },
+                }
+            },
+        ),
+        check_interrupted=lambda: None,
+    )
+
+    await backend.apply_action("integration_recovery", context)
+
+    recovered = queue.get("project-1", "TASK-A")
+    assert recovered is not None
+    assert recovered.base_branch == nested_target
+    assert tracker.fetch_issue_detail("TASK-A").integration.base_branch == nested_target
 
 
 @pytest.mark.asyncio

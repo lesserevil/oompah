@@ -25,6 +25,8 @@ from oompah.implementation_workflow_adapter import (
     ProductionImplementationWorkflowBackend,
     build_implementation_workflow_handlers,
 )
+from oompah.integration import IntegrationRecord
+from oompah.integration_queue import IntegrationQueueStore
 from oompah.models import Issue, OwnerClaim
 from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
@@ -777,4 +779,46 @@ async def test_submission_builds_only_transition_service_status_intent(tmp_path)
     assert tracker.status_writes == []
     assert intent.requested_status == READY_TO_INTEGRATE
     assert intent.evidence_generation == context.job.generation
+    effects.receipts.close()
+
+
+@pytest.mark.asyncio
+async def test_enforce_submission_preserves_nested_target_in_production_queue(
+    tmp_path,
+):
+    nested_target = "epic-OOMPAH-768--task-OOMPAH-804"
+    issue = make_issue(identifier="OOMPAH-834", status=IN_PROGRESS)
+    issue.parent_id = "OOMPAH-804"
+    issue.target_branch = nested_target
+    issue.integration = IntegrationRecord(
+        state="ready",
+        mode="queue",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        base_branch=nested_target,
+        base_sha=HEAD_B,
+        head_sha=HEAD_A,
+    )
+    tracker = Tracker(issue)
+    orch = FakeOrchestrator(tmp_path, {"project-a": tracker})
+    orch.config.workflow_engine_mode = "enforce"
+    orch.integration_queue = IntegrationQueueStore(
+        str(tmp_path / "integration-queue.sqlite3")
+    )
+    orch.enqueue_durable_worker_submission = (
+        Orchestrator.enqueue_durable_worker_submission.__get__(orch)
+    )
+    _jobs, context = make_context(
+        tmp_path,
+        identifier="OOMPAH-834",
+        action=ImplementationAction.VALIDATION_SUBMISSION,
+        payload={"head_sha": HEAD_A},
+    )
+    effects = OrchestratorImplementationEffects(orch, project_id="project-a")
+    backend = ProductionImplementationWorkflowBackend(effects)
+
+    await backend.execute(context)
+
+    queued = orch.integration_queue.get("project-a", "OOMPAH-834")
+    assert queued is not None
+    assert queued.base_branch == nested_target
     effects.receipts.close()
