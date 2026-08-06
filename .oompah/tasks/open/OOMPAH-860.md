@@ -8,10 +8,11 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:27:58.780540Z'
+updated_at: '2026-08-06T13:28:48.406247Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -45,6 +46,32 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.task_costs:
+  total_input_tokens: 48811
+  total_output_tokens: 466
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 48811
+      output_tokens: 466
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 48811
+    output_tokens: 466
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T13:28:38.315039+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-860__20260806T132816Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-860
+    source_sha: 34bf3aa8a471ef7fdc11d500423f3d06d06ca782
+    completed_at: '2026-08-06T13:28:38.345766+00:00'
 ---
 ## Summary
 
@@ -166,5 +193,15 @@ author: oompah
 created: 2026-08-06 13:27
 ---
 Gate result is an xdist worker-process disappearance after 7,520 passing tests, not a failed assertion in the O860 patch; no kernel OOM/kill/segfault evidence was logged. Repair dispatch then reproduced OOMPAH-815 branch-identity split: submit had required/accepted OOMPAH-860, but repair recomputed epic-OOMPAH-763--task-OOMPAH-860. Filed OOMPAH-861 for the regression. In-flight workaround: clean worktree switched to the hierarchical branch at the identical accepted head 34bf3aa8 so the scheduled repair agent can start without reset or code loss.
+---
+author: oompah
+created: 2026-08-06 13:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 48.8K in / 466 out [49.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 0s
+- Log: OOMPAH-860__20260806T132816Z.jsonl
 ---
 <!-- COMMENTS:END -->
