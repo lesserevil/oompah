@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:54:30.770851Z'
+updated_at: '2026-08-06T17:06:26.573073Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-08-06 16:54
 ---
 Understanding: integrated-audit recovery alerts must offer an action accepted for the completed record classification, and terminal overrides/status resolution must clear alerts durably. I’ll trace alert arm/clear, retry/override validation, and status snapshot persistence, then add focused regression tests.
+---
+author: oompah
+created: 2026-08-06 17:06
+---
+Implementation: centralized accepted recovery actions in terminal_transition_coordinator (ordinary audit_retry for no_auditor/infrastructure/policy, evidence addendum only for all-missing_evidence, override otherwise); integrated replay now reads the exact completed record/fingerprint and emits recovery_action plus an executable message. Wired task-level recovery alert cleanup through retry/override commit paths and documented the contract. Added coordinator and delivery-plane regression tests.
 ---
 <!-- COMMENTS:END -->
