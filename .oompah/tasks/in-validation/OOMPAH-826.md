@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:02:41.913696Z'
+updated_at: '2026-08-06T04:03:03.910727Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -117,18 +117,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7974892cf5b3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+      created_at: '2026-08-06T04:03:02.561025+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-06T04:03:02.561025+00:00'
+      branch_key: OOMPAH-826
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-06T04:02:29.056807+00:00'
+    updated_at: '2026-08-06T04:03:02.561025+00:00'
   - version: 1
     audit_id: audit-812557c71067
     project_id: proj-14849f1b
@@ -146,7 +160,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-06T04:02:29.056807+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-7974892cf5b3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+    created_at: '2026-08-06T04:03:02.561025+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-06T04:03:02.561025+00:00'
+    branch_key: OOMPAH-826
 ---
 ## Summary
 
