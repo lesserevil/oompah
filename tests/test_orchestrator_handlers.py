@@ -3182,6 +3182,11 @@ class TestRepoHealErrorReporting:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Release-addendum recovery reads the full tracker corpus and is
+        # unrelated to this maintenance-future exception assertion.  Sibling
+        # tick tests stub the same seam so loaded CI measures only the
+        # lifecycle behavior under test.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
 
         def _failing_heal():
             raise RuntimeError("catastrophic git failure")
