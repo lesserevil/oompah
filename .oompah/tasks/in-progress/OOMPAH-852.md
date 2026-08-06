@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T04:56:40.567742Z'
+updated_at: '2026-08-06T04:56:49.367373Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2e83615c-9fa9-4625-a634-b3949bed70ca
+oompah.agent_run_id: d10fe2a9-c629-40bd-87c1-b43ebfbeb6ba
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-852
 oompah.integration:
   version: 2
@@ -134,5 +134,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 43s
 - Log: OOMPAH-852__20260806T045341Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:56
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
