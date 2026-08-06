@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T19:14:51.913286Z'
+updated_at: '2026-08-06T19:33:32.785561Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -46,14 +46,55 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-856
   base_branch: epic-OOMPAH-763
   base_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   head_sha: 6b759e1ca46593b2d62bb20e91b92b444d56b3d5
   submitted_at: '2026-08-06T19:14:44.198355+00:00'
-  updated_at: '2026-08-06T19:14:44.198355+00:00'
+  updated_at: '2026-08-06T19:33:25.452763+00:00'
+  last_error: "Combined-tree quality gate failed: _64-gnu/lib/python3.12/unittest/mock.py:2217:\
+    \ RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited\n    def\
+    \ __init__(self, name, parent):\n  Enable tracemalloc to get traceback where the\
+    \ object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_event_driven_loop.py::TestDispatchEventType::test_worker_exit_value\n\
+    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/inspect.py:754:\
+    \ RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited\n    def\
+    \ unwrap(func, *, stop=None):\n  Enable tracemalloc to get traceback where the\
+    \ object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format\n\
+    tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password\ntests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password\n\
+    tests/test_http_auth.py::TestLoadCredentials::test_relative_path_override_resolves_against_env_dir\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854:\
+    \ DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n\
+    \    from crypt import crypt as _crypt\n\ntests/test_http_auth.py: 21 warnings\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/tests/test_http_auth.py:37:\
+    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
+    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
+    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password\n\
+    tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password\ntests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries\n\
+    tests/test_http_auth.py::TestVerifierCallable::test_multiple_users\n  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/tests/test_http_auth.py:49:\
+    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
+    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
+    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
+    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
+    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
+    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
+    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/oompah/acp_backends/claude.py:508:\
+    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
+    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
+    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
+    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
+    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
+    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
+    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
+    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
+    =========================== short test summary info ============================\n\
+    FAILED tests/test_orchestrator_repo_hygiene.py::test_health_alert_clears_after_safe_cleanup\n\
+    = 1 failed, 16275 passed, 8 skipped, 1 xfailed, 41 warnings in 1023.44s (0:17:03)\
+    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
 oompah.task_costs:
   total_input_tokens: 48330
   total_output_tokens: 378
@@ -187,5 +228,66 @@ author: oompah
 created: 2026-08-06 19:14
 ---
 Resubmitting the unchanged focused-green exact head after restoring the shared trusted venv editable mapping from the task worktree to /home/shedwards/src/oompah. The prior gate was blocked before candidate CI by the native runtime guard; this is an infrastructure retry, not a code change.
+---
+author: oompah
+created: 2026-08-06 19:33
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-856`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+_64-gnu/lib/python3.12/unittest/mock.py:2217: RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_event_driven_loop.py::TestDispatchEventType::test_worker_exit_value
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/inspect.py:754: RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited
+    def unwrap(func, *, stop=None):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format
+tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password
+tests/test_http_auth.py::TestLoadCredentials::test_relative_path_override_resolves_against_env_dir
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_http_auth.py: 21 warnings
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/tests/test_http_auth.py:37: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/oompah/acp_backends/claude.py:508: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-p5d_mdax/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_repo_hygiene.py::test_health_alert_clears_after_safe_cleanup
+= 1 failed, 16275 passed, 8 skipped, 1 xfailed, 41 warnings in 1023.44s (0:17:03) =
+
+make: *** [Makefile:401: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
