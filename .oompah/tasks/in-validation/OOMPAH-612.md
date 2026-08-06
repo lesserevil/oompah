@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T20:00:18.990536Z'
+updated_at: '2026-08-06T20:42:34.260097Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -104,6 +104,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-30T19:50:48.280429+00:00'
     updated_at: '2026-07-30T20:00:03.597707+00:00'
+  - version: 1
+    audit_id: audit-7d91f741b0a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e06569fbedf6229d2cdca89efb81bc9d4fa18efa46883f56ed18b7827e86db31
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T20:42:28.733347+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b5e2b06fe84
