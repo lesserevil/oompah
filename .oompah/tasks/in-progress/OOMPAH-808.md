@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T04:26:25.411547Z'
+updated_at: '2026-08-06T04:26:34.664121Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -231,5 +231,10 @@ author: oompah
 created: 2026-08-06 04:26
 ---
 Direct-owner checkpoint review BLOCKED bf7244786 from submission. Required repairs: stale private branches remain permanently blocked unless the only unreachable ref is the nested branch; local-only/divergent private tips can be overwritten because remote tip wins old_sha selection; claimed generation is check-then-write and omits parent/dependency topology; selection holds project_write_lock across fetch/tracker/repair operations and repeats the work; dispatch_wait has no consumer and integration metadata can be overwritten; tests do not model inherited nested-epic edges, concurrent landing, restart-mid-repair, missing refs, or local divergence. Preserve checkpoint. Because it overlaps OOMPAH-791/781/804 central regions and IntegrationRecord mode, repair/replay after the complete OOMPAH-804 lineage is assembled, preferably extracting a small lineage-fence module.
+---
+author: oompah
+created: 2026-08-06 04:26
+---
+Additional P0: _preflight_nested_epic_dispatch resolves a declared immediate parent with fail_closed=False; missing/unreadable parent returns None and is interpreted as no fence, so dispatch proceeds. Existing unresolved-parent test resolves the immediate nested parent and only breaks the root target, so it misses this. Repair must fail closed on a declared immediate parent lookup error and prove zero claim/worktree/provider launch for missing and tracker-error cases.
 ---
 <!-- COMMENTS:END -->
