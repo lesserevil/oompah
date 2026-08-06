@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T11:15:00.462308Z'
+updated_at: '2026-08-06T11:15:09.783039Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -106,8 +106,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-4d9024357f09
-    applied: false
+    applied: true
     created_at: '2026-08-06T11:14:55.026831+00:00'
+    applied_at: '2026-08-06T11:15:07.658789+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -348,5 +349,27 @@ author: oompah
 created: 2026-08-06 10:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 11:15
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- audited_head: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+- implementation_commit: 2a09b085bfb71b742c07d8ed91bc1c76add5d029
+- adapter_file: oompah/implementation_workflow_adapter.py
+- adapter_classes: ImplementationReceiptStore, OrchestratorImplementationEffects, ProductionImplementationWorkflowBackend
+- actions_covered: implementation_start, direct_owner_claim, duplicate_screening, focus_handoff, worker_exit, validation_submission, authority_revocation, implementation_retry, implementation_recovery
+- receipt_primary_key: project_id, task_id, generation, action
+- receipt_evidence_fence: expected_evidence_revision + expected_head_sha; WorkflowActionError raised on mismatch
+- focused_tests_status: tests/test_implementation_workflow_adapter.py: all 26+ tests PASS (receipts restart-durable, race-immutable, stale head/evidence rejected, crash-after-dispatch recovery, cross-project revocation isolation, all nine actions parametrized)
+- full_gate_summary: 16,632 passed / 7 skipped / 1 xfailed / 1 failed in 2009.00s (make test-serial)
+- single_failure_test: tests/test_comment_delivery.py::TestAcpAgentSessionCommentQueue::test_comment_queue_passed_to_backend_options
+- single_failure_reason: pytest-timeout (>5.0s) at epoll_wait during asyncio.run(session.run_task())
+- single_failure_impact_on_task: unrelated: covered files oompah/acp_agent.py, oompah/acp_backends/base.py, tests/test_comment_delivery.py are not in the OOMPAH-834 diff
+- coordination_status: Sibling epic-OOMPAH-804 tasks (OOMPAH-835/836/837) all resubmitted at the same canonical head c31b8d32a
 ---
 <!-- COMMENTS:END -->
