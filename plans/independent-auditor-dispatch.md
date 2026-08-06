@@ -255,9 +255,11 @@ This is mitigated by durable coordinator ordering:
 1. Auditor session crashes (segfault, OOM, process killed, etc.).
 2. Orchestrator detects worker exit; if auditor, marks attempt with crash reason.
 3. On next scheduler tick, dispatcher rehydrates the task from metadata.
-4. Dispatcher checks if running attempt is older than `OOMPAH_AUDIT_ATTEMPT_TTL` (default: 3600 seconds).
-5. If TTL expired, dispatcher marks attempt abandoned and rotates candidates.
-6. Otherwise, dispatcher assumes the auditor is still running and skips this task.
+4. Dispatcher checks the live-worker registry. A missing worker is reclaimed
+   immediately; a live worker remains owned while phase-specific stall, tool,
+   and validation-command deadlines supervise it.
+5. When no live-worker registry is available, `OOMPAH_AUDIT_ATTEMPT_TTL`
+   provides the bounded recovery grace before the attempt is reclaimed.
 
 #### On Graceful Restart
 
@@ -267,9 +269,8 @@ This is mitigated by durable coordinator ordering:
 3. Service restarts and loads all persisted tasks.
 4. Dispatcher scans all tasks in In Validation state.
 5. For each task with an in-progress `AuditAttempt`:
-   - If a live worker owns the attempt and it is recent, skip it.
-   - If a live worker exceeds the TTL, terminate that auditor before reclaiming
-     the attempt.
+   - If a live worker owns the attempt, retain it while its phase-specific
+     liveness deadlines supervise it.
    - If no live worker owns it (including after restart), mark it abandoned and
      rotate without launching a duplicate attempt.
 
@@ -292,7 +293,7 @@ New environment variables for independent auditor dispatch:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OOMPAH_AUDIT_MAX_ATTEMPTS` | 3 | Maximum number of auditor candidates to attempt per audit before routing to Needs Human |
-| `OOMPAH_AUDIT_ATTEMPT_TTL` | 3600 | Seconds; a running attempt older than this is considered abandoned and eligible for retry |
+| `OOMPAH_AUDIT_ATTEMPT_TTL` | 3600 | Recovery grace when no live-worker registry is available; queue/tool runtime does not consume it |
 | `OOMPAH_AUDIT_PRIORITY` | 100 | Relative dispatch priority for In Validation tasks (higher = sooner than Open) |
 | `OOMPAH_AUDIT_LANE_SCAN_LIMIT` | 32 | Maximum In Validation tasks examined per scheduler tick |
 

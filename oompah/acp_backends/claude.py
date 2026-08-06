@@ -32,6 +32,8 @@ from oompah.acp_backends.base import (
     begin_transport_contact,
     cancel_transport_contact,
     mark_transport_contacted,
+    tool_deadline_extension_seconds,
+    turn_deadline_exceeded,
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
@@ -522,13 +524,20 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                 # for sessions with no comment_queue (the common case).
                 while True:
                     deadline = time.monotonic() + self._options.turn_timeout_s
+                    extension_baseline = tool_deadline_extension_seconds(
+                        self._options.tool_liveness
+                    )
                     _got_result = False  # set True when ResultMessage arrives
 
                     async for msg in client.receive_response():
                         if self._stop_requested:
                             self._status = "interrupted"
                             return
-                        if time.monotonic() > deadline:
+                        if turn_deadline_exceeded(
+                            deadline,
+                            tool_liveness=self._options.tool_liveness,
+                            extension_baseline_seconds=extension_baseline,
+                        ):
                             yield self._emit(
                                 "acp_turn_timeout",
                                 payload={"timeout_s": self._options.turn_timeout_s},

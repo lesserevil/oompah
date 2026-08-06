@@ -47,7 +47,9 @@ from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_NAME,
     AUDITOR_RESULT_TOOL_SCHEMA,
+    auditor_validation_timeout_message,
     check_auditor_session_target,
+    resolve_auditor_validation_budget,
     submit_auditor_result,
 )
 from oompah.provider_health import openai_chat_completions_url
@@ -366,72 +368,27 @@ def _resolve_run_command_timeout_with_target(
     command: str,
     project_id: str | None = None,
     raw_global: str | None = None,
+    project_store: Any = None,
 ) -> int:
-    """Resolve command timeout, preferring per-target deadline if available.
-    
-    For Make targets, looks up the project's auditor_validation_target_deadlines
-    dict to find a specific deadline. Falls back to the global timeout when:
-    - project_id is None
-    - the target is not in the deadline dict
-    - the project cannot be loaded
-    
-    Parameters
-    ----------
-    command : str
-        The shell command being executed (may contain a Make target)
-    project_id : str | None
-        Optional project ID to look up per-target deadlines
-    raw_global : str | None
-        Optional override for the global timeout env var
-    
-    Returns
-    -------
-    int
-        The timeout in seconds
-    """
-    # First, resolve the global fallback timeout
+    """Resolve a target deadline from the caller's project-store snapshot."""
+
     global_timeout = _resolve_run_command_timeout(raw_global)
-    
-    # If no project_id, return global timeout
-    if not project_id:
-        return global_timeout
-    
-    # Try to extract a Make target from the command
-    import shlex
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
-        # Malformed shell syntax; fall back to global timeout
-        return global_timeout
-    
-    # Look for `make <target>` pattern
-    if len(tokens) < 2 or tokens[0].lower() != "make":
-        return global_timeout
-    
-    target = tokens[1] if len(tokens) > 1 else None
-    if not target:
-        return global_timeout
-    
-    # Load the project and look up the target deadline
-    try:
-        from oompah.projects import ProjectStore
-        store = ProjectStore()
-        project = store.get(project_id)
-        if not project:
-            return global_timeout
-        
-        # Check if the project has a per-target deadline for this target
-        if not project.auditor_validation_target_deadlines:
-            return global_timeout
-        
-        target_deadline = project.auditor_validation_target_deadlines.get(target)
-        if target_deadline and target_deadline > 0:
-            return target_deadline
-    except Exception:
-        # If anything goes wrong loading the project, fall back to global timeout
-        pass
-    
-    return global_timeout
+    project = (
+        project_store.get(project_id)
+        if project_store is not None and project_id
+        else None
+    )
+    budget, configuration_error = resolve_auditor_validation_budget(
+        command,
+        project,
+        global_timeout_seconds=global_timeout,
+    )
+    if configuration_error:
+        raise ValueError(
+            "auditor validation configuration is incompatible: "
+            f"{configuration_error}"
+        )
+    return budget.deadline_seconds if budget is not None else global_timeout
 
 
 # ---------------------------------------------------------------------------
@@ -975,6 +932,8 @@ def _exec_run_command(
     validation_reuse_policy_handler: Callable[..., object] | None = None,
     result_delivery_required: bool = False,
     isolate_remote_write: bool = False,
+    timeout_error: str | None = None,
+    configured_validation_target: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -1027,7 +986,9 @@ def _exec_run_command(
         command_environment=env,
         working_directory=workspace,
     )
-    heavyweight_validation = validation_classification.heavyweight
+    heavyweight_validation = bool(
+        configured_validation_target or validation_classification.heavyweight
+    )
     validation_invocation_id = secrets.token_hex(16)
 
     def _validation_reuse_policy_snapshot() -> tuple[str, str | None, str]:
@@ -1347,7 +1308,7 @@ def _exec_run_command(
                     duration_seconds=time.monotonic() - command_started,
                 )
                 _mark_result_pending()
-                return f"Error: command timed out after {timeout}s"
+                return timeout_error or f"Error: command timed out after {timeout}s"
             try:
                 stdout, stderr = process.communicate(timeout=min(remaining, 0.25))
                 break
@@ -1676,8 +1637,39 @@ def _execute_tool(
         if name == "read_command_output":
             return _exec_read_command_output(command_output_store, args)
         if name == "run_command":
+            try:
+                project = (
+                    project_store.get(project_id)
+                    if project_store is not None and project_id
+                    else None
+                )
+            except Exception as exc:
+                if getattr(action_policy, "auditor_session", False) is True:
+                    return (
+                        "Error: auditor validation configuration could not be "
+                        f"read ({type(exc).__name__}); the command was not "
+                        "executed. [reason=auditor_validation_configuration]"
+                    )
+                project = None
+            if (
+                getattr(action_policy, "auditor_session", False) is True
+                and project_store is not None
+                and project is None
+            ):
+                project_detail = (
+                    f"project {project_id!r} could not be resolved"
+                    if project_id
+                    else "auditor project identity is unavailable"
+                )
+                return (
+                    "Error: auditor validation configuration is unavailable; "
+                    f"{project_detail} and the command was not executed. "
+                    "[reason=auditor_validation_configuration]"
+                )
             shell_denial = check_shell_command(
-                action_policy, str(args.get("command") or "")
+                action_policy,
+                str(args.get("command") or ""),
+                project=project,
             )
             if shell_denial is not None:
                 # Unsupported read-only shell syntax is a tool-validation
@@ -1712,18 +1704,35 @@ def _execute_tool(
             )
             if direct is not None:
                 return direct
-            # Resolve timeout, preferring per-target deadline if available
             command_str = str(args.get("command", ""))
-            resolved_timeout = (
-                _resolve_run_command_timeout_with_target(command_str, project_id)
-                if cmd_timeout is None
-                else cmd_timeout
-            )
+            resolved_timeout = cmd_timeout
+            timeout_error = None
+            configured_validation_target = False
+            if getattr(action_policy, "auditor_session", False) is True:
+                budget, configuration_error = resolve_auditor_validation_budget(
+                    command_str,
+                    project,
+                    global_timeout_seconds=cmd_timeout,
+                )
+                if configuration_error:
+                    return (
+                        "Error: auditor validation configuration is incompatible; "
+                        f"the command was not executed: {configuration_error} "
+                        "[reason=auditor_validation_configuration]"
+                    )
+                if budget is not None:
+                    resolved_timeout = budget.deadline_seconds
+                    timeout_error = auditor_validation_timeout_message(budget)
+                    configured_validation_target = True
             command_kwargs = {
                 "timeout": resolved_timeout,
                 "env_overrides": env_overrides,
                 "isolate_remote_write": isolate_remote_write,
             }
+            if timeout_error is not None:
+                command_kwargs["timeout_error"] = timeout_error
+            if configured_validation_target:
+                command_kwargs["configured_validation_target"] = True
             if tool_liveness is not None:
                 command_kwargs["tool_liveness"] = tool_liveness
             if command_output_store is not None:

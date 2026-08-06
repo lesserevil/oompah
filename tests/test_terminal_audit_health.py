@@ -134,6 +134,7 @@ class TestEmptyBacklog:
             "launch_failure_count",
             "transport_failure_count",
             "policy_incompatibility_count",
+            "configuration_error_count",
             "failure_count",
             "retry_exhausted_count",
             "quarantined_count",

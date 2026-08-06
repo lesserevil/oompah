@@ -1039,7 +1039,7 @@ class TestAcpWorkerModelHandoff:
         project_store.get.return_value = None
         project_store.list_all.return_value = []
         orch = Orchestrator(
-            config=ServiceConfig(),
+            config=ServiceConfig(turn_timeout_ms=14_400_000),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
@@ -1139,6 +1139,7 @@ class TestAcpWorkerModelHandoff:
         assert captured["backend_name"] == "codex"
         assert captured["billing_model"] == "subscription"
         assert captured["model"] is None
+        assert captured["turn_timeout_s"] == 14_400
         orch._on_worker_exit.assert_awaited_once_with("issue-1", "normal", None)
 
     @pytest.mark.parametrize(

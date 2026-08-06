@@ -1,8 +1,8 @@
 """Test auditor validation targets configuration (OOMPAH-736 / EXOCOMP-159).
 
-Regression test for policy-contract alignment: when a project requires
-additional validation targets (fmt-check, lint, help), the auditor should
-allow those commands without exhausting the policy budget.
+Regression coverage for policy-contract alignment: project targets are allowed
+only when explicitly configured with feasible duration/deadline evidence;
+unapproved Make targets are fatal authority denials.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import pytest
 
 from oompah.auditor import (
     check_auditor_command,
+    is_recoverable_auditor_command_denial,
     _get_auditor_validation_targets,
     _build_auditor_command_regex,
 )
@@ -44,19 +45,22 @@ class TestAuditorValidationTargets:
         """Auditor denies make fmt-check without project configuration."""
         denial = check_auditor_command("make fmt-check")
         assert denial is not None
-        assert "policy permits only read-only repository inspection" in denial
+        assert "permits only exact configured Make targets" in denial
+        assert is_recoverable_auditor_command_denial(denial) is False
 
     def test_check_auditor_command_denies_lint_by_default(self):
         """Auditor denies make lint without project configuration."""
         denial = check_auditor_command("make lint")
         assert denial is not None
-        assert "policy permits only read-only repository inspection" in denial
+        assert "permits only exact configured Make targets" in denial
+        assert is_recoverable_auditor_command_denial(denial) is False
 
     def test_check_auditor_command_denies_help_by_default(self):
         """Auditor denies make help without project configuration."""
         denial = check_auditor_command("make help")
         assert denial is not None
-        assert "policy permits only read-only repository inspection" in denial
+        assert "permits only exact configured Make targets" in denial
+        assert is_recoverable_auditor_command_denial(denial) is False
 
     def test_build_regex_with_custom_targets(self):
         """Regex builder creates correct pattern for custom targets."""

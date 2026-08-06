@@ -470,6 +470,8 @@ def classify_shell_command(command: str) -> ProtectedAction | None:
 def check_shell_command(
     policy: AgentActionPolicy | None,
     command: str,
+    *,
+    project: object | None = None,
 ) -> str | None:
     """Check whether *policy* permits the shell *command*.
 
@@ -487,7 +489,9 @@ def check_shell_command(
         )
 
         auditor_denial = check_auditor_command(
-            command, project_id=getattr(policy, "project_id", None)
+            command,
+            project_id=getattr(policy, "project_id", None),
+            project=project,
         )
         if auditor_denial is not None:
             task_ref = policy.task_identifier

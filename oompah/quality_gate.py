@@ -1374,6 +1374,44 @@ class BranchQualityGate:
             entries = raw.get("passed", {})
         return entries if isinstance(entries, dict) else {}
 
+    def observed_command_durations_seconds(self) -> dict[tuple[str, str], int]:
+        """Return conservative completed runtimes by repository and command.
+
+        Passed and ordinary failed gates both ran to a real completion and are
+        useful duration evidence. Timed-out/interrupted/infrastructure results
+        are excluded because their elapsed value is a lifecycle bound rather
+        than evidence of how long the command needs to finish.
+        """
+
+        try:
+            with self._lock:
+                entries = self._load()
+        except OSError:
+            return {}
+        observed: dict[tuple[str, str], int] = {}
+        for raw in entries.values():
+            if not isinstance(raw, dict):
+                continue
+            if str(raw.get("status") or "") not in {"passed", "failed"}:
+                continue
+            repo_identity = str(raw.get("repo_identity") or "").strip()
+            command = str(raw.get("command") or "").strip()
+            if not repo_identity or not command:
+                continue
+            raw_duration = raw.get("duration_seconds")
+            if isinstance(raw_duration, bool) or not isinstance(
+                raw_duration,
+                (int, float),
+            ):
+                continue
+            duration = float(raw_duration)
+            if not math.isfinite(duration) or duration <= 0:
+                continue
+            seconds = max(1, int(math.ceil(duration)))
+            key = (repo_identity, command)
+            observed[key] = max(observed.get(key, 0), seconds)
+        return observed
+
     def _save(self, entries: dict[str, dict]) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(

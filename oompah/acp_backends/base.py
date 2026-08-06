@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -42,6 +43,39 @@ if TYPE_CHECKING:
 # Kept here so backends share the same default rather than each picking
 # their own.
 DEFAULT_TURN_TIMEOUT_S = 3600.0
+
+
+def tool_deadline_extension_seconds(tool_liveness: Any) -> float:
+    """Read a session monitor's cumulative bounded-tool duration safely."""
+
+    getter = getattr(tool_liveness, "outer_deadline_extension_seconds", None)
+    if not callable(getter):
+        return 0.0
+    try:
+        return max(float(getter()), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def turn_deadline_exceeded(
+    deadline_monotonic: float,
+    *,
+    tool_liveness: Any,
+    extension_baseline_seconds: float,
+    now_monotonic: float | None = None,
+) -> bool:
+    """Return whether provider/model time exceeded its turn budget.
+
+    The backend creates ``deadline_monotonic`` from the ordinary wall clock,
+    but capacity wait and bounded tool phases have their own deadlines. Their
+    elapsed time extends this outer deadline instead of being charged twice.
+    ``extension_baseline_seconds`` scopes cumulative monitor time to this turn.
+    """
+
+    current_extension = tool_deadline_extension_seconds(tool_liveness)
+    turn_extension = max(current_extension - extension_baseline_seconds, 0.0)
+    now = time.monotonic() if now_monotonic is None else float(now_monotonic)
+    return now > float(deadline_monotonic) + turn_extension
 
 
 @dataclass

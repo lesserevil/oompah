@@ -419,10 +419,47 @@ class TestExecUpdateProject:
             "intake_auto_promote",
             "github_issue_intake_enabled",
             "paused",
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
         }
         assert _PROJECT_UPDATABLE_FIELDS == expected, (
             "UPDATABLE_FIELDS changed — update this test and agent instructions"
         )
+
+    def test_updates_auditor_validation_contract_fields(self):
+        from oompah.acp_tools import _exec_update_project
+
+        updated = _make_project()
+        updated.auditor_validation_targets = ["focused", "test"]
+        updated.auditor_validation_target_deadlines = {"focused": 300, "test": 1200}
+        updated.auditor_validation_target_expected_seconds = {
+            "focused": 120,
+            "test": 1080,
+        }
+        store = _make_store(updated)
+
+        result = _exec_update_project(
+            store,
+            "proj-test",
+            json.dumps(
+                {
+                    "auditor_validation_targets": ["focused", "test"],
+                    "auditor_validation_target_deadlines": {
+                        "focused": 300,
+                        "test": 1200,
+                    },
+                    "auditor_validation_target_expected_seconds": {
+                        "focused": 120,
+                        "test": 1080,
+                    },
+                }
+            ),
+        )
+
+        data = json.loads(result)
+        assert data["auditor_validation_target_deadlines"]["test"] == 1200
+        store.update.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

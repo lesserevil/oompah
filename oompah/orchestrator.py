@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import re
+import shlex
 import subprocess
 import threading
 import time
@@ -339,7 +340,9 @@ from oompah.dashboard_alerts import normalize_alert, normalize_alerts
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
+    DEFAULT_AUDITOR_VALIDATION_TARGETS,
     auditor_target_contract,
+    build_auditor_validation_contract,
     is_recoverable_auditor_command_denial,
     pending_auditor_target,
 )
@@ -1562,6 +1565,7 @@ class Orchestrator:
                 else {}
             ),
         )
+        self._refresh_auditor_validation_observations()
         self.coordination_store = CoordinationStore(
             os.path.join(_state_dir, "coordination.sqlite3")
         )
@@ -1907,6 +1911,18 @@ class Orchestrator:
         self._terminal_audit_manual_alerts: dict[
             tuple[str, str, str, str], AuditAlertCondition
         ] = {}
+        for project in self.project_store.list_all():
+            configuration_error = getattr(
+                project,
+                "auditor_validation_contract_error",
+                None,
+            )
+            if configuration_error:
+                self._record_terminal_audit_validation_configuration(
+                    project.id,
+                    configuration_error,
+                    sync=False,
+                )
         # A failed enforcement scan is actionable until a later scan confirms
         # recovery.  Keep that condition separate from the per-audit metric
         # conditions so a read-only snapshot cannot accidentally clear it.
@@ -2747,12 +2763,33 @@ class Orchestrator:
             # dispatch lane.  Derive health from it immediately so a restart
             # cannot expose an empty health queue beside stale observability
             # gauges until the next scheduler tick.
+            startup_audit_observations: list[AuditHealthObservation] = []
+            for entry in self._terminal_audit_enforcement.pending_audits:
+                record = entry.record
+                if record is None:
+                    continue
+                configuration_error = (
+                    self._terminal_audit_validation_configuration_error(
+                        record.project_id
+                    )
+                )
+                if configuration_error:
+                    self._record_terminal_audit_validation_configuration(
+                        record.project_id or "legacy",
+                        configuration_error,
+                        sync=False,
+                    )
+                startup_audit_observations.append(
+                    AuditHealthObservation(
+                        project_id=record.project_id,
+                        issue_identifier=record.task_id,
+                        issue_created_at=None,
+                        record=record,
+                        configuration_error=bool(configuration_error),
+                    )
+                )
             self._refresh_terminal_audit_health(
-                [
-                    entry.record
-                    for entry in self._terminal_audit_enforcement.pending_audits
-                    if entry.record is not None
-                ],
+                startup_audit_observations,
                 scan_complete=bool(result.get("scan_complete", True)),
                 scan_error_count=int(result.get("scan_error_count", 0)),
                 finalization_failure_count=sum(
@@ -2990,7 +3027,7 @@ class Orchestrator:
             max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
             max_age_seconds=max(
                 1.0,
-                float(getattr(self.config, "audit_attempt_ttl_seconds", 3600)),
+                float(getattr(self.config, "audit_attempt_ttl", 3600)),
             ),
         )
         if recovery_errors:
@@ -3179,6 +3216,157 @@ class Orchestrator:
         self._terminal_audit_manual_alerts[condition.key] = condition
         self._sync_terminal_audit_observability_alerts()
 
+    def _record_terminal_audit_validation_configuration(
+        self,
+        project_id: str,
+        detail: str,
+        *,
+        sync: bool = True,
+    ) -> None:
+        """Surface one project-scoped validation configuration condition.
+
+        A project contract applies to every pending audit in that project. A
+        per-audit alert would multiply one operator action across the backlog.
+        """
+
+        condition = AuditAlertCondition(
+            "validation_contract_incompatible",
+            project_id,
+            "project-configuration",
+            "auditor-validation",
+            f"Auditor validation configuration is incompatible: {detail}",
+            "Increase the exact target deadline or correct its expected duration; "
+            "the pending audit will retry without consuming an attempt.",
+        )
+        changed = self._terminal_audit_manual_alerts.get(condition.key) != condition
+        self._terminal_audit_manual_alerts[condition.key] = condition
+        if sync and changed:
+            self._sync_terminal_audit_observability_alerts()
+
+    def _clear_terminal_audit_validation_configuration(
+        self,
+        project_id: str,
+    ) -> None:
+        kind = "validation_contract_incompatible"
+        previous = self._terminal_audit_manual_alerts
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if not (
+                condition.kind == kind
+                and condition.project_id == project_id
+            )
+        }
+        if self._terminal_audit_manual_alerts != previous:
+            self._sync_terminal_audit_observability_alerts()
+
+    def _refresh_terminal_audit_validation_configuration_alerts(self) -> None:
+        """Reconcile project-level validation alerts from current configuration."""
+
+        self._refresh_auditor_validation_observations()
+        try:
+            projects = self.project_store.list_all()
+        except Exception as exc:
+            # A failed configuration read cannot prove recovery, so retain the
+            # last truthful alert snapshot and let ordinary health reporting
+            # surface the store/read failure.
+            logger.warning(
+                "Unable to refresh auditor validation configuration (%s)",
+                type(exc).__name__,
+            )
+            return
+
+        previous = dict(self._terminal_audit_manual_alerts)
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if condition.kind != "validation_contract_incompatible"
+        }
+        for project in projects:
+            contract = build_auditor_validation_contract(project)
+            if contract.configuration_error:
+                self._record_terminal_audit_validation_configuration(
+                    project.id,
+                    contract.configuration_error,
+                    sync=False,
+                )
+        if self._terminal_audit_manual_alerts != previous:
+            self._sync_terminal_audit_observability_alerts()
+
+    def _refresh_auditor_validation_observations(self) -> None:
+        """Hydrate non-persisted target durations from exact quality gates.
+
+        Only the project's configured full-gate command can supply observed
+        evidence, and only when it is the exact ``make TARGET`` form accepted
+        by the auditor policy.  A target outside the auditor allowlist remains
+        a valid project quality gate; it simply is not advertised to auditors.
+        """
+
+        try:
+            projects = self.project_store.list_all()
+            observations = (
+                self._branch_quality_gate.observed_command_durations_seconds()
+            )
+        except Exception as exc:  # noqa: BLE001 - configuration fails closed
+            logger.warning(
+                "Unable to hydrate auditor validation duration evidence (%s)",
+                type(exc).__name__,
+            )
+            return
+
+        for project in projects:
+            observed_targets: dict[str, int] = {}
+            command = self._quality_gate_command(project)
+            try:
+                tokens = shlex.split(command, posix=True) if command else []
+            except ValueError:
+                tokens = []
+            approved_targets = {
+                target
+                for target in (
+                    getattr(project, "auditor_validation_targets", None)
+                    or DEFAULT_AUDITOR_VALIDATION_TARGETS
+                )
+                if isinstance(target, str)
+            }
+            if (
+                len(tokens) == 2
+                and tokens[0] == "make"
+                and tokens[1] in approved_targets
+            ):
+                repository_identity = str(
+                    project.repo_url or project.repo_path or project.id
+                )
+                duration = observations.get((repository_identity, command))
+                if duration is not None:
+                    observed_targets[tokens[1]] = duration
+            project.auditor_validation_target_observed_seconds = observed_targets
+            project.auditor_validation_contract_error = (
+                build_auditor_validation_contract(project).configuration_error
+            )
+
+    def _terminal_audit_validation_configuration_error(
+        self,
+        project_id: str | None,
+    ) -> str | None:
+        """Return one safe effective-contract error for a managed or legacy audit."""
+
+        normalized_id = str(project_id or "").strip()
+        project = None
+        if normalized_id and not (
+            normalized_id == "legacy" and not self._has_managed_projects()
+        ):
+            try:
+                project = self.project_store.get(normalized_id)
+            except Exception as exc:
+                return (
+                    f"project {normalized_id} configuration could not be read "
+                    f"({type(exc).__name__})"
+                )
+            if project is None:
+                return f"project {normalized_id} is unavailable"
+        return build_auditor_validation_contract(project).configuration_error
+
     def clear_terminal_audit_alert(
         self, project_id: str, task_id: str, audit_id: str
     ) -> None:
@@ -3266,6 +3454,7 @@ class Orchestrator:
             "launch_failure_count": health.launch_failure_count,
             "transport_failure_count": health.transport_failure_count,
             "policy_incompatibility_count": health.policy_incompatibility_count,
+            "configuration_error_count": health.configuration_error_count,
             "finalization_failure_count": health.finalization_failure_count,
             "retry_exhausted_count": health.retry_exhausted_count,
             "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
@@ -14408,6 +14597,7 @@ class Orchestrator:
 
         started = time.monotonic()
         metrics = self._audit_metrics
+        self._refresh_terminal_audit_validation_configuration_alerts()
         # Rollback-pending launches retain their branch fence across outages
         # and restarts.  Retry those exact CAS operations before normal lane
         # gating so a paused/full scheduler cannot leave recovery authority
@@ -14471,6 +14661,11 @@ class Orchestrator:
                         issue.identifier,
                     )
                 )
+                validation_configuration_error = (
+                    self._terminal_audit_validation_configuration_error(
+                        issue.project_id
+                    )
+                )
                 # Collect a health observation for this In Validation task regardless
                 # of whether it has a pending record.  The observation is used by
                 # _refresh_terminal_audit_health() to compute backlog age and stale-
@@ -14483,11 +14678,21 @@ class Orchestrator:
                         record=record,
                         quarantined=document.is_quarantined,
                         finalization_failure_count=finalization_failure_count,
+                        configuration_error=bool(validation_configuration_error),
                     )
                 )
                 observation_index = len(observations) - 1
                 if record is None:
                     continue
+                if validation_configuration_error:
+                    self._record_terminal_audit_validation_configuration(
+                        issue.project_id or "legacy",
+                        validation_configuration_error,
+                    )
+                    continue
+                self._clear_terminal_audit_validation_configuration(
+                    issue.project_id or "legacy",
+                )
                 selector, selector_error = await self._prepare_audit_selector(issue)
                 if selector_error is not None or selector is None:
                     await self._route_no_auditor(
@@ -14499,7 +14704,7 @@ class Orchestrator:
                 lane = AuditorDispatchLane(
                     selector,
                     max_attempts=self.config.audit_max_attempts,
-                    attempt_ttl_seconds=self.config.audit_attempt_ttl_seconds,
+                    attempt_ttl_seconds=self.config.audit_attempt_ttl,
                 )
                 branch_key = audit_branch_key(issue)
                 active = {
@@ -14515,34 +14720,6 @@ class Orchestrator:
                     # abandoned and spend rotation/retry budget.
                     active.update(self._pending_audit_rollbacks)
                 recovery = lane.recover(record, active_attempt_ids=active)
-                if (
-                    not recovery.ready
-                    and recovery.reason
-                    and "termination required" in recovery.reason
-                ):
-                    running = self.state.running.get(issue.id)
-                    if running and running.is_auditor:
-                        await self._terminate_running(issue.id, cleanup_workspace=False)
-                        document = await asyncio.get_running_loop().run_in_executor(
-                            self._tick_pool,
-                            store.read,
-                            issue.identifier,
-                        )
-                        record = AuditorDispatchLane.pending_record(
-                            document.pending_chain
-                        )
-                        if record is None:
-                            continue
-                        active = {
-                            entry.audit_attempt_id
-                            for entry in self._running_values_snapshot()
-                            if entry.is_auditor and entry.audit_attempt_id
-                        }
-                        with self._audit_rollback_lock:
-                            active.update(self._pending_audit_rollbacks)
-                        recovery = lane.recover(
-                            record, active_attempt_ids=active
-                        )
                 if recovery.record != record:
                     recovered_attempt = (
                         recovery.record.attempts[-1]
@@ -49285,6 +49462,8 @@ class Orchestrator:
                     and str(getattr(provider, "api_key", "") or "").strip()
                     else None
                 ),
+                turn_timeout_s=max(float(self.config.turn_timeout_ms), 1.0)
+                / 1000.0,
                 tool_catalog=tool_catalog,
                 read_only=read_only_session,
                 on_event=_on_event,

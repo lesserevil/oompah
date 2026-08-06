@@ -453,10 +453,6 @@ class ServiceConfig:
     # Independent completion-auditor dispatch controls.  These are
     # environment-only because they tune scheduler behaviour rather than
     # workflow structure.
-    audit_max_attempts: int = 3
-    audit_attempt_ttl_seconds: int = 3600
-    audit_priority: int = 100
-    audit_lane_scan_limit: int = 32
     # Seconds after which a pending or In Validation audit record is considered
     # stale and surfaces a dashboard alert.  Defaults to one hour.
     audit_stale_pending_seconds: int = 3600
@@ -507,10 +503,9 @@ class ServiceConfig:
     # routing to Needs Human when all independent candidates are exhausted.
     # Configurable via OOMPAH_AUDIT_MAX_ATTEMPTS. Default: 3.
     audit_max_attempts: int = 3
-    # Time-to-live (seconds) for a running auditor attempt.  An attempt with
-    # a live worker older than this threshold is considered abandoned and
-    # eligible for reclaim and rotation.  An attempt whose worker is not
-    # live is reclaimed immediately regardless of TTL.
+    # Recovery grace (seconds) when a caller cannot supply a live-worker
+    # registry. The service itself reclaims missing workers immediately and
+    # lets phase-specific liveness deadlines supervise live workers.
     # Configurable via OOMPAH_AUDIT_ATTEMPT_TTL. Default: 3600 (1 hour).
     audit_attempt_ttl: int = 3600
     # Freshness and financial-capacity authority for terminal auditors.

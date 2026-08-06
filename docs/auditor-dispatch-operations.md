@@ -132,10 +132,11 @@ These `.env` settings control the dispatch lane.
 # independent providers). Must be a positive integer.
 OOMPAH_AUDIT_MAX_ATTEMPTS=3
 
-# Time-to-live (seconds) for a running auditor attempt.
-# A live auditor session older than this is considered abandoned and eligible
-# for retry. An attempt with no live worker is reclaimed immediately.
-# Recommended: 3600 (1 hour). Increase for slow CI environments.
+# Recovery grace (seconds) when no live-worker registry is available.
+# With the service registry, an attempt with no live worker is reclaimed
+# immediately and a live worker uses phase-specific liveness deadlines.
+# Queue and bounded validation runtime do not consume this grace period.
+# Recommended: 3600 (1 hour).
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 
 # Relative ordering among In Validation audits without an explicit task
@@ -159,6 +160,33 @@ OOMPAH_PROVIDER_HEALTH_TTL_SECONDS=300
 OOMPAH_AUDIT_PROJECTED_INPUT_TOKENS=65536
 OOMPAH_AUDIT_PROJECTED_OUTPUT_TOKENS=32768
 ```
+
+#### Validation Target Budgets
+
+Auditors may run only exact `make TARGET` commands advertised by the project.
+Configure each explicit target with both an execution deadline and an expected
+duration through `PATCH /api/v1/projects/{project_id}`:
+
+```json
+{
+  "auditor_validation_targets": ["test-focused", "test"],
+  "auditor_validation_target_deadlines": {
+    "test-focused": 300,
+    "test": 1200
+  },
+  "auditor_validation_target_expected_seconds": {
+    "test-focused": 120,
+    "test": 1080
+  }
+}
+```
+
+Oompah also derives conservative duration evidence from completed exact branch
+gates. The longest configured or observed duration wins. If an explicit target
+has no duration evidence, or its expected duration exceeds its deadline, audit
+launch is blocked without consuming an attempt and the dashboard shows one
+project-scoped configuration alert. Capacity-queue time does not consume the
+target deadline.
 
 #### Global Settings That Affect Auditors
 
@@ -436,8 +464,8 @@ When Oompah restarts with pending audits in flight:
 1. The service reads `In Validation` tasks from the tracker and rebuilds the
    in-memory audit queue from their persisted `oompah.terminal_audit` metadata.
 2. A running attempt with no live worker is reclaimed immediately (no TTL wait).
-3. A running attempt whose worker is still live is honored until
-   `OOMPAH_AUDIT_ATTEMPT_TTL` expires, at which point it is reclaimed.
+3. A running attempt whose worker is still live remains owned while the
+   worker's phase-specific stall, tool, and validation deadlines supervise it.
 4. No duplicate audits are created. Recovery is idempotent.
 
 Do **not** edit `oompah.terminal_audit` metadata or manually move a task out

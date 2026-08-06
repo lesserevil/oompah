@@ -17886,6 +17886,48 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "auditor_validation_targets" in body:
+            val = body["auditor_validation_targets"]
+            if val is None:
+                fields["auditor_validation_targets"] = []
+            elif isinstance(val, list) and all(
+                isinstance(item, str) for item in val
+            ):
+                fields["auditor_validation_targets"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "auditor_validation_targets must be a list "
+                                "of strings or null"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+        for key in (
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+        ):
+            if key not in body:
+                continue
+            val = body[key]
+            if val is None:
+                fields[key] = {}
+            elif isinstance(val, dict):
+                fields[key] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": f"{key} must be an object or null",
+                        }
+                    },
+                    status_code=400,
+                )
         if "epic_strategy" in body:
             val = body["epic_strategy"]
             if val is None:
