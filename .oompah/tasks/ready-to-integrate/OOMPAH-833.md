@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-833
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Bootstrap durable ACP command-result delivery onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:23:05.857415Z'
+updated_at: '2026-08-06T00:23:26.313073Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,7 +119,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: c9d96146-4e7b-4b84-9145-9fd5e1c4f285
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1489
@@ -146,6 +146,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-833
     source_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
     completed_at: '2026-08-06T00:01:41.026473+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-833
+  head_sha: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
+  submitted_at: '2026-08-06T00:23:09.385751+00:00'
+  updated_at: '2026-08-06T00:23:09.385751+00:00'
 ---
 ## Summary
 
@@ -266,5 +274,20 @@ author: oompah
 created: 2026-08-06 00:23
 ---
 Completion: delivered and pushed c8e6efcd2 on OOMPAH-833. The standalone main backport retains command liveness through bounded provider delivery for both implementation workers and terminal auditors, reports precise delivery stalls, and has exact-once race coverage. Submitting this exact head for integration and its configured terminal gate.
+---
+author: oompah
+created: 2026-08-06 00:23
+---
+Ported the reviewed durable ACP command-result delivery repair onto main with bounded handoff, exact-once retirement, observability, and worker/auditor race coverage.
+---
+author: oompah
+created: 2026-08-06 00:23
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 36
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 38s
+- Log: OOMPAH-833__20260806T001857Z.jsonl
 ---
 <!-- COMMENTS:END -->
