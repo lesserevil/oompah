@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:41:13.846813Z'
+updated_at: '2026-08-06T00:41:18.697807Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-08-06 00:40
 ---
 Completion: Commit 93cc4c856 is pushed on epic-OOMPAH-763--task-OOMPAH-840; the worktree is clean and up to date with origin. The implementation is ready for integration.
+---
+author: oompah
+created: 2026-08-06 00:41
+---
+Recover Ready/blocked children of pruned terminal parents using exact landing/audit evidence, preserve preflight retry authority, and route ambiguous work to named recovery targets with regression coverage.
 ---
 <!-- COMMENTS:END -->
