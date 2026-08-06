@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import asyncio
+import copy
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import shlex
@@ -47,6 +48,122 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
+
+
+class _IntegratedAuditTracker:
+    """Stateful tracker used across the real coordinator/orchestrator boundary."""
+
+    def __init__(self, issue: Issue) -> None:
+        self.issue = issue
+        self.metadata: dict[str, dict[str, object]] = {}
+        self._lock = threading.RLock()
+        self.fetch_count = 0
+        self.block_initial_fetch = False
+        self.initial_fetch_entered = threading.Event()
+        self.release_initial_fetch = threading.Event()
+        self.fail_status_updates = False
+
+    def fetch_issue_detail(self, identifier: str):
+        with self._lock:
+            self.fetch_count += 1
+            should_block = self.block_initial_fetch and self.fetch_count == 1
+            snapshot = copy.deepcopy(self.issue) if should_block else self.issue
+        if should_block:
+            self.initial_fetch_entered.set()
+            if not self.release_initial_fetch.wait(timeout=5):
+                raise TimeoutError("initial integrated-audit fetch was not released")
+        return snapshot if identifier == self.issue.identifier else None
+
+    def fetch_issues_by_states(self, _states):
+        return [self.issue]
+
+    def fetch_all_issues(self):
+        return [self.issue]
+
+    def get_metadata(self, identifier: str):
+        with self._lock:
+            return copy.deepcopy(self.metadata.get(identifier, {}))
+
+    def set_metadata_field(self, identifier: str, key: str, value: object):
+        with self._lock:
+            self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
+
+    def update_issue(self, identifier: str, **kwargs):
+        assert identifier == self.issue.identifier
+        if "status" in kwargs:
+            if self.fail_status_updates:
+                raise RuntimeError("tracker status writes unavailable")
+            self.issue.state = kwargs["status"]
+
+    def add_comment(self, _identifier: str, _text: str, author: str = "oompah"):
+        return {"author": author}
+
+
+class _BlockingAlertList(list[dict[str, object]]):
+    """Pause one named writer while it iterates a stale alert snapshot."""
+
+    def __init__(
+        self,
+        rows: list[dict[str, object]],
+        entered: threading.Event,
+        release: threading.Event,
+    ) -> None:
+        super().__init__(rows)
+        self.entered = entered
+        self.release = release
+        self.blocked = False
+
+    def __iter__(self):
+        if threading.current_thread().name == "health-alert-writer" and not self.blocked:
+            self.blocked = True
+            self.entered.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("health alert writer was not released")
+        return super().__iter__()
+
+
+class _ObservedAlertLock:
+    """Expose when the clear thread starts waiting on the alert mutex."""
+
+    def __init__(self, clear_attempted: threading.Event) -> None:
+        self._lock = threading.RLock()
+        self.clear_attempted = clear_attempted
+
+    def __enter__(self):
+        if threading.current_thread().name == "integrated-alert-clear":
+            self.clear_attempted.set()
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback) -> None:
+        self._lock.release()
+
+
+def _make_real_audit_harness(tmp_path, issue: Issue, tracker: _IntegratedAuditTracker):
+    project = Project(
+        id="proj-1",
+        name="Recovery project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="main",
+        tracker_owner="project-owner",
+        status_label_authorized_logins=["project-owner"],
+    )
+    project_store = mock.MagicMock()
+    project_store.list_all.return_value = [project]
+    project_store.get.side_effect = lambda project_id: (
+        project if project_id == project.id else None
+    )
+    project_lock = threading.RLock()
+    project_store.project_write_lock.side_effect = lambda _project_id: project_lock
+    orchestrator = Orchestrator(
+        config=ServiceConfig(),
+        workflow_path=str(tmp_path / "WORKFLOW.md"),
+        project_store=project_store,
+        state_path=str(tmp_path / "real-service-state.json"),
+    )
+    orchestrator._project_trackers[project.id] = tracker
+    return orchestrator, project
 
 
 def _issue(
@@ -284,6 +401,373 @@ def test_integrated_recovery_alert_matches_completed_failure_action(
             assert "audit_retry_evidence_addendum" in alert["message"]
             assert fingerprint.digest in alert["message"]
     finally:
+        _close(orchestrator)
+
+
+def test_concurrent_owner_terminal_commit_cannot_be_followed_by_stale_alert(
+    tmp_path,
+):
+    """The real coordinator and staging path share one project CAS lock."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="e" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    tracker.block_initial_fetch = True
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="worker-1",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        issue.identifier,
+        lease_owner="worker-1",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        staging = pool.submit(
+            asyncio.run,
+            orchestrator._stage_integrated_task_audit(claimed),
+        )
+        assert tracker.initial_fetch_entered.wait(timeout=5)
+
+        def apply_override():
+            return asyncio.run(
+                orchestrator.terminal_transition_coordinator.override_transition(
+                    current_issue=issue,
+                    requested_target=TargetState.DONE,
+                    authorized_actor=ContributorIdentity("project-owner", "api"),
+                    project_id=project.id,
+                    evidence_fingerprint=fingerprint,
+                    reason="Owner verified the integrated revision.",
+                    project=project,
+                )
+            )
+
+        overriding = pool.submit(apply_override)
+        override = overriding.result(timeout=5)
+        assert issue.state == DONE
+        tracker.release_initial_fetch.set()
+        staging.result(timeout=5)
+
+    try:
+        assert override.success is True
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts
+        )
+    finally:
+        _close(orchestrator)
+
+    # Restart replay observes the real terminal tracker state before touching
+    # metadata and therefore cannot recreate the warning.
+    tracker.block_initial_fetch = False
+    restarted, _project = _make_real_audit_harness(tmp_path, issue, tracker)
+    try:
+        asyncio.run(restarted._stage_integrated_task_audit(item))
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in restarted._alerts
+        )
+    finally:
+        _close(restarted)
+
+
+def test_unknown_tracker_state_does_not_rearm_alert_after_terminal_commit(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="f" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+
+    try:
+        override = asyncio.run(
+            orchestrator.terminal_transition_coordinator.override_transition(
+                current_issue=issue,
+                requested_target=TargetState.DONE,
+                authorized_actor=ContributorIdentity("project-owner", "api"),
+                project_id=project.id,
+                evidence_fingerprint=fingerprint,
+                reason="Owner verified the integrated revision.",
+                project=project,
+            )
+        )
+        assert override.success is True
+        assert issue.state == DONE
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts_snapshot()
+        )
+
+        with mock.patch.object(
+            tracker,
+            "fetch_issue_detail",
+            side_effect=RuntimeError("tracker read unavailable"),
+        ):
+            changed = orchestrator._reconcile_integrated_audit_recovery_alert(
+                project.id,
+                issue.identifier,
+                DONE,
+                "stale staging failure",
+                issue.integration.integrated_sha,
+                fingerprint,
+            )
+
+        assert changed is False
+        assert not any(
+            alert.get("source") == "terminal_audit_recovery:proj-1:TASK-1"
+            for alert in orchestrator._alerts_snapshot()
+        )
+    finally:
+        _close(orchestrator)
+
+
+@pytest.mark.parametrize(
+    "detail_mutation",
+    ("missing", "malformed", "identifier", "project"),
+)
+def test_untrusted_tracker_detail_cannot_clear_integrated_recovery_alert(
+    tmp_path,
+    detail_mutation: str,
+):
+    """Only the exact requested task scope can retire its recovery warning."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="1" * 40)
+    orchestrator, project, tracker = _make_harness(tmp_path, issue)
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+    before = orchestrator._alerts_snapshot()
+    if detail_mutation == "missing":
+        untrusted = None
+    elif detail_mutation == "malformed":
+        untrusted = object()
+    else:
+        mismatched = copy.deepcopy(issue)
+        mismatched.state = DONE
+        if detail_mutation == "identifier":
+            mismatched.identifier = "TASK-OTHER"
+        else:
+            mismatched.project_id = "proj-other"
+        untrusted = mismatched
+    tracker.fetch_issue_detail.return_value = untrusted
+
+    try:
+        changed = orchestrator._reconcile_integrated_audit_recovery_alert(
+            project.id,
+            issue.identifier,
+            DONE,
+            "stale staging failure",
+            issue.integration.integrated_sha,
+            fingerprint,
+        )
+
+        assert changed is False
+        assert orchestrator._alerts_snapshot() == before
+    finally:
+        _close(orchestrator)
+
+
+def test_integrated_replay_retains_retry_alert_while_status_staging_keeps_failing(
+    tmp_path,
+):
+    """A durable owner rearm cannot make its warning disappear before staging."""
+
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    issue.integration = replace(issue.integration, integrated_sha="2" * 40)
+    tracker = _IntegratedAuditTracker(issue)
+    tracker.metadata[issue.identifier] = _completed_integrated_audit_metadata(
+        issue,
+        "proj-1",
+        FailureClassification.NO_AUDITOR,
+    )
+    tracker.fail_status_updates = True
+    orchestrator, project = _make_real_audit_harness(tmp_path, issue, tracker)
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=issue.parent_id or "EPIC-1",
+        lease_owner="worker-1",
+        dependency_map={issue.identifier: ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert orchestrator.integration_queue.complete(
+        project.id,
+        issue.identifier,
+        lease_owner="worker-1",
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, project.id)
+    orchestrator._arm_integrated_audit_recovery_alert(
+        project.id,
+        issue.identifier,
+        DONE,
+        "auditor capacity exhausted",
+        issue.integration.integrated_sha,
+        recovery_action="audit_retry",
+        evidence_fingerprint=fingerprint,
+    )
+
+    try:
+        retry = asyncio.run(
+            orchestrator.terminal_transition_coordinator.retry_failed_audit(
+                current_issue=issue,
+                requested_target=TargetState.DONE,
+                authorized_actor=ContributorIdentity("project-owner", "api"),
+                project_id=project.id,
+                reason="Independent auditor capacity restored.",
+                project=project,
+                evidence_fingerprint=fingerprint,
+            )
+        )
+        assert retry.success is False
+        assert retry.reason == "status_stage_failed"
+
+        # Periodic integrated replay repeatedly coalesces the durable pending
+        # audit, and repeatedly fails the same tracker write.  Neither pass may
+        # reinterpret or clear the accepted owner retry instruction.
+        asyncio.run(orchestrator._stage_integrated_task_audit(item))
+        asyncio.run(orchestrator._stage_integrated_task_audit(item))
+
+        alerts = [
+            alert
+            for alert in orchestrator._alerts_snapshot()
+            if alert.get("source")
+            == "terminal_audit_recovery:proj-1:TASK-1"
+        ]
+        assert len(alerts) == 1
+        assert alerts[0]["recovery_action"] == "audit_retry"
+        assert issue.state == "Needs Human"
+        stored = TerminalAuditMetadata.from_dict(
+            tracker.metadata[issue.identifier][METADATA_KEY]
+        )
+        assert stored.pending_chain[-1].request_state == RequestState.PENDING
+        intents = stored.unknown_fields["oompah.terminal_audit_result_intents"]
+        assert intents[-1]["kind"] == "audit_rearm"
+        assert intents[-1]["applied"] is False
+    finally:
+        _close(orchestrator)
+
+
+def test_alert_family_refresh_cannot_resurrect_concurrently_cleared_alert(tmp_path):
+    issue = _issue(state="Needs Human", integration_state="integrated")
+    orchestrator, _project, _tracker = _make_harness(tmp_path, issue)
+    source = "terminal_audit_recovery:proj-1:TASK-1"
+    writer_entered = threading.Event()
+    release_writer = threading.Event()
+    clear_attempted = threading.Event()
+    clear_finished = threading.Event()
+    errors: list[BaseException] = []
+    orchestrator._alerts_lock = _ObservedAlertLock(clear_attempted)
+    orchestrator._alerts = _BlockingAlertList(
+        [{"level": "warning", "source": source, "message": "stale"}],
+        writer_entered,
+        release_writer,
+    )
+
+    def refresh_health_alerts() -> None:
+        try:
+            orchestrator._refresh_terminal_audit_health(
+                [],
+                scan_complete=True,
+                scan_error_count=0,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def clear_integrated_alert() -> None:
+        try:
+            orchestrator._clear_integrated_audit_recovery_alert(
+                "proj-1",
+                "TASK-1",
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+        finally:
+            clear_finished.set()
+
+    health_thread = threading.Thread(
+        target=refresh_health_alerts,
+        name="health-alert-writer",
+    )
+    clear_thread = threading.Thread(
+        target=clear_integrated_alert,
+        name="integrated-alert-clear",
+    )
+    health_started = False
+    clear_started = False
+    try:
+        health_thread.start()
+        health_started = True
+        assert writer_entered.wait(timeout=5)
+        clear_thread.start()
+        clear_started = True
+        assert clear_attempted.wait(timeout=5)
+        assert not clear_finished.wait(timeout=0.05)
+        release_writer.set()
+        health_thread.join(timeout=5)
+        clear_thread.join(timeout=5)
+
+        assert not health_thread.is_alive()
+        assert not clear_thread.is_alive()
+        assert errors == []
+        assert not any(
+            alert.get("source") == source
+            for alert in orchestrator._alerts_snapshot()
+        )
+    finally:
+        release_writer.set()
+        if health_started:
+            health_thread.join(timeout=5)
+        if clear_started:
+            clear_thread.join(timeout=5)
         _close(orchestrator)
 
 
