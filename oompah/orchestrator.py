@@ -31915,7 +31915,7 @@ class Orchestrator:
             name=f"worker-{issue.identifier}",
         )
 
-        self._register_running_entry(issue.id, RunningEntry(
+        running_entry = RunningEntry(
             worker_task=worker_task,
             identifier=issue.identifier,
             issue=running_issue,
@@ -31942,7 +31942,8 @@ class Orchestrator:
             assignment_id=assignment_id,
             run_id=run_id,
             authority_generation=authority_generation,
-        ))
+        )
+        self._register_running_entry(issue.id, running_entry)
 
         # Post dispatch comment in thread to avoid blocking event loop
         if auditor_plan is not None:
@@ -31975,7 +31976,7 @@ class Orchestrator:
                 running_issue,
             )
 
-        # Emit agent dispatched event on EventBus
+        # Emit agent dispatched event on EventBus.
         self.event_bus.emit(
             EventType.AGENT_DISPATCHED,
             {
@@ -31983,9 +31984,7 @@ class Orchestrator:
                 "identifier": issue.identifier,
                 "profile": profile_name,
                 "attempt": attempt,
-                "work_kind": (
-                    "duplicate_screening" if duplicate_preflight else "implementation"
-                ),
+                "work_kind": running_entry.classify_work_kind(),
             },
         )
         self._notify_observers()
@@ -39763,13 +39762,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
                 "focus_role": entry.focus_role,
-                "work_kind": (
-                    "audit"
-                    if entry.is_auditor
-                    else "duplicate_screening"
-                    if getattr(entry, "duplicate_preflight", False)
-                    else "implementation"
-                ),
+                "work_kind": entry.classify_work_kind(),
                 "duplicate_preflight": bool(
                     getattr(entry, "duplicate_preflight", False)
                 ),

@@ -27,7 +27,7 @@ from oompah.duplicate_screening import (
     inconclusive_record,
     new_claim_record,
 )
-from oompah.events import EventBus
+from oompah.events import EventBus, EventType
 from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah import orchestrator as orchestrator_module
@@ -1126,6 +1126,11 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
     orch._post_comment = MagicMock()
     orch._notify_observers = MagicMock()
     orch.event_bus = EventBus()
+    dispatched: list[dict] = []
+    orch.event_bus.subscribe(
+        EventType.AGENT_DISPATCHED,
+        lambda _event, payload: dispatched.append(payload),
+    )
     stop = asyncio.Event()
     worker_run_ids = []
 
@@ -1146,6 +1151,7 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
     entry = orch.state.running[issue.id]
     assert entry.duplicate_preflight is True
     assert entry.issue.state == OPEN
+    assert dispatched[0]["work_kind"] == entry.classify_work_kind()
     assert (issue.identifier, "In Progress") not in tracker.status_updates
 
     stop.set()
