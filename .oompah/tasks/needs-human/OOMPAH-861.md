@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:30:41.463908Z'
+updated_at: '2026-08-06T13:30:47.802645Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 1s
 - Log: OOMPAH-861__20260806T132918Z.jsonl
+---
+author: oompah
+created: 2026-08-06 13:30
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
