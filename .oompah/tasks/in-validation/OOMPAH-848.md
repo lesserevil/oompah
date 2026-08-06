@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-848
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:52:43.772437Z'
+updated_at: '2026-08-06T18:12:13.605938Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -70,14 +70,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-848
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-848
   base_branch: epic-OOMPAH-763
   base_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
   head_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
+  integrated_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
   submitted_at: '2026-08-06T17:52:16.050225+00:00'
-  updated_at: '2026-08-06T17:52:16.050225+00:00'
+  updated_at: '2026-08-06T18:11:59.757651+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2298
@@ -104,6 +105,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-848
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T04:42:12.383090+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4ef1edb19c89
+    project_id: proj-14849f1b
+    task_id: OOMPAH-848
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1aa6ac5bbe850d6c9f0a18f2fee64a7ee7f48951e390c7475eef48b6d07d22d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T18:12:06.481496+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -246,5 +269,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 34s
 - Log: OOMPAH-848__20260806T174824Z.jsonl
+---
+author: oompah
+created: 2026-08-06 18:12
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
