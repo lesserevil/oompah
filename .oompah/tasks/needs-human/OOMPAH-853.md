@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:40:56.924874Z'
+updated_at: '2026-08-06T06:45:02.871199Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -131,6 +131,31 @@ oompah.work_contributors:
     completed_at: '2026-08-06T05:14:48.878530+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-188f40e0d2ae-2: '2026-08-06T06:44:53.681024+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-853
+    target_state: Done
+    evidence_fingerprint: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
+    audit_ids:
+    - audit-188f40e0d2ae
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T06:44:53.681037+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-853
+    audit_id: audit-188f40e0d2ae
+    attempt_id: no-auditor-audit-188f40e0d2ae-2
+    target_state: Done
+    evidence_fingerprint: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
+    status: Needs Human
+    audit_ids:
+    - audit-188f40e0d2ae
+    applied: true
+    created_at: '2026-08-06T06:44:53.681055+00:00'
+    applied_at: '2026-08-06T06:45:01.520448+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -138,7 +163,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-853
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -166,7 +191,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-15c7b08126cb
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -177,13 +202,27 @@ oompah.terminal_audit:
       started_at: '2026-08-06T06:38:36.034266+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-853
       candidate_rotation_count: 1
+      ended_at: '2026-08-06T06:44:51.396401+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-188f40e0d2ae-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-06T06:44:53.680847+00:00'
+      completed_at: '2026-08-06T06:44:53.680847+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T06:30:50.286402+00:00'
-    updated_at: '2026-08-06T06:38:36.034266+00:00'
+    updated_at: '2026-08-06T06:44:53.680847+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2f7cb91105bd
@@ -207,7 +246,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-15c7b08126cb
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -218,6 +257,8 @@ oompah.terminal_audit:
     started_at: '2026-08-06T06:38:36.034266+00:00'
     branch_key: epic-OOMPAH-763--task-OOMPAH-853
     candidate_rotation_count: 1
+    ended_at: '2026-08-06T06:44:51.396401+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -415,5 +456,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 10s
 - Log: OOMPAH-853__20260806T063851Z.jsonl
+---
+author: oompah
+created: 2026-08-06 06:45
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
