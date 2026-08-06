@@ -813,8 +813,9 @@ class OrchestratorIntegrationActionBackend:
                 state="ready",
                 mode="queue",
                 task_branch=row.task_branch,
-                base_branch=self.orchestrator.project_store.epic_branch_name(
-                    row.epic_id
+                base_branch=(
+                    row.base_branch
+                    or self.orchestrator.project_store.epic_branch_name(row.epic_id)
                 ),
                 base_sha=row.base_sha,
                 head_sha=row.head_sha,
@@ -1103,7 +1104,8 @@ class OrchestratorIntegrationActionBackend:
 
                 try:
                     expected_base = str(
-                        self.orchestrator.project_store.epic_branch_name(parent_id)
+                        current_row.base_branch
+                        or self.orchestrator.project_store.epic_branch_name(parent_id)
                         or ""
                     ).strip()
                 except Exception as exc:  # noqa: BLE001 - target lookup boundary
@@ -1377,6 +1379,7 @@ class OrchestratorIntegrationActionBackend:
                     task_id=context.job.task_id,
                     task_branch=branch,
                     head_sha=head,
+                    base_branch=getattr(record, "base_branch", None),
                     base_sha=getattr(record, "base_sha", None),
                     priority=getattr(issue, "priority", None),
                     submitted_at=getattr(record, "submitted_at", None),
@@ -1413,6 +1416,7 @@ class OrchestratorIntegrationActionBackend:
                 epic_id=parent_id,
                 task_branch=branch,
                 head_sha=head,
+                base_branch=getattr(record, "base_branch", None),
                 base_sha=getattr(record, "base_sha", None),
                 priority=getattr(issue, "priority", None),
                 submitted_at=getattr(record, "submitted_at", None),
@@ -2673,8 +2677,9 @@ class OrchestratorIntegrationActionBackend:
                 state="integrated",
                 mode="queue",
                 task_branch=row.task_branch,
-                base_branch=self.orchestrator.project_store.epic_branch_name(
-                    row.epic_id
+                base_branch=(
+                    row.base_branch
+                    or self.orchestrator.project_store.epic_branch_name(row.epic_id)
                 ),
                 base_sha=result.expected_epic_sha or row.base_sha,
                 head_sha=result.rebased_task_sha or row.head_sha,
@@ -2803,7 +2808,8 @@ class OrchestratorIntegrationActionBackend:
                                 mode="queue",
                                 task_branch=row.task_branch,
                                 base_branch=(
-                                    self.orchestrator.project_store.epic_branch_name(
+                                    row.base_branch
+                                    or self.orchestrator.project_store.epic_branch_name(
                                         row.epic_id
                                     )
                                 ),
@@ -3001,8 +3007,11 @@ class OrchestratorIntegrationActionBackend:
                             state="blocked",
                             mode="queue",
                             task_branch=row.task_branch,
-                            base_branch=self.orchestrator.project_store.epic_branch_name(
-                                row.epic_id
+                            base_branch=(
+                                row.base_branch
+                                or self.orchestrator.project_store.epic_branch_name(
+                                    row.epic_id
+                                )
                             ),
                             base_sha=result.expected_epic_sha or row.base_sha,
                             head_sha=row.head_sha,
@@ -3237,7 +3246,8 @@ class OrchestratorIntegrationActionBackend:
                                 mode="queue",
                                 task_branch=current_row.task_branch,
                                 base_branch=(
-                                    self.orchestrator.project_store.epic_branch_name(
+                                    current_row.base_branch
+                                    or self.orchestrator.project_store.epic_branch_name(
                                         current_row.epic_id
                                     )
                                 ),

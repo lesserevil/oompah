@@ -554,6 +554,7 @@ class IntegrationQueueStore:
         task_id: str,
         task_branch: str,
         head_sha: str,
+        base_branch: str | None = None,
         base_sha: str | None = None,
         priority: int | None = None,
         submitted_at: str | None = None,
@@ -578,13 +579,14 @@ class IntegrationQueueStore:
                     """
                     INSERT OR IGNORE INTO integration_queue(
                         project_id, epic_id, task_id, task_branch, head_sha,
-                        base_sha, priority, submitted_at, state, attempts,
+                        base_branch, base_sha, priority, submitted_at,
+                        state, attempts,
                         lease_owner, lease_expires_at, updated_at, last_error,
                         retry_forced, next_retry_at, rebased_from_head_sha,
                         integrated_sha, rebase_intent_pending,
                         rebased_publication_pending,
                         history_sequence
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', 0, NULL, NULL,
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', 0, NULL, NULL,
                              ?, NULL, 0, NULL, NULL, NULL, 0, 0, 0)
                     """,
                     (
@@ -593,6 +595,7 @@ class IntegrationQueueStore:
                         values["task_id"],
                         values["task_branch"],
                         values["head_sha"],
+                        str(base_branch or "").strip() or None,
                         str(base_sha or "").strip() or None,
                         int(priority if priority is not None else 999),
                         submitted_at or now,
@@ -622,6 +625,7 @@ class IntegrationQueueStore:
         epic_id: str,
         task_branch: str,
         head_sha: str,
+        base_branch: str | None = None,
         base_sha: str | None = None,
         priority: int | None = None,
         submitted_at: str | None = None,
@@ -663,7 +667,7 @@ class IntegrationQueueStore:
                 self._conn.execute(
                     """
                     UPDATE integration_queue
-                       SET epic_id = ?, base_sha = ?, priority = ?,
+                       SET epic_id = ?, base_branch = ?, base_sha = ?, priority = ?,
                            submitted_at = ?, state = 'ready', attempts = 0,
                            lease_owner = NULL, lease_expires_at = NULL,
                            updated_at = ?, last_error = NULL,
@@ -677,6 +681,7 @@ class IntegrationQueueStore:
                     """,
                     (
                         parent,
+                        str(base_branch or "").strip() or None,
                         str(base_sha or "").strip() or None,
                         int(priority if priority is not None else 999),
                         submitted_at or item.submitted_at,
