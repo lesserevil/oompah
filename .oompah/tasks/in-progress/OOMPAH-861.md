@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T14:19:11.977099Z'
+updated_at: '2026-08-06T14:58:42.437898Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-08-06 14:19
 ---
 Owner repair completed after independent rejection: accepted evidence now survives abort-recovery state refreshes, demonstrably stale accepted generations cannot replace the current branch and head, and ambiguous or newer concurrent accepted generations still fail closed. Three regressions cover stale ordering, concurrent replacement, and status-write failure rearm. Independent static re-review accepted; focused validation is waiting behind the active OOMPAH-860 terminal audit.
+---
+author: oompah
+created: 2026-08-06 14:58
+---
+Owner repair validated at exact pushed head 8953687bda424401e67d06d676943bbeac93faca: 61 focused accepted-branch and retry-authority tests passed serial and 61 passed with four-worker loadscope. make check-secrets and git diff --check passed; branch is clean and exactly up to date with origin.
 ---
 <!-- COMMENTS:END -->
