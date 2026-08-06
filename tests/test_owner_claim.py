@@ -657,6 +657,7 @@ def test_owner_claim_api_waits_for_claim_to_register_before_retirement(tmp_path)
     tracker.remove_label.assert_called_once_with(issue.identifier, "human-only")
 
 
+@pytest.mark.timeout(20)
 def test_owner_claim_retires_exact_advertised_legacy_provider_only(
     tmp_path,
     monkeypatch,
