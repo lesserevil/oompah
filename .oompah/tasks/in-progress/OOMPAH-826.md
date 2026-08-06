@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T00:17:22.527313Z'
+updated_at: '2026-08-06T00:18:02.477951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -227,5 +227,10 @@ author: oompah
 created: 2026-08-06 00:17
 ---
 Implementation: Gated all existing-review adoption paths before In Review/merge eligibility: webhook adoption now gates then revalidates the forge generation; standalone open and merged recovery now performs a submit-serialized pre-gate authority CAS, exact-head gate, and existing owned post-gate CAS; cached/live integration-entry reviews gate before status mutation and return failure when blocked. Gate failures preserve the existing review and use the normal Needs CI Fix route. Added changed-head, gate-failure, merged-review, webhook/submit race, restart, cached/live review, and metadata-order regressions; removed unrelated uv.lock drift.
+---
+author: oompah
+created: 2026-08-06 00:18
+---
+Verification: Focused branch checks pass. The combined standalone recovery, PR metadata, integration-entry, OOMPAH-520 epic-review, and durable quality-gate cache/single-flight selection ran 110 tests successfully in 39.55s. After tightening gate-blocked _ensure_review_exists to return failure, the full affected integration-entry/epic selection reran 20 tests successfully; the final transition-race spot check passed 2/2. py_compile and git diff --check also pass. Per project policy, the orchestrator will run the one complete make test branch gate for the submitted exact head.
 ---
 <!-- COMMENTS:END -->

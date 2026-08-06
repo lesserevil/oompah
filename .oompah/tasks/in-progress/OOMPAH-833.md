@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:11:07.141284Z'
+updated_at: '2026-08-06T00:18:08.492307Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,15 @@ author: oompah
 created: 2026-08-06 00:11
 ---
 Verification: focused ACP/tool-liveness/result-output tests now pass 35/35, including a new deterministic child-exit versus stall-scan race proving exactly one result-delivery owner and exactly-once acknowledgement. The adjacent ACP/provider/retirement/lifecycle matrix passed 561/573; 12 failures are environment-only writes to read-only operator paths (/home/shedwards/.oompah/agent-logs and native-validation-guards). Terminal mutation scan passed (8/8 allowlisted) and direct secret scan passed; Make wrappers remain blocked by the same host guard/runtime setup.
+---
+author: oompah
+created: 2026-08-06 00:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 81
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 53s
+- Log: OOMPAH-833__20260806T000219Z.jsonl
 ---
 <!-- COMMENTS:END -->
