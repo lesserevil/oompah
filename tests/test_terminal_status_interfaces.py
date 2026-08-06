@@ -68,13 +68,14 @@ def _issue(identifier: str, state: str = "In Validation") -> Issue:
 def _attempt(
     attempt_id: str = "attempt-1",
     *,
+    target_state: TargetState = TargetState.DONE,
     request_state: RequestState = RequestState.PENDING,
     verdict: Verdict | None = None,
     failure_classification: FailureClassification | None = None,
 ) -> AuditAttempt:
     return AuditAttempt(
         attempt_id=attempt_id,
-        target_state=TargetState.DONE,
+        target_state=target_state,
         evidence_fingerprint=_FINGERPRINT,
         request_state=request_state,
         verdict=verdict,
@@ -88,6 +89,7 @@ def _attempt(
 def _record(
     audit_id: str = "audit-1",
     *,
+    target_state: TargetState = TargetState.DONE,
     request_state: RequestState = RequestState.PENDING,
     attempts: list[AuditAttempt] | None = None,
 ) -> TerminalAuditRecord:
@@ -95,7 +97,7 @@ def _record(
         audit_id=audit_id,
         project_id="proj-1",
         task_id="TASK-1",
-        target_state=TargetState.DONE,
+        target_state=target_state,
         evidence_fingerprint=_FINGERPRINT,
         request_state=request_state,
         attempts=attempts or [],
@@ -175,6 +177,167 @@ class TestIssueTerminalAuditSummaryUnit:
         assert result is not None
         assert result["phase"] == "running"
         assert result["attempt_count"] == 1
+
+    def test_multistage_chain_projects_active_and_next_target(self):
+        done = _record(
+            "audit-done",
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[
+                _attempt(
+                    target_state=TargetState.DONE,
+                    request_state=RequestState.IN_PROGRESS,
+                )
+            ],
+        )
+        merged = _record(
+            "audit-merged",
+            target_state=TargetState.MERGED,
+            request_state=RequestState.PENDING,
+        )
+        issue = _issue("TASK-1")
+        issue.terminal_audit = TerminalAuditMetadata(
+            pending_chain=[done, merged]
+        ).to_dict()  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "running"
+        assert result["target_state"] == "Done"
+        assert result["active_target_state"] == "Done"
+        assert result["current_target_state"] == "Done"
+        assert result["next_target_state"] == "Merged"
+        assert result["final_target_state"] == "Merged"
+        assert [stage["target_state"] for stage in result["chain"]] == [
+            "Done",
+            "Merged",
+        ]
+
+    def test_completed_done_then_pending_merged_does_not_reuse_done_verdict(self):
+        done_attempt = _attempt(
+            target_state=TargetState.DONE,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+        )
+        done = _record(
+            "audit-done",
+            target_state=TargetState.DONE,
+            request_state=RequestState.COMPLETED,
+            attempts=[done_attempt],
+        )
+        merged = _record(
+            "audit-merged",
+            target_state=TargetState.MERGED,
+            request_state=RequestState.PENDING,
+        )
+        issue = _issue("TASK-1")
+        issue.terminal_audit = TerminalAuditMetadata(
+            pending_chain=[done, merged],
+            attempt_history=[done_attempt],
+        ).to_dict()  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "queued"
+        assert result["target_state"] == "Merged"
+        assert result["verdict"] is None
+        assert result["active_target_state"] == "Merged"
+        assert result["next_target_state"] is None
+        assert result["final_requested_target"] == "Merged"
+        assert [stage["target_state"] for stage in result["completed_stages"]] == [
+            "Done"
+        ]
+
+    def test_completed_chain_projects_final_applied_stage(self):
+        merged_attempt = _attempt(
+            target_state=TargetState.MERGED,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+        )
+        merged = _record(
+            "audit-merged",
+            target_state=TargetState.MERGED,
+            request_state=RequestState.COMPLETED,
+            attempts=[merged_attempt],
+        )
+        issue = _issue("TASK-1", state="Merged")
+        issue.terminal_audit = _metadata_dict(merged)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "passed"
+        assert result["target_state"] == "Merged"
+        assert result["current_target_state"] == "Merged"
+        assert result["active_target_state"] is None
+        assert result["next_target_state"] is None
+        assert result["final_target_state"] == "Merged"
+
+    def test_result_intent_window_is_visible_without_changing_stage_projection(self):
+        merged_attempt = _attempt(
+            target_state=TargetState.MERGED,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+        )
+        merged = _record(
+            "audit-merged",
+            target_state=TargetState.MERGED,
+            request_state=RequestState.COMPLETED,
+            attempts=[merged_attempt],
+        )
+        intent = {
+            "project_id": "proj-1",
+            "task_id": "TASK-1",
+            "audit_id": "audit-merged",
+            "attempt_id": "attempt-1",
+            "target_state": "Merged",
+            "status": "Merged",
+            "applied": False,
+        }
+        issue = _issue("TASK-1", state="In Validation")
+        issue.terminal_audit = _metadata_dict(  # type: ignore[attr-defined]
+            merged,
+            unknown_fields={"oompah.terminal_audit_result_intents": [intent]},
+        )
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["target_state"] == "Merged"
+        assert result["final_target_state"] == "Merged"
+        assert result["result_intent_pending"] is True
+        assert result["result_intent"]["status"] == "Merged"
+        assert result["final_stage"]["result_intent_pending"] is True
+
+    def test_superseded_retry_is_not_projected_as_current_stage(self):
+        superseded = _record(
+            "audit-old",
+            request_state=RequestState.SUPERSEDED,
+        )
+        current = _record(
+            "audit-current",
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[
+                _attempt(request_state=RequestState.IN_PROGRESS),
+            ],
+        )
+        issue = _issue("TASK-1")
+        issue.terminal_audit = TerminalAuditMetadata(
+            pending_chain=[superseded, current]
+        ).to_dict()  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["target_state"] == "Done"
+        assert result["active_target_state"] == "Done"
+        assert [stage["audit_id"] for stage in result["chain"]] == [
+            "audit-current"
+        ]
+        assert [stage["audit_id"] for stage in result["superseded_stages"]] == [
+            "audit-old"
+        ]
 
     def test_passed_phase_for_completed_pass(self):
         attempt = _attempt(

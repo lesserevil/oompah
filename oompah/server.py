@@ -2190,6 +2190,254 @@ def _terminal_audit_phase(document: "TerminalAuditMetadata", record: object, lat
     return "queued"
 
 
+_TERMINAL_AUDIT_PENDING_REQUEST_STATES = frozenset(("pending", "in_progress"))
+_TERMINAL_AUDIT_RETIRED_REQUEST_STATES = frozenset(("superseded", "cancelled"))
+_TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+_TERMINAL_AUDIT_SAFE_INTENT_STATUSES = frozenset(
+    {
+        "Open",
+        "In Review",
+        "In Validation",
+        "Needs CI Fix",
+        "Needs Human",
+        "Needs Rebase",
+        "Done",
+        "Merged",
+        "Archived",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _TerminalAuditChainProjection:
+    """The one safe, lifecycle-aware view of a terminal-audit chain.
+
+    ``pending_chain`` is an append-only history, not a queue whose first row
+    is always current.  Keep record selection here so list, detail, activity,
+    and websocket snapshots cannot disagree about which stage is observable.
+    The record attributes are internal selection aids; the ``*_stage`` values
+    are already redacted for API consumers.
+    """
+
+    chain: list[dict[str, Any]]
+    completed_stages: list[dict[str, Any]]
+    superseded_stages: list[dict[str, Any]]
+    active_stage: dict[str, Any] | None
+    current_stage: dict[str, Any] | None
+    next_stage: dict[str, Any] | None
+    final_stage: dict[str, Any] | None
+    result_intent: dict[str, Any] | None
+    current_record: Any = None
+    final_record: Any = None
+    latest_attempt: Any = None
+
+
+def _terminal_audit_request_state(record: object) -> str | None:
+    return getattr(getattr(record, "request_state", None), "value", None)
+
+
+def _terminal_audit_latest_attempt(
+    document: "TerminalAuditMetadata", record: object
+) -> object | None:
+    """Find an attempt belonging to *record*, never a prior chain stage."""
+
+    if record is not None:
+        attempts = getattr(record, "attempts", None) or []
+        if attempts:
+            return attempts[-1]
+        target_state = getattr(record, "target_state", None)
+        fingerprint = getattr(record, "evidence_fingerprint", None)
+        for attempt in reversed(getattr(document, "attempt_history", None) or []):
+            if (
+                getattr(attempt, "target_state", None) == target_state
+                and getattr(attempt, "evidence_fingerprint", None) == fingerprint
+            ):
+                return attempt
+        return None
+    history = getattr(document, "attempt_history", None) or []
+    return history[-1] if history else None
+
+
+def _terminal_audit_result_intent(
+    document: "TerminalAuditMetadata", record: object
+) -> dict[str, Any] | None:
+    """Return only safe status-intent facts for one audit record."""
+
+    if record is None:
+        return None
+    raw_intents = getattr(document, "unknown_fields", {}).get(
+        _TERMINAL_RESULT_INTENTS_KEY, []
+    )
+    if not isinstance(raw_intents, list):
+        return None
+    matches = [
+        raw
+        for raw in raw_intents
+        if isinstance(raw, Mapping)
+        and raw.get("audit_id") == getattr(record, "audit_id", None)
+    ]
+    if not matches:
+        return None
+    raw = matches[-1]
+    applied = raw.get("applied", True) is not False
+    result: dict[str, Any] = {
+        "audit_id": getattr(record, "audit_id", None),
+        "applied": applied,
+        "pending": not applied,
+    }
+    status = raw.get("status")
+    if isinstance(status, str) and status in _TERMINAL_AUDIT_SAFE_INTENT_STATUSES:
+        result["status"] = status
+    return result
+
+
+def _terminal_audit_stage_summary(
+    document: "TerminalAuditMetadata", record: object
+) -> dict[str, Any]:
+    """Build a safe summary for one chain stage without exposing attempts."""
+
+    latest_attempt = _terminal_audit_latest_attempt(document, record)
+    intent = _terminal_audit_result_intent(document, record)
+    result: dict[str, Any] = {
+        "audit_id": getattr(record, "audit_id", None),
+        "target_state": (
+            getattr(getattr(record, "target_state", None), "value", None)
+            if record is not None
+            else None
+        ),
+        "request_state": _terminal_audit_request_state(record),
+        "phase": _terminal_audit_phase(document, record, latest_attempt),
+        "attempt_count": len(getattr(record, "attempts", None) or [])
+        if record is not None
+        else 0,
+        "fingerprint_prefix": (
+            getattr(getattr(record, "evidence_fingerprint", None), "digest", "")[:12]
+            if record is not None
+            else None
+        ),
+        "verdict": (
+            getattr(getattr(latest_attempt, "verdict", None), "value", None)
+            if latest_attempt is not None
+            else None
+        ),
+        "failure_classification": (
+            getattr(
+                getattr(latest_attempt, "failure_classification", None),
+                "value",
+                None,
+            )
+            if latest_attempt is not None
+            else None
+        ),
+        "created_at": getattr(record, "created_at", None),
+        "updated_at": getattr(record, "updated_at", None),
+    }
+    if intent is not None:
+        result["result_intent"] = intent
+        result["result_intent_pending"] = bool(intent["pending"])
+    else:
+        result["result_intent_pending"] = False
+    return result
+
+
+def _terminal_audit_chain_projection(
+    document: "TerminalAuditMetadata",
+) -> _TerminalAuditChainProjection:
+    """Project durable chain history into completed/current/next/final stages."""
+
+    records = list(getattr(document, "pending_chain", None) or [])
+    live_records = [
+        record
+        for record in records
+        if _terminal_audit_request_state(record)
+        not in _TERMINAL_AUDIT_RETIRED_REQUEST_STATES
+    ]
+    active_records = [
+        record
+        for record in live_records
+        if _terminal_audit_request_state(record)
+        in _TERMINAL_AUDIT_PENDING_REQUEST_STATES
+    ]
+    # The final requested target is the newest non-retired stage.  Retired
+    # rows are retained for audit history but must never win projection.
+    final_record = live_records[-1] if live_records else None
+    display_record = (
+        active_records[0]
+        if active_records
+        else final_record
+        or (records[-1] if records else None)
+    )
+    next_record = active_records[1] if len(active_records) > 1 else None
+
+    stage_by_id: dict[str, dict[str, Any]] = {}
+    for record in records:
+        stage_by_id[getattr(record, "audit_id", str(id(record)))] = (
+            _terminal_audit_stage_summary(document, record)
+        )
+
+    chain = [
+        stage_by_id[getattr(record, "audit_id", str(id(record)))]
+        for record in live_records
+    ]
+    completed_stages = [
+        stage_by_id[getattr(record, "audit_id", str(id(record)))]
+        for record in live_records
+        if _terminal_audit_request_state(record) == "completed"
+    ]
+    superseded_stages = [
+        stage_by_id[getattr(record, "audit_id", str(id(record)))]
+        for record in records
+        if _terminal_audit_request_state(record)
+        in _TERMINAL_AUDIT_RETIRED_REQUEST_STATES
+    ]
+
+    active_stage = (
+        stage_by_id.get(getattr(active_records[0], "audit_id", ""))
+        if active_records
+        else None
+    )
+    current_stage = (
+        active_stage
+        or (
+            stage_by_id.get(getattr(display_record, "audit_id", ""))
+            if display_record is not None
+            else None
+        )
+    )
+    next_stage = (
+        stage_by_id.get(getattr(next_record, "audit_id", ""))
+        if next_record is not None
+        else None
+    )
+    final_stage = (
+        stage_by_id.get(getattr(final_record, "audit_id", ""))
+        if final_record is not None
+        else current_stage
+    )
+
+    pending_intents = [
+        stage.get("result_intent")
+        for stage in chain
+        if stage.get("result_intent_pending")
+        and isinstance(stage.get("result_intent"), Mapping)
+    ]
+    result_intent = dict(pending_intents[-1]) if pending_intents else None
+
+    return _TerminalAuditChainProjection(
+        chain=chain,
+        completed_stages=completed_stages,
+        superseded_stages=superseded_stages,
+        active_stage=active_stage,
+        current_stage=current_stage,
+        next_stage=next_stage,
+        final_stage=final_stage,
+        result_intent=result_intent,
+        current_record=display_record,
+        final_record=final_record or display_record,
+        latest_attempt=_terminal_audit_latest_attempt(document, display_record),
+    )
+
+
 def _issue_terminal_audit_summary(
     issue: Any,
     tracker: Any = None,
@@ -2232,16 +2480,25 @@ def _issue_terminal_audit_summary(
     if not document.pending_chain and not document.attempt_history and not document.is_quarantined:
         return None
 
-    # Take the first (oldest) pending record as the primary record.  In the
-    # common case there is exactly one record per task.
-    record = document.pending_chain[0] if document.pending_chain else None
+    projection = _terminal_audit_chain_projection(document)
+    record = projection.current_record
+    latest_attempt = projection.latest_attempt
+    current_stage = projection.current_stage
+    final_stage = projection.final_stage
 
-    # Find the latest attempt across the primary record.
-    latest_attempt = None
-    if record is not None and record.attempts:
-        latest_attempt = record.attempts[-1]
-    elif document.attempt_history:
-        latest_attempt = document.attempt_history[-1]
+    current_target_state = (
+        getattr(getattr(record, "target_state", None), "value", None)
+        if record is not None
+        else None
+    )
+    next_target_state = (
+        projection.next_stage.get("target_state")
+        if projection.next_stage is not None
+        else None
+    )
+    final_target_state = (
+        final_stage.get("target_state") if final_stage is not None else None
+    )
 
     # Detect owner override: stored under unknown_fields to preserve the
     # TerminalAuditMetadata forward-compatible design.
@@ -2271,8 +2528,10 @@ def _issue_terminal_audit_summary(
     # Build the safe summary.
     result: dict[str, Any] = {
         "phase": _terminal_audit_phase(document, record, latest_attempt),
-        "target_state": record.target_state.value if record is not None else None,
-        "request_state": record.request_state.value if record is not None else None,
+        # ``target_state`` remains the compatibility field.  It now means the
+        # active stage, or the final applied stage when the chain is complete.
+        "target_state": current_target_state,
+        "request_state": _terminal_audit_request_state(record),
         "attempt_count": (
             len(record.attempts) if record is not None else len(document.attempt_history)
         ),
@@ -2301,7 +2560,29 @@ def _issue_terminal_audit_summary(
         "updated_at": record.updated_at if record is not None else None,
         "quarantined": document.is_quarantined,
         "is_overridden": is_overridden,
+        # Explicit chain fields prevent consumers from mistaking a completed
+        # historical Done row for an active Merged audit.
+        "chain": projection.chain,
+        "completed_stages": projection.completed_stages,
+        "superseded_stages": projection.superseded_stages,
+        "active_stage": projection.active_stage,
+        "current_stage": current_stage,
+        "next_stage": projection.next_stage,
+        "final_stage": final_stage,
+        "active_target_state": (
+            projection.active_stage.get("target_state")
+            if projection.active_stage is not None
+            else None
+        ),
+        "current_target_state": current_target_state,
+        "next_target_state": next_target_state,
+        "final_target_state": final_target_state,
+        "final_requested_target": final_target_state,
+        "requested_target": final_target_state,
+        "result_intent_pending": projection.result_intent is not None,
     }
+    if projection.result_intent is not None:
+        result["result_intent"] = projection.result_intent
     if override_info is not None:
         result["override"] = override_info
     return result
