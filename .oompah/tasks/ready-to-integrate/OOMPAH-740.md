@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:16:21.166756Z'
+updated_at: '2026-08-06T07:16:39.338938Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -33,7 +33,16 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/731
 oompah.review_number: '731'
 oompah.work_branch: epic-OOMPAH-740
 oompah.target_branch: main
-oompah.agent_run_id: 963162d8-a3a6-4642-a3dc-e4fe284295fc
+oompah.agent_run_id: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-740
+  base_branch: main
+  head_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
+  submitted_at: '2026-08-06T07:16:27.932401+00:00'
+  updated_at: '2026-08-06T07:16:27.932401+00:00'
 ---
 ## Summary
 
@@ -111,5 +120,20 @@ author: oompah
 created: 2026-08-06 07:16
 ---
 Completion: rebased epic-OOMPAH-740 onto current origin/main, reconciled the dashboard-state conflict without dropping branch-specific work, and force-pushed exact head 4cdcc7e6e4f2f13087bce5942edf6a19821b9979. Remote and local heads match; status is clean/up to date; the review diff is 19 expected dashboard/alert/docs/test files with eight unique epic commits and no whitespace errors. Focused verification: 71 dashboard/health tests plus 14 setup-contract tests passed.
+---
+author: oompah
+created: 2026-08-06 07:16
+---
+Rebased epic onto origin/main, preserved all eight unique dashboard-alert commits, reconciled validation-resource health with normalized alert state, passed 85 focused tests, and force-pushed verified head 4cdcc7e6e.
+---
+author: oompah
+created: 2026-08-06 07:16
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 40
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 52s
+- Log: OOMPAH-740__20260806T071051Z.jsonl
 ---
 <!-- COMMENTS:END -->
