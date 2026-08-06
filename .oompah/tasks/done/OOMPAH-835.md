@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T11:57:50.945743Z'
+updated_at: '2026-08-06T11:57:56.728219Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -149,8 +149,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-5bf7c2444b03
-    applied: false
+    applied: true
     created_at: '2026-08-06T11:57:47.592309+00:00'
+    applied_at: '2026-08-06T11:57:55.385300+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -355,5 +356,23 @@ author: oompah
 created: 2026-08-06 11:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 11:57
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- review_workflow_py_exists: yes
+- review_workflow_adapter_py_exists: yes
+- all_10_actions_covered: review_monitor, review_refresh, review_landing_refresh, review_ci_repair, review_conflict_repair, review_terminal_stage, review_closed_repair, review_head_reconciliation, review_merge, review_capacity_recheck
+- fresh_review_fact_source: FreshReviewFactSource bypasses stale _reviews_cache; used in workflow_runtime.py review_collector
+- transition_intents: build_transition() returns TransitionIntent; TaskTransitionService applies via journal
+- test_results: 47/47 review workflow tests pass; 21/21 workflow runtime; 51/51 task_transition_service + review_capacity; 303/303 orchestrator handlers; 26/26 shadow
+- branch_head: c31b8d32a at origin/epic-OOMPAH-804--task-OOMPAH-835
+- key_commit: ffe8d5ad3 Implement project-scoped review workflow effects
+- orchestrator_wiring: workflow_review_action_handler_factory delegates to build_review_workflow_handlers
 ---
 <!-- COMMENTS:END -->
