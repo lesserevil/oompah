@@ -10,9 +10,7 @@ children:
 - OOMPAH-835
 - OOMPAH-836
 - OOMPAH-837
-blocked_by:
-- OOMPAH-791
-- OOMPAH-793
+blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-781
 - OOMPAH-782
@@ -22,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T09:26:47.535851Z'
+updated_at: '2026-08-06T09:27:05.682767Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -310,5 +308,10 @@ author: oompah
 created: 2026-08-06 09:07
 ---
 Resubmitted exact validated head f89c477d4 after releasing the obsolete direct-owner claim that raced the first Ready transition.
+---
+author: oompah
+created: 2026-08-06 09:27
+---
+Task-scoped deadlock recovery for OOMPAH-858: removed OOMPAH-804's redundant finish edges to its four decomposition children and its already-Done external prerequisites. The hard-start prerequisite edges remain, all prerequisite tasks passed terminal audit, and the exact parent composition f89c477d passed 2397 affected tests plus mutation/secrets/Ruff checks. Also preserved stale origin/epic-OOMPAH-804 at backup/epic-OOMPAH-804-before-nested-integration-20260806 and aligned the deployed executor's stale target alias to validated f89c477d. This avoids global status mutation while allowing each existing child queue row to validate and complete naturally.
 ---
 <!-- COMMENTS:END -->
