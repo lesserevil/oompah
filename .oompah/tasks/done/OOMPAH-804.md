@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T13:13:09.340904Z'
+updated_at: '2026-08-06T13:13:18.489434Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -150,8 +150,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-864b22885a45
-    applied: false
+    applied: true
     created_at: '2026-08-06T13:13:05.654839+00:00'
+    applied_at: '2026-08-06T13:13:15.761760+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -403,5 +404,23 @@ author: oompah
 created: 2026-08-06 12:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 13:13
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: f89c477d4c03a8992a7278337182c0352da5de16
+- workflow_runtime_tests_passed: 21/21
+- workflow_module_tests_passed: 112/112 workflow_jobs+facts+shadow+scheduler; 203/203 implementation+integration+epic+review workflow; 113/113 terminal_audit_workflow+task_transition_service+workflow_worker; 445/445 orchestrator_handlers+orchestrator_merged; 46/46 workflow_shadow_integration+reasons+contract; 185/185 combined workflow shadow/worker/transition/facts/jobs re-run
+- domain_controllers_constructed: ImplementationWorkflowController, ReviewWorkflowController, IntegrationWorkflowController, EpicWorkflowController, TerminalAuditWorkflow
+- enforce_mode_partial_coverage_rejected: test_enforce_cutover_rejects_partial_handler_coverage + test_multi_project_enforce_rejects_unscoped_static_handlers
+- restart_recovery_scoped: test_restart_recovery_is_scoped_and_leaves_terminal_finalization_owned
+- shadow_no_durable_mutation: test_shadow_runtime_compares_decisions_without_durable_mutation
+- multi_project_routing: test_factory_routes_same_action_to_exact_project
+- config_env_vars: OOMPAH_WORKFLOW_ENGINE_MODE, OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT, OOMPAH_WORKFLOW_RUNTIME_BATCH_SIZE
 ---
 <!-- COMMENTS:END -->
