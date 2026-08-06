@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T09:20:18.163953Z'
+updated_at: '2026-08-06T09:41:13.402042Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -342,5 +342,10 @@ author: oompah
 created: 2026-08-06 09:20
 ---
 Independent static review rejected the current repair for four concrete blockers: ordinary dispatch can still orphan In Progress after commit/response loss or rollback failure; compensation awaits are not shielded/cancellation-safe; deferred audit rollback authority is not restart-durable after state-journal failure; and the new quiesce-fence test contains undefined variables. The API/ACP/CLI coverage also bypasses real worker-method wiring. Repair is in progress with production-shaped cancellation, restart, and wiring regressions; no validation or submission will occur until a fresh independent review accepts it.
+---
+author: oompah
+created: 2026-08-06 09:41
+---
+Repair round complete and handed to a fresh independent static reviewer. The branch now adds durable zero-budget pre-admission recovery for status-response-loss/rollback failure, shielded cancellation-safe compensation and cleanup retry, versioned primary+sidecar deferred-audit journals with restart selection, valid quiesce-fence fixtures, and production-shaped API/ACP/CLI wiring tests. It remains uncommitted and untested until independent review accepts the semantics.
 ---
 <!-- COMMENTS:END -->
