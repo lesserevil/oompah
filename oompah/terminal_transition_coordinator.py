@@ -2690,20 +2690,28 @@ class TerminalTransitionCoordinator:
                 return doc
 
             record = chain[target_index]
-            if record.target_state is TargetState.MERGED and not any(
-                candidate.target_state is TargetState.DONE
-                and candidate.project_id == project_id
-                and candidate.task_id == identifier
-                and candidate.evidence_fingerprint == record.evidence_fingerprint
-                and candidate.request_state is RequestState.COMPLETED
-                and any(
-                    attempt.target_state is TargetState.DONE
-                    and attempt.evidence_fingerprint == record.evidence_fingerprint
-                    and attempt.request_state is RequestState.COMPLETED
-                    and attempt.verdict is Verdict.PASS
-                    for attempt in candidate.attempts
+            # A successful Merged audit may advance only after the exact Done
+            # prerequisite passed.  A failed audit must still be accepted so
+            # it can route the task back to its non-terminal repair state.
+            if (
+                result.verdict is Verdict.PASS
+                and record.target_state is TargetState.MERGED
+                and not any(
+                    candidate.target_state is TargetState.DONE
+                    and candidate.project_id == project_id
+                    and candidate.task_id == identifier
+                    and candidate.evidence_fingerprint == record.evidence_fingerprint
+                    and candidate.request_state is RequestState.COMPLETED
+                    and any(
+                        attempt.target_state is TargetState.DONE
+                        and attempt.evidence_fingerprint
+                        == record.evidence_fingerprint
+                        and attempt.request_state is RequestState.COMPLETED
+                        and attempt.verdict is Verdict.PASS
+                        for attempt in candidate.attempts
+                    )
+                    for candidate in chain
                 )
-                for candidate in chain
             ):
                 decision.outcome = ResultOutcome(
                     success=False,

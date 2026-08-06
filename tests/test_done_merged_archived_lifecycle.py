@@ -329,14 +329,26 @@ def _completed_record(
     fp: EvidenceFingerprint | None = None,
 ) -> TerminalAuditRecord:
     """A Done record already marked COMPLETED (for chaining to Merged)."""
+    fingerprint = fp or _fingerprint()
     return TerminalAuditRecord(
         audit_id=audit_id,
         project_id=PROJECT_ID,
         task_id=TASK_ID,
         target_state=target,
-        evidence_fingerprint=fp or _fingerprint(),
+        evidence_fingerprint=fingerprint,
         request_state=RequestState.COMPLETED,
         created_at="2026-07-01T00:00:00+00:00",
+        attempts=[
+            AuditAttempt(
+                attempt_id=f"{audit_id}-pass",
+                target_state=target,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+                created_at="2026-07-01T00:00:00+00:00",
+                completed_at="2026-07-01T00:00:00+00:00",
+            )
+        ],
     )
 
 

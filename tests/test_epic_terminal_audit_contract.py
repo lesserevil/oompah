@@ -137,6 +137,11 @@ def lifecycle_tracker(request: pytest.FixtureRequest, tmp_path):
     # without asking an external forge to mutate anything.
     tracker.update_issue = MagicMock()  # type: ignore[method-assign]
     tracker.add_comment = MagicMock(return_value={})  # type: ignore[method-assign]
+    # These adapter-contract tests supply the complete normalized Issue that
+    # owns the expected fingerprint.  Live-detail refresh is covered by the
+    # coordinator regression suite; the local forge doubles intentionally do
+    # not implement that separate transport contract.
+    tracker.fetch_issue_detail = None  # type: ignore[method-assign]
     return tracker, identifier
 
 
