@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:52:30.528808Z'
+updated_at: '2026-08-06T17:52:35.884322Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -231,5 +231,10 @@ author: oompah
 created: 2026-08-06 17:52
 ---
 Verification correction: git range-diff reports both the recovery checkpoint and OOMPAH-848 implementation commits as exact equals between tested head 98de5d1f5 and current restacked head 54c8abf8f. The current branch is clean and synchronized with origin; the fresh exact-head make invocation remains blocked before test collection solely by the read-only lease path in the server-provided native validation guard.
+---
+author: oompah
+created: 2026-08-06 17:52
+---
+Isolated free-tier budget projection from heavyweight live snapshot state while preserving exact dispatch counter and public API semantics. Patch-equivalent focused evidence: 41 serial, 41 xdist -n 4, and 20 named four-way concurrent executions passed; current exact head is 54c8abf8f and clean/pushed for canonical gating.
 ---
 <!-- COMMENTS:END -->
