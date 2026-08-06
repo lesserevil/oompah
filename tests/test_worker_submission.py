@@ -450,6 +450,93 @@ def test_direct_epic_verification_leaves_rewrite_ancestry_to_reconciliation():
     assert verified.base_sha == "a" * 40
 
 
+def test_nested_child_verification_preserves_recorded_immediate_parent_target():
+    from oompah.projects import SubmissionGitAuthority
+
+    issue = Issue(
+        id="OOMPAH-834",
+        identifier="OOMPAH-834",
+        title="Nested child",
+        parent_id="OOMPAH-804",
+    )
+    record = IntegrationRecord(
+        state="ready",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    captured = {}
+
+    class Store:
+        @staticmethod
+        def epic_branch_name(_identifier):
+            return "epic-OOMPAH-804"
+
+        @staticmethod
+        def verify_submission_git_authority(project_id, **kwargs):
+            captured.update(project_id=project_id, **kwargs)
+            return SubmissionGitAuthority(
+                task_branch=kwargs["task_branch"],
+                head_sha=kwargs["head_sha"],
+                base_branch=kwargs["base_branch"],
+                base_sha=kwargs["base_sha"],
+            )
+
+    orch = MagicMock()
+    orch.project_store = Store()
+    orch.config.parallel_epic_children_enabled = True
+
+    verified = asyncio.run(
+        server_module._verify_submission_git_authority(
+            orch,
+            issue,
+            "oompah",
+            record,
+        )
+    )
+
+    assert captured["base_branch"] == (
+        "epic-OOMPAH-768--task-OOMPAH-804"
+    )
+    assert verified.base_branch == captured["base_branch"]
+
+
+def test_same_head_submission_with_corrected_target_is_a_new_authority():
+    issue = Issue(
+        id="OOMPAH-834",
+        identifier="OOMPAH-834",
+        title="Nested child",
+        state="Ready to Integrate",
+        parent_id="OOMPAH-804",
+        work_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+            base_branch="epic-OOMPAH-804",
+            base_sha="a" * 40,
+            head_sha="b" * 40,
+        ),
+    )
+
+    record = server_module._submission_record(
+        issue,
+        {
+            "summary": "Correct the immediate parent target",
+            "task_branch": issue.work_branch,
+            "head_sha": "b" * 40,
+            "remote_head_sha": "b" * 40,
+            "base_branch": "epic-OOMPAH-768--task-OOMPAH-804",
+            "base_sha": "c" * 40,
+            "worktree_clean": True,
+        },
+    )
+
+    assert record is not issue.integration
+    assert record.base_branch == "epic-OOMPAH-768--task-OOMPAH-804"
+    assert record.base_sha == "c" * 40
+
+
 def _post_submit(client, *, head=None, summary="Done", branch="oompah/task/TASK-2"):
     """Helper: post a submit body for the shared test task with defaults."""
     return client.post(

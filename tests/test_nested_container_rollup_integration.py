@@ -1,7 +1,10 @@
 """Tests for nested container rollup edge filtering in integration dependencies."""
 
 from oompah.dependency_graph import integration_dependencies, issue_index
+from oompah.integration_queue import IntegrationQueueItem
 from oompah.models import BlockerRef, Issue
+from oompah.orchestrator import Orchestrator
+from oompah.server import _integration_queue_summary
 
 
 def make_issue(identifier, parent_id=None, blocked_by=None):
@@ -155,19 +158,101 @@ def test_nested_three_levels_deep():
     # CHILD-834 should not depend on PARENT-804
     deps = integration_dependencies(child, index)
     assert "PARENT-804" not in deps, f"Child should not depend on parent, got: {deps}"
-    # Child doesn't have grandparent in effective_dependencies at all
-    # because they're linked through parent, not direct ancestor of child
 
 
-if __name__ == "__main__":
-    # Run tests manually for verification
-    test_child_excludes_implicit_parent_rollup_edge()
-    test_child_preserves_explicit_external_dependencies()
-    test_child_preserves_explicit_sibling_dependencies()
-    test_child_preserves_ancestor_external_dependencies()
-    test_standalone_child_without_parent()
-    test_multiple_siblings_complex_scenario()
-    test_integration_dependencies_empty_for_no_deps()
-    test_integration_dependencies_handles_missing_issue()
-    test_nested_three_levels_deep()
-    print("All tests passed!")
+def test_all_ancestor_rollups_are_removed_but_external_order_is_retained():
+    root = make_issue(
+        "ROOT",
+        blocked_by=["PARENT-A", "PARENT-B", "EXTERNAL"],
+    )
+    parent_a = make_issue(
+        "PARENT-A",
+        parent_id="ROOT",
+        blocked_by=["LEAF", "PEER"],
+    )
+    parent_b = make_issue("PARENT-B", parent_id="ROOT")
+    leaf = make_issue("LEAF", parent_id="PARENT-A")
+    peer = make_issue("PEER", parent_id="PARENT-A")
+    external = make_issue("EXTERNAL")
+
+    dependencies = integration_dependencies(
+        leaf,
+        issue_index([root, parent_a, parent_b, leaf, peer, external]),
+    )
+
+    assert dependencies == ("EXTERNAL",)
+
+
+def test_ids_and_identifiers_are_one_canonical_dependency_namespace():
+    parent = Issue(
+        id="native-parent",
+        identifier="PARENT",
+        title="Parent",
+        blocked_by=[
+            BlockerRef(id="native-child"),
+            BlockerRef(id="native-sibling"),
+        ],
+    )
+    child = Issue(
+        id="native-child",
+        identifier="CHILD",
+        title="Child",
+        parent_id="native-parent",
+        blocked_by=[
+            BlockerRef(id="native-sibling"),
+            BlockerRef(id="native-external"),
+        ],
+    )
+    sibling = Issue(
+        id="native-sibling",
+        identifier="SIBLING",
+        title="Sibling",
+        parent_id="PARENT",
+    )
+    external = Issue(
+        id="native-external",
+        identifier="EXTERNAL",
+        title="External",
+    )
+
+    assert integration_dependencies(
+        child,
+        issue_index([parent, child, sibling, external]),
+    ) == ("SIBLING", "EXTERNAL")
+
+
+def test_dashboard_waiting_on_matches_executor_projection():
+    parent = make_issue(
+        "OOMPAH-804",
+        blocked_by=["OOMPAH-834", "EXTERNAL"],
+    )
+    child = make_issue("OOMPAH-834", parent_id="OOMPAH-804")
+    child.state = "Ready to Integrate"
+    external = make_issue("EXTERNAL")
+    external.state = "Open"
+    item = IntegrationQueueItem(
+        project_id="oompah",
+        epic_id="OOMPAH-804",
+        task_id="OOMPAH-834",
+        task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+        head_sha="a" * 40,
+        base_branch="epic-OOMPAH-768--task-OOMPAH-804",
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-08-06T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-08-06T00:00:00+00:00",
+    )
+    issues = [parent, child, external]
+
+    dependency_map = Orchestrator.__new__(Orchestrator)._integration_dependency_map(
+        issues,
+        [item],
+    )
+    summary = _integration_queue_summary(item, child, issues)
+
+    assert dependency_map[item.task_id] == ("EXTERNAL",)
+    assert summary["waiting_on"] == list(dependency_map[item.task_id])

@@ -3,6 +3,7 @@
 from oompah.dependency_graph import integration_dependencies, issue_index
 from oompah.models import BlockerRef, Issue
 from oompah.integration_queue import IntegrationQueueStore
+from oompah.orchestrator import Orchestrator
 
 
 def make_issue(identifier, parent_id=None, blocked_by=None):
@@ -64,29 +65,21 @@ def test_oompah_804_834_deadlock_scenario():
     assert "OOMPAH-837" not in deps_834, "OOMPAH-834 should not depend on siblings"
 
 
-def test_queue_allows_eligible_child_to_claim_lease():
+def test_queue_allows_eligible_child_to_claim_lease(tmp_path):
     """
     Verify that the integration queue can now claim an eligible child
     without waiting on siblings or parent.
     """
-    store = IntegrationQueueStore(":memory:")
+    store = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
 
-    # Enqueue parent and children
-    parent = store.enqueue(
-        project_id="p1",
-        epic_id="EPIC-OOMPAH-804",
-        task_id="OOMPAH-804",
-        task_branch="task/OOMPAH-804",
-        head_sha="aaaa0000",
-    )
-    child1 = store.enqueue(
+    store.enqueue(
         project_id="p1",
         epic_id="EPIC-OOMPAH-804",
         task_id="OOMPAH-834",
         task_branch="task/OOMPAH-834",
         head_sha="bbbb0001",
     )
-    child2 = store.enqueue(
+    store.enqueue(
         project_id="p1",
         epic_id="EPIC-OOMPAH-804",
         task_id="OOMPAH-835",
@@ -94,14 +87,17 @@ def test_queue_allows_eligible_child_to_claim_lease():
         head_sha="cccc0002",
     )
 
-    # Build dependency map with the fix
-    # Without the fix, child1 would depend on itself and siblings
-    # With the fix, each child has empty dependencies
-    dependency_map = {
-        "OOMPAH-804": (),  # Parent has no external deps
-        "OOMPAH-834": (),  # Child 1 has no integration deps (after filtering)
-        "OOMPAH-835": (),  # Child 2 has no integration deps (after filtering)
-    }
+    parent = make_issue(
+        "OOMPAH-804",
+        blocked_by=["OOMPAH-834", "OOMPAH-835"],
+    )
+    issue_834 = make_issue("OOMPAH-834", parent_id="OOMPAH-804")
+    issue_835 = make_issue("OOMPAH-835", parent_id="OOMPAH-804")
+    rows = store.items(project_id="p1", epic_id="EPIC-OOMPAH-804")
+    dependency_map = Orchestrator.__new__(Orchestrator)._integration_dependency_map(
+        [parent, issue_834, issue_835],
+        rows,
+    )
     satisfied = set()
 
     # With the fix, the first ready child should be claimable immediately
@@ -132,6 +128,7 @@ def test_queue_allows_eligible_child_to_claim_lease():
 
     assert claimed2 is not None, "Second child should be claimable"
     assert claimed2.task_id != claimed.task_id, "Different child should be claimed"
+    store.close()
 
 
 def test_external_prerequisites_still_block_integration():
@@ -156,8 +153,42 @@ def test_external_prerequisites_still_block_integration():
     assert "PARENT-804" not in deps, "Child should not depend on parent"
 
 
-if __name__ == "__main__":
-    test_oompah_804_834_deadlock_scenario()
-    test_queue_allows_eligible_child_to_claim_lease()
-    test_external_prerequisites_still_block_integration()
-    print("All OOMPAH-804/834 deadlock tests passed!")
+def test_production_queue_projection_blocks_only_the_external_prerequisite(
+    tmp_path,
+):
+    parent = make_issue(
+        "OOMPAH-804",
+        blocked_by=["OOMPAH-834", "EXTERNAL-500"],
+    )
+    child = make_issue("OOMPAH-834", parent_id="OOMPAH-804")
+    external = make_issue("EXTERNAL-500")
+    store = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    try:
+        store.enqueue(
+            project_id="p1",
+            epic_id="OOMPAH-804",
+            task_id="OOMPAH-834",
+            task_branch="epic-OOMPAH-804--task-OOMPAH-834",
+            head_sha="a" * 40,
+        )
+        rows = store.items(project_id="p1", epic_id="OOMPAH-804")
+        dependency_map = (
+            Orchestrator.__new__(Orchestrator)._integration_dependency_map(
+                [parent, child, external],
+                rows,
+            )
+        )
+
+        assert dependency_map == {"OOMPAH-834": ("EXTERNAL-500",)}
+        assert (
+            store.claim_next(
+                project_id="p1",
+                epic_id="OOMPAH-804",
+                lease_owner="worker",
+                dependency_map=dependency_map,
+                satisfied=set(),
+            )
+            is None
+        )
+    finally:
+        store.close()
