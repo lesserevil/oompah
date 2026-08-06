@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:56:35.184232Z'
+updated_at: '2026-08-06T05:01:27.687175Z'
 work_branch: OOMPAH-844
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/730
@@ -112,6 +112,31 @@ oompah.target_branch: main
 oompah.review_head: d58976219e939c349498f69ce2fdbcb6ff650e96
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5ae16c12cc7d: '2026-08-06T05:01:18.699605+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    target_state: Done
+    evidence_fingerprint: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    audit_ids:
+    - audit-c9dff9bc3978
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T05:01:18.699617+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-844
+    audit_id: audit-c9dff9bc3978
+    attempt_id: attempt-5ae16c12cc7d
+    target_state: Done
+    evidence_fingerprint: 092291c29764bf5800f8f18879a35fe4249c6f25281c5539668536984fcf9f4f
+    status: In Validation
+    audit_ids:
+    - audit-c9dff9bc3978
+    applied: true
+    created_at: '2026-08-06T05:01:18.699633+00:00'
+    applied_at: '2026-08-06T05:01:26.406791+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -119,7 +144,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-844
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -128,7 +153,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5ae16c12cc7d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -138,13 +163,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T04:56:25.746278+00:00'
       branch_key: OOMPAH-844
+      verdict: pass
+      completed_at: '2026-08-06T05:01:18.699434+00:00'
+      ended_at: '2026-08-06T05:01:18.699434+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-06T04:53:16.902678+00:00'
-    updated_at: '2026-08-06T04:56:25.746278+00:00'
+    updated_at: '2026-08-06T05:01:18.699434+00:00'
   - version: 1
     audit_id: audit-4d23077d474f
     project_id: proj-14849f1b
@@ -303,5 +331,25 @@ author: oompah
 created: 2026-08-06 04:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 05:01
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: d58976219e939c349498f69ce2fdbcb6ff650e96
+- files_changed: tests/test_orchestrator_github_lifecycle.py, tests/test_orchestrator_handlers.py
+- insertions: 14
+- merged_pr: 730
+- merge_commit: f2b319c11
+- branch_quality_gate: make test passed in 662.7s at d58976219
+- timeout_marker_lifecycle: line 293 (@pytest.mark.timeout(20))
+- timeout_marker_handlers: line 3161 (@pytest.mark.timeout(20))
+- recover_leases_stub_repo_heal: line 3177
+- recover_leases_stubs_tick: handlers lines 1299, 1339, 1391
+- production_code_changed: none
 ---
 <!-- COMMENTS:END -->
