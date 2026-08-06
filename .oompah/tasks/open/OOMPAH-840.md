@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:00:10.614683Z'
-work_branch: null
+updated_at: '2026-08-06T00:00:17.676517Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
 review_number: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: ab4d0621-2243-4263-9c49-46a49be2efee
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-840
 ---
 ## Summary
 
