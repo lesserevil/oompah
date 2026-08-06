@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T22:03:30.245168Z'
+updated_at: '2026-08-06T22:03:41.980374Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -48,55 +48,12 @@ oompah.agent_run_id: 8faf180a-3696-4a18-befb-e80330d8f551
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  head_sha: ee05a0ad8fbdf4459bf710a29a9926b088b70d10
-  submitted_at: '2026-08-06T21:35:44.775334+00:00'
-  updated_at: '2026-08-06T22:00:27.514023+00:00'
-  last_error: "Combined-tree quality gate failed: tProjectLogPath::test_to_dict_includes_log_path\n\
-    \  <frozen posixpath>:82: RuntimeWarning: coroutine 'LogFileWatcher.start' was\
-    \ never awaited\n  Enable tracemalloc to get traceback where the object was allocated.\n\
-    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_event_driven_loop.py::TestRequestRefreshPostsEvent::test_posts_to_owner_loop_from_other_loop\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/pathlib.py:407:\
-    \ RuntimeWarning: coroutine 'LogFileWatcher.start' was never awaited\n    def\
-    \ _load_parts(self):\n  Enable tracemalloc to get traceback where the object was\
-    \ allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_http_auth.py::TestVerifyPassword::test_invalid_hash_format\n\
-    tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password\ntests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password\n\
-    tests/test_http_auth.py::TestLoadCredentials::test_default_discovery_finds_htpasswd\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-968ja5t3/workspace/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854:\
-    \ DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n\
-    \    from crypt import crypt as _crypt\n\ntests/test_http_auth.py: 21 warnings\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-968ja5t3/workspace/tests/test_http_auth.py:37:\
-    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
-    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password\n\
-    tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password\ntests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries\n\
-    tests/test_http_auth.py::TestVerifierCallable::test_multiple_users\n  /home/shedwards/.oompah/tmp/oompah-quality-gate-968ja5t3/workspace/tests/test_http_auth.py:49:\
-    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
-    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
-    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
-    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
-    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-968ja5t3/workspace/oompah/acp_backends/claude.py:508:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-968ja5t3/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-    =========================== short test summary info ============================\n\
-    FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events\n\
-    = 1 failed, 16307 passed, 8 skipped, 1 xfailed, 40 warnings in 1029.09s (0:17:09)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  updated_at: '2026-08-06T22:03:36.046532+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3166
@@ -323,5 +280,10 @@ author: oompah
 created: 2026-08-06 22:03
 ---
 Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 22:03
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
