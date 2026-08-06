@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:32:25.340754Z'
+updated_at: '2026-08-06T16:51:15.370298Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -22,21 +22,26 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 090789d484e9f0f07a5f02055d487d36863cf2509dad9ab6a62d1d1acb192544
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T16:51:11.805538+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862.'
+  evidence: 'Project-owner review of the active systemic workflow corpus found no
+    equivalent task: OOMPAH-856 uniquely aligns no_auditor recovery actions with coordinator
+    eligibility and clears resolved integrated-audit alerts; the omitted structural
+    peers cover distinct validation, quiesce, isolation, and delivery concerns.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T16:31:59.740151+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T16:51:11.805538+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Project-owner review of the active systemic workflow corpus
+    found no equivalent task: OOMPAH-856 uniquely aligns no_auditor recovery actions
+    with coordinator eligibility and clears resolved integrated-audit alerts; the
+    omitted structural peers cover distinct validation, quiesce, isolation, and delivery
+    concerns.'
 oompah.agent_run_id: a98a05bd-3fb3-455f-8fc9-453cf61f12e6
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
