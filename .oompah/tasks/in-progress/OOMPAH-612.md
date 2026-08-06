@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:22:47.964130Z'
+updated_at: '2026-08-06T21:24:05.321763Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -518,5 +518,10 @@ author: oompah
 created: 2026-08-06 21:22
 ---
 Verification (continuation): Re-ran focused suites in a freshly provisioned .oompah/task-venv on this worktree (branch head f2b319c11, identical to origin/main which contains the merged fix). Results: tests/test_acp_auditor_result_bridge.py (3 passed - Claude same-loop, OpenCode same-loop, Claude coordinator rejection); combined focused suite 438 passed (test_acp_auditor_result_bridge + test_auditor_contract + test_auditor_dispatch + test_terminal_transition_coordinator + test_terminal_audit + test_terminal_audit_enforcement + test_acp_codex_backend + test_acp_opencode_backend); extended neighboring suites 201 passed (test_auditor_result_api + test_acp_agent + test_acp_tool_output_bounds + test_terminal_status_interfaces). Total: 639 passed, no failures, no skips. Confirmed oompah/acp_tools.py at lines 1419-1435 (Claude ACP) and 2186-2204 (OpenCode ACP) both use \`await asyncio.to_thread(submit_auditor_result, payload, audit_target, audit_result_handler)\` to offload the synchronous coordinator bridge; the API-agent thread-pool bridge in oompah/orchestrator.py (_api_audit_handler, _acp_audit_handler) is preserved with its 60s bounded timeout. All acceptance criteria satisfied. Submitting for terminal audit chain.
+---
+author: oompah
+created: 2026-08-06 21:24
+---
+Completion: Branch OOMPAH-612 pushed to origin at f2b319c1182cd654112db622a0498171e508dead (identical to origin/main). Fix already merged via PR #595 (fix commit 8ce6fa0ad, merge commit c048ba706). Both Claude and OpenCode async submit_audit_result tools offload the synchronous coordinator bridge via asyncio.to_thread; API/ACP coordinator handlers preserve target/attempt validation and bounded 60s timeout. Regression coverage in tests/test_acp_auditor_result_bridge.py (same-loop success, idempotency, coordinator rejection) all green. Focused suites (639 tests) all pass.
 ---
 <!-- COMMENTS:END -->
