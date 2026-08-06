@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:14:16.544177Z'
+updated_at: '2026-08-06T07:15:47.137561Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-08-06 07:13
 ---
 Implementation: rebased all eight branch-specific dashboard commits onto current origin/main. The sole content conflict was resolved by preserving main's validation-resource snapshot/degraded-health additions alongside the epic's aggregated quality-gate alerts and normalize_alerts presentation boundary. Three OOMPAH-760 patches were skipped only because git verified patch-equivalent versions already exist in main; git cherry confirms the eight unique epic patches remain.
+---
+author: oompah
+created: 2026-08-06 07:15
+---
+Verification: focused dashboard alert/contract/safety/credential/full-sync/scroll/recovery plus terminal-audit validation-resource suites pass: 71 passed in 11.12s. The directly affected Makefile setup contract also passes: 14 passed in 0.36s. Initial attempts were blocked by the managed validation shim targeting a read-only lease path; rerunning with the provisioned Python 3.12 environment and real /usr/bin Node executed the tests successfully. No product changes were made beyond conflict resolution.
 ---
 <!-- COMMENTS:END -->
