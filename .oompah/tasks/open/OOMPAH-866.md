@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T20:42:57.067468Z'
+updated_at: '2026-08-06T20:50:30.422082Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -22,22 +22,27 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: f6fa104c55944a49b854bbec75c62de4274454d3c9988840d226afcba8e0b265
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T20:50:25.063281+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862, OOMPAH-863, OOMPAH-864, OOMPAH-865.'
+  evidence: 'Project-owner forensic review found no active duplicate. OOMPAH-866 is
+    a distinct regression of completed OOMPAH-757: direct epic conflict-rebase canonical
+    evidence is persisted on helper records but not mapped to affected child landing
+    validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
+    block.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T20:41:56.236096+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T20:50:25.063281+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Project-owner forensic review found no active duplicate.
+    OOMPAH-866 is a distinct regression of completed OOMPAH-757: direct epic conflict-rebase
+    canonical evidence is persisted on helper records but not mapped to affected child
+    landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
+    block.'
 oompah.agent_run_id: 507e1570-42af-456d-8dab-4cc33e54ef1a
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
