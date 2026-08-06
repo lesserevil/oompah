@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:41:42.692017Z'
+updated_at: '2026-08-06T08:54:18.451439Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -109,6 +109,30 @@ oompah.work_contributors:
     completed_at: '2026-08-04T20:24:23.267882+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-1b0dfa253937: '2026-08-06T08:54:14.533524+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-781
+    target_state: Done
+    evidence_fingerprint: 389785588eccef78657c4343c27c6d97eac52966298dc59bd09dfc63ef490a6a
+    audit_ids:
+    - audit-9c342b6071bb
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T08:54:14.533536+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-781
+    audit_id: audit-9c342b6071bb
+    attempt_id: attempt-1b0dfa253937
+    target_state: Done
+    evidence_fingerprint: 389785588eccef78657c4343c27c6d97eac52966298dc59bd09dfc63ef490a6a
+    status: Done
+    audit_ids:
+    - audit-9c342b6071bb
+    applied: false
+    created_at: '2026-08-06T08:54:14.533552+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -116,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-781
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -125,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1b0dfa253937
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -135,13 +159,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T08:41:30.504587+00:00'
       branch_key: epic-OOMPAH-768--task-OOMPAH-781
+      verdict: pass
+      completed_at: '2026-08-06T08:54:14.533313+00:00'
+      ended_at: '2026-08-06T08:54:14.533313+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T08:40:53.718183+00:00'
-    updated_at: '2026-08-06T08:41:30.504587+00:00'
+    updated_at: '2026-08-06T08:54:14.533313+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1b0dfa253937
