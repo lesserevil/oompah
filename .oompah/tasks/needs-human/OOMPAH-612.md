@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T20:52:05.868096Z'
+updated_at: '2026-08-06T20:52:15.537498Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -55,8 +55,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-7d91f741b0a4
-    applied: false
+    applied: true
     created_at: '2026-08-06T20:52:03.149329+00:00'
+    applied_at: '2026-08-06T20:52:12.480029+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -376,5 +377,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 40s
 - Log: OOMPAH-612__20260806T204406Z.jsonl
+---
+author: oompah
+created: 2026-08-06 20:52
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
