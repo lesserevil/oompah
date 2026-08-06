@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:52:10.750444Z'
+updated_at: '2026-08-06T15:13:10.296295Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ FAILED tests/test_oompah_804_834_deadlock.py::test_queue_allows_eligible_child_t
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 15:13
+---
+Owner repair checkpointed at ae61585ac after fresh independent static ACCEPT. The repair now covers normalized nested dependency projection, exact immediate-parent targets, canonical candidate generation, base SHA fencing, restart and cycle recovery CAS races, tracker-write recovery, standalone parity, and durable landing authority; the stray committed :memory: artifact is removed. git diff --check passed. Validation and push remain deliberately deferred behind OOMPAH-861's active exact gate and subsequent rebase.
 ---
 <!-- COMMENTS:END -->
