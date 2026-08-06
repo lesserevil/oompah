@@ -126,12 +126,17 @@ class _MemoryTracker:
         self.metadata.setdefault(identifier, {})[key] = copy.deepcopy(value)
         if key == "oompah.integration" and isinstance(value, dict):
             self.issue.integration = IntegrationRecord.from_dict(value)
-        elif key == "oompah.review_url":
-            self.issue.review_url = value or None
-        elif key == "oompah.review_number":
-            self.issue.review_number = value or None
-        elif key == "oompah.review_head":
-            self.issue.review_head = value or None
+            return
+        projected_fields = {
+            "oompah.review_url": "review_url",
+            "oompah.review_number": "review_number",
+            "oompah.work_branch": "work_branch",
+            "oompah.target_branch": "target_branch",
+            "oompah.review_head": "review_head",
+        }
+        attribute = projected_fields.get(key)
+        if attribute is not None:
+            setattr(self.issue, attribute, copy.deepcopy(value))
 
     def update_issue(self, identifier: str, **kwargs: Any) -> None:
         assert identifier == self.issue.identifier
