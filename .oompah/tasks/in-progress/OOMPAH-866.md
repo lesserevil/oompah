@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T20:54:14.517862Z'
+updated_at: '2026-08-06T20:54:44.337586Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-08-06 20:54
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 20:54
+---
+Understanding: trace direct epic rebase landing-evidence persistence and shared-child validation; implement canonical old-range to target mappings with project/epic/child/base/source/target/generation validation, preserve normal ancestry/cherry evidence, and add regression tests including restart and fail-closed cases.
 ---
 <!-- COMMENTS:END -->
