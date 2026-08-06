@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:48:56.016698Z'
+updated_at: '2026-08-06T17:50:10.542602Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -209,5 +209,10 @@ author: oompah
 created: 2026-08-06 17:48
 ---
 Understanding: resume the preserved implementation, trace the free-tier dispatch/snapshot path, and ensure the focused tests exercise the exact counter projection without constructing or invoking unrelated storage, terminal-audit, maintenance, SCM, or corpus collectors. I will audit the existing diff, retain production semantics, run repeated serial and four-worker checks plus the complete budget module, then commit, push, and submit the exact verified head.
+---
+author: oompah
+created: 2026-08-06 17:50
+---
+Discovery after recovery audit: the patch remains narrow and intact on top of the current OOMPAH-763 head. get_snapshot previously executes terminal-audit reconciliation, validation_resource_lease.status(), tracker/review/workflow/store collectors before assembling its budget block. The extracted _budget_snapshot depends only on ServiceConfig and OrchestratorState; the adjacent tests now construct that projection without initializing any store or executor, while one controlled full-object test proves get_snapshot still routes the public budget field through the projection. The prior gate failure was metadata/head skew after an automatic restack, not a test or implementation failure.
 ---
 <!-- COMMENTS:END -->
