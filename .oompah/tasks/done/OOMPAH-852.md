@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T05:49:04.948474Z'
+updated_at: '2026-08-06T05:49:28.205951Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -80,13 +80,17 @@ oompah.integration:
   submitted_at: '2026-08-06T05:09:38.706077+00:00'
   updated_at: '2026-08-06T05:37:26.362352+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2708
+  total_input_tokens: 42
+  total_output_tokens: 8602
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 2708
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 32
+      output_tokens: 5894
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +99,12 @@ oompah.task_costs:
     output_tokens: 2708
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:54:44.060910+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 32
+    output_tokens: 5894
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T05:49:25.530728+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-852__20260806T045341Z
@@ -300,5 +310,15 @@ Safe evidence:
 - focused_tests: test_validation_resource_lease.py 153 passed; test_native_validation_guard.py 19 passed; test_tool_liveness.py 27 passed; test_api_agent_budget.py 105 passed
 - classifier_call_sites: oompah/api_agent.py:864; oompah/native_validation_guard.py:322
 - acceptance_evidence: test_focused_pytest_waits_for_exact_gate_before_real_process_start; test_non_test_inspection_runs_without_validation_capacity; test_worker_validation_queues_behind_gate_at_worker_priority parameterized over focused Python selectors
+---
+author: oompah
+created: 2026-08-06 05:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 26
+- Tokens: 32 in / 5.9K out [5.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 0s
+- Log: OOMPAH-852__20260806T054336Z.jsonl
 ---
 <!-- COMMENTS:END -->
