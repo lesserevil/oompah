@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:05:37.845355Z'
+updated_at: '2026-08-06T21:05:48.899039Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ author: oompah
 created: 2026-08-06 21:03
 ---
 Restored the previously accepted exact head 6a799a1483e213341e292d77e4dbf0ea970f6765 after the old server misclassified an intentional gate cancellation as a product CI failure (known OOMPAH-839). The unrelated recovery checkpoint is preserved at refs/backup/OOMPAH-845-false-ci-fixer-20260806T2103Z and is not submitted.
+---
+author: oompah
+created: 2026-08-06 21:05
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
