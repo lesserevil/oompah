@@ -129,6 +129,7 @@ def test_cleanup_threads_exact_session_terminal_reason(
     session = CodexAcpBackendSession(
         AcpBackendOptions(
             workspace_path=str(tmp_path),
+            prompt="observe terminal cleanup",
             billing_model="subscription",
         )
     )
@@ -976,7 +977,9 @@ class TestCodexCliPath:
     ):
         session = CodexAcpBackendSession(
             AcpBackendOptions(
-                workspace_path=str(tmp_path), billing_model="subscription"
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
             )
         )
         session._validation_guard_dir = str(tmp_path / "missing-guard")
@@ -1031,7 +1034,9 @@ class TestCodexCliPath:
 
         session = CodexAcpBackendSession(
             AcpBackendOptions(
-                workspace_path=str(tmp_path), billing_model="subscription"
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
             )
         )
         session._validation_guard_dir = str(root)
@@ -1114,6 +1119,7 @@ class TestCodexCliPath:
             session = CodexAcpBackendSession(
                 AcpBackendOptions(
                     workspace_path=str(tmp_path),
+                    prompt="observe native validation",
                     billing_model="subscription",
                 )
             )
@@ -1284,6 +1290,7 @@ class TestCodexCliPath:
         session = CodexAcpBackendSession(
             AcpBackendOptions(
                 workspace_path=str(tmp_path),
+                prompt="observe terminal lifecycle",
                 billing_model="subscription",
             )
         )
@@ -1439,6 +1446,7 @@ class TestCodexCliPath:
             session = CodexAcpBackendSession(
                 AcpBackendOptions(
                     workspace_path=str(tmp_path),
+                    prompt="observe native validation",
                     billing_model="subscription",
                 )
             )
@@ -1522,7 +1530,9 @@ class TestCodexCliPath:
 
         session = CodexAcpBackendSession(
             AcpBackendOptions(
-                workspace_path=str(tmp_path), billing_model="subscription"
+                workspace_path=str(tmp_path),
+                prompt="observe native command",
+                billing_model="subscription",
             )
         )
         session._validation_guard_dir = str(root)
