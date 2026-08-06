@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-851
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Make every tick-test dispatch mock honor the timing mapping contract
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-06T04:43:46.394667Z'
+updated_at: '2026-08-06T05:12:58.453610Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
