@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T01:42:26.191981Z'
+updated_at: '2026-08-06T01:43:14.063338Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -361,5 +361,10 @@ author: oompah
 created: 2026-08-06 01:42
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-06 01:43
+---
+Understanding (CI repair): the observability implementation is already preserved on branch OOMPAH-827, but its full quality gate failed only in tests/test_installed_cli_smoke.py. I will inspect the exact branch/recovery diff and CI failure output, reproduce the installed-command behavior, then apply and test the minimal branch-specific repair before pushing and resubmitting.
 ---
 <!-- COMMENTS:END -->
