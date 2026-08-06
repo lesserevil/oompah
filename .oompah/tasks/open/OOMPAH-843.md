@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:40:02.548010Z'
+updated_at: '2026-08-06T02:40:15.259125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 21e05636-6dea-451b-b6d1-dbaf3520cbd5
 ---
 ## Summary
 
@@ -52,5 +53,15 @@ author: oompah
 created: 2026-08-06 02:39
 ---
 Immediate operator mitigation staged in .env: OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS=2400, safely above the observed ~1,080-second canonical gate and below the one-hour audit session. It requires a later make restart after active gates/audits drain; no unsafe live restart was attempted. The code fix must still validate target/deadline compatibility and support explicitly configured focused targets.
+---
+author: oompah
+created: 2026-08-06 02:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 02:40
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
