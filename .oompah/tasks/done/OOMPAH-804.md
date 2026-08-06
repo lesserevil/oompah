@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T12:56:33.379135Z'
+updated_at: '2026-08-06T13:13:09.340904Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -128,6 +128,30 @@ oompah.work_contributors:
 oompah.start_blocked_by: *id001
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-c52b59cfd6d7: '2026-08-06T13:13:05.654821+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-804
+    target_state: Done
+    evidence_fingerprint: 62a1b0c2e303d3c5dbd2a1299a9d23fb20a96eef45d09e49a0ab9c069438e883
+    audit_ids:
+    - audit-864b22885a45
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T13:13:05.654829+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-804
+    audit_id: audit-864b22885a45
+    attempt_id: attempt-c52b59cfd6d7
+    target_state: Done
+    evidence_fingerprint: 62a1b0c2e303d3c5dbd2a1299a9d23fb20a96eef45d09e49a0ab9c069438e883
+    status: Done
+    audit_ids:
+    - audit-864b22885a45
+    applied: false
+    created_at: '2026-08-06T13:13:05.654839+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -135,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-804
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -144,7 +168,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c52b59cfd6d7
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -154,12 +178,15 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T12:56:23.844179+00:00'
       branch_key: epic-OOMPAH-768--task-OOMPAH-804
+      verdict: pass
+      completed_at: '2026-08-06T13:13:05.654707+00:00'
+      ended_at: '2026-08-06T13:13:05.654707+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-08-06T12:56:06.488568+00:00'
-    updated_at: '2026-08-06T12:56:23.844179+00:00'
+    updated_at: '2026-08-06T13:13:05.654707+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c52b59cfd6d7
