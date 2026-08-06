@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:10:48.232147Z'
+updated_at: '2026-08-06T06:10:54.590952Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 38s
 - Log: OOMPAH-854__20260806T061024Z.jsonl
+---
+author: oompah
+created: 2026-08-06 06:10
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
