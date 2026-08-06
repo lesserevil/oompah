@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T09:38:18.592279Z'
+updated_at: '2026-08-06T09:53:13.831378Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -75,13 +75,14 @@ oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-835
 oompah.integration:
   version: 2
   state: ready
-  attempts: 0
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-835
-  base_branch: epic-OOMPAH-768--task-OOMPAH-804
-  base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
+  base_branch: epic-OOMPAH-804
+  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
   head_sha: f89c477d4c03a8992a7278337182c0352da5de16
   submitted_at: '2026-08-06T09:38:09.263995+00:00'
-  updated_at: '2026-08-06T09:38:09.263995+00:00'
+  updated_at: '2026-08-06T09:53:12.490854+00:00'
+  last_error: Combined-tree quality gate interrupted by service shutdown
 oompah.task_costs:
   total_input_tokens: 1672
   total_output_tokens: 2227
