@@ -360,10 +360,12 @@ def build_terminal_audit_health(
         elif record.request_state == RequestState.PENDING:
             pending += 1
             increment(observation.project_id, "pending_count")
-            # Backlog age describes only dispatchable pending work.  An active
-            # auditor remains In Validation while it runs (including while it
-            # waits for the shared validation resource), but it is no longer a
-            # pending queue entry and must not keep stale backlog facts alive.
+
+        # Pending age is actionable only while no live auditor owns the
+        # request. Running attempts are supervised by their phase-specific
+        # liveness deadlines and must not inherit the record's historical age
+        # as a false stale-pending warning.
+        if record.request_state == RequestState.PENDING:
             record_ts = _record_created_at(record)
             issue_ts = _parse_timestamp(observation.issue_created_at)
             ts = record_ts or issue_ts

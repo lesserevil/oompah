@@ -182,11 +182,14 @@ duration through `PATCH /api/v1/projects/{project_id}`:
 ```
 
 Oompah also derives conservative duration evidence from completed exact branch
-gates. The longest configured or observed duration wins. If an explicit target
-has no duration evidence, or its expected duration exceeds its deadline, audit
-launch is blocked without consuming an attempt and the dashboard shows one
-project-scoped configuration alert. Capacity-queue time does not consume the
-target deadline.
+gates. It persists a monotonic high-water duration for each exact repository
+and command, so pruning individual gate results cannot lower the effective
+expectation. The longest configured or observed duration wins. If no approved
+target has duration evidence, an explicit target has no duration evidence, the
+evidence store is corrupt or unavailable, or an expected duration exceeds its
+deadline, audit launch is blocked without consuming an attempt and the
+dashboard shows one project-scoped configuration alert. Capacity-queue time
+does not consume the target deadline.
 
 #### Global Settings That Affect Auditors
 

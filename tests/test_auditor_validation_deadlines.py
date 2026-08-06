@@ -36,7 +36,10 @@ from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.prompt import render_prompt
-from oompah.quality_gate import BranchQualityGate
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateResult,
+)
 from oompah.terminal_audit import (
     EvidenceFingerprint,
     RequestState,
@@ -162,6 +165,71 @@ def test_explicit_target_without_duration_evidence_fails_closed(monkeypatch):
     assert "no configured or observed expected duration" in (
         contract.configuration_error or ""
     )
+
+
+def test_managed_project_without_any_feasible_target_fails_closed(monkeypatch):
+    monkeypatch.delenv(
+        "OOMPAH_AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS",
+        raising=False,
+    )
+    project = Project(
+        id="project-1",
+        name="project-1",
+        repo_url="https://example.invalid/project-1.git",
+        repo_path="/work/project-1",
+    )
+
+    contract = build_auditor_validation_contract(project)
+
+    assert contract.targets == ()
+    assert contract.feasible is False
+    assert "no feasible auditor validation targets" in (
+        contract.configuration_error or ""
+    )
+
+
+def test_empty_managed_contract_agrees_across_prompt_and_tool(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "OOMPAH_AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS",
+        raising=False,
+    )
+    project = Project(
+        id="project-1",
+        name="project-1",
+        repo_url="https://example.invalid/project-1.git",
+        repo_path="/work/project-1",
+    )
+    rendered = render_prompt(
+        "Issue {{ issue.identifier }}",
+        _issue(),
+        project=project,
+        auditor_context={
+            "target": _target(),
+            "evidence_summary": {"source_sha": "abc"},
+            "comments": [],
+        },
+    )
+    assert "Validation configuration error" in rendered
+    assert "no feasible auditor validation targets" in rendered
+    assert "Approved validation targets" not in rendered
+
+    forbidden = Mock(side_effect=AssertionError("command executed"))
+    monkeypatch.setitem(api_agent._TOOL_DISPATCH, "run_command", forbidden)
+    result = _execute_tool(
+        tmp_path,
+        "run_command",
+        {"command": "make test"},
+        cmd_timeout=720,
+        project_id=project.id,
+        action_policy=auditor_policy(project_id=project.id),
+        project_store=SimpleNamespace(get=lambda _project_id: project),
+    )
+    assert "auditor validation configuration is incompatible" in result
+    assert "no feasible auditor validation targets" in result
+    forbidden.assert_not_called()
 
 
 def test_explicit_deadline_for_implicit_default_requires_duration_evidence(
@@ -365,11 +433,137 @@ def test_quality_gate_history_uses_longest_completed_duration(tmp_path):
         encoding="utf-8",
     )
 
-    observed = BranchQualityGate(
+    evidence = BranchQualityGate(
         str(state)
     ).observed_command_durations_seconds()
 
-    assert observed == {("repo-1", "make test"): 1081}
+    assert evidence.load_status == "available"
+    assert evidence.error is None
+    assert evidence.durations == {("repo-1", "make test"): 1081}
+
+
+def test_quality_gate_duration_high_water_survives_shorter_results_and_pruning(
+    tmp_path,
+):
+    state = tmp_path / "quality_gates.json"
+    gate = BranchQualityGate(str(state))
+    gate._store_result(
+        {},
+        "long",
+        QualityGateResult(
+            status="failed",
+            head_sha="a" * 40,
+            command="make test",
+            duration_seconds=1080.2,
+        ),
+        repo_identity="repo-1",
+        target_branch="main",
+        work_branch="work",
+    )
+    gate._store_result(
+        {},
+        "long",
+        QualityGateResult(
+            status="passed",
+            head_sha="b" * 40,
+            command="make test",
+            duration_seconds=100.0,
+        ),
+        repo_identity="repo-1",
+        target_branch="main",
+        work_branch="work",
+    )
+
+    persisted = json.loads(state.read_text(encoding="utf-8"))
+    persisted["results"] = {}
+    state.write_text(json.dumps(persisted), encoding="utf-8")
+
+    evidence = BranchQualityGate(
+        str(state)
+    ).observed_command_durations_seconds()
+    assert evidence.load_status == "available"
+    assert evidence.durations == {("repo-1", "make test"): 1081}
+
+    persisted["results"] = {
+        f"old-{index}": {
+            "status": "timed_out",
+            "repo_identity": "repo-1",
+            "command": "make test",
+            "duration_seconds": 1200,
+            "recorded_at": index,
+        }
+        for index in range(501)
+    }
+    state.write_text(json.dumps(persisted), encoding="utf-8")
+    gate._store_result(
+        {},
+        "faster-rerun",
+        QualityGateResult(
+            status="passed",
+            head_sha="c" * 40,
+            command="make test",
+            duration_seconds=90.0,
+        ),
+        repo_identity="repo-1",
+        target_branch="main",
+        work_branch="work",
+    )
+
+    after_pruning = json.loads(state.read_text(encoding="utf-8"))
+    assert len(after_pruning["results"]) == 500
+    assert gate.observed_command_durations_seconds().durations == {
+        ("repo-1", "make test"): 1081
+    }
+
+
+def test_quality_gate_duration_evidence_distinguishes_corrupt_and_unavailable(
+    tmp_path,
+):
+    absent = BranchQualityGate(
+        str(tmp_path / "missing-quality-gates.json")
+    ).observed_command_durations_seconds()
+    assert absent.load_status == "absent"
+    assert absent.durations == {}
+    assert absent.error is None
+
+    state = tmp_path / "quality_gates.json"
+    state.write_text("{not-json", encoding="utf-8")
+    malformed = BranchQualityGate(str(state)).observed_command_durations_seconds()
+    assert malformed.load_status == "corrupt"
+    assert malformed.durations == {}
+    assert "valid JSON" in (malformed.error or "")
+
+    state.write_text(
+        json.dumps(
+            {
+                "results": {},
+                "duration_high_water_seconds": [
+                    {
+                        "repo_identity": "repo-1",
+                        "command": "make test",
+                        "seconds": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    gate = BranchQualityGate(str(state))
+
+    corrupt = gate.observed_command_durations_seconds()
+    assert corrupt.load_status == "corrupt"
+    assert corrupt.durations == {}
+    assert "positive integer" in (corrupt.error or "")
+
+    class UnavailablePath:
+        def read_text(self, **_kwargs):
+            raise PermissionError("denied")
+
+    gate.state_path = UnavailablePath()
+    unavailable = gate.observed_command_durations_seconds()
+    assert unavailable.load_status == "unavailable"
+    assert unavailable.durations == {}
+    assert "PermissionError" in (unavailable.error or "")
 
 
 def test_startup_hydrates_observed_exact_gate_before_advertising_target(
@@ -423,6 +617,49 @@ def test_startup_hydrates_observed_exact_gate_before_advertising_target(
         assert contract.feasible is True
         assert contract.budget_for_target("test").expected_seconds == 1081
         assert contract.budget_for_target("test").expected_source == "observed"
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_startup_blocks_when_required_observed_duration_store_is_corrupt(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "OOMPAH_AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS",
+        raising=False,
+    )
+    project = _project(
+        auditor_validation_targets=["test"],
+        auditor_validation_target_deadlines={"test": 1200},
+        auditor_validation_target_expected_seconds={},
+        test_command_full="make test",
+    )
+    projects_path = tmp_path / "projects.json"
+    projects_path.write_text(json.dumps([project.to_dict()]), encoding="utf-8")
+    (tmp_path / "quality_gates.json").write_text("{not-json", encoding="utf-8")
+    store = ProjectStore(path=str(projects_path))
+
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        project_store=store,
+        state_path=str(tmp_path / "service-state.json"),
+    )
+    try:
+        loaded = store.get(project.id)
+        assert loaded.auditor_validation_target_observed_seconds == {}
+        assert "quality-gate duration evidence is corrupt" in (
+            loaded.auditor_validation_contract_error or ""
+        )
+        matching = [
+            alert
+            for alert in orchestrator.get_snapshot()["alerts"]
+            if "validation_contract_incompatible" in alert["source"]
+        ]
+        assert len(matching) == 1
+        assert "duration evidence is corrupt" in matching[0]["message"]
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
@@ -500,19 +737,13 @@ def test_project_update_does_not_reuse_observation_after_gate_change(
     loaded = store.get(project.id)
     loaded.auditor_validation_target_observed_seconds = {"test": 1081}
 
-    with pytest.raises(
-        ProjectError,
-        match="no configured or observed expected duration",
-    ):
-        store.update(
-            project.id,
-            test_command_full="make verify",
-        )
+    updated = store.update(project.id, test_command_full="make verify")
 
-    assert store.get(project.id).test_command_full == "make test"
-    assert store.get(project.id).auditor_validation_target_observed_seconds == {
-        "test": 1081
-    }
+    assert updated.test_command_full == "make verify"
+    assert updated.auditor_validation_target_observed_seconds == {}
+    assert "no configured or observed expected duration" in (
+        updated.auditor_validation_contract_error or ""
+    )
 
 
 def test_project_update_clears_stale_observation_when_configured_evidence_remains(
@@ -582,20 +813,33 @@ def test_startup_surfaces_configuration_alert_separate_from_transport(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+@pytest.mark.parametrize(
+    "project",
+    [
+        _project(
+            auditor_validation_target_deadlines={
+                "focused": 300,
+                "test": 720,
+                "test-serial": 1800,
+            }
+        ),
+        Project(
+            id="project-1",
+            name="project-1",
+            repo_url="https://example.invalid/project-1.git",
+            repo_path="/work/project-1",
+        ),
+    ],
+    ids=("deadline-too-short", "empty-contract"),
+)
 def test_dispatch_preflight_leaves_impossible_audit_pending_without_attempt(
     tmp_path,
     monkeypatch,
+    project,
 ):
     monkeypatch.delenv(
         "OOMPAH_AUDITOR_VALIDATION_TARGET_EXPECTED_SECONDS",
         raising=False,
-    )
-    project = _project(
-        auditor_validation_target_deadlines={
-            "focused": 300,
-            "test": 720,
-            "test-serial": 1800,
-        }
     )
     path = tmp_path / "projects.json"
     path.write_text(json.dumps([project.to_dict()]), encoding="utf-8")
@@ -646,12 +890,16 @@ def test_dispatch_preflight_leaves_impossible_audit_pending_without_attempt(
         persist.assert_not_called()
         dispatch.assert_not_called()
         selector.assert_not_called()
-        assert any(
-            condition.kind == "validation_contract_incompatible"
-            and condition.project_id == project.id
-            and condition.task_id == "project-configuration"
+        configuration_alerts = [
+            condition
             for condition in orchestrator._terminal_audit_manual_alerts.values()
-        )
+            if (
+                condition.kind == "validation_contract_incompatible"
+                and condition.project_id == project.id
+                and condition.task_id == "project-configuration"
+            )
+        ]
+        assert len(configuration_alerts) == 1
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
@@ -886,6 +1134,8 @@ def test_queue_wait_does_not_consume_runtime_or_outer_turn_deadline(
 
     clock = FakeClock()
     events: list[str] = []
+    poll_timeouts: list[float] = []
+    process_started_at: list[float] = []
 
     class FakeHandle:
         pass_fds: tuple[int, ...] = ()
@@ -904,13 +1154,23 @@ def test_queue_wait_does_not_consume_runtime_or_outer_turn_deadline(
 
     class FakeProcess:
         pid = 101
-        returncode = 0
 
         def __init__(self, *_args, **_kwargs):
             events.append("popen")
+            process_started_at.append(clock.value)
+            self.returncode = None
+            self.remaining_work_seconds = 1080.0
 
         def communicate(self, timeout=None):
-            clock.advance(1080)
+            assert timeout is not None
+            bounded_timeout = float(timeout)
+            poll_timeouts.append(bounded_timeout)
+            elapsed = min(bounded_timeout, self.remaining_work_seconds)
+            clock.advance(elapsed)
+            self.remaining_work_seconds -= elapsed
+            if self.remaining_work_seconds > 0:
+                raise subprocess.TimeoutExpired("make test", bounded_timeout)
+            self.returncode = 0
             return "completed after 1080 seconds", ""
 
         def poll(self):
@@ -920,26 +1180,47 @@ def test_queue_wait_does_not_consume_runtime_or_outer_turn_deadline(
     monkeypatch.setattr(api_agent.time, "monotonic", clock.monotonic)
     monkeypatch.setattr(api_agent.subprocess, "Popen", FakeProcess)
 
-    result = _exec_run_command(
+    project = _project()
+    result = _execute_tool(
         tmp_path,
-        {"command": "make focused"},
-        timeout=1200,
+        "run_command",
+        {"command": "make test"},
+        cmd_timeout=720,
+        project_id=project.id,
+        task_identifier="OOMPAH-796",
+        action_policy=auditor_policy(
+            task_identifier="OOMPAH-796",
+            project_id=project.id,
+        ),
+        audit_target=_target(),
         tool_liveness=monitor,
         validation_lease=FakeLease(),
-        validation_owner=object(),
-        configured_validation_target=True,
+        project_store=SimpleNamespace(get=lambda _project_id: project),
     )
 
     assert "completed after 1080 seconds" in result
     assert "exit_code: 0" in result
     assert events == ["wait", "popen", "attach:1200", "release"]
-    assert monitor.outer_deadline_extension_seconds() == 1680
+    assert process_started_at == [600]
+    assert poll_timeouts
+    assert poll_timeouts[0] == pytest.approx(0.25)
+    assert max(poll_timeouts) <= 0.25
+    assert sum(poll_timeouts) == pytest.approx(1080)
+    assert 1200 - sum(poll_timeouts) == pytest.approx(120)
+    assert monitor.outer_deadline_extension_seconds() == pytest.approx(1680)
     assert turn_deadline_exceeded(
         1200,
         tool_liveness=monitor,
         extension_baseline_seconds=0,
         now_monotonic=1680,
     ) is False
+    pending = monitor.snapshots()
+    assert len(pending) == 1
+    assert pending[0].phase == "result_pending"
+    assert pending[0].started_monotonic == pytest.approx(600)
+    assert pending[0].deadline_monotonic == pytest.approx(1800)
+    assert pending[0].deadline_monotonic - clock.value == pytest.approx(120)
+    monitor.result_delivered(pending[0].invocation_id)
     clock.advance(1201)
     assert turn_deadline_exceeded(
         1200,
@@ -964,30 +1245,38 @@ def test_true_validation_overrun_is_terminated_at_target_deadline(
 
     clock = FakeClock()
     terminations: list[int] = []
+    poll_timeouts: list[float] = []
+    processes: list[FakeProcess] = []
 
     class FakeProcess:
         pid = 202
-        returncode = None
         stdout = None
         stderr = None
 
         def __init__(self, *_args, **_kwargs):
-            self.communicate_calls = 0
+            self.returncode = None
+            self.terminated = False
+            processes.append(self)
 
         def communicate(self, timeout=None):
-            self.communicate_calls += 1
-            if self.communicate_calls == 1:
-                clock.advance(1201)
-                raise subprocess.TimeoutExpired("make test", timeout)
-            self.returncode = -15
-            return "", ""
+            if self.terminated:
+                self.returncode = -15
+                return "", ""
+            assert timeout is not None
+            bounded_timeout = float(timeout)
+            poll_timeouts.append(bounded_timeout)
+            clock.advance(bounded_timeout)
+            raise subprocess.TimeoutExpired("make test", bounded_timeout)
 
     monkeypatch.setattr(api_agent.time, "monotonic", clock.monotonic)
     monkeypatch.setattr(api_agent.subprocess, "Popen", FakeProcess)
     monkeypatch.setattr(
         api_agent.os,
         "killpg",
-        lambda pid, _signal: terminations.append(pid),
+        lambda pid, _signal: (
+            terminations.append(pid),
+            setattr(processes[-1], "terminated", True),
+        ),
     )
     timeout_error = (
         "Error: exact target overran its deadline "
@@ -1004,6 +1293,9 @@ def test_true_validation_overrun_is_terminated_at_target_deadline(
 
     assert result == timeout_error
     assert terminations == [202]
+    assert poll_timeouts
+    assert max(poll_timeouts) <= 0.25
+    assert sum(poll_timeouts) == pytest.approx(1200)
 
 
 def test_all_acp_catalogs_apply_the_same_project_target_deadline(

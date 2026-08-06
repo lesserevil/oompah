@@ -2630,18 +2630,22 @@ class ProjectStore:
                         "'state_branch_checkpoint_debounce_ms' + 1000 ms"
                     )
 
-        validation_contract_inputs = {
+        validation_policy_inputs = {
             "auditor_validation_targets",
             "auditor_validation_target_deadlines",
             "auditor_validation_target_expected_seconds",
+        }
+        validation_contract_inputs = validation_policy_inputs | {
             "test_command",
             "test_command_full",
             "repo_url",
         }
+        validation_policy_changed = bool(validation_policy_inputs & fields.keys())
         validation_contract_changed = bool(
             validation_contract_inputs & fields.keys()
         )
         candidate_validation_observations: dict[str, int] | None = None
+        candidate_validation_error: str | None = None
         with AUDITOR_POLICY_AUTHORITY.mutation():
             if validation_contract_changed:
                 from oompah.auditor import build_auditor_validation_contract
@@ -2678,7 +2682,8 @@ class ProjectStore:
                     candidate.auditor_validation_target_observed_seconds
                 )
                 contract = build_auditor_validation_contract(candidate)
-                if contract.configuration_error:
+                candidate_validation_error = contract.configuration_error
+                if validation_policy_changed and contract.configuration_error:
                     raise ProjectError(
                         "auditor validation configuration is incompatible: "
                         f"{contract.configuration_error}"
@@ -2691,7 +2696,7 @@ class ProjectStore:
                 project.auditor_validation_target_observed_seconds = (
                     candidate_validation_observations or {}
                 )
-                project.auditor_validation_contract_error = None
+                project.auditor_validation_contract_error = candidate_validation_error
 
             # Dynamic project updates can introduce a new opaque token/secret;
             # retain both the new and old value in the process-local registry so

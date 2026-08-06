@@ -53,6 +53,23 @@ class _TrustedRuntimeCorruption(RuntimeError):
     """Raised when the operator's installed source mapping is not trusted."""
 
 
+class QualityGateEvidenceUnavailable(RuntimeError):
+    """Raised when persisted quality-gate duration evidence cannot be read."""
+
+
+class QualityGateEvidenceCorrupt(RuntimeError):
+    """Raised when persisted quality-gate duration evidence is malformed."""
+
+
+@dataclass(frozen=True)
+class QualityGateDurationEvidence:
+    """Duration high-water values plus the state-file load disposition."""
+
+    durations: dict[tuple[str, str], int]
+    load_status: str
+    error: str | None = None
+
+
 def _declared_editable_oompah_source() -> Path | None:
     """Return the declared local source of the trusted editable install.
 
@@ -1364,17 +1381,137 @@ class BranchQualityGate:
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def _load(self) -> dict[str, dict]:
+    @staticmethod
+    def _completed_duration_seconds(raw: object) -> int | None:
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None
+        duration = float(raw)
+        if not math.isfinite(duration) or duration <= 0:
+            return None
+        return max(1, int(math.ceil(duration)))
+
+    @classmethod
+    def _durations_from_entries(
+        cls,
+        entries: dict[str, dict],
+    ) -> dict[tuple[str, str], int]:
+        observed: dict[tuple[str, str], int] = {}
+        for raw in entries.values():
+            if not isinstance(raw, dict):
+                continue
+            if str(raw.get("status") or "") not in {"passed", "failed"}:
+                continue
+            repo_identity = str(raw.get("repo_identity") or "").strip()
+            command = str(raw.get("command") or "").strip()
+            seconds = cls._completed_duration_seconds(raw.get("duration_seconds"))
+            if not repo_identity or not command or seconds is None:
+                continue
+            key = (repo_identity, command)
+            observed[key] = max(observed.get(key, 0), seconds)
+        return observed
+
+    @classmethod
+    def _decode_duration_high_water(
+        cls,
+        raw: object,
+    ) -> dict[tuple[str, str], int]:
+        if raw is None:
+            return {}
+        if not isinstance(raw, list):
+            raise ValueError("duration_high_water_seconds must be a list")
+        observed: dict[tuple[str, str], int] = {}
+        for item in raw:
+            if not isinstance(item, dict):
+                raise ValueError("duration high-water entries must be objects")
+            repo_identity = item.get("repo_identity")
+            command = item.get("command")
+            raw_seconds = item.get("seconds")
+            if not isinstance(repo_identity, str) or not repo_identity.strip():
+                raise ValueError("duration high-water repository identity is invalid")
+            if not isinstance(command, str) or not command.strip():
+                raise ValueError("duration high-water command is invalid")
+            if (
+                isinstance(raw_seconds, bool)
+                or not isinstance(raw_seconds, int)
+                or raw_seconds <= 0
+            ):
+                raise ValueError(
+                    "duration high-water seconds must be a positive integer"
+                )
+            key = (repo_identity.strip(), command.strip())
+            observed[key] = max(observed.get(key, 0), raw_seconds)
+        return observed
+
+    def _load_state(
+        self,
+        *,
+        strict: bool,
+    ) -> tuple[dict[str, dict], dict[tuple[str, str], int], str]:
         try:
             raw = json.loads(self.state_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
+        except FileNotFoundError:
+            return {}, {}, "absent"
+        except OSError as exc:
+            if strict:
+                raise QualityGateEvidenceUnavailable(
+                    f"quality-gate evidence is unavailable ({type(exc).__name__})"
+                ) from exc
+            return {}, {}, "unavailable"
+        except json.JSONDecodeError as exc:
+            if strict:
+                raise QualityGateEvidenceCorrupt(
+                    "quality-gate evidence is not valid JSON"
+                ) from exc
+            return {}, {}, "corrupt"
+        if not isinstance(raw, dict):
+            if strict:
+                raise QualityGateEvidenceCorrupt(
+                    "quality-gate evidence root must be an object"
+                )
+            return {}, {}, "corrupt"
+        load_status = "available"
         entries = raw.get("results", {}) if isinstance(raw, dict) else {}
         if not entries and isinstance(raw, dict):
             entries = raw.get("passed", {})
-        return entries if isinstance(entries, dict) else {}
+        if not isinstance(entries, dict):
+            if strict:
+                raise QualityGateEvidenceCorrupt(
+                    "quality-gate results must be an object"
+                )
+            entries = {}
+            load_status = "corrupt"
+        elif any(
+            not isinstance(key, str) or not isinstance(value, dict)
+            for key, value in entries.items()
+        ):
+            if strict:
+                raise QualityGateEvidenceCorrupt(
+                    "quality-gate result entries must be named objects"
+                )
+            entries = {
+                key: value
+                for key, value in entries.items()
+                if isinstance(key, str) and isinstance(value, dict)
+            }
+            load_status = "corrupt"
+        try:
+            high_water = self._decode_duration_high_water(
+                raw.get("duration_high_water_seconds")
+            )
+        except ValueError as exc:
+            if strict:
+                raise QualityGateEvidenceCorrupt(str(exc)) from exc
+            high_water = {}
+            load_status = "corrupt"
+        for key, seconds in self._durations_from_entries(entries).items():
+            high_water[key] = max(high_water.get(key, 0), seconds)
+        return entries, high_water, load_status
 
-    def observed_command_durations_seconds(self) -> dict[tuple[str, str], int]:
+    def _load(self) -> dict[str, dict]:
+        entries, _high_water, _load_status = self._load_state(strict=False)
+        return entries
+
+    def observed_command_durations_seconds(self) -> QualityGateDurationEvidence:
         """Return conservative completed runtimes by repository and command.
 
         Passed and ordinary failed gates both ran to a real completion and are
@@ -1385,37 +1522,38 @@ class BranchQualityGate:
 
         try:
             with self._lock:
-                entries = self._load()
-        except OSError:
-            return {}
-        observed: dict[tuple[str, str], int] = {}
-        for raw in entries.values():
-            if not isinstance(raw, dict):
-                continue
-            if str(raw.get("status") or "") not in {"passed", "failed"}:
-                continue
-            repo_identity = str(raw.get("repo_identity") or "").strip()
-            command = str(raw.get("command") or "").strip()
-            if not repo_identity or not command:
-                continue
-            raw_duration = raw.get("duration_seconds")
-            if isinstance(raw_duration, bool) or not isinstance(
-                raw_duration,
-                (int, float),
-            ):
-                continue
-            duration = float(raw_duration)
-            if not math.isfinite(duration) or duration <= 0:
-                continue
-            seconds = max(1, int(math.ceil(duration)))
-            key = (repo_identity, command)
-            observed[key] = max(observed.get(key, 0), seconds)
-        return observed
+                _entries, observed, load_status = self._load_state(strict=True)
+        except QualityGateEvidenceCorrupt as exc:
+            return QualityGateDurationEvidence({}, "corrupt", str(exc))
+        except QualityGateEvidenceUnavailable as exc:
+            return QualityGateDurationEvidence({}, "unavailable", str(exc))
+        return QualityGateDurationEvidence(observed, load_status)
 
-    def _save(self, entries: dict[str, dict]) -> None:
+    def _save(
+        self,
+        entries: dict[str, dict],
+        duration_high_water: dict[tuple[str, str], int] | None = None,
+    ) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        high_water = (
+            duration_high_water
+            if duration_high_water is not None
+            else self._durations_from_entries(entries)
+        )
+        serialized_high_water = [
+            {
+                "repo_identity": repo_identity,
+                "command": command,
+                "seconds": seconds,
+            }
+            for (repo_identity, command), seconds in sorted(high_water.items())
+        ]
         payload = json.dumps(
-            {"version": _EVIDENCE_VERSION, "results": entries},
+            {
+                "version": _EVIDENCE_VERSION,
+                "results": entries,
+                "duration_high_water_seconds": serialized_high_water,
+            },
             indent=2,
             sort_keys=True,
         ) + "\n"
@@ -1450,7 +1588,7 @@ class BranchQualityGate:
             # Reload while holding the state lock: gates for different heads
             # are intentionally allowed to overlap, so retaining a caller's
             # pre-execution dictionary could otherwise drop another result.
-            entries = self._load()
+            entries, duration_high_water, _load_status = self._load_state(strict=False)
             entries[key] = {
                 **asdict(result),
                 "recorded_at": time.time(),
@@ -1468,8 +1606,17 @@ class BranchQualityGate:
                 )[:500]
                 entries.clear()
                 entries.update(newest)
+            if result.status in {"passed", "failed"}:
+                seconds = self._completed_duration_seconds(result.duration_seconds)
+                if seconds is not None:
+                    duration_key = (repo_identity.strip(), result.command.strip())
+                    if all(duration_key):
+                        duration_high_water[duration_key] = max(
+                            duration_high_water.get(duration_key, 0),
+                            seconds,
+                        )
             try:
-                self._save(entries)
+                self._save(entries, duration_high_water)
             except OSError as exc:
                 logger.warning("Failed to persist branch quality evidence: %s", exc)
 
@@ -1550,6 +1697,15 @@ class BranchQualityGate:
         workspace proof returns ``False`` and leaves the exact gate to run.
         """
 
+        if isinstance(duration_seconds, bool) or not isinstance(
+            duration_seconds,
+            (int, float),
+        ):
+            return False
+        normalized_duration = float(duration_seconds)
+        if not math.isfinite(normalized_duration) or normalized_duration < 0:
+            return False
+
         values = (
             proof.repo_identity,
             proof.target_branch,
@@ -1590,7 +1746,7 @@ class BranchQualityGate:
             status="passed",
             head_sha=head,
             command=command,
-            duration_seconds=max(float(duration_seconds), 0.0),
+            duration_seconds=normalized_duration,
             output_tail=str(output_tail or ""),
         )
         with self._key_lock(key):

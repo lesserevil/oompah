@@ -552,11 +552,12 @@ def render_auditor_prompt(
             + "\n".join(target_lines)
             + "\n"
         )
-        if effective_contract.configuration_error:
-            validation_targets_section += (
-                "Configuration error (the scheduler must block launch): "
-                f"{effective_contract.configuration_error}\n"
-            )
+    if effective_contract is not None and effective_contract.configuration_error:
+        validation_targets_section += (
+            "\n### Validation configuration error\n"
+            "The scheduler must block this audit launch: "
+            f"{effective_contract.configuration_error}\n"
+        )
 
     # Build the prompt content, conditionally including validation targets
     prompt_content = [
