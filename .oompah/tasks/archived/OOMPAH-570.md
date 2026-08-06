@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-08-06T01:55:23.746793Z'
+updated_at: '2026-08-06T01:55:29.682515Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
@@ -128,8 +128,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-40ca02a1d10d
-    applied: false
+    applied: true
     created_at: '2026-08-06T01:55:20.376065+00:00'
+    applied_at: '2026-08-06T01:55:28.367044+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -408,5 +409,21 @@ author: oompah
 created: 2026-08-06 01:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 01:55
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: ad9a9f226
+- implementation_commit: 231012120
+- hardening_commit: 4bcaa85cc
+- pr_number: 587
+- acceptance_criteria_met: explicit_retry + recover_abandoned + cleanup_active_processes wired at startup/shutdown; tightened blocked-only revival; new focused tests present
+- recorded_full_test: 13616 passed, 7 skipped (per merged commentary)
+- archive_threshold: Merged >=7 days; scheduler queued as Aged Merged auto-archive
 ---
 <!-- COMMENTS:END -->
