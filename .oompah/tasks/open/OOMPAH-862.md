@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:21:57.912908Z'
+updated_at: '2026-08-06T14:22:48.832068Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -25,13 +25,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: aaa98e68-86f5-4827-bd69-3fd42d5a6730
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T14:21:34.385268+00:00'
-  claim_expires_at: '2026-08-06T14:51:34.385268+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
+    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-06T14:22:37.997999+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -45,6 +47,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
   updated_at: '2026-08-06T14:21:51.939134+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 2503
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 2503
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 2503
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T14:22:37.992370+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-862__20260806T142200Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-862
+    source_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
+    completed_at: '2026-08-06T14:22:38.017861+00:00'
 ---
 ## Summary
 
@@ -67,5 +95,15 @@ author: oompah
 created: 2026-08-06 14:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 14:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.5K out [2.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 54s
+- Log: OOMPAH-862__20260806T142200Z.jsonl
 ---
 <!-- COMMENTS:END -->
