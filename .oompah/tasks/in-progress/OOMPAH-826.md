@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T00:18:02.477951Z'
+updated_at: '2026-08-06T00:19:11.369719Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-06 00:18
 ---
 Verification: Focused branch checks pass. The combined standalone recovery, PR metadata, integration-entry, OOMPAH-520 epic-review, and durable quality-gate cache/single-flight selection ran 110 tests successfully in 39.55s. After tightening gate-blocked _ensure_review_exists to return failure, the full affected integration-entry/epic selection reran 20 tests successfully; the final transition-race spot check passed 2/2. py_compile and git diff --check also pass. Per project policy, the orchestrator will run the one complete make test branch gate for the submitted exact head.
+---
+author: oompah
+created: 2026-08-06 00:19
+---
+Completion: Delivered commit 4d05dd5a5 on branch OOMPAH-826 and pushed it to origin. Existing open reviews are now exact-head gated across webhook, standalone recovery, merge reconciliation, and cached/live integration handoff; submit races are fenced before gate launch, failures preserve the review and remain retryable, and durable same-head evidence continues to coalesce/reuse. Focused affected suites are green and the diff is limited to orchestrator.py plus regression tests.
 ---
 <!-- COMMENTS:END -->
