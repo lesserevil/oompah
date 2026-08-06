@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T00:28:50.021463Z'
+updated_at: '2026-08-06T00:33:09.402491Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9e6523b3-f527-4866-af63-c61f5f4eede7
+oompah.agent_run_id: ddf7d81a-1b98-4ac0-b336-ed245d4f2d4a
 oompah.task_costs:
   total_input_tokens: 48038
   total_output_tokens: 700
@@ -316,5 +316,15 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
   warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-06 00:33
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 00:33
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
