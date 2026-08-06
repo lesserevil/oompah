@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T08:02:19.222598Z'
+updated_at: '2026-08-06T08:10:53.615928Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-08-06 08:02
 ---
 Repair revision complete and under a second independent review. It now keeps audit queue age informational; persists failed-project availability across restart/recovery; scopes credential/epic alerts and agent activity by project+task(+run); replays WorkDecision races after full sync; atomically cuts public reload across config/tracker/mode/epoch/cache/durable availability with immediate refresh; and proves Done through controller/cache/snapshot/API/rendered card. A reload-vs-publication durable-state race was also fenced. Diff check passes; no tests/compile/commit/push yet.
+---
+author: oompah
+created: 2026-08-06 08:10
+---
+Second independent review REJECTED the latest repair. Remaining blockers: controller/scan-limit truncation is ignored when cache availability reports complete/ready, leaving later tasks without a truthful decision; reload/publication ignore _save_state() == False and can announce a cut that was not durably persisted; Done coverage still handcrafts separate API/UI decisions instead of driving one real controller-produced Done decision end-to-end. Accepted alert actionability, project identity, full-sync send locking, and successful reload cutover remain. No tests were run.
 ---
 <!-- COMMENTS:END -->
