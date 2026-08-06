@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-05T23:59:17.776786Z'
+updated_at: '2026-08-06T00:21:45.764839Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -142,5 +142,10 @@ author: oompah
 created: 2026-08-05 23:59
 ---
 Understanding: the bug is a stale first-stage projection of durable terminal-audit chains. I will identify the authoritative chain/result-intent state, define a truthful current/next/final projection with single-record compatibility, update all server surfaces and event payloads, add focused regression tests, then verify, commit, push, and submit.
+---
+author: oompah
+created: 2026-08-06 00:21
+---
+Verification: focused server/dashboard/lifecycle/enforcement coverage passed (212 tests). The full Makefile workflow passed 15,665 tests, with 7 skipped, 1 xfailed, and 44 warnings; terminal mutation scan passed 8/8. The native setup wrapper could not create its read-only lease, so the gate used the provisioned project runtime after setup was bypassed.
 ---
 <!-- COMMENTS:END -->
