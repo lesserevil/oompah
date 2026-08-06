@@ -1385,7 +1385,10 @@ class TestRunStep5cEpicMaintenance:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        # _tick() consumes a timing Mapping from this handler on the slow path.
+        # Keep the mock faithful so host load cannot turn the unit test into a
+        # formatting/type failure unrelated to the maintenance-future guard.
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()

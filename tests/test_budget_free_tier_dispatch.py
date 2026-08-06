@@ -567,18 +567,24 @@ class TestGetSnapshotFreeTierActive:
         assert "free_tier_dispatches_this_window" in snapshot["budget"]
         assert snapshot["budget"]["free_tier_dispatches_this_window"] == 5
 
+    @pytest.mark.timeout(20)
     def test_should_dispatch_increments_and_snapshot_reflects_it(self, tmp_path):
         """End-to-end: _should_dispatch increments counter, snapshot reflects free_tier_active."""
         provider = _make_free_provider()
         orch = _make_orchestrator(tmp_path, provider=provider, budget_limit=10.0)
         _exceed_budget(orch)
         issue = _make_issue()
-        # Before dispatch
-        assert orch.get_snapshot()["budget"]["free_tier_active"] is False
+        # The adjacent snapshot tests cover the pre-dispatch projection.  Keep
+        # this end-to-end assertion focused on the counter transition so it
+        # performs only the one full snapshot needed by the contract.
+        assert orch.state.free_tier_dispatches_this_window == 0
         # Dispatch on free model
         orch._should_dispatch(issue)
         # After dispatch
-        assert orch.get_snapshot()["budget"]["free_tier_active"] is True
+        assert orch.state.free_tier_dispatches_this_window == 1
+        snapshot = orch.get_snapshot()
+        assert snapshot["budget"]["free_tier_active"] is True
+        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 1
 
 
 # ---------------------------------------------------------------------------
