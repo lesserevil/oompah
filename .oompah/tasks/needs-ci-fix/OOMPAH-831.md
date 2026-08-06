@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T16:24:00.390984Z'
+updated_at: '2026-08-06T16:44:00.953141Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -257,5 +257,10 @@ author: oompah
 created: 2026-08-06 16:24
 ---
 Prepared natural retry: the two dirty pre-OOMPAH-847 workaround edits were confirmed obsolete, preserved recoverably in a named git stash, and removed from the task worktree. The pushed OOMPAH-831 feature head remains unchanged and the worktree is clean. Once OOMPAH-847 lands, resubmission can rearm the blocked integration row without manual status or queue mutation.
+---
+author: oompah
+created: 2026-08-06 16:44
+---
+Natural recovery preparation advanced: feature branch is now cleanly rebased onto integrated OOMPAH-862 and OOMPAH-847 at head 0e0056375. The only textual conflict was the shared ACP schema seam; resolution preserves both structured validation escape fields and the Python-regex search schema. Changed Python modules compile and diff check passes. Fresh composition review and the combined 831 plus 847 focused matrix remain before push/resubmit.
 ---
 <!-- COMMENTS:END -->
