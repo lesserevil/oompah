@@ -18,8 +18,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:09:26.788374Z'
-work_branch: null
+updated_at: '2026-08-06T16:09:44.525552Z'
+work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
 review_number: null
@@ -43,6 +43,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: cf7204f9-9c9f-4d0a-8f37-982239ab4967
+oompah.work_branch: epic-OOMPAH-767--task-OOMPAH-792
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-767--task-OOMPAH-792
+  base_branch: epic-OOMPAH-767
+  base_sha: 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae
+  updated_at: '2026-08-06T16:09:38.499631+00:00'
 ---
 ## Summary
 
@@ -60,5 +70,15 @@ author: oompah
 created: 2026-08-06 16:08
 ---
 All seven hard-start prerequisites are terminal and the live dependency audit found no remaining start blocker. Promoted to Open so the managed server can implement the historical full-stack scenario suite in parallel with operator-owned repair integration.
+---
+author: oompah
+created: 2026-08-06 16:09
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 16:09
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
