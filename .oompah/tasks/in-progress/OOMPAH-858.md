@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T19:15:51.707137Z'
+updated_at: '2026-08-06T19:17:41.725495Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -562,5 +562,10 @@ created: 2026-08-06 19:06
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-06 19:17
+---
+Independent gpt-5.6-sol audit rejected exact integrated head 03563661 despite its green full gate. Two blockers: (1) after candidate C is pushed and durably canonicalized, a transient tracker metadata write failure lets the next tracker sync re-enqueue obsolete submitted head A and clear candidate authority, producing stale_head against remote C; add failed-tracker-write -> sync/retry recovery coverage. (2) dashboard integration_queue_summary reports a reachable terminal cross-container dependency blocked while executor correctly satisfies it via integrated_sha reachability on the exact target; diagnostics and executor must share the same normalized reachability facts. Owner claim is active; repairs are proceeding on isolated child branches before exact resubmission. No terminal override will be used.
 ---
 <!-- COMMENTS:END -->
