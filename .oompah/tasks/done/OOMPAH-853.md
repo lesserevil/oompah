@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:51:43.742997Z'
+updated_at: '2026-08-06T06:51:50.104082Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -140,7 +140,7 @@ oompah.terminal_audit:
     evidence_fingerprint: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
     audit_ids:
     - audit-188f40e0d2ae
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-06T06:44:53.681037+00:00'
   oompah.terminal_audit_result_intents:
@@ -156,6 +156,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T06:44:53.681055+00:00'
     applied_at: '2026-08-06T06:45:01.520448+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-e1f58451f4d3
@@ -178,7 +179,7 @@ oompah.terminal_audit:
       Candidate exhaustion is therefore an orchestration artifact, not a product defect
       in OOMPAH-853.'
     created_at: '2026-08-06T06:51:39.407635+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -486,5 +487,12 @@ created: 2026-08-06 06:45
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-06 06:51
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Independent operator review confirmed exact integrated head 52cf744ab: the full configured exact-head gate passed before integration, the auditor inspected the four-file diff, and focused duplicate-preflight suites passed 46, 229, and 36 tests. The second auditor was terminated only by the operator scheduler pause used to fence a duplicate OOMPAH-854 writer; no adverse code finding was reported. Candidate exhaustion is therefore an orchestration artifact, not a product defect in OOMPAH-853.
 ---
 <!-- COMMENTS:END -->
