@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:44:27.707418Z'
+updated_at: '2026-08-06T04:52:26.425915Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -195,6 +195,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T04:32:18.194335+00:00'
     applied_at: '2026-08-06T04:32:28.049492+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-44d3c084ba5f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a097e22d30a7ba2d9f22b34e4000f83380b1dcd1ffa4d08c8c45b4cf015234
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Existing independent PASS and merged PR are durable evidence; override
+      retires an erroneous duplicate audit loop that had exhausted candidates and
+      reopened already-delivered work.
+    created_at: '2026-08-06T04:52:22.929299+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1

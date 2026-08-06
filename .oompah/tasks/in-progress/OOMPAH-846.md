@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:50:52.567735Z'
+updated_at: '2026-08-06T04:51:59.869975Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-06 04:50
 ---
 Third live reproduction at 2026-08-06T04:52Z: completion auditor OOMPAH-826 projected tool_liveness phase=running and service-child PID 3113755 ran `python -m pytest tests/test_epic_strategy.py -x -q` for at least 226 seconds while OOMPAH-821 was the sole recorded exact_gate owner. validation_resources showed owner_count=1 (OOMPAH-821) and no auditor owner/waiter. The process exited before targeted termination. This proves the uncovered path includes terminal-auditor command execution as well as Codex native implementation command_execution. Tests must cover both routes and verify no process launches before lease ownership is durable.
+---
+author: oompah
+created: 2026-08-06 04:51
+---
+Correction to the OOMPAH-826 evidence: its named single-module `python -m pytest ...` route did traverse the existing command classifier, but current policy deliberately treats that focused selector as light, so it never requests a lease. That is a separate arbitration-policy defect, now canonical OOMPAH-852. OOMPAH-846 remains scoped to genuine launch-path bypasses such as Codex native absolute `/bin/bash -c /absolute/.venv/bin/python -m pytest`, which should classify heavy but miss PATH/SHELL shims. Both must land before exact gates are fully isolated.
 ---
 <!-- COMMENTS:END -->
