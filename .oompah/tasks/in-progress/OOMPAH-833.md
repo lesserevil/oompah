@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-833
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bootstrap durable ACP command-result delivery onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:01:47.827454Z'
+updated_at: '2026-08-06T00:02:16.443490Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,7 +119,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e4870fae-206f-49e5-9431-fec75aa1fedd
+oompah.agent_run_id: 0c6beb34-cded-4c07-8155-3c49f9c7e65e
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1489
@@ -196,5 +196,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 54s
 - Log: OOMPAH-833__20260806T000009Z.jsonl
+---
+author: oompah
+created: 2026-08-06 00:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-06 00:02
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
