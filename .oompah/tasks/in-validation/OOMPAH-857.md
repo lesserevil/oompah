@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-857
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Clear recovered operator-auth warnings after authenticated success
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:38:21.029240Z'
+updated_at: '2026-08-06T07:49:58.183594Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -47,14 +47,15 @@ oompah.agent_run_id: e19b3a8b-0541-424f-82e3-363b45441af1
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-857
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-740--task-OOMPAH-857
   base_branch: epic-OOMPAH-740
   base_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
   head_sha: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
+  integrated_sha: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
   submitted_at: '2026-08-06T07:37:37.191063+00:00'
-  updated_at: '2026-08-06T07:37:37.191063+00:00'
+  updated_at: '2026-08-06T07:49:47.716951+00:00'
 oompah.task_costs:
   total_input_tokens: 48181
   total_output_tokens: 20957
@@ -101,6 +102,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-740--task-OOMPAH-857
     source_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
     completed_at: '2026-08-06T07:19:57.215727+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-84146d0b528c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-857
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 52f62d27dacad9433476fb822a7207ac7759cf64fea22ea69135cc0227d9f262
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T07:49:52.414139+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -278,5 +301,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 1s
 - Log: OOMPAH-857__20260806T072026Z.jsonl
+---
+author: oompah
+created: 2026-08-06 07:49
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
