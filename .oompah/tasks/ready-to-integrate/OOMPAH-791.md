@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T04:59:32.277757Z'
+updated_at: '2026-08-06T05:18:29.172597Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -56,14 +56,20 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
   head_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
+  integrated_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
   submitted_at: '2026-08-06T04:59:25.318463+00:00'
-  updated_at: '2026-08-06T04:59:25.318463+00:00'
+  updated_at: '2026-08-06T05:18:17.921513+00:00'
+  dependency_heads:
+    OOMPAH-813: eb5d206f2fc040698808130b2629a997c3c9b953
+    OOMPAH-812: 1230456cc7834d14b8064d73e1742734ab670d2a
+    OOMPAH-793: a744be37d42047e25e6fc62a6a64878c187290e0
+    OOMPAH-807: b1c089614b81076b961c7681b6ddad64ca68191e
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -100,6 +106,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-768--task-OOMPAH-791
     source_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
     completed_at: '2026-08-04T20:25:44.437531+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d2f7974e6616
+    project_id: proj-14849f1b
+    task_id: OOMPAH-791
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4887e4e96cbf76084f97b22979ef1ac4b142c181bb186157468db69403cd7eba
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T05:18:25.417055+00:00'
+  attempt_history: []
 ---
 ## Summary
 
