@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T01:27:04.422076Z'
+updated_at: '2026-08-06T01:54:55.186349Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-08-05 18:57
 ---
 Scheduler authority was revoked after verifying the worktree was clean: this duplicate-screening Codex provider bootstrap was queued as a heavyweight validation waiter due OOMPAH-841. The waiter is removed and no implementation was discarded. Resume normal dispatch only after standalone deployment OOMPAH-842 is live.
+---
+author: oompah
+created: 2026-08-06 01:54
+---
+Direct-owner implementation is complete locally at exact restacked head 93b0295bcf533d129eb8568ede120e2ad3944066 on OOMPAH-840 parent 93cc4c856. Independent review caught and the follow-up commit fixed a fail-closed ordering bug: path-escape and credential-like operands are now checked before recoverable read-only recognition, with explicit ls-remote/for-each-ref regressions. The full focused auditor/ACP/provider/terminal-health matrix passes 435 tests; compileall, diff, and secret checks pass. Holding push/submission until the active OOMPAH-791 critical gate and OOMPAH-840 parent audit settle, so this work does not compete for the single full-gate lane.
 ---
 <!-- COMMENTS:END -->
