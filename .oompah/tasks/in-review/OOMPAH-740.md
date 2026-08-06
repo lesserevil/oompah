@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T20:35:09.339977Z'
+updated_at: '2026-08-06T22:51:40.440994Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -203,5 +203,10 @@ author: oompah
 created: 2026-08-06 20:34
 ---
 Branch quality gate passed for `46e5857a9ad886e5cd4647cac496bf6ce29eb276` using `make test` in 650.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-06 22:51
+---
+Hosted CI finally ran at 46e5857a9: Python 3.12 passed; Python 3.11 failed one Chrome startup at the 30s child deadline; Python 3.13 failed the same Chrome case plus the other two browser cases and one Node runtime case at the global 5s bound. No product assertion failed. Pushed reviewed repair 231d2b8a7: all three Chrome-only integration tests use a 60s child inside a 65s pytest bound, and the single Node runtime test uses 20s/25s; global 5s policy and assertions are unchanged. Independent review ACCEPTED exact diff fd2c771b. Focused 15 tests pass serial and 15 parallel; check-secrets and diff checks pass.
 ---
 <!-- COMMENTS:END -->
