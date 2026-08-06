@@ -422,7 +422,7 @@ class TestEpicWorktreeLocking:
 
         call_order: list[str] = []
 
-        def mock_create_epic_locked(project_id, epic_id):
+        def mock_create_epic_locked(project_id, epic_id, *, branch_name=None):
             call_order.append(f"start:{epic_id}")
             time.sleep(0.05)
             call_order.append(f"end:{epic_id}")
@@ -491,7 +491,7 @@ class TestEpicWorktreeLocking:
             call_order.append("end:regular")
             return "/wt/regular"
 
-        def mock_create_epic_locked(project_id, epic_id):
+        def mock_create_epic_locked(project_id, epic_id, *, branch_name=None):
             call_order.append("start:epic")
             time.sleep(0.05)
             call_order.append("end:epic")

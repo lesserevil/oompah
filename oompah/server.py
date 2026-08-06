@@ -4213,7 +4213,14 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         # creates a fresh generation below.
         base_branch = getattr(existing, "base_branch", None)
     else:
-        base_branch = getattr(issue, "target_branch", None)
+        # For a new-head submission: use the issue's authoritative delivery
+        # target when it is set (nested child tasks have this populated from
+        # the parent epic branch recorded at task-creation time).  Fall back
+        # to the existing accepted base_branch for legacy tasks and direct
+        # epic-maintenance issues whose target_branch is not explicitly set.
+        base_branch = getattr(issue, "target_branch", None) or (
+            str(getattr(existing, "base_branch", "") or "").strip() or None
+        )
     raw_dependency_heads = body.get("dependency_heads")
     dependency_heads = (
         {

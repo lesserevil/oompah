@@ -1236,6 +1236,7 @@ class TestTaskHandoffEndpoint:
             state="ready",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
+            base_branch="epic-EPIC-1",
             base_sha="b" * 40,
             submitted_at="2026-07-30T00:00:00+00:00",
         )
@@ -1265,6 +1266,7 @@ class TestTaskHandoffEndpoint:
             state="integrated",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
+            base_branch="epic-EPIC-1",
             base_sha="b" * 40,
             submitted_at="2026-07-30T00:00:00+00:00",
         )
