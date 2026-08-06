@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:33:25.659604Z'
+updated_at: '2026-08-06T13:48:18.517153Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 36s
 - Log: OOMPAH-858__20260806T131401Z.jsonl
+---
+author: oompah
+created: 2026-08-06 13:48
+---
+Independent exact-head acceptance review REJECT at 98fc9124; do not terminal-pass based only on focused/full tests. Blockers: (1) immediate-parent target remains derived from queue epic_id in _integration_satisfied_dependencies, executor worktree/target creation, and success metadata; IntegrationRecord.base_branch and divergent stale-alias case are not handled. (2) already-ancestor/no-op rebased head remains inconsistent with generation, QualityGateOwner, commit_allowed, metadata, and audit authority. (3) server/UI diagnostics still call effective_dependencies, and restart recovery/container-cycle/generation paths are unchanged, so no single normalized projection exists. (4) tests are helper-only; the queue test hardcodes an empty dependency map and omits required production, restart, diagnostics-parity, stale-target, no-op, and generation cases. (5) helper mixes raw ids/identifiers and removes only immediate-parent sibling rollups, missing ancestor-container aliases. (6) submitted tree accidentally commits a 24KB file named :memory:; git diff --check reports eight trailing-whitespace errors. Repair all acceptance gaps and obtain fresh review before resubmission.
 ---
 <!-- COMMENTS:END -->
