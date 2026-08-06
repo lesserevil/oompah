@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-08-06T21:01:25.919546Z'
+updated_at: '2026-08-06T21:01:32.719953Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -139,8 +139,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-0792a8f48e93
-    applied: false
+    applied: true
     created_at: '2026-08-06T21:01:21.977944+00:00'
+    applied_at: '2026-08-06T21:01:30.989715+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -494,5 +495,22 @@ author: oompah
 created: 2026-08-06 20:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 21:01
+---
+Audit PASS — Archived
+
+Implementation complete: auditor exit cleanup removes claimed_issues, defensive pruning in _audit_branch_busy prevents stale claims, comprehensive regression tests pass, code merged to main.
+
+Safe evidence:
+- pushed_head: 83949a45b38f10a844a40c679ca105dc3e456f01
+- merge_status: ancestor of origin/main
+- files_changed: oompah/orchestrator.py (+12/-1), tests/test_auditor_exit_cleanup.py (+89/-0)
+- auditor_exit_cleanup: claimed_issues.pop added at line 23084
+- defensive_pruning: orphan prune logic at lines 4276-4288 in _audit_branch_busy
+- tests_passed: test_auditor_exit_cleanup.py: 2/2, test_auditor_dispatch.py: 7/7, test_terminal_audit.py: 28/28, test_auditor_focus.py: 12/12, test_auditor_result_api.py: 68/68, test_orchestrator_handlers.py: 272/272
+- commit_trailer: canonical oompah trailer present, no model-specific attribution
+- acceptance_criteria: all 4 criteria met: no stale claimed_issues, defensive pruning active, tests comprehensive, proper attribution
 ---
 <!-- COMMENTS:END -->
