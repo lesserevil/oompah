@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:13:14.610093Z'
+updated_at: '2026-08-06T12:13:45.685875Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -20,21 +20,13 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-837
-  base_branch: epic-OOMPAH-804
+  base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
-  head_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
-  submitted_at: '2026-08-06T12:11:48.818035+00:00'
-  updated_at: '2026-08-06T12:13:07.405127+00:00'
-  last_error: 'Combined-tree quality gate infrastructure_error: Trusted quality-gate
-    runtime corruption detected; candidate CI was not run: trusted editable source
-    mapping is inconsistent: expected one of [''/home/shedwards/src/oompah''] or immutable
-    candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-sv4ldtjn/workspace;
-    actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-845. Repair or replace
-    the service test runtime before rerunning the branch gate.'
-oompah.agent_run_id: null
+  updated_at: '2026-08-06T12:13:42.611602+00:00'
+oompah.agent_run_id: ebc23710-68e6-4c62-b8c6-8be7c31e5e47
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
   schema_version: 1
@@ -209,5 +201,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-sv4ldtjn/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-845. Repair or replace the service test runtime before rerunning the branch gate.
 ```
+---
+author: oompah
+created: 2026-08-06 12:13
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
