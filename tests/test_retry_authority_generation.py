@@ -446,6 +446,105 @@ def test_restart_rearms_ci_repair_on_accepted_plain_branch(tmp_path):
     restarted._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
 
 
+def test_state_refresh_cannot_replace_a_newer_accepted_generation():
+    source = _issue(
+        issue_id="oompah-860",
+        identifier="OOMPAH-860",
+        work_branch="epic-OOMPAH-763--task-OOMPAH-860",
+    )
+    source.integration = IntegrationRecord(
+        state="blocked",
+        task_branch="OOMPAH-860",
+        head_sha="b" * 40,
+        submitted_at="2026-08-06T14:00:00+00:00",
+    )
+    stale = replace(
+        source,
+        integration=IntegrationRecord(
+            state="blocked",
+            task_branch="epic-OOMPAH-763--task-OOMPAH-860",
+            head_sha="a" * 40,
+            submitted_at="2026-08-06T13:00:00+00:00",
+        ),
+    )
+
+    Orchestrator._preserve_accepted_submission_authority(source, stale)
+
+    assert stale.integration is source.integration
+    assert Orchestrator._retry_issue_branch(stale) == "OOMPAH-860"
+
+
+def test_state_refresh_keeps_a_newer_concurrent_accepted_generation():
+    source = _issue(issue_id="oompah-860", identifier="OOMPAH-860")
+    source.integration = IntegrationRecord(
+        state="blocked",
+        task_branch="OOMPAH-860",
+        head_sha="a" * 40,
+        submitted_at="2026-08-06T13:00:00+00:00",
+    )
+    concurrent = replace(
+        source,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="repair/OOMPAH-860",
+            head_sha="b" * 40,
+            submitted_at="2026-08-06T14:00:00+00:00",
+        ),
+    )
+    accepted = concurrent.integration
+
+    Orchestrator._preserve_accepted_submission_authority(source, concurrent)
+
+    assert concurrent.integration is accepted
+    assert Orchestrator._retry_issue_branch(concurrent) == "repair/OOMPAH-860"
+
+
+def test_status_write_failure_rearms_accepted_branch_after_state_only_refresh(
+    tmp_path,
+):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        accepted = IntegrationRecord(
+            state="blocked",
+            task_branch="OOMPAH-860",
+            base_branch="epic-OOMPAH-763",
+            base_sha="b" * 40,
+            head_sha="a" * 40,
+            submitted_at="2026-08-06T13:00:00+00:00",
+        )
+        issue = _issue(
+            issue_id="oompah-860",
+            identifier="OOMPAH-860",
+            state="Needs CI Fix",
+            work_branch="epic-OOMPAH-763--task-OOMPAH-860",
+            head_sha=None,
+        )
+        issue.integration = accepted
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.side_effect = lambda _issue_ids: [
+            replace(issue, integration=None)
+        ]
+        tracker.update_issue.side_effect = RuntimeError("status write failed")
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        await orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+
+        assert orch.state.retry_attempts[issue.id] is retry
+        assert retry.cancelled is False
+        assert retry.work_branch == "OOMPAH-860"
+        assert tracker.update_issue.call_count == 1
+        orch._run_worker.assert_not_awaited()
+        orch._cancel_retry_for_issue(issue_id=issue.id, reason="test cleanup")
+
+    asyncio.run(scenario())
+
+
 def test_focus_handoff_open_retry_starts_feature_developer_exactly_once(tmp_path):
     async def scenario():
         orch = _orchestrator(tmp_path)

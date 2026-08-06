@@ -39617,16 +39617,43 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         an accepted ``IntegrationRecord`` there would make branch resolution
         fall back to ``work_branch`` or hierarchy after a gate failure.
 
-        A newer accepted generation on *snapshot* always wins.  Otherwise the
-        prior accepted record is immutable authority and is copied forward;
-        this keeps retry fencing and workspace creation on the exact branch
-        and head that submit validation accepted.
+        A demonstrably newer accepted generation on *snapshot* always wins.
+        Otherwise the prior accepted record is immutable authority and is
+        copied forward; this keeps retry fencing and workspace creation on the
+        exact branch and head that submit validation accepted.  Ambiguous,
+        conflicting accepted generations remain on *snapshot* so retry
+        authority fails closed instead of hiding a concurrent resubmission.
         """
 
-        if accepted_submission_branch(snapshot):
+        source_branch = accepted_submission_branch(source)
+        if not source_branch:
             return
-        if accepted_submission_branch(source):
+
+        snapshot_branch = accepted_submission_branch(snapshot)
+        if not snapshot_branch:
             snapshot.integration = source.integration
+            return
+
+        source_record = source.integration
+        snapshot_record = snapshot.integration
+        if source_record is None or snapshot_record is None:
+            return
+        if (
+            snapshot_branch == source_branch
+            and snapshot_record.head_sha == source_record.head_sha
+        ):
+            return
+
+        source_submitted = _audit_observability_time(source_record.submitted_at)
+        snapshot_submitted = _audit_observability_time(
+            snapshot_record.submitted_at
+        )
+        if (
+            source_submitted is not None
+            and snapshot_submitted is not None
+            and source_submitted > snapshot_submitted
+        ):
+            snapshot.integration = source_record
 
     def _retry_authority_generation(
         self,
@@ -39880,6 +39907,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             if current is not None and not current.project_id:
                 current.project_id = issue.project_id
+            if current is not None:
+                self._preserve_accepted_submission_authority(issue, current)
             if (
                 current is not None
                 and status_write_attempted
