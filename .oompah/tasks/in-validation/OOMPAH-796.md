@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T01:13:15.564275Z'
+updated_at: '2026-08-06T02:13:47.025116Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -65,8 +65,8 @@ oompah.integration:
     OOMPAH-807: b1c089614b81076b961c7681b6ddad64ca68191e
     OOMPAH-806: 30dc2b2075a48c6c542da55a46ad0285f492d527
 oompah.task_costs:
-  total_input_tokens: 46798
-  total_output_tokens: 39745
+  total_input_tokens: 46839
+  total_output_tokens: 40705
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -80,6 +80,10 @@ oompah.task_costs:
     opus:
       input_tokens: 117
       output_tokens: 37125
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 41
+      output_tokens: 960
       cost_usd: 0.0
   runs:
   - profile: default
@@ -112,6 +116,12 @@ oompah.task_costs:
     output_tokens: 37125
     cost_usd: 0.0
     recorded_at: '2026-08-05T20:23:14.464860+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 960
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T02:13:35.665455+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-796__20260804T212503Z
@@ -139,7 +149,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-796
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -148,7 +158,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7775109d03da
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -158,6 +168,8 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-06T01:13:05.668390+00:00'
       branch_key: epic-OOMPAH-770--task-OOMPAH-796
+      ended_at: '2026-08-06T02:13:43.070962+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
     requested_by:
       version: 1
       identity: oompah-integration
@@ -169,7 +181,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7775109d03da
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -179,6 +191,8 @@ oompah.terminal_audit:
     model: sonnet
     started_at: '2026-08-06T01:13:05.668390+00:00'
     branch_key: epic-OOMPAH-770--task-OOMPAH-796
+    ended_at: '2026-08-06T02:13:43.070962+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
 ---
 ## Summary
 
@@ -471,5 +485,15 @@ author: oompah
 created: 2026-08-06 01:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 02:13
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 18
+- Tokens: 41 in / 960 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 0m 28s
+- Log: OOMPAH-796__20260806T011321Z.jsonl
 ---
 <!-- COMMENTS:END -->
