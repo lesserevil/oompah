@@ -13,8 +13,8 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:47:30.395895Z'
-work_branch: null
+updated_at: '2026-08-06T03:47:50.186083Z'
+work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
 review_number: null
@@ -39,6 +39,15 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: fa7f348d-d3fa-463f-8983-d5bfb2cf5ba5
+oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-795
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-770--task-OOMPAH-795
+  base_branch: epic-OOMPAH-770
+  base_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
+  updated_at: '2026-08-06T03:47:44.584485+00:00'
 ---
 ## Summary
 
@@ -66,5 +75,10 @@ author: oompah
 created: 2026-08-06 03:47
 ---
 Fresh live acceptance evidence after fe6257b restart: the global alert list warns 'Terminal-audit backlog is stale' with oldest age 4186s while explicitly reporting 0 pending audits, plus an operator-auth warning for one recent failed probe that will age out without operator action. Both exemplify normal/stale conditions that must be task-local/informational rather than global warning banners unless an action_required recovery exists.
+---
+author: oompah
+created: 2026-08-06 03:47
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
