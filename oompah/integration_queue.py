@@ -444,6 +444,45 @@ class IntegrationQueueStore:
             next_retry_at=(float(retry_at) if retryable and retry_at is not None else None),
         )
 
+    def block_preflight(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        reason: str,
+        expected_head_sha: str | None = None,
+    ) -> bool:
+        """Fence a row before a lease/gate attempt when preflight fails.
+
+        This is deliberately separate from :meth:`fail`: a preflight row has
+        no lease owner, and a one-shot ``retry_forced`` flag must survive until
+        an actual quality-gate claim consumes it.  Keeping the flag intact
+        also lets a later explicit retry re-arm the same exact generation.
+        """
+
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET state = 'blocked', lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?, last_error = ?,
+                    next_retry_at = NULL
+                WHERE project_id = ? AND task_id = ?
+                  AND state IN ('ready', 'blocked')
+                  AND (? IS NULL OR head_sha = ?)
+                """,
+                (
+                    _now_iso(),
+                    str(reason),
+                    project_id,
+                    task_id,
+                    expected_head_sha,
+                    expected_head_sha,
+                ),
+            )
+            self._conn.commit()
+        return bool(result.rowcount)
+
     def cancel(
         self,
         project_id: str,

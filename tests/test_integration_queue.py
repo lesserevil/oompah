@@ -651,6 +651,52 @@ def test_explicit_retry_sets_retry_forced_flag(tmp_path):
     assert retried.retry_forced is True
 
 
+def test_preflight_block_preserves_retry_forced_until_gate_claim(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch="task-a",
+        head_sha="a" * 40,
+    )
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="old target failure",
+    )
+    queued = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+    )
+    assert queued.retry_forced is True
+
+    assert store.block_preflight(
+        "p1",
+        "A",
+        reason="terminal parent target unavailable",
+        expected_head_sha="a" * 40,
+    )
+    blocked = store.get("p1", "A")
+    assert blocked is not None
+    assert blocked.state == "blocked"
+    assert blocked.retry_forced is True
+    assert blocked.last_error == "terminal parent target unavailable"
+
+
 def test_retry_forced_cleared_when_claimed(tmp_path):
     """retry_forced flag should be cleared when item is claimed."""
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))

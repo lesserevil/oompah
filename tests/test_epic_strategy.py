@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
@@ -33,7 +34,17 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
 )
-from oompah.terminal_audit import TargetState
+from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+    compute_issue_evidence_fingerprint,
+)
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.terminal_transition_coordinator import TransitionResult
 
 
@@ -4643,6 +4654,304 @@ class TestResolveEpicTargetBranch:
 class TestLabelMergedEpics:
     """When an epic→main PR merges, the epic and all its children become
     Merged."""
+
+    @pytest.mark.parametrize("parent_state", [MERGED, ARCHIVED])
+    def test_ready_child_of_pruned_terminal_parent_uses_landed_head(
+        self,
+        tmp_path,
+        parent_state,
+    ):
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        project.default_branch = "main"
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="terminal-parent",
+            issue_type="epic",
+            state=parent_state,
+        )
+        parent.target_branch = "main"
+        parent.integration = IntegrationRecord(
+            state="integrated",
+            base_branch="epic-terminal-parent",
+            head_sha=task_sha,
+            integrated_sha=task_sha,
+        )
+        child = _make_issue(
+            identifier="late-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            work_branch="pruned-child-branch",
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="pruned-child-branch",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        initial = orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="pruned-child-branch",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch=initial.task_branch,
+            head_sha=initial.head_sha,
+            explicit_retry=True,
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            recovered = orch._reconcile_terminal_parent_integration_rows(
+                project,
+                [parent, child],
+            )
+
+        assert recovered == 1
+        row = orch.integration_queue.get(project.id, child.identifier)
+        assert row is not None
+        assert row.state == "cancelled"
+        # No quality-gate claim occurred, so the one-shot receipt remains
+        # visible in the retired durable row.
+        assert row.retry_forced is True
+        assert child.state == "In Validation"
+        assert child.integration is not None
+        assert child.integration.state == "integrated"
+        assert child.integration.integrated_sha == task_sha
+        assert orch.terminal_transition_coordinator.request_transition.call_args.kwargs[
+            "requested_target"
+        ] == TargetState.MERGED
+
+    def test_passing_merged_audit_recovers_when_git_objects_are_unavailable(
+        self,
+        tmp_path,
+    ):
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(tmp_path / "deleted-repo")
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="audited-parent",
+            issue_type="epic",
+            state=MERGED,
+        )
+        parent.target_branch = "main"
+        task_sha = "a" * 40
+        child = _make_issue(
+            identifier="audited-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="deleted-child",
+                head_sha=task_sha,
+            ),
+        )
+        candidate = IntegrationRecord(
+            state="integrated",
+            task_branch="deleted-child",
+            base_branch="main",
+            head_sha=task_sha,
+            integrated_sha=task_sha,
+        )
+        fingerprint = compute_issue_evidence_fingerprint(
+            replace(child, project_id=project.id, integration=candidate),
+            project.id,
+        )
+        attempt = AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+            requested_by=ContributorIdentity("auditor", "service"),
+            created_at="2026-08-05T00:00:00Z",
+            completed_at="2026-08-05T00:01:00Z",
+        )
+        audit = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id=project.id,
+            task_id=child.identifier,
+            target_state=TargetState.MERGED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            attempts=[attempt],
+            requested_by=ContributorIdentity("oompah", "service"),
+            previous_state="Ready to Integrate",
+        )
+        tracker = MagicMock()
+        tracker.get_metadata.return_value = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[audit]).to_dict()
+        }
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="deleted-child",
+            head_sha=task_sha,
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 1
+
+        assert child.state == "In Validation"
+        assert orch.integration_queue.get(project.id, child.identifier).state == "cancelled"
+
+    def test_blocked_row_restarts_idempotently_and_retires_warning(self, tmp_path):
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="merged-parent",
+            issue_type="epic",
+            state=MERGED,
+        )
+        parent.target_branch = "main"
+        child = _make_issue(
+            identifier="blocked-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="blocked",
+                task_branch="deleted-child",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="deleted-child",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        source = orch._terminal_parent_recovery_alert_source(
+            project.id,
+            child.identifier,
+        )
+        orch._alerts.append({"source": source, "level": "warning", "message": "old"})
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 1
+            orch.terminal_transition_coordinator.request_transition.reset_mock()
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+
+        assert not any(alert.get("source") == source for alert in orch._alerts)
+        assert tracker.add_comment.call_count == 0
+
+    def test_unlanded_ready_child_gets_one_named_recovery_action(self, tmp_path):
+        repo_path, _landed_sha = _make_pruned_historical_landing_repo(tmp_path)
+        (repo_path / "unlanded.txt").write_text("not on main\n")
+        subprocess.run(["git", "add", "unlanded.txt"], cwd=repo_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "unlanded"],
+            cwd=repo_path,
+            check=True,
+        )
+        task_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(["git", "reset", "-q", "--hard", "HEAD~1"], cwd=repo_path, check=True)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue("pruned-parent", issue_type="epic", state=MERGED)
+        parent.target_branch = "main"
+        child = _make_issue(
+            "unlanded-child",
+            state="Ready to Integrate",
+            parent_id=parent.identifier,
+            integration=IntegrationRecord(
+                state="ready",
+                task_branch="missing-child",
+                head_sha=task_sha,
+            ),
+        )
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        initial = orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="missing-child",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="old-worker",
+            dependency_map={child.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.fail(
+            project.id,
+            child.identifier,
+            lease_owner="old-worker",
+            error="parent branch was pruned",
+        )
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch=initial.task_branch,
+            head_sha=initial.head_sha,
+            explicit_retry=True,
+        )
+        orch._request_task_status_transition_from_maintenance = MagicMock()
+        orch._task_status_transition_succeeded = MagicMock(return_value=True)
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+            assert orch._reconcile_terminal_parent_integration_rows(project, [parent, child]) == 0
+
+        row = orch.integration_queue.get(project.id, child.identifier)
+        assert row is not None
+        assert row.state == "blocked"
+        assert row.retry_forced is True
+        assert tracker.add_comment.call_count == 1
+        comment = tracker.add_comment.call_args.args[1]
+        assert "recovery/pruned-parent/unlanded-child" in comment
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 0
 
     def test_refreshes_stale_target_before_judging_done_child(self, tmp_path):
         """A merge webhook may beat the local target remote-tracking ref."""

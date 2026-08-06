@@ -188,7 +188,7 @@ from oompah.terminal_audit import (
     Verdict,
     compute_issue_evidence_fingerprint,
 )
-from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import (
     DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
     DEFAULT_LIFECYCLE_RECONCILIATION_MAX_ATTEMPTS,
@@ -12696,6 +12696,457 @@ class Orchestrator:
                 }
             )
 
+    @staticmethod
+    def _terminal_parent_recovery_target_name(
+        parent: Issue,
+        child: Issue,
+    ) -> str:
+        """Return the stable name used when a pruned parent needs recovery."""
+
+        return (
+            f"recovery/{str(parent.identifier).strip()}/"
+            f"{str(child.identifier).strip()}"
+        )
+
+    def _terminal_parent_target_branch(
+        self,
+        parent: Issue,
+        project: Project,
+        *,
+        snapshot: Iterable[Issue],
+    ) -> tuple[str | None, str | None]:
+        """Resolve one authoritative target for a terminal parent.
+
+        A terminal parent branch is intentionally disposable. Its persisted
+        target, integrated base branch, and hierarchy-derived target are the
+        remaining sources of truth. Conflicting values are not guessed at.
+        """
+
+        candidates: list[str] = []
+        recorded_target = str(getattr(parent, "target_branch", "") or "").strip()
+        if recorded_target:
+            candidates.append(recorded_target)
+        record = getattr(parent, "integration", None)
+        if record is not None and str(getattr(record, "state", "")).lower() == "integrated":
+            integrated_target = str(getattr(record, "base_branch", "") or "").strip()
+            # Direct epic-maintenance records use the epic branch as their
+            # ``base_branch`` while publishing that branch. That is source
+            # evidence, not the branch the parent review landed on.
+            try:
+                parent_source_branch = self.project_store.epic_branch_name(
+                    parent.identifier
+                )
+            except Exception:  # noqa: BLE001 - hierarchy resolution below can decide
+                parent_source_branch = ""
+            if integrated_target and integrated_target != parent_source_branch:
+                candidates.append(integrated_target)
+        try:
+            resolved_target = str(
+                self._resolve_epic_target_branch(
+                    parent,
+                    project,
+                    snapshot=snapshot,
+                )
+                or ""
+            ).strip()
+        except EpicTargetResolutionError as exc:
+            return None, f"parent target resolution failed ({exc})"
+        if resolved_target:
+            candidates.append(resolved_target)
+
+        unique = list(dict.fromkeys(candidates))
+        if len(unique) > 1:
+            return None, (
+                "parent target metadata is ambiguous ("
+                + ", ".join(unique)
+                + ")"
+            )
+        if not unique:
+            return None, "parent has no authoritative landing target"
+        return unique[0], None
+
+    def _terminal_parent_audit_proves_landing(
+        self,
+        *,
+        item: IntegrationQueueItem,
+        child: Issue,
+        tracker: TrackerProtocol,
+        target_branch: str,
+    ) -> bool:
+        """Accept an exact prior Merged PASS when Git objects are unavailable."""
+
+        get_metadata = getattr(tracker, "get_metadata", None)
+        if not callable(get_metadata):
+            return False
+        try:
+            metadata = get_metadata(child.identifier)
+        except Exception:  # noqa: BLE001 - evidence is optional and fail-closed
+            return False
+        if not isinstance(metadata, Mapping):
+            return False
+        raw_audit = metadata.get(METADATA_KEY)
+        if not isinstance(raw_audit, Mapping):
+            return False
+
+        existing = getattr(child, "integration", None)
+        candidate = IntegrationRecord(
+            state="integrated",
+            task_branch=item.task_branch,
+            base_branch=target_branch,
+            base_sha=item.base_sha,
+            head_sha=item.head_sha,
+            integrated_sha=item.head_sha,
+            attempts=item.attempts,
+            submitted_at=(
+                getattr(existing, "submitted_at", None) or item.submitted_at
+            ),
+        )
+        evidence_issue = replace(
+            child,
+            project_id=item.project_id,
+            integration=candidate,
+        )
+        try:
+            fingerprint = compute_issue_evidence_fingerprint(
+                evidence_issue,
+                item.project_id,
+            )
+            document = TerminalAuditMetadataStore(
+                tracker,
+                self.project_store,
+                item.project_id,
+            ).read(child.identifier)
+        except Exception:  # noqa: BLE001 - evidence is optional and fail-closed
+            return False
+        for record in document.pending_chain:
+            if (
+                record.project_id != item.project_id
+                or record.task_id != child.identifier
+                or record.target_state != TargetState.MERGED
+                or record.evidence_fingerprint != fingerprint
+                or record.request_state != RequestState.COMPLETED
+            ):
+                continue
+            if any(
+                attempt.verdict == Verdict.PASS
+                and attempt.request_state == RequestState.COMPLETED
+                for attempt in record.attempts
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _terminal_parent_recovery_alert_source(
+        project_id: str,
+        task_id: str,
+    ) -> str:
+        return f"integration_terminal_parent:{project_id}:{task_id}"
+
+    def _clear_terminal_parent_recovery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        source = self._terminal_parent_recovery_alert_source(project_id, task_id)
+        self._alerts = [alert for alert in self._alerts if alert.get("source") != source]
+
+    def _arm_terminal_parent_recovery(
+        self,
+        *,
+        tracker: TrackerProtocol,
+        project_id: str,
+        parent: Issue,
+        child: Issue,
+        reason: str,
+    ) -> None:
+        """Persist one named recovery action for ambiguous/unlanded work."""
+
+        recovery_target = self._terminal_parent_recovery_target_name(parent, child)
+        message = (
+            f"The terminal parent {parent.identifier} no longer has its live "
+            f"integration branch. Child {child.identifier} could not be proven "
+            f"landed: {reason}. Route recovery through named target "
+            f"`{recovery_target}`: restore the exact child head or record "
+            "authoritative landing evidence, then submit the recovered work. "
+            "Oompah will not recreate the deleted terminal parent branch or "
+            "consume a gate retry without a valid target."
+        )
+        source = self._terminal_parent_recovery_alert_source(project_id, child.identifier)
+        existing_alert = next(
+            (alert for alert in self._alerts if alert.get("source") == source),
+            None,
+        )
+        if existing_alert is not None and existing_alert.get("message") == message:
+            return
+        self._alerts = [alert for alert in self._alerts if alert.get("source") != source]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": message,
+                "project_id": project_id,
+                "task_id": child.identifier,
+                "parent_id": parent.identifier,
+                "recovery_target": recovery_target,
+                "action_required": True,
+            }
+        )
+        if self._tracker_comment_matches(tracker, child.identifier, message):
+            return
+        try:
+            tracker.add_comment(child.identifier, message, author="oompah")
+        except Exception as exc:  # noqa: BLE001 - alert remains durable
+            logger.debug(
+                "Failed to post terminal-parent recovery for %s: %s",
+                child.identifier,
+                exc,
+            )
+
+    def _stage_terminal_parent_landing(
+        self,
+        *,
+        item: IntegrationQueueItem,
+        child: Issue,
+        tracker: TrackerProtocol,
+        target_branch: str,
+    ) -> tuple[bool, str]:
+        """Turn exact target ancestry into durable integration/audit evidence."""
+
+        existing = getattr(child, "integration", None)
+        existing_head = str(getattr(existing, "head_sha", "") or "").strip().lower()
+        if existing_head and existing_head != item.head_sha.strip().lower():
+            return False, "the accepted task head changed while preflight was running"
+
+        if existing is None:
+            integrated = IntegrationRecord(
+                state="integrated",
+                task_branch=item.task_branch,
+                base_branch=target_branch,
+                base_sha=item.base_sha,
+                head_sha=item.head_sha,
+                integrated_sha=item.head_sha,
+                attempts=item.attempts,
+                submitted_at=item.submitted_at,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+        else:
+            integrated = replace(
+                existing,
+                state="integrated",
+                task_branch=item.task_branch,
+                base_branch=target_branch,
+                base_sha=item.base_sha,
+                head_sha=item.head_sha,
+                integrated_sha=item.head_sha,
+                attempts=item.attempts,
+                submitted_at=existing.submitted_at or item.submitted_at,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                last_error=None,
+                backoff_until=None,
+                repair_failure_reason=None,
+            )
+        try:
+            tracker.set_metadata_field(
+                child.identifier,
+                "oompah.integration",
+                integrated.to_dict(),
+            )
+            child.integration = integrated
+            child.project_id = item.project_id
+            result = self._request_terminal_transition_from_maintenance(
+                current_issue=child,
+                requested_target=TargetState.MERGED,
+                trigger_identity=ContributorIdentity(
+                    "oompah-terminal-parent-recovery",
+                    "service",
+                ),
+                project_id=item.project_id,
+                evidence_fingerprint=compute_issue_evidence_fingerprint(
+                    child,
+                    item.project_id,
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - leave row retryable/auditable
+            return False, f"terminal audit staging failed ({type(exc).__name__})"
+        if not result.success:
+            return False, result.reason or "terminal audit staging was deferred"
+        child.state = IN_VALIDATION
+        return True, "exact child head is already landed on the parent target"
+
+    def _reconcile_terminal_parent_integration_rows(
+        self,
+        project: Project,
+        issues: list[Issue],
+    ) -> int:
+        """Recover queued children after lifecycle cleanup pruned a parent branch.
+
+        This runs before queue claims. It validates target existence while the
+        one-shot retry receipt is still durable and never invokes the quality
+        gate against a branch that cleanup intentionally removed.
+        """
+
+        project_id = str(project.id)
+        tracker = self._tracker_for_project(project_id)
+        aliases: dict[str, Issue] = {}
+        for issue in issues:
+            issue.project_id = project_id
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    aliases[str(alias).strip()] = issue
+
+        rows = self.integration_queue.items(
+            project_id=project_id,
+            states=("ready", "blocked"),
+        )
+        reconciled = 0
+        for item in rows:
+            child = aliases.get(str(item.task_id).strip())
+            parent = aliases.get(str(item.epic_id).strip())
+            if child is None or parent is None:
+                continue
+            parent_status = canonicalize_status(parent.state)
+            if parent_status not in {MERGED, ARCHIVED}:
+                continue
+            child_status = canonicalize_status(child.state)
+            if child_status in {DONE, MERGED, ARCHIVED, IN_VALIDATION}:
+                continue
+
+            target_branch, target_error = self._terminal_parent_target_branch(
+                parent,
+                project,
+                snapshot=issues,
+            )
+            reason = target_error
+            landing_proven = bool(
+                target_branch
+                and self._terminal_parent_audit_proves_landing(
+                    item=item,
+                    child=child,
+                    tracker=tracker,
+                    target_branch=target_branch,
+                )
+            )
+            if reason is None and target_branch:
+                repo_path = str(getattr(project, "repo_path", "") or "")
+                if not landing_proven and not (
+                    repo_path
+                    and os.path.isdir(repo_path)
+                    and os.path.exists(os.path.join(repo_path, ".git"))
+                ):
+                    reason = "managed Git evidence is unavailable"
+                elif not landing_proven:
+                    fresh, refresh_error = self._refresh_landing_evidence_target_refs(
+                        repo_path,
+                        (target_branch,),
+                        access_token=getattr(project, "access_token", None),
+                        forge_kind=getattr(project, "forge_kind", "github"),
+                    )
+                    if not fresh:
+                        reason = (
+                            f"authoritative target `{target_branch}` could not be "
+                            f"refreshed ({refresh_error or 'unknown error'})"
+                        )
+                    else:
+                        refs = self._resolve_git_branch_refs(repo_path, target_branch)
+                        if not refs:
+                            reason = f"authoritative target `{target_branch}` is unavailable"
+                        else:
+                            head = str(item.head_sha or "").strip().lower()
+                            if not re.fullmatch(r"[0-9a-f]{40,64}", head):
+                                reason = "the accepted task head is not a valid commit SHA"
+                            elif not self._reported_commit_landed_on_refs(repo_path, head, refs):
+                                reason = (
+                                    f"accepted head `{head[:12]}` is not reachable from "
+                                    f"`origin/{target_branch}`"
+                                )
+                            else:
+                                landing_proven = True
+
+            if reason is not None:
+                self.integration_queue.block_preflight(
+                    project_id,
+                    item.task_id,
+                    reason=reason,
+                    expected_head_sha=item.head_sha,
+                )
+                self._arm_terminal_parent_recovery(
+                    tracker=tracker,
+                    project_id=project_id,
+                    parent=parent,
+                    child=child,
+                    reason=reason,
+                )
+                if child_status != NEEDS_HUMAN:
+                    try:
+                        outcome = self._request_task_status_transition_from_maintenance(
+                            project_id=project_id,
+                            tracker=tracker,
+                            issue=child,
+                            requested_status=NEEDS_HUMAN,
+                            actor="oompah-terminal-parent-recovery",
+                            authority=TransitionAuthority.INTEGRATOR,
+                            reason_code="integration.parent_terminal_recovery_required",
+                            idempotency_key=(
+                                f"terminal-parent-recovery:{project_id}:"
+                                f"{child.identifier}:{item.head_sha}"
+                            ),
+                            originating_job=(
+                                f"integration-terminal-parent:{project_id}:"
+                                f"{parent.identifier}"
+                            ),
+                        )
+                        if self._task_status_transition_succeeded(outcome):
+                            child.state = NEEDS_HUMAN
+                    except Exception as exc:  # noqa: BLE001 - warning remains durable
+                        logger.warning(
+                            "Could not route %s to Needs Human after terminal-parent "
+                            "preflight failure: %s",
+                            child.identifier,
+                            exc,
+                        )
+                continue
+
+            assert target_branch and landing_proven
+            recovered, recovery_reason = self._stage_terminal_parent_landing(
+                item=item,
+                child=child,
+                tracker=tracker,
+                target_branch=target_branch,
+            )
+            if not recovered:
+                self.integration_queue.block_preflight(
+                    project_id,
+                    item.task_id,
+                    reason=recovery_reason,
+                    expected_head_sha=item.head_sha,
+                )
+                self._arm_terminal_parent_recovery(
+                    tracker=tracker,
+                    project_id=project_id,
+                    parent=parent,
+                    child=child,
+                    reason=recovery_reason,
+                )
+                continue
+
+            self.integration_queue.cancel(
+                project_id,
+                item.task_id,
+                reason="reconciled exact child head on terminal parent target",
+                expected_head_sha=item.head_sha,
+            )
+            self._clear_terminal_parent_recovery_alert(project_id, item.task_id)
+            self._clear_integration_delivery_alert(project_id, item.task_id)
+            reconciled += 1
+            logger.info(
+                "Recovered queued child %s after parent %s branch pruning; "
+                "staged audited Merged from %s",
+                item.task_id,
+                parent.identifier,
+                target_branch,
+            )
+        return reconciled
+
     async def _process_integration_queues(self) -> None:
         """Recover, claim, integrate, and audit private epic child heads."""
 
@@ -12725,6 +13176,16 @@ class Orchestrator:
                 )
                 continue
             project_issue_snapshots[str(project.id)] = list(project_issues)
+            # A terminal parent branch may have been pruned after its rollup
+            # landed. Reconcile exact child heads before stale-row retirement
+            # or queue claim so blocked historical rows remain recoverable and
+            # retry_forced is not consumed without a gate attempt.
+            await loop.run_in_executor(
+                self._tick_pool,
+                self._reconcile_terminal_parent_integration_rows,
+                project,
+                project_issues,
+            )
             self._retire_inactive_integration_rows(
                 project.id,
                 project_issues,
