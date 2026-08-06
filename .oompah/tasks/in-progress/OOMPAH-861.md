@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:46:56.966708Z'
+updated_at: '2026-08-06T13:48:32.305632Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-08-06 13:46
 ---
 Understanding: I will trace owner-submit validation, accepted integration-record persistence, and CI repair workspace resolution. I’ll reproduce the branch-identity split with focused tests, make the accepted branch authoritative after validation, then verify, push, and submit this existing task branch.
+---
+author: oompah
+created: 2026-08-06 13:48
+---
+Discovery: CI repair dispatch performs a post-transition state refresh before worker startup. That response can omit IntegrationRecord, so the accepted task_branch is lost and workspace creation falls back to hierarchy/work_branch. The direct workspace resolver is correct; the dispatch handoff must retain accepted integration evidence across the state-only refresh.
 ---
 <!-- COMMENTS:END -->
