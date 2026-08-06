@@ -140,23 +140,23 @@ class OperatorAuthHealth:
         Returns None when the operator plane is healthy.  If credentials have
         recovered (recent success after recent failures), returns an alert with
         "recovered" recovery_state so the dashboard marks it as cleared.
-        
+
         The alert includes actionable recovery guidance only when the issue
         remains active; no credentials are included.
         """
         snap = self.snapshot(window_seconds)
         if snap["recent_401_count"] == 0:
             return None
-        
+
         count = snap["recent_401_count"]
         is_recovered = snap.get("recovered", False)
-        
+
         summary = (
             f"Operator HTTP Basic auth: {count} failed "
             f"request{'s' if count != 1 else ''} in the last "
             f"{int(window_seconds // 60)} min — credentials may be stale."
         )
-        
+
         if is_recovered:
             # Credentials have recovered; mark the alert as resolved
             remediation = (
@@ -173,7 +173,7 @@ class OperatorAuthHealth:
             )
             recovery_state = "active"
             action_required = True
-        
+
         return {
             "level": "warning",
             "severity": "warning",

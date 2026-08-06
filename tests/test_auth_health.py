@@ -502,7 +502,7 @@ class TestCombinedAuthHealth:
         record_operator_success()
         alerts = auth_health_alerts()
         op_alert = next(a for a in alerts if a["source"] == "auth_health:operator")
-        
+
         # Check recovery semantics
         assert op_alert["recovered"] is True
         assert op_alert["active"] is False
@@ -514,17 +514,17 @@ class TestCombinedAuthHealth:
         """New failure after recovery marks alert as active again."""
         record_operator_401()
         record_operator_success()
-        
+
         # Verify recovered
         alerts = auth_health_alerts()
         op_alert = next(a for a in alerts if a["source"] == "auth_health:operator")
         assert op_alert["action_required"] is False
-        
+
         # New failure
         record_operator_401()
         alerts = auth_health_alerts()
         op_alert = next(a for a in alerts if a["source"] == "auth_health:operator")
-        
+
         # Back to active/actionable
         assert op_alert["action_required"] is True
         assert op_alert["status"] == "active"

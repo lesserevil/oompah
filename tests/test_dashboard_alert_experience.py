@@ -234,6 +234,7 @@ def _mixed_alerts() -> list[dict[str, object]]:
 class TestDashboardAlertExperience:
     """Production-shaped alert flows through the browser's real DOM and CSS."""
 
+    @pytest.mark.timeout(35)
     def test_mixed_payload_is_compact_truthful_and_keeps_a_task_reachable(
         self, tmp_path: Path
     ) -> None:
