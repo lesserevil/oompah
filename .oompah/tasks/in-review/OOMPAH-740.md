@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -21,7 +21,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-05T04:49:16.019406Z'
+updated_at: '2026-08-06T07:09:46.089555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,3 +59,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 07:09
+---
+Branch quality gate passed for `b08a12057afed4e7af5080e7e47522eed16dc2ce` using `make test` in 429.9s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
