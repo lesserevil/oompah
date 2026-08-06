@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T19:44:47.389621Z'
+updated_at: '2026-08-06T19:55:26.547076Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -34,16 +34,16 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/731
 oompah.review_number: '731'
 oompah.work_branch: epic-OOMPAH-740
 oompah.target_branch: main
-oompah.agent_run_id: 7c556956-e689-473a-a89b-92ca7cf70a2d
+oompah.agent_run_id: null
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: main
-  head_sha: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
-  submitted_at: '2026-08-06T08:43:52.961748+00:00'
-  updated_at: '2026-08-06T08:43:52.961748+00:00'
+  head_sha: 46e5857a9ad886e5cd4647cac496bf6ce29eb276
+  submitted_at: '2026-08-06T19:55:16.110555+00:00'
+  updated_at: '2026-08-06T19:55:16.110555+00:00'
 oompah.task_costs:
   total_input_tokens: 45
   total_output_tokens: 5514
