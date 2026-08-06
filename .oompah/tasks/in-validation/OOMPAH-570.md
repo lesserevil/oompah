@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-08-06T01:30:58.301595Z'
+updated_at: '2026-08-06T01:34:38.442592Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
@@ -113,19 +113,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-570
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7c1286ac4b07b918600972399195b8f20f39276d1824a7270be368ef4346b189
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-96a4c42b9695
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7c1286ac4b07b918600972399195b8f20f39276d1824a7270be368ef4346b189
+      created_at: '2026-08-06T01:34:27.262646+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-06T01:34:27.262646+00:00'
+      branch_key: OOMPAH-570
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-06T01:30:51.228127+00:00'
-  attempt_history: []
+    updated_at: '2026-08-06T01:34:27.262646+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-96a4c42b9695
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7c1286ac4b07b918600972399195b8f20f39276d1824a7270be368ef4346b189
+    created_at: '2026-08-06T01:34:27.262646+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-06T01:34:27.262646+00:00'
+    branch_key: OOMPAH-570
 ---
 ## Summary
 
@@ -344,5 +371,15 @@ author: oompah
 created: 2026-08-06 01:30
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-06 01:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-06 01:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

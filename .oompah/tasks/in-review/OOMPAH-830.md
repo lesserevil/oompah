@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T01:23:43.888944Z'
+updated_at: '2026-08-06T01:34:44.091436Z'
 work_branch: OOMPAH-830
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/726
@@ -81,6 +81,45 @@ oompah.review_number: '726'
 oompah.work_branch: OOMPAH-830
 oompah.target_branch: main
 oompah.review_head: d101c5712fe359efdbfbc295b41ed0a9680faa83
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1eb4b5b5bf8f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-830
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ea04ec1700e74b31a1d48a63e3115fe906780bb64052f41e2580faf2f05c32be
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T01:34:41.033554+00:00'
+  - version: 1
+    audit_id: audit-c3b5cec9c554
+    project_id: proj-14849f1b
+    task_id: OOMPAH-830
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ea04ec1700e74b31a1d48a63e3115fe906780bb64052f41e2580faf2f05c32be
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-06T01:34:41.033554+00:00'
+  attempt_history: []
 ---
 ## Summary
 
