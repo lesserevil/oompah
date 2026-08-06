@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:25:41.648362Z'
+updated_at: '2026-08-06T18:28:37.732470Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -381,5 +381,10 @@ author: oompah
 created: 2026-08-06 18:25
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 18:28
+---
+UNDERSTANDING: Resuming continuation attempt #1. Prior work already landed the core changes across 4 commits (503e90810, 6cba9bfa9, 175a81fa0, c19133bd9): the nested-container rollup edge exclusion in effective_dependencies + integration_queue + orchestrator, restart recovery fencing, canonical recovery authority, and comprehensive regression tests including OOMPAH-804/834 deadlock reproduction. A prior standard agent stalled after identifying 5 remaining gate failures that were preserved in a recovery checkpoint (16e009623). Those fixes: (1) test_project_locks.py mock_create_epic_locked signature updated to accept the new branch_name kwarg; (2) test_task_handoff.py SimpleNamespace records populated with base_branch; (3) oompah/server.py _submission_record else-branch falls back to existing.base_branch when issue.target_branch is None (preserves compat for direct maintenance issues). Plan: re-stage as proper task commit, run focused tests, push, and submit.
 ---
 <!-- COMMENTS:END -->
