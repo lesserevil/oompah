@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T03:19:09.208877Z'
+updated_at: '2026-08-06T03:20:11.289031Z'
 work_branch: OOMPAH-827
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/728
@@ -43,8 +43,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 48073
-  total_output_tokens: 1849
+  total_input_tokens: 48079
+  total_output_tokens: 2283
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -54,6 +54,10 @@ oompah.task_costs:
     opus:
       input_tokens: 35
       output_tokens: 1149
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 434
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +84,12 @@ oompah.task_costs:
     output_tokens: 1149
     cost_usd: 0.0
     recorded_at: '2026-08-06T01:41:22.932787+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 434
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T03:20:07.283458+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-827__20260805T182053Z
@@ -543,5 +553,15 @@ Safe evidence:
 - files_changed: oompah/models.py, oompah/orchestrator.py, oompah/server.py, tests/test_duplicate_preflight.py, tests/test_work_kind_classifier.py
 - new_test_file: tests/test_work_kind_classifier.py
 - classify_locations: models.py:1520 (definition); orchestrator.py:31987 (AGENT_DISPATCHED); orchestrator.py:39705 (get_snapshot); server.py:14159 (api_agent_activity)
+---
+author: oompah
+created: 2026-08-06 03:20
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 64, Tool calls: 44
+- Tokens: 6 in / 434 out [440 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 43m 54s
+- Log: OOMPAH-827__20260806T023620Z.jsonl
 ---
 <!-- COMMENTS:END -->
