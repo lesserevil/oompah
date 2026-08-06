@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T05:22:05.369536Z'
+updated_at: '2026-08-06T06:43:19.728870Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -461,5 +461,10 @@ author: oompah
 created: 2026-08-06 05:22
 ---
 Restacked the three-commit terminal-audit lifecycle implementation onto the exact integrated OOMPAH-791 head 2c6fc5259. New clean pushed head is abb8fce3a; the ten-commit OOMPAH-804 production composition was also replayed cleanly on top as prepared head 336e4b4ad. Focused execution is deferred while OOMPAH-852 owns the single authoritative validation lane and the graceful restart drains it.
+---
+author: oompah
+created: 2026-08-06 06:43
+---
+Operator review isolated the prior focused failure to the intentional 1,001-write deep-history regression racing another worker that bypassed the shared validation lease on the older deployed server. Added a scoped 30-second timeout consistent with the existing durable-history regression. Exclusive verification at pushed head 359c62f75: exact regression 1 passed; full terminal-audit workflow module 32 passed; combined 12-suite terminal audit, workflow job, fencing, coordinator, and recovery set 572 passed with 5 pre-existing coroutine warnings. Diff check clean; branch clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
