@@ -617,17 +617,17 @@ class TestGetSnapshotFreeTierActive:
         orch = _make_orchestrator(tmp_path, provider=provider, budget_limit=10.0)
         _exceed_budget(orch)
         issue = _make_issue()
-        # Before dispatch
-        before = orch._budget_snapshot()
-        assert before["free_tier_active"] is False
-        assert before["free_tier_dispatches_this_window"] == 0
+        # The adjacent snapshot tests cover the pre-dispatch projection.  Keep
+        # this end-to-end assertion focused on the counter transition so it
+        # performs only the one full snapshot needed by the contract.
+        assert orch.state.free_tier_dispatches_this_window == 0
         # Dispatch on free model
         assert orch._should_dispatch(issue) is True
         # After dispatch
-        after = orch._budget_snapshot()
         assert orch.state.free_tier_dispatches_this_window == 1
-        assert after["free_tier_active"] is True
-        assert after["free_tier_dispatches_this_window"] == 1
+        snapshot = orch.get_snapshot()
+        assert snapshot["budget"]["free_tier_active"] is True
+        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 1
 
     def test_budget_projection_does_not_require_unrelated_live_state(self):
         """The projection works without stores, pools, trackers, or audit state."""
