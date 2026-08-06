@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T03:51:06.049949Z'
+updated_at: '2026-08-06T03:51:09.654841Z'
 work_branch: OOMPAH-827
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/728
