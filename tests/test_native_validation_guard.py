@@ -46,6 +46,30 @@ def _guard_pass_fds(environment: dict[str, str]) -> tuple[int, ...]:
     return (int(raw),) if raw else ()
 
 
+def _test_native_broker(
+    tmp_path: Path,
+    *,
+    task_id: str,
+) -> tuple[guard_module._NativeValidationLeaseBroker, Path]:
+    root = tmp_path / task_id.lower()
+    root.mkdir()
+    (root / guard_module._CONFIG_NAME).write_text("{}", encoding="utf-8")
+    broker = guard_module._NativeValidationLeaseBroker(
+        root,
+        validation_lease=ValidationResourceLease(
+            tmp_path / f"{task_id.lower()}.sqlite3",
+            poll_seconds=0.01,
+        ),
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id=task_id,
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    return broker, root
+
+
 def test_broker_descriptor_reply_rejects_extra_descriptors(tmp_path: Path) -> None:
     sender, receiver = socket.socketpair(
         socket.AF_UNIX,
@@ -129,6 +153,352 @@ def test_broker_packet_rejects_unexpected_descriptor(tmp_path: Path) -> None:
         os.close(descriptor)
 
 
+def test_libc_memfd_capability_is_immutable_without_python_wrappers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A minimal Python build still creates a kernel-sealed capability."""
+
+    monkeypatch.delattr(guard_module.os, "memfd_create", raising=False)
+    for name in (
+        "F_ADD_SEALS",
+        "F_GET_SEALS",
+        "F_SEAL_SEAL",
+        "F_SEAL_SHRINK",
+        "F_SEAL_GROW",
+        "F_SEAL_WRITE",
+    ):
+        monkeypatch.delattr(guard_module.fcntl, name, raising=False)
+
+    secret = b"s" * 32
+    descriptor = guard_module._sealed_capability_descriptor(secret)
+    try:
+        assert os.pread(descriptor, len(secret), 0) == secret
+        assert guard_module._capability_descriptor_identity(descriptor)
+        with pytest.raises(OSError):
+            os.pwrite(descriptor, b"x", 0)
+        with pytest.raises(OSError):
+            os.ftruncate(descriptor, 0)
+        assert os.pread(descriptor, len(secret), 0) == secret
+    finally:
+        os.close(descriptor)
+
+
+def test_broker_rejects_copied_secret_in_distinct_sealed_memfd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer cannot replace the issued object with an immutable clone."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-SPOOF",
+        authority_generation="generation",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    issued = int(guarded[guard_module._CAPABILITY_FD_ENV])
+    secret = os.pread(issued, 32, 0)
+    spoofed = guard_module._sealed_capability_descriptor(secret)
+    monkeypatch.setattr(guard_module, "_peer_is_guard_launcher", lambda *_args: True)
+    script = (
+        "import os, socket, sys\n"
+        "kind = getattr(socket, 'SOCK_SEQPACKET', socket.SOCK_STREAM)\n"
+        "client = socket.socket(socket.AF_UNIX, kind)\n"
+        "client.connect(os.environ['OOMPAH_TEST_BROKER_SOCKET'])\n"
+        "client.sendall(b'OBSERVE 1:1 ' + (b'0' * 64) + b'\\n')\n"
+        "sys.stdout.buffer.write(client.recv(32))\n"
+    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            env={
+                **os.environ,
+                guard_module._CAPABILITY_FD_ENV: str(spoofed),
+                "OOMPAH_TEST_BROKER_SOCKET": str(
+                    root / guard_module._BROKER_SOCKET_NAME
+                ),
+            },
+            pass_fds=(spoofed,),
+            check=False,
+            capture_output=True,
+            timeout=5,
+        )
+
+        assert completed.returncode == 0
+        assert completed.stdout == b"DENIED\n"
+        assert lease.status().owner_count == 0
+    finally:
+        os.close(spoofed)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_local_capability_bootstrap_failure_stops_broker_thread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed install cannot strand an unreachable listener or thread."""
+
+    root = tmp_path / "guard"
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    monkeypatch.setattr(
+        guard_module,
+        "_sealed_capability_descriptor",
+        lambda _secret: (_ for _ in ()).throw(RuntimeError("no sealed memfd")),
+    )
+
+    with pytest.raises(RuntimeError, match="no sealed memfd"):
+        install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=root,
+            validation_lease=lease,
+            owner=ValidationLeaseOwner.worker(
+                project_id="project",
+                task_id="BOOTSTRAP-FAILURE",
+                authority_generation="generation",
+            ),
+            timeout_seconds=10,
+        )
+
+    assert root.resolve() not in guard_module._BROKER_REGISTRY
+    assert not any(
+        thread.is_alive()
+        and thread.name == "native-validation-broker-BOOTSTRAP-FAILURE"
+        for thread in threading.enumerate()
+    )
+
+
+def test_registration_and_retirement_publish_capability_atomically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broker, _ = _test_native_broker(tmp_path, task_id="REGISTER-RACE")
+    send_entered = threading.Event()
+    release_send = threading.Event()
+    connection_closed = threading.Event()
+    sent_descriptors: list[int] = []
+    created_descriptors: list[int] = []
+    registration_errors: list[BaseException] = []
+
+    class BlockingConnection:
+        def sendmsg(self, _payload, ancillary) -> int:
+            send_entered.set()
+            assert release_send.wait(timeout=5)
+            if connection_closed.is_set():
+                raise OSError("registration connection retired")
+            sent_descriptors.extend(ancillary[0][2])
+            return len(_payload[0])
+
+        def shutdown(self, _how: int) -> None:
+            connection_closed.set()
+            release_send.set()
+
+        def close(self) -> None:
+            connection_closed.set()
+            release_send.set()
+
+    connection = BlockingConnection()
+    with broker._handler_lock:
+        broker._handler_connections.add(connection)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        guard_module,
+        "_provider_registration_is_trusted",
+        lambda *_args: True,
+    )
+    real_sealed_descriptor = guard_module._sealed_capability_descriptor
+
+    def record_descriptor(secret: bytes) -> int:
+        descriptor = real_sealed_descriptor(secret)
+        created_descriptors.append(descriptor)
+        return descriptor
+
+    monkeypatch.setattr(
+        guard_module,
+        "_sealed_capability_descriptor",
+        record_descriptor,
+    )
+
+    def register() -> None:
+        try:
+            broker._register_provider(
+                connection,  # type: ignore[arg-type]
+                peer_pid=os.getpid(),
+                peer_start_ticks=guard_module._process_start_ticks(os.getpid()) or 1,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            registration_errors.append(exc)
+
+    registration = threading.Thread(target=register)
+    registration.start()
+    try:
+        assert send_entered.wait(timeout=5)
+        broker.stop()
+    finally:
+        release_send.set()
+        registration.join(timeout=5)
+        broker.stop()
+
+    assert registration.is_alive() is False
+    assert len(registration_errors) == 1
+    assert str(registration_errors[0]) == "registration connection retired"
+    assert sent_descriptors == []
+    assert len(created_descriptors) == 1
+    with pytest.raises(OSError):
+        os.fstat(created_descriptors[0])
+    assert broker._provider_identity is None
+    assert broker._capability_identity is None
+    assert broker._capability_fd is None
+
+
+def test_broker_stop_closes_and_joins_blocked_request_handlers(
+    tmp_path: Path,
+) -> None:
+    broker, root = _test_native_broker(tmp_path, task_id="BLOCKED-HANDLER")
+    client = socket.socket(socket.AF_UNIX, guard_module._BROKER_SOCKET_TYPE)
+    try:
+        client.connect(str(root / guard_module._BROKER_SOCKET_NAME))
+        _wait_until(lambda: len(broker._handler_threads) == 1)
+        handlers = tuple(broker._handler_threads)
+
+        broker.stop()
+
+        assert all(handler.is_alive() is False for handler in handlers)
+        assert broker._handler_threads == set()
+        assert broker._handler_connections == set()
+    finally:
+        client.close()
+        broker.stop()
+
+
+def test_register_provider_closes_descriptor_when_identity_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broker, _ = _test_native_broker(tmp_path, task_id="REGISTER-IDENTITY")
+    descriptor = os.open(
+        tmp_path / "register-capability",
+        os.O_CREAT | os.O_RDWR,
+        0o600,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_provider_registration_is_trusted",
+        lambda *_args: True,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_sealed_capability_descriptor",
+        lambda _secret: descriptor,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_capability_descriptor_identity",
+        lambda _descriptor: (_ for _ in ()).throw(RuntimeError("bad identity")),
+    )
+    try:
+        with pytest.raises(RuntimeError, match="bad identity"):
+            broker._register_provider(
+                object(),  # type: ignore[arg-type]
+                peer_pid=os.getpid(),
+                peer_start_ticks=guard_module._process_start_ticks(os.getpid()) or 1,
+            )
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(descriptor)
+        broker.stop()
+
+
+def test_local_capability_closes_descriptor_when_identity_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broker, _ = _test_native_broker(tmp_path, task_id="LOCAL-IDENTITY")
+    descriptor = os.open(tmp_path / "local-capability", os.O_CREAT | os.O_RDWR, 0o600)
+    monkeypatch.setattr(
+        guard_module,
+        "_sealed_capability_descriptor",
+        lambda _secret: descriptor,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_capability_descriptor_identity",
+        lambda _descriptor: (_ for _ in ()).throw(RuntimeError("bad identity")),
+    )
+    try:
+        with pytest.raises(RuntimeError, match="bad identity"):
+            broker.issue_local_test_capability()
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(descriptor)
+        broker.stop()
+
+
+def test_provider_registration_closes_all_descriptors_after_partial_inherit_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = os.open(tmp_path / "first-provider-fd", os.O_CREAT | os.O_RDWR, 0o600)
+    second = os.open(tmp_path / "second-provider-fd", os.O_CREAT | os.O_RDWR, 0o600)
+
+    class RegistrationClient:
+        def sendall(self, payload: bytes) -> None:
+            assert payload == b"REGISTER\n"
+
+    monkeypatch.setattr(
+        guard_module,
+        "_broker_socket",
+        lambda _config: contextlib.nullcontext(RegistrationClient()),
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "_receive_descriptors",
+        lambda *_args, **_kwargs: (first, second),
+    )
+    real_set_inheritable = os.set_inheritable
+    calls: list[int] = []
+
+    def fail_second(descriptor: int, inheritable: bool) -> None:
+        calls.append(descriptor)
+        if len(calls) == 2:
+            raise OSError("second descriptor rejected")
+        real_set_inheritable(descriptor, inheritable)
+
+    monkeypatch.setattr(guard_module.os, "set_inheritable", fail_second)
+    try:
+        with pytest.raises(OSError, match="second descriptor rejected"):
+            guard_module._register_native_validation_provider(
+                {
+                    "provider_bootstrap": {
+                        "command": guard_module._PROVIDER_LAUNCHER_NAME,
+                    }
+                }
+            )
+
+        assert calls == [first, second]
+        with pytest.raises(OSError):
+            os.fstat(first)
+        with pytest.raises(OSError):
+            os.fstat(second)
+    finally:
+        for descriptor in (first, second):
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
 def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     real_bin = tmp_path / "real-bin"
@@ -160,10 +530,10 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
     assert lease.status().owner_count == 0
 
 
-def test_absolute_bash_heavy_command_waits_for_validation_capacity(
+def test_absolute_bash_env_unset_heavy_command_waits_for_validation_capacity(
     tmp_path: Path,
 ) -> None:
-    """SDK-owned /bin/bash -c cannot bypass PATH-based validation shims."""
+    """Absolute tools cannot bypass the guard by removing its environment."""
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     gate = lease.acquire(
         ValidationLeaseOwner.exact_gate(
@@ -199,6 +569,7 @@ def test_absolute_bash_heavy_command_waits_for_validation_capacity(
             "/bin/bash",
             "-lc",
             (
+                "env -u OOMPAH_NATIVE_VALIDATION_GUARD "
                 f"{shlex.quote(str(absolute_python))} -m pytest "
                 "tests/test_one.py tests/test_two.py"
             ),
