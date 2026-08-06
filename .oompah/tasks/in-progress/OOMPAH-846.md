@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T06:33:19.332407Z'
+updated_at: '2026-08-06T06:46:44.466390Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-06 06:33
 ---
 Additional live evidence at 2026-08-06T06:32Z: while operator-focused OOMPAH-781 held the sole validation_resources slot, OOMPAH-854's server-managed MCP run_command launched 'python -m pytest tests/test_auditor_quiesce_fence.py -v' immediately and completed in 13s with no waiter. The running server is main f2b319 and OOMPAH-852 exists only on epic-OOMPAH-763, confirming the pre-deployment provider boundary still bypasses the shared lease. Preserve this as an acceptance regression; do not run O846 tests while OOMPAH-781 owns the lane.
+---
+author: oompah
+created: 2026-08-06 06:46
+---
+Independent static re-review rejected the current repair. Blockers: native provider registration now returns two descriptors but both bootstrap callers treat the tuple as one fd, guaranteeing pre-exec failure and ignoring the direct source descriptor; light inspection still permits GNU sed e execution and Git config/subcommand hooks such as fsmonitor and credential/filter helpers without a lease; provider-tree descendants inherit the capability and can spoof guard-launch argv plus caller-selected hashes, so receipts remain forgeable; supervisor cleanup uses numeric killpg after leader exit without a final exact process-identity fence, risking PID/group reuse; and the new ACP backend test references undefined root, lease, and owner names. Descriptor truncation and extra-descriptor rejection are statically accepted, as is explicit flock unlock against detached descendants. Do not test or submit until these P0/P1 issues have been repaired and independently re-reviewed.
 ---
 <!-- COMMENTS:END -->
