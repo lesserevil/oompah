@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T01:49:19.592782Z'
+updated_at: '2026-08-06T01:53:35.404186Z'
 work_branch: OOMPAH-830
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/726
@@ -43,13 +43,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 46476
-  total_output_tokens: 303
+  total_input_tokens: 46482
+  total_output_tokens: 513
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46476
       output_tokens: 303
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 210
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +62,12 @@ oompah.task_costs:
     output_tokens: 303
     cost_usd: 0.0
     recorded_at: '2026-08-05T18:25:59.267699+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 210
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T01:53:31.998047+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-830__20260805T181905Z
@@ -323,5 +333,15 @@ Safe evidence:
 - changed_files: oompah/server.py (+/-303), oompah/templates/dashboard.html (+/-44), tests/test_terminal_status_interfaces.py (+/-167)
 - regression_test_examples: test_completed_done_then_pending_merged_does_not_reuse_done_verdict, test_multistage_chain_projects_active_and_next_target, test_completed_chain_projects_final_applied_stage, test_superseded_retry_is_not_projected_as_current_stage, test_result_intent_window_is_visible_without_changing_stage_projection, test_list_and_detail_have_same_summary_fields
 - branch_gate: make test PASS at d101c5712 (637.9s)
+---
+author: oompah
+created: 2026-08-06 01:53
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 36, Tool calls: 22
+- Tokens: 6 in / 210 out [216 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 33s
+- Log: OOMPAH-830__20260806T013618Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T01:50:34.393183Z'
+updated_at: '2026-08-06T01:53:28.547929Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -371,5 +371,10 @@ author: oompah
 created: 2026-08-06 01:50
 ---
 Discovery (CI repair): the gate report has no GitHub Actions run/PR (review creation was blocked before a PR existed), and its retained output truncates the individual launcher stderr. The failure pattern is confined to the eight tests that execute the installed console-script path; direct-Python checks passed. On the preserved branch, the same smoke suite plus work-kind suite passes under xdist (32 passed, 5 skipped), so the launcher failure is not reproducible in the task runtime. I rebased the same branch onto current origin/main to invalidate the failed exact-head result. During review I also found AGENT_DISPATCHED still reconstructs precedence instead of invoking RunningEntry.classify_work_kind(), contrary to the issue's single-authority requirement; the minimal source repair is to call the classifier on the already-created entry.
+---
+author: oompah
+created: 2026-08-06 01:53
+---
+Implementation (CI repair): rebased OOMPAH-827 onto current origin/main, preserving the four-file observability change. Replaced AGENT_DISPATCHED's duplicate precedence expression with a call to classify_work_kind() on the exact RunningEntry registered for that dispatch, and extended the existing duplicate-dispatch regression to assert event/entry agreement. This gives the failed exact-head gate a fresh branch head without weakening the installed-CLI smoke tests.
 ---
 <!-- COMMENTS:END -->
