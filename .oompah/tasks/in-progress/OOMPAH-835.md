@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:58:20.802383Z'
+updated_at: '2026-08-06T01:19:59.027646Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-08-06 00:58
 ---
 Direct-owner takeover completed after inspecting the server worker's preserved checkpoint ce7bc1128. The checkpoint only creates a placeholder _StubReviewBackend, retains an explicit production-wiring TODO, reports provider facts unavailable, raises not-implemented for effects, and emits no transition; it cannot meet OOMPAH-835 acceptance. Scheduler authority was retired through the supported owner-claim API, the checkpoint was preserved unchanged for reference, and production implementation is continuing on the reviewed OOMPAH-804 composition cd098beaba44b71b9a29b73a87307e290bb4616f.
+---
+author: oompah
+created: 2026-08-06 01:19
+---
+Production OOMPAH-835 implementation is complete in the reviewed OOMPAH-804 composition. OOMPAH-835 patch 6d02c085019924b6c6d605fa89f7948347ebe58a supplies fresh project-scoped forge facts, all ten review handlers, exact identity/head/generation fencing, TaskTransitionService lifecycle intents, merge replay/idempotency, capacity release, and multi-project routing. The complete prepared stack is 4fbf83346f21b153cb05d8dc4e75c307fb34fa9c on expected OOMPAH-781 parent 2360ea408; WAL+NORMAL remains last. Verification: 1,257 systemic workflow/transition/submission/orchestrator tests plus 68 review/runtime tests passed; compileall, diff, secret, and terminal-audit scans pass. Holding canonical push/submission until OOMPAH-791 and OOMPAH-781 land and the nested OOMPAH-804 container branch is aligned.
 ---
 <!-- COMMENTS:END -->
