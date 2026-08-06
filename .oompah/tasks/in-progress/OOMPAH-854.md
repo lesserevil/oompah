@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:38:17.121856Z'
+updated_at: '2026-08-06T06:38:32.047378Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -53,13 +53,13 @@ oompah.integration:
   submitted_at: '2026-08-06T06:36:43.773280+00:00'
   updated_at: '2026-08-06T06:36:43.773280+00:00'
 oompah.task_costs:
-  total_input_tokens: 46364
-  total_output_tokens: 347
+  total_input_tokens: 47148
+  total_output_tokens: 22261
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46364
-      output_tokens: 347
+      input_tokens: 47148
+      output_tokens: 22261
       cost_usd: 0.0
   runs:
   - profile: default
@@ -68,6 +68,12 @@ oompah.task_costs:
     output_tokens: 347
     cost_usd: 0.0
     recorded_at: '2026-08-06T06:10:36.799497+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 784
+    output_tokens: 21914
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T06:38:23.300167+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-854__20260806T061024Z
@@ -248,5 +254,20 @@ author: oompah
 created: 2026-08-06 06:38
 ---
 Independent static review rejected the submitted patch before integration. The new  check still has a check-then-act window: quiesce can begin after the check and before , so it does not atomically fence provider admission. Cleanup also leaves a persisted IN_PROGRESS audit to later abandonment recovery rather than proving immediate queued/retryable convergence. The new tests quiesce before entering  and therefore do not deterministically exercise the real boundary race; several only test existing helpers in isolation. Rework with one synchronization domain shared by quiesce and final provider admission/RunningEntry publication, ensure quiesce returns only after the admission fence excludes new providers, restore an aborted audit immediately without consuming an attempt, and add a barrier-controlled race test plus paused/quiesced startup/retry coverage. Also remove trailing whitespace and rebase onto the current epic head before resubmission. Do not run tests until the operator clears the shared validation lane.
+---
+author: oompah
+created: 2026-08-06 06:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 89
+- Tokens: 784 in / 21.9K out [22.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 56s
+- Log: OOMPAH-854__20260806T062540Z.jsonl
+---
+author: oompah
+created: 2026-08-06 06:38
+---
+Correction to the preceding shell-mangled review comment: independent static review rejected the submitted patch. The new dispatch-blocked check still has a check-then-act window because quiesce can begin after the check and before worker-task creation. It therefore does not atomically fence provider admission. Cleanup also leaves a persisted In Progress audit to later abandonment recovery rather than proving immediate queued/retryable convergence. The tests quiesce before entering dispatch and do not deterministically exercise the real boundary race; several only test existing helpers in isolation. Rework with one synchronization domain shared by quiesce and final provider admission plus RunningEntry publication. Quiesce must return only after the fence excludes new providers. Restore an aborted audit immediately without consuming an attempt. Add a barrier-controlled race regression plus paused/quiesced startup and retry coverage. Remove trailing whitespace and rebase onto the current epic head before resubmission. Do not run tests until the operator clears the shared validation lane.
 ---
 <!-- COMMENTS:END -->
