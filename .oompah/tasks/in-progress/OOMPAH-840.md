@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-06T00:06:12.322844Z'
+updated_at: '2026-08-06T00:38:01.962559Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-840
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-08-06 00:06
 ---
 Discovery: Existing OOMPAH-696 reconciliation handles Done children, but Ready-to-Integrate resubmissions still enter the per-epic queue and _execute_integration_item unconditionally requires the parent epic branch. A pruned terminal parent therefore returns missing_epic before any useful reconciliation. I am mapping durable evidence and transition APIs for a preflight recovery lane.
+---
+author: oompah
+created: 2026-08-06 00:38
+---
+Verification: focused queue tests pass (26); terminal-parent regressions pass for Merged/Archived parents, exact landing, blocked restart, audit-evidence fallback, unlanded recovery, and retry receipt (5 new cases); full affected epic/integration suites pass (265 tests); neighboring integration/worker (33), parallel-epic (198), and terminal-audit/transition checks pass (198 selected); terminal mutation scan passes.
 ---
 <!-- COMMENTS:END -->
