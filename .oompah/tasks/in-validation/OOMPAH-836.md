@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T10:06:23.632649Z'
+updated_at: '2026-08-06T11:27:35.445215Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -20,14 +20,37 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: OOMPAH-836
   base_branch: epic-OOMPAH-804
-  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  integrated_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   submitted_at: '2026-08-06T10:06:11.312451+00:00'
-  updated_at: '2026-08-06T10:06:11.312451+00:00'
+  updated_at: '2026-08-06T11:27:26.787746+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7d503699759f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-836
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dfbe5d34de3178568e4cf0c1f7a94e06865a86adb1924692024bbf08ab54303a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T11:27:29.266985+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +73,10 @@ author: oompah
 created: 2026-08-06 10:06
 ---
 Shared exact-gate regression repair propagated to canonical head c31b8d32a; 81 formerly failing module tests pass and independent review accepted.
+---
+author: oompah
+created: 2026-08-06 11:27
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
