@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:18:53.902006Z'
+updated_at: '2026-08-06T00:19:40.998832Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -241,5 +241,10 @@ author: oompah
 created: 2026-08-06 00:18
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 00:19
+---
+Understanding: resuming the preserved reviewed OOMPAH-810-equivalent ACP delivery backport. I will verify the recovery checkpoint contains only scoped completion/liveness/retirement work and its race coverage, run the current focused matrix, then create the task commit, push it, and submit the exact head.
 ---
 <!-- COMMENTS:END -->

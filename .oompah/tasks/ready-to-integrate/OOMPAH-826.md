@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T00:19:11.369719Z'
+updated_at: '2026-08-06T00:19:34.219316Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 082b1497-b53c-4b2d-a9f0-a69ca79d8d4b
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 140
   total_output_tokens: 5194
@@ -95,6 +95,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-826
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:19:18.079856+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-826
+  head_sha: 4d05dd5a580ad667d7ae3871bdba83d9b78a7404
+  submitted_at: '2026-08-06T00:19:19.101140+00:00'
+  updated_at: '2026-08-06T00:19:19.101140+00:00'
 ---
 ## Summary
 
@@ -237,5 +245,10 @@ author: oompah
 created: 2026-08-06 00:19
 ---
 Completion: Delivered commit 4d05dd5a5 on branch OOMPAH-826 and pushed it to origin. Existing open reviews are now exact-head gated across webhook, standalone recovery, merge reconciliation, and cached/live integration handoff; submit races are fenced before gate launch, failures preserve the review and remain retryable, and durable same-head evidence continues to coalesce/reuse. Focused affected suites are green and the diff is limited to orchestrator.py plus regression tests.
+---
+author: oompah
+created: 2026-08-06 00:19
+---
+Gated existing review adoption and merge reconciliation on durable exact-head branch quality evidence, with submit-race fencing and regression coverage across standalone, webhook, integration-entry, restart, and epic paths.
 ---
 <!-- COMMENTS:END -->
