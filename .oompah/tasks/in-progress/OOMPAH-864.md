@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:42:32.276651Z'
+updated_at: '2026-08-06T21:43:15.674425Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -45,12 +45,14 @@ oompah.agent_run_id: d8464adb-dc51-485c-976b-8957ad861fd2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  updated_at: '2026-08-06T21:32:37.147926+00:00'
+  head_sha: af7a4595b3b350ea28a86a89153c56a0922a45f5
+  submitted_at: '2026-08-06T21:43:14.192557+00:00'
+  updated_at: '2026-08-06T21:43:14.192557+00:00'
 oompah.task_costs:
   total_input_tokens: 46277
   total_output_tokens: 287
@@ -166,5 +168,10 @@ author: oompah
 created: 2026-08-06 21:42
 ---
 Owner authority update: exact accepted implementation a5d1973d043ff2375d56d89d0ea8bd5326e24f63 is already pushed to both the task and shared epic branches, independently race-reviewed, and passed 62 focused tests serial+parallel. The integration mismatch was caused by the old deployed epic worktree refusing to advance to an intentionally published shared head; it was not evidence that the accepted implementation was missing. Preserve the full a5d1973d patch and do not replace it with a narrower alternate fix. If additional changes were made, rebase them on a5d1973d and submit only if they add tested behavior not already covered.
+---
+author: oompah
+created: 2026-08-06 21:43
+---
+**Verification:** All focused tests pass. Test results: 61 duplicate_preflight tests (including 2 new integration metadata clearing tests), 5 server owner resolution tests, 13 integration record tests = 79 total. Changes: (1) orchestrator.py modified to clear 'oompah.integration' metadata when owner resolves to no_duplicate, both in direct call and restart reconciliation, (2) tests/test_duplicate_preflight.py: added test_owner_no_duplicate_resolution_clears_stale_integration_metadata and test_owner_resolution_reconciliation_clears_integration_on_restart. Branch pushed at af7a4595b.
 ---
 <!-- COMMENTS:END -->
