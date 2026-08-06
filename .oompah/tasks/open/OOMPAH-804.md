@@ -11,7 +11,6 @@ children:
 - OOMPAH-836
 - OOMPAH-837
 blocked_by:
-- OOMPAH-782
 - OOMPAH-791
 - OOMPAH-793
 start_blocked_by: &id001
@@ -23,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T09:26:42.720005Z'
+updated_at: '2026-08-06T09:26:47.535851Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
