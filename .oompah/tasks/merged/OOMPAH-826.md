@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:52:35.232404Z'
+updated_at: '2026-08-06T04:52:58.223529Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -64,8 +64,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 5ccc92ec-5153-462f-b696-ecb94825a749
 oompah.task_costs:
-  total_input_tokens: 320
-  total_output_tokens: 15136
+  total_input_tokens: 361
+  total_output_tokens: 16766
   total_cost_usd: 0.0
   by_model:
     opus:
@@ -73,8 +73,8 @@ oompah.task_costs:
       output_tokens: 9597
       cost_usd: 0.0
     unknown:
-      input_tokens: 162
-      output_tokens: 5539
+      input_tokens: 203
+      output_tokens: 7169
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -113,6 +113,12 @@ oompah.task_costs:
     output_tokens: 4403
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:37:17.388738+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 1630
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:52:49.540498+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-826__20260805T181747Z
@@ -754,5 +760,20 @@ created: 2026-08-06 04:52
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Existing independent PASS and merged PR are durable evidence; override retires an erroneous duplicate audit loop that had exhausted candidates and reopened already-delivered work.
+---
+author: oompah
+created: 2026-08-06 04:52
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 23
+- Tokens: 41 in / 1.6K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 29s
+- Log: OOMPAH-826__20260806T044432Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:52
+---
+Recovered the task to its already-proven terminal state. PR #729 is merged at e12ee5edd and independent audit comment #28 already passed the exact implementation 4d05dd5a with its 645.1s gate and focused evidence. The later audit/reopen loop was duplicate lifecycle work, not new implementation.
 ---
 <!-- COMMENTS:END -->
