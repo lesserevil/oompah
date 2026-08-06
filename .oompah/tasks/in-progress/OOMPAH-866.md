@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:11:44.973961Z'
+updated_at: '2026-08-06T21:16:56.879205Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-06 21:11
 ---
 Implementation: added CanonicalChildLandingEvidence with project/epic/child identity, original base/source SHAs, canonical target range, deterministic generation, freshness, and fingerprint validation. Direct epic completion now records verified affected-child mappings in atomic service state; validators consume them only after normal ancestry/cherry checks and require exact scope generation, real commits, ancestry, and current container range proof. Child refs and original metadata are preserved.
+---
+author: oompah
+created: 2026-08-06 21:16
+---
+Verification: focused canonical landing, parallel epic-child, terminal-audit, and worker submission suites pass (145 passed, 1 expected xfail). Compileall and git diff --check also pass.
 ---
 <!-- COMMENTS:END -->
