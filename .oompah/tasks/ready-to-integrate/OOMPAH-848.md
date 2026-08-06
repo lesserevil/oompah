@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:31:03.007700Z'
+updated_at: '2026-08-06T17:31:08.619939Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-08-06 17:30
 ---
 Restacked free-tier budget isolation repair validated at 98de5d1f5: the complete module passed 41 serial and 41 under four-way xdist; the named increment/snapshot regression then passed 20 executions in five four-process concurrent batches. make check-secrets and git diff --check are clean. The branch was pushed with exact force-with-lease.
+---
+author: oompah
+created: 2026-08-06 17:31
+---
+Isolated free-tier budget projection from heavyweight live snapshot collectors while preserving exact increment and immediate snapshot semantics; passed the full module serial, xdist, and 20 four-way concurrent named regressions.
 ---
 <!-- COMMENTS:END -->
