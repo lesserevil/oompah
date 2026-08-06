@@ -547,6 +547,210 @@ def _resolve_epic_branch_names(
     return branches
 
 
+@dataclass(frozen=True)
+class RevisionCandidate:
+    """One candidate revision for terminal-audit workspace selection.
+
+    The candidate's revision field (SHA or branch) is what should be
+    checked out in the audit workspace. The selected_sha field
+    (if present) provides the exact commit SHA that was resolved at
+    candidate-selection time, for audit parity verification.
+    """
+
+    revision: str
+    """The candidate revision: a full SHA-256 hash or a 'origin/branch' ref."""
+
+    selected_sha: str | None = None
+    """The exact SHA resolved from this revision at candidate-selection time.
+    
+    Present when the revision is a mutable branch that was resolved to a
+    commit SHA; None when revision is already an immutable SHA. Used for
+    audit parity: the fingerprint must reflect the same selected_sha if one
+    was available at fingerprinting time.
+    """
+
+    @property
+    def is_sha(self) -> bool:
+        """True if revision is an immutable SHA, not a mutable branch ref."""
+        return not self.revision.startswith("origin/")
+
+
+@dataclass(frozen=True)
+class RevisionCandidateList:
+    """Ordered list of revision candidates for terminal-audit resolution.
+
+    Built in strict precedence order:
+    1. Immutable SHAs from evidence fields (never fall back)
+    2. Explicit branches (source_branch, work_branch, task_branch, branch_name)
+    3. Canonical epic branches (for epics without explicit branches)
+    4. Default branch (only if prior audit history allows it)
+
+    When immutable SHA candidates exist, branch/default candidates are ignored
+    to prevent audit divergence: if evidence recorded an immutable SHA, auditing
+    a different SHA would invalidate the fingerprint.
+    """
+
+    candidates: list[RevisionCandidate] = field(default_factory=list)
+    immutable_shas_available: bool = False
+    """True when immutable SHA candidates are present.
+    
+    When true, branch/default candidates are ignored to preserve
+    fingerprint/workspace parity and prevent audit divergence.
+    """
+
+    def iter_for_workspace(self) -> Iterable[str]:
+        """Iterate revisions to try when creating audit workspace.
+
+        Yields candidate revisions in priority order. Branches are prefixed
+        with 'origin/', SHAs are bare. When immutable SHAs are available,
+        only those are yielded; branch candidates are skipped.
+        """
+        for candidate in self.candidates:
+            if self.immutable_shas_available and not candidate.is_sha:
+                continue
+            yield candidate.revision
+
+    def first_for_fingerprint(self) -> str | None:
+        """Get the first candidate revision for fingerprinting.
+
+        Returns the revision of the first candidate in order, or None if
+        no candidates are available. The fingerprint uses this single
+        candidate to ensure consistency with workspace selection.
+        """
+        if not self.candidates:
+            return None
+        return self.candidates[0].revision
+
+    def first_selected_sha(self) -> str | None:
+        """Get the selected SHA from the first candidate, if any.
+
+        Returns the selected_sha of the first candidate if it was resolved
+        from a mutable branch; None if the first candidate is an immutable
+        SHA or no candidates exist. This is compared with the fingerprint
+        to detect divergence.
+        """
+        if not self.candidates:
+            return None
+        return self.candidates[0].selected_sha
+
+
+def build_revision_candidate_list(
+    issue: Any,
+    project_id: str,
+    target_state: TargetState | None = None,
+    previous_state: str | None = None,
+) -> RevisionCandidateList:
+    """Build ordered revision candidates for terminal-audit resolution.
+
+    This is the unified revision resolver used by both evidence fingerprinting
+    and detached workspace creation. Both must use this function to ensure
+    fingerprint/workspace parity.
+
+    Parameters
+    ----------
+    issue : Any
+        Tracker issue object with optional properties: source_sha, source_branch,
+        work_branch, branch_name, issue_type, parent_id, integration record, etc.
+    project_id : str
+        Managed project ID for context.
+    target_state : TargetState, optional
+        The terminal state being audited (used to determine if default-branch
+        fallback is allowed).
+    previous_state : str, optional
+        The issue's previous state (used to determine if default-branch fallback
+        is allowed for ARCHIVED audits).
+
+    Returns
+    -------
+    RevisionCandidateList
+        Ordered candidates with immutable SHA precedence and branch/epic fallbacks.
+    """
+
+    candidates: list[RevisionCandidate] = []
+    immutable_shas: list[str] = []
+
+    # Phase 1: Collect immutable SHAs from evidence fields.
+    # These take absolute precedence: if evidence recorded an immutable SHA,
+    # auditing a different SHA would invalidate the fingerprint.
+    integration = getattr(issue, "integration", None)
+    for value in (
+        getattr(issue, "source_sha", None),
+        getattr(integration, "integrated_sha", None),
+        getattr(integration, "head_sha", None),
+        getattr(issue, "target_sha", None),
+    ):
+        revision = str(value or "").strip()
+        if revision and _is_valid_sha(revision) and revision not in immutable_shas:
+            immutable_shas.append(revision)
+            candidates.append(RevisionCandidate(revision=revision, selected_sha=None))
+
+    has_immutable_shas = bool(immutable_shas)
+
+    # Phase 2: Collect explicit branches (if no immutable SHAs).
+    # Immutable SHAs take precedence, so if we have one, skip branches.
+    if not has_immutable_shas:
+        # Try explicit branches in order
+        for value in (
+            getattr(issue, "source_branch", None),
+            getattr(issue, "work_branch", None),
+            getattr(integration, "task_branch", None),
+            getattr(issue, "branch_name", None),
+        ):
+            branch = str(value or "").strip()
+            if branch:
+                revision = f"origin/{branch}"
+                if not any(c.revision == revision for c in candidates):
+                    candidates.append(RevisionCandidate(revision=revision))
+
+        # Phase 3: Resolve canonical epic branches (for epics without explicit branches).
+        # Only applies to epics; non-epics get empty list from _resolve_epic_branch_names.
+        issue_identifier = str(
+            getattr(issue, "identifier", None)
+            or getattr(issue, "id", None)
+            or ""
+        )
+        parent_id = getattr(issue, "parent_id", None)
+        issue_type = str(getattr(issue, "issue_type", None) or "")
+
+        epic_branches = _resolve_epic_branch_names(issue_identifier, parent_id, issue_type)
+        for branch in epic_branches:
+            revision = f"origin/{branch}"
+            if not any(c.revision == revision for c in candidates):
+                candidates.append(RevisionCandidate(revision=revision))
+
+        # Phase 4: Default branch (only if audit policy allows it).
+        # Default fallback is only for Merged→Archived audits of already-landed work.
+        default_fallback_allowed = (
+            target_state == TargetState.MERGED
+            or (
+                target_state == TargetState.ARCHIVED
+                and (previous_state or "").strip().lower() in ("merged", "archived")
+            )
+        )
+        if default_fallback_allowed:
+            # Default branch name would come from project_store, but this function
+            # is tracker-agnostic and cannot import project-specific helpers.
+            # Callers should use the candidates and fall back to default_branch
+            # only after exhausting these candidates.
+            pass
+
+    return RevisionCandidateList(
+        candidates=candidates,
+        immutable_shas_available=has_immutable_shas,
+    )
+
+
+def _is_valid_sha(value: str) -> bool:
+    """Check if value looks like a Git SHA-1 or SHA-256 hash."""
+    if not isinstance(value, str):
+        return False
+    value = value.strip().lower()
+    # SHA-1: 40 hex chars, SHA-256: 64 hex chars
+    if len(value) not in (40, 64):
+        return False
+    return all(c in "0123456789abcdef" for c in value)
+
+
 def compute_issue_evidence_fingerprint(
     issue: Any,
     project_id: str,
@@ -629,33 +833,16 @@ def compute_issue_evidence_fingerprint(
                 ),
             )
     else:
-        # Try explicit branches first
-        source_branch = str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(integration, "task_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        )
+        # Use the unified revision candidate resolver to determine the source branch.
+        # This ensures consistent resolution with _create_workspace_for_auditor.
+        candidates = build_revision_candidate_list(issue, project_id)
+        first_candidate = candidates.first_for_fingerprint()
         
-        # If no explicit branch and it's an epic without work_branch,
-        # try canonical epic branch names
-        if not source_branch:
-            issue_identifier = str(
-                getattr(issue, "identifier", None)
-                or getattr(issue, "id", None)
-                or ""
-            )
-            parent_id = getattr(issue, "parent_id", None)
-            issue_type = str(getattr(issue, "issue_type", None) or "")
-            
-            epic_branches = _resolve_epic_branch_names(
-                issue_identifier, parent_id, issue_type
-            )
-            # Use the first candidate; callers needing remote verification
-            # should validate and fail closed on ambiguity
-            if epic_branches:
-                source_branch = epic_branches[0]
+        # Convert "origin/branch" to "branch" for fingerprint computation
+        if first_candidate and first_candidate.startswith("origin/"):
+            source_branch = first_candidate[7:]  # Remove "origin/" prefix
+        else:
+            source_branch = first_candidate or ""
         
         source_sha = str(
             getattr(issue, "source_sha", None)
@@ -1025,10 +1212,13 @@ __all__ = [
     "IntegratedEvidenceFingerprintVariants",
     "OverrideRecord",
     "RequestState",
+    "RevisionCandidate",
+    "RevisionCandidateList",
     "TargetState",
     "TerminalAuditRecord",
     "TerminalState",
     "Verdict",
+    "build_revision_candidate_list",
     "compute_evidence_fingerprint",
     "compute_integrated_evidence_fingerprint_variants",
     "compute_issue_evidence_fingerprint",

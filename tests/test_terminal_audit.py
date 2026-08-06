@@ -11,9 +11,12 @@ from oompah.terminal_audit import (
     EvidenceFingerprint,
     FailureClassification,
     RequestState,
+    RevisionCandidate,
+    RevisionCandidateList,
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    build_revision_candidate_list,
     compute_evidence_fingerprint,
     compute_issue_evidence_fingerprint,
     _resolve_epic_branch_names,
@@ -381,3 +384,204 @@ class TestEpicBranchResolution:
             source_branch="",  # Empty, no candidates matched
         )
         assert fp == fp_expected
+
+
+class TestRevisionCandidateList:
+    """Tests for unified revision candidate resolver (OOMPAH-867)."""
+
+    def test_standalone_epic_without_work_branch_resolves_epic_branch(self) -> None:
+        """Standalone epic with no work_branch should resolve epic-EPIC-42."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Standalone epic",
+            description="Description",
+            work_branch=None,
+            issue_type="epic",
+        )
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        # Should have epic-EPIC-42 as a candidate
+        revisions = list(candidates.iter_for_workspace())
+        assert "origin/epic-EPIC-42" in revisions
+        assert candidates.first_for_fingerprint() == "origin/epic-EPIC-42"
+
+    def test_nested_epic_tries_parent_branch_first(self) -> None:
+        """Nested epic should try parent epic branch first, then own branch."""
+        issue = Issue(
+            id="CHILD-1",
+            identifier="CHILD-1",
+            title="Nested epic",
+            description="Description",
+            parent_id="EPIC-42",
+            work_branch=None,
+            issue_type="epic",
+        )
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        revisions = list(candidates.iter_for_workspace())
+        # Parent branch should come first
+        assert revisions[0] == "origin/epic-EPIC-42"
+        # Child's own branch should be available as fallback
+        assert "origin/epic-CHILD-1" in revisions
+
+    def test_immutable_sha_takes_precedence(self) -> None:
+        """When immutable SHA is present, it takes precedence over branches."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with SHA",
+            description="Description",
+            work_branch=None,
+            issue_type="epic",
+        )
+        # Dynamically add source_sha since Issue doesn't have it as a field
+        issue.source_sha = "abc123def456abc123def456abc123def456abc1"
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        # SHA should be first candidate
+        assert candidates.first_for_fingerprint() == "abc123def456abc123def456abc123def456abc1"
+        assert candidates.immutable_shas_available is True
+
+    def test_immutable_sha_prevents_branch_fallback(self) -> None:
+        """When immutable SHA is present, branches are skipped in workspace iteration."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with SHA and branch",
+            description="Description",
+            work_branch="custom-branch",
+            issue_type="epic",
+        )
+        issue.source_sha = "abc123def456abc123def456abc123def456abc1"
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        # Only SHA should be yielded, not branches
+        revisions = list(candidates.iter_for_workspace())
+        assert len(revisions) == 1
+        assert revisions[0] == "abc123def456abc123def456abc123def456abc1"
+
+    def test_explicit_work_branch_takes_precedence_over_epic_branch(self) -> None:
+        """Explicit work_branch should be tried first, with epic branch as fallback."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic with explicit branch",
+            description="Description",
+            work_branch="custom-epic-work",
+            issue_type="epic",
+        )
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        revisions = list(candidates.iter_for_workspace())
+        # Explicit work_branch should come first
+        assert revisions[0] == "origin/custom-epic-work"
+        # epic-EPIC-42 should also be available as a fallback
+        assert "origin/epic-EPIC-42" in revisions
+        # And fingerprint should use the explicit branch (first candidate)
+        assert candidates.first_for_fingerprint() == "origin/custom-epic-work"
+
+    def test_non_epic_task_does_not_get_epic_branches(self) -> None:
+        """Regular tasks should not try to resolve epic branches."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Regular task",
+            description="Description",
+            issue_type="task",
+        )
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        revisions = list(candidates.iter_for_workspace())
+        # Should not try epic-TASK-1
+        assert all(not rev.endswith("epic-TASK-1") for rev in revisions)
+
+    def test_default_branch_not_added_without_permission(self) -> None:
+        """Default branch fallback should only be added when allowed by audit policy."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic",
+            description="Description",
+            issue_type="epic",
+            work_branch=None,
+        )
+        
+        # DONE audits don't allow default fallback
+        candidates = build_revision_candidate_list(
+            issue, "proj-1", target_state=TargetState.DONE, previous_state="Open"
+        )
+        
+        # The resolver doesn't add default itself; caller must add it if needed
+        # This just verifies it's not included by the resolver
+        revisions = list(candidates.iter_for_workspace())
+        # Should only have epic branch, not default
+        assert all("origin/main" not in rev for rev in revisions)
+
+    def test_fingerprint_candidate_uses_first_revision(self) -> None:
+        """Fingerprinting should use the first candidate only."""
+        issue = Issue(
+            id="EPIC-42",
+            identifier="EPIC-42",
+            title="Epic",
+            description="Description",
+            work_branch="explicit-work",
+            issue_type="epic",
+        )
+        issue.source_branch = "explicit-source"
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        # Fingerprint should use first candidate (source_branch comes before work_branch)
+        fp_candidate = candidates.first_for_fingerprint()
+        assert fp_candidate == "origin/explicit-source"
+
+    def test_multiple_immutable_shas_in_order(self) -> None:
+        """Multiple immutable SHAs should be tried in order."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+        )
+        issue.source_sha = "aaa123aaa123aaa123aaa123aaa123aaa123aaa1"
+        issue.target_sha = "bbb456bbb456bbb456bbb456bbb456bbb456bbb4"
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        revisions = list(candidates.iter_for_workspace())
+        # Both SHAs should be present in order
+        assert revisions[0] == "aaa123aaa123aaa123aaa123aaa123aaa123aaa1"
+        assert "bbb456bbb456bbb456bbb456bbb456bbb456bbb4" in revisions
+
+    def test_integration_record_provides_immutable_sha(self) -> None:
+        """Integration record integrated_sha provides immutable precedence."""
+        issue = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
+            description="Description",
+        )
+        
+        # Use valid hex SHA-1 values (40 hex chars)
+        issue.integration = Mock(
+            integrated_sha="abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1",
+            head_sha="def2def2def2def2def2def2def2def2def2def2",
+            base_branch="main",
+            base_sha="aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2aaa2",
+            task_branch="my-task",
+            state="integrated",
+        )
+        
+        candidates = build_revision_candidate_list(issue, "proj-1")
+        
+        revisions = list(candidates.iter_for_workspace())
+        # Integration SHAs should be tried in the expected order
+        assert "abc1abc1abc1abc1abc1abc1abc1abc1abc1abc1" in revisions
+        assert "def2def2def2def2def2def2def2def2def2def2" in revisions

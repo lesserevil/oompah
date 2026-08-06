@@ -175,6 +175,7 @@ from oompah.terminal_audit import (
     RequestState,
     TargetState,
     Verdict,
+    build_revision_candidate_list,
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
@@ -17602,6 +17603,10 @@ class Orchestrator:
         still-published source branch.  A Merged-to-Archived retention audit
         may safely fall back to the fetched default-branch tip because the
         audited work is already part of that branch.
+
+        This method uses the unified revision candidate resolver to ensure
+        fingerprint/workspace parity: both must use the same candidate selection
+        logic and ordered precedence.
         """
 
         if not issue.project_id:
@@ -17613,36 +17618,21 @@ class Orchestrator:
         if project is None:
             raise ProjectError(f"Unknown project: {issue.project_id}")
 
-        integration = getattr(issue, "integration", None)
-        immutable_revisions: list[str] = []
-        for value in (
-            getattr(issue, "source_sha", None),
-            getattr(integration, "integrated_sha", None),
-            getattr(integration, "head_sha", None),
-            getattr(issue, "target_sha", None),
-        ):
-            revision = str(value or "").strip()
-            if revision and revision not in immutable_revisions:
-                immutable_revisions.append(revision)
+        # Build ordered revision candidates using the unified resolver.
+        # This ensures consistency with fingerprinting logic.
+        candidates = build_revision_candidate_list(
+            issue,
+            issue.project_id,
+            target_state=plan.target_state,
+            previous_state=plan.previous_state,
+        )
 
-        # Once a fingerprint names an immutable revision, never substitute a
-        # branch tip or the default branch if that object is unavailable.
-        # Doing so would audit different evidence while retaining the old
-        # fingerprint. Branch/default fallbacks are only for legacy records
-        # that never persisted a source SHA.
-        revisions = list(immutable_revisions)
-        if not immutable_revisions:
-            for value in (
-                getattr(issue, "source_branch", None),
-                getattr(issue, "work_branch", None),
-                getattr(integration, "task_branch", None),
-                getattr(issue, "branch_name", None),
-            ):
-                branch = str(value or "").strip()
-                revision = f"origin/{branch}" if branch else ""
-                if revision and revision not in revisions:
-                    revisions.append(revision)
+        # Collect all revisions to try, in order.
+        revisions: list[str] = list(candidates.iter_for_workspace())
 
+        # If default fallback is allowed and no immutable SHAs were available,
+        # add the default branch as final fallback. Default fallback is only
+        # for legacy records that never persisted a source SHA.
         previous_status = canonicalize_status(plan.previous_state or "")
         default_fallback_allowed = (
             plan.target_state == TargetState.MERGED
@@ -17651,7 +17641,7 @@ class Orchestrator:
                 and previous_status in {MERGED, ARCHIVED}
             )
         )
-        if default_fallback_allowed and not immutable_revisions:
+        if default_fallback_allowed and not candidates.immutable_shas_available:
             default_ref = f"origin/{project.default_branch}"
             if default_ref not in revisions:
                 revisions.append(default_ref)
