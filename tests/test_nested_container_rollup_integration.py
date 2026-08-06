@@ -1,6 +1,7 @@
 """Tests for nested container rollup edge filtering in integration dependencies."""
 
 from oompah.dependency_graph import integration_dependencies, issue_index
+from oompah.integration_projection import build_integration_dependency_projections
 from oompah.integration_queue import IntegrationQueueItem
 from oompah.models import BlockerRef, Issue
 from oompah.orchestrator import Orchestrator
@@ -252,7 +253,18 @@ def test_dashboard_waiting_on_matches_executor_projection():
         issues,
         [item],
     )
-    summary = _integration_queue_summary(item, child, issues)
+    projection = build_integration_dependency_projections(
+        issues,
+        [item],
+        dependency_map,
+        set(),
+    )[0]
+    summary = _integration_queue_summary(
+        item,
+        child,
+        issues,
+        dependency_projection=projection,
+    )
 
     assert dependency_map[item.task_id] == ("EXTERNAL",)
     assert summary["waiting_on"] == list(dependency_map[item.task_id])

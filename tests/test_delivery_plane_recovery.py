@@ -27,6 +27,7 @@ from oompah.container_cycle_repair import (
 from oompah.dependency_graph import issue_index
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
+from oompah.integration_projection import build_integration_dependency_projections
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import (
@@ -1033,6 +1034,12 @@ def test_live_ready_claim_precedes_large_integrated_audit_history(tmp_path):
             epic_id="EPIC-1",
             states=("integrated",),
         )[-1].task_id == issue.identifier
+        projection = orchestrator._integration_dependency_projections[
+            (project.id, "EPIC-1", issue.identifier)
+        ]
+        assert projection.dependencies == ()
+        assert projection.unresolved == ()
+        assert projection.unreachable == ()
     finally:
         _close(orchestrator)
 
@@ -1078,6 +1085,39 @@ def test_dependency_blocked_ready_row_is_not_reported_as_claim_stall(tmp_path):
             alert.get("source") == "integration_queue_progress"
             for alert in orchestrator._alerts
         )
+    finally:
+        _close(orchestrator)
+
+
+def test_running_epic_repair_invalidates_cached_dependency_projection(tmp_path):
+    issue = _issue(identifier="REPAIR-OWNED", integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    row = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=issue.identifier,
+        task_branch=issue.integration.task_branch,
+        head_sha=issue.integration.head_sha,
+    )
+    projection = build_integration_dependency_projections(
+        [issue],
+        [row],
+        {issue.identifier: ()},
+        set(),
+    )[0]
+    orchestrator._publish_integration_dependency_projections((projection,))
+    orchestrator._running_values_snapshot = mock.MagicMock(
+        return_value=[mock.MagicMock(identifier="EPIC-1")]
+    )
+    orchestrator._integration_satisfied_dependencies = mock.MagicMock()
+
+    try:
+        asyncio.run(orchestrator._process_integration_queues())
+
+        current = orchestrator.integration_queue.get(project.id, issue.identifier)
+        assert current is not None
+        assert orchestrator.integration_dependency_projection(current) is None
+        orchestrator._integration_satisfied_dependencies.assert_not_called()
     finally:
         _close(orchestrator)
 
