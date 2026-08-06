@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:44:17.524804Z'
+updated_at: '2026-08-06T21:52:42.638803Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
