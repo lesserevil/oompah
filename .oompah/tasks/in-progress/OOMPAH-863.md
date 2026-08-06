@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:12:21.076586Z'
+updated_at: '2026-08-06T18:12:27.198044Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
