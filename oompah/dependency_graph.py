@@ -118,6 +118,7 @@ def integration_dependencies(
     - Ancestor dependencies outside the current delivery container
 
     Excludes:
+    - The task itself (never depends on itself)
     - The immediate parent task
     - Siblings whose only path to this task is through inherited parent rollup
     """
@@ -127,44 +128,60 @@ def integration_dependencies(
     if not all_deps:
         return ()
 
+    # Normalize issue identifiers for comparison
+    issue_id = _ref_identifier(BlockerRef(id=issue.id, identifier=issue.identifier))
+    parent_id = str(issue.parent_id or "").strip()
+    
     # Build set of container rollup dependencies to filter out
     excluded: set[str] = set()
+    
+    # Never depend on self
+    excluded.add(issue_id)
 
     # Exclude the immediate parent if present
-    parent_id = str(issue.parent_id or "").strip()
     if parent_id:
         excluded.add(parent_id)
         parent = issues_by_id.get(parent_id)
 
-        # Find all siblings (other children of the same parent)
+        # Find all siblings whose only path to dependencies is parent rollup
         if parent is not None:
-            # Check if parent has rollup dependencies on its children
-            parent_finish_deps = set(
-                effective_dependencies(parent, issues_by_id, hard_start=False)
-            )
-            # Find other children of parent
+            # Get what the parent explicitly depends on (its own direct deps, not inherited)
+            parent_direct_deps = {
+                _ref_identifier(ref)
+                for ref in (parent.blocked_by or [])
+            }
+            
+            # Get what this task explicitly depends on
+            task_direct_deps = {
+                _ref_identifier(ref)
+                for ref in (issue.blocked_by or [])
+            }
+            
+            # Find all siblings (issues with the same parent)
             for candidate_id, candidate in issues_by_id.items():
-                parent_of_candidate = str(
-                    candidate.parent_id or ""
-                ).strip()
-                if (
-                    parent_of_candidate == parent_id
-                    and candidate_id != str(issue.identifier or issue.id or "").strip()
-                ):
-                    # This is a sibling.
-                    # Only exclude if it's ONLY in our dependencies because
-                    # it's in parent's rollup deps (not explicitly on this task)
-                    task_id = str(issue.identifier or issue.id or "").strip()
-                    task_explicit_deps = set(
-                        _ref_identifier(ref)
-                        for ref in (issue.blocked_by or [])
-                    )
-                    is_explicit_on_task = candidate_id in task_explicit_deps
-                    is_in_parent_rollup = candidate_id in parent_finish_deps
-
-                    # Only exclude if: not explicit on task AND in parent rollup
-                    if not is_explicit_on_task and is_in_parent_rollup:
-                        excluded.add(candidate_id)
+                candidate_normalized = _ref_identifier(BlockerRef(
+                    id=candidate.id,
+                    identifier=candidate.identifier
+                ))
+                candidate_parent = str(candidate.parent_id or "").strip()
+                
+                # Check if this is a sibling
+                is_sibling = (
+                    candidate_parent == parent_id
+                    and candidate_normalized != issue_id
+                )
+                
+                if not is_sibling:
+                    continue
+                
+                # A sibling should be excluded from integration deps if:
+                # 1. It's in the parent's direct dependencies (parent's rollup)
+                # 2. AND it's NOT in this task's direct dependencies
+                is_in_parent_rollup = candidate_normalized in parent_direct_deps
+                is_explicit_on_task = candidate_normalized in task_direct_deps
+                
+                if is_in_parent_rollup and not is_explicit_on_task:
+                    excluded.add(candidate_normalized)
 
     # Filter out excluded dependencies
     result = [
