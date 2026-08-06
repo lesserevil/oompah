@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:37:42.579979Z'
+updated_at: '2026-08-06T07:38:21.029240Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -56,13 +56,13 @@ oompah.integration:
   submitted_at: '2026-08-06T07:37:37.191063+00:00'
   updated_at: '2026-08-06T07:37:37.191063+00:00'
 oompah.task_costs:
-  total_input_tokens: 47595
-  total_output_tokens: 1848
+  total_input_tokens: 48181
+  total_output_tokens: 20957
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47595
-      output_tokens: 1848
+      input_tokens: 48181
+      output_tokens: 20957
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +77,12 @@ oompah.task_costs:
     output_tokens: 185
     cost_usd: 0.0
     recorded_at: '2026-08-06T07:19:57.198372+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 586
+    output_tokens: 19109
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T07:38:16.124979+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-857__20260806T071848Z
@@ -262,5 +268,15 @@ author: oompah
 created: 2026-08-06 07:37
 ---
 Implemented operator-auth recovery detection. Failed credentials followed by successful authentication now mark warnings as 'recovered' instead of remaining actionable, enabling dashboard to show issue resolution without waiting 15-minute window. All tests passing (133 verified).
+---
+author: oompah
+created: 2026-08-06 07:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 72
+- Tokens: 586 in / 19.1K out [19.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 1s
+- Log: OOMPAH-857__20260806T072026Z.jsonl
 ---
 <!-- COMMENTS:END -->
