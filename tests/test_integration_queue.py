@@ -1556,6 +1556,36 @@ def test_exact_queue_identity_rehomes_same_head_to_current_parent(tmp_path):
     ) is None
 
 
+def test_absent_and_reparent_recovery_preserve_exact_base_branch(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+    original = store.enqueue_if_absent(
+        project_id="p1",
+        epic_id="E-OLD",
+        task_id="A",
+        task_branch="task-A",
+        head_sha="a" * 40,
+        base_branch="epic-E-ROOT--task-E-OLD",
+        base_sha="b" * 40,
+    )
+
+    assert original is not None
+    assert original.base_branch == "epic-E-ROOT--task-E-OLD"
+    replacement = store.replace_task_identity(
+        "p1",
+        "A",
+        expected_generation=original.authority_generation(),
+        epic_id="E-NEW",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        base_branch="epic-E-ROOT--task-E-NEW",
+        base_sha="c" * 40,
+    )
+
+    assert replacement is not None
+    assert replacement.base_branch == "epic-E-ROOT--task-E-NEW"
+    assert replacement.base_sha == "c" * 40
+
+
 def test_exact_queue_generation_retires_durably_for_standalone_reclassification(
     tmp_path,
 ):

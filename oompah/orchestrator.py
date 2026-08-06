@@ -22770,7 +22770,10 @@ class Orchestrator:
                     IntegrationRecord(
                         state="integrated",
                         task_branch=row.task_branch,
-                        base_branch=self.project_store.epic_branch_name(row.epic_id),
+                        base_branch=(
+                            row.base_branch
+                            or self.project_store.epic_branch_name(row.epic_id)
+                        ),
                         base_sha=row.base_sha,
                         head_sha=row.head_sha,
                         integrated_sha=row.integrated_sha,
@@ -24323,7 +24326,10 @@ class Orchestrator:
                             IntegrationRecord(
                                 state="integrated",
                                 task_branch=current.task_branch,
-                                base_branch=self.project_store.epic_branch_name(epic_id),
+                                base_branch=(
+                                    current.base_branch
+                                    or self.project_store.epic_branch_name(epic_id)
+                                ),
                                 base_sha=result.expected_epic_sha,
                                 head_sha=current.head_sha,
                                 integrated_sha=current.integrated_sha,

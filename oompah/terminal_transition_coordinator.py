@@ -1905,14 +1905,44 @@ class TerminalTransitionCoordinator:
                     if record.target_state == requested_target
                     and record.project_id == project_id
                     and record.task_id == current_issue.identifier
-                and record.request_state
-                not in (RequestState.SUPERSEDED, RequestState.CANCELLED)
+                    and record.request_state
+                    not in (RequestState.SUPERSEDED, RequestState.CANCELLED)
                 ]
                 requested_action = (
                     "audit_retry_evidence_addendum"
                     if evidence_addendum is not None
                     else "audit_retry"
                 )
+
+                def _authorization(
+                    fresh: TerminalAuditRecord,
+                    exhausted: TerminalAuditRecord,
+                    now: str,
+                ) -> dict[str, Any]:
+                    return {
+                        "version": 1,
+                        "audit_id": fresh.audit_id,
+                        "superseded_audit_id": exhausted.audit_id,
+                        "project_id": project_id,
+                        "task_id": current_issue.identifier,
+                        "target_state": requested_target.value,
+                        "evidence_fingerprint": fresh.evidence_fingerprint.digest,
+                        "source_generation": fresh.source_generation,
+                        "actor": authorized_actor.to_dict(),
+                        "reason": redact_terminal_audit_text(reason.strip()),
+                        "authorized_at": now,
+                        "mode": (
+                            "evidence_addendum"
+                            if normalized_addendum is not None
+                            else "infrastructure_recovery"
+                        ),
+                        **(
+                            {"evidence_addendum": normalized_addendum}
+                            if normalized_addendum is not None
+                            else {}
+                        ),
+                    }
+
                 authority = matching[-1] if matching else None
                 if authority is None or authority.evidence_fingerprint != locked_fingerprint:
                     return doc
