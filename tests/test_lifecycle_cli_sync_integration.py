@@ -93,9 +93,13 @@ class _LiveOldServer:
         self.quarantine_reason: str | None = None
         self.restart_recovery: list[str] = []
         self.calls: list[tuple[str, str]] = []
+        self.call_bodies: list[dict | None] = []
+        self.restart_claim_id: str | None = None
+        self.restart_drain_scheduled = False
 
     def __call__(self, method, path, body):
         self.calls.append((method, path))
+        self.call_bodies.append(body)
         if self.stopped:
             raise ConnectionError("service is quarantined")
         if path == "/healthz":
@@ -138,7 +142,7 @@ class _LiveOldServer:
                 "counts": {"running": self.running},
                 "service_instance_id": state_instance,
                 "build_id": {"revision": revision},
-                "restart": {"in_progress": False},
+                "restart": {"in_progress": self.restart_claim_id is not None},
             }
         if path == "/api/v1/orchestrator/pause":
             self.paused = True
@@ -147,6 +151,8 @@ class _LiveOldServer:
             self.quiesced = True
             return {"ok": True, "quiesced": True}
         if path == "/api/v1/orchestrator/resume":
+            if not self.committed and self.restart_claim_id is not None:
+                raise RuntimeError("cannot resume while restart claim is active")
             self.paused = False
             self.quiesced = False
             self.resumed = True
@@ -154,8 +160,46 @@ class _LiveOldServer:
                 raise self.resume_error
             return {"ok": True, "paused": False, "quiesced": False}
         if path == "/api/v1/orchestrator/restart":
+            if body and body.get("claim_only") is True:
+                if self.restart_claim_id is not None:
+                    return {
+                        "ok": True,
+                        "coalesced": True,
+                        "restart_request_id": self.restart_claim_id,
+                    }
+                self.restart_claim_id = body.get("restart_request_id")
+                if not self.restart_claim_id:
+                    raise AssertionError("restart claim requires client identity")
+                self.restart_drain_scheduled = False
+                return {
+                    "ok": True,
+                    "coalesced": False,
+                    "restart_request_id": self.restart_claim_id,
+                }
+            if body and body.get("cancel_claim") is True:
+                if self.restart_claim_id is None:
+                    return {
+                        "ok": True,
+                        "cancelled": True,
+                        "restart_request_id": body.get("restart_request_id"),
+                    }
+                if (
+                    body.get("restart_request_id") == self.restart_claim_id
+                    and not self.restart_drain_scheduled
+                ):
+                    cancelled_id = self.restart_claim_id
+                    self.restart_claim_id = None
+                    return {
+                        "ok": True,
+                        "cancelled": True,
+                        "restart_request_id": cancelled_id,
+                    }
+                return {"ok": False, "cancelled": False}
             if self.restart_drops_before_accept:
                 raise ConnectionError("simulated drop before restart acceptance")
+            if not body or body.get("restart_request_id") != self.restart_claim_id:
+                raise AssertionError("restart did not present the claimed identity")
+            self.restart_drain_scheduled = True
             if self.running:
                 self.restart_recovery = [
                     f"running-worker-{number}" for number in range(self.running)
@@ -164,6 +208,7 @@ class _LiveOldServer:
                 # reaches its deadline.
                 self.running = 0
             self.committed = True
+            self.restart_claim_id = None
             if self.restart_drops:
                 raise ConnectionError("simulated connection drop during exec")
             return {"ok": True}
@@ -250,20 +295,49 @@ def test_restart_activates_only_after_natural_drain_before_restart(tmp_path):
 
     The sequence is:
     1. Verify old service is healthy
-    2. Quiesce and wait for drain
-    3. Stage and atomically activate the CLI
-    4. Request restart
-    5. Verify the new instance and matching build identity
+    2. Claim the restart admission fence
+    3. Quiesce and wait for drain
+    4. Stage and atomically activate the CLI
+    5. Start the claimed restart
+    6. Verify the new instance and matching build identity
     """
     server = _LiveOldServer()
     revision, activation = _run_cutover(tmp_path, server)
     assert revision == server.new_revision
     assert activation.commit_count == 1
     assert activation.rollback_count == 0
-    assert server.calls.index(("POST", "/api/v1/orchestrator/quiesce")) < server.calls.index(
-        ("POST", "/api/v1/orchestrator/restart")
-    )
+    restart_indexes = [
+        index
+        for index, call in enumerate(server.calls)
+        if call == ("POST", "/api/v1/orchestrator/restart")
+    ]
+    quiesce_index = server.calls.index(("POST", "/api/v1/orchestrator/quiesce"))
+    assert restart_indexes[0] < quiesce_index < restart_indexes[-1]
     assert server.calls[-1] == ("POST", "/api/v1/orchestrator/resume")
+
+
+def test_restart_claim_blocks_delayed_resume_during_canonical_staging(tmp_path):
+    """The real cutover claims admission before quiesce and CLI activation."""
+
+    server = _LiveOldServer()
+    delayed_resume_rejected = False
+
+    def stage_with_delayed_resume(**kwargs):
+        nonlocal delayed_resume_rejected
+        try:
+            server("POST", "/api/v1/orchestrator/resume", {})
+        except RuntimeError:
+            delayed_resume_rejected = True
+        return _stager(tmp_path, server.new_revision)(**kwargs)
+
+    revision, _activation = _run_cutover(
+        tmp_path,
+        server,
+        stage=stage_with_delayed_resume,
+    )
+
+    assert revision == server.new_revision
+    assert delayed_resume_rejected is True
 
 
 def test_restart_drain_completion_is_not_requeued(tmp_path):
@@ -381,7 +455,7 @@ def test_restart_timeout_recovers_only_undrained_worker(tmp_path):
     assert activation.commit_count == 1
     assert server.committed is True
     assert server.restart_recovery == ["running-worker-0"]
-    assert server.calls.count(("POST", "/api/v1/orchestrator/restart")) == 1
+    assert server.calls.count(("POST", "/api/v1/orchestrator/restart")) == 2
     assert server.resumed is True
 
 

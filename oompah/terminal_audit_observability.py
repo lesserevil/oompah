@@ -694,6 +694,28 @@ class TerminalAuditMetrics:
         self._persist()
 
     @_synchronized
+    def record_unadmitted_rollback(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        attempts: int = 0,
+    ) -> None:
+        """Move a never-started launch back to queued without spending a try."""
+
+        key = _identity(project_id, task_id, audit_id)
+        self._no_candidate.pop(key, None)
+        entry = self._running.pop(key, None) or self._queued.get(key)
+        if entry is None:
+            self._queued_total += 1
+            self._project(key[0])["queued_total"] += 1
+            entry = self._entry(key, None, attempts)
+        entry["attempts"] = max(0, int(attempts))
+        self._queued[key] = entry
+        self._persist()
+
+    @_synchronized
     def record_running(self, project_id: str, task_id: str, audit_id: str, *, attempts: int = 0) -> None:
         key = _identity(project_id, task_id, audit_id)
         self._no_candidate.pop(key, None)

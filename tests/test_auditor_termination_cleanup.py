@@ -114,6 +114,7 @@ def test_owner_authority_revocation_fences_live_auditor(tmp_path) -> None:
         entry.issue.id,
         cleanup_workspace=False,
         task_name_prefix="retire-revoked-auditor",
+        expected_entry=entry,
     )
 
 

@@ -1,7 +1,8 @@
 """API contracts for coalesced, configurable graceful restarts (OOMPAH-507)."""
 
+import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -14,9 +15,21 @@ def _fake_orchestrator(timeout: int = 3600):
         config=SimpleNamespace(restart_drain_timeout_seconds=timeout),
         state=SimpleNamespace(running={}),
         _restart_in_progress=False,
+        _restart_drain_started=False,
+        _restart_drain_scheduled=False,
+        _restart_drain_task=None,
+        _restart_drain_owner=None,
         _restart_request_id=None,
         _restart_requested_at=None,
         _restart_initial_running=0,
+        _restart_persistence_failed=False,
+        _provider_admission_generation=0,
+        _paused=False,
+        _quiesced=False,
+        _stopping=False,
+        _restart_requested=False,
+        _save_paused_state=MagicMock(),
+        _notify_observers=MagicMock(),
         graceful_restart=AsyncMock(),
     )
 
@@ -43,6 +56,7 @@ def test_repeated_restart_request_is_coalesced():
     fake = _fake_orchestrator()
     fake._restart_in_progress = True
     fake._restart_request_id = "restart-existing"
+    fake._restart_drain_scheduled = True
     server._orchestrator = fake
     try:
         response = TestClient(app).post(
@@ -56,6 +70,248 @@ def test_repeated_restart_request_is_coalesced():
     assert response.json()["restart_request_id"] == "restart-existing"
     assert response.json()["coalesced"] is True
     fake.graceful_restart.assert_not_awaited()
+
+
+def test_restart_claim_can_be_started_only_by_matching_identity():
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    server._orchestrator = fake
+    client = TestClient(app)
+    try:
+        claimed = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"claim_only": True},
+        )
+        request_id = claimed.json()["restart_request_id"]
+        mismatched = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"restart_request_id": "another-claim", "drain_timeout_s": 0},
+        )
+        started = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"restart_request_id": request_id, "drain_timeout_s": 0},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert claimed.status_code == 200
+    assert fake._restart_in_progress is True
+    assert mismatched.status_code == 409
+    assert started.status_code == 200
+    assert started.json()["restart_request_id"] == request_id
+    fake.graceful_restart.assert_awaited_once()
+
+
+def test_unscheduled_restart_claim_can_be_cancelled():
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    server._orchestrator = fake
+    client = TestClient(app)
+    try:
+        claimed = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"claim_only": True},
+        )
+        request_id = claimed.json()["restart_request_id"]
+        cancelled = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"cancel_claim": True, "restart_request_id": request_id},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert cancelled.status_code == 200
+    assert cancelled.json()["cancelled"] is True
+    assert fake._restart_in_progress is False
+    fake.graceful_restart.assert_not_awaited()
+
+
+def test_restart_task_creation_failure_restores_cancellable_preclaim():
+    """A scheduler failure cannot turn a valid preclaim into a permanent fence."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    server._orchestrator = fake
+    client = TestClient(app)
+    try:
+        claimed = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"claim_only": True},
+        )
+        request_id = claimed.json()["restart_request_id"]
+        claimed_generation = fake._provider_admission_generation
+        with patch.object(
+            server,
+            "_create_restart_drain_task",
+            side_effect=RuntimeError("event loop rejected task"),
+        ):
+            failed = client.post(
+                "/api/v1/orchestrator/restart",
+                json={"restart_request_id": request_id, "drain_timeout_s": 0},
+            )
+        restored_claim = (
+            fake._restart_in_progress,
+            fake._restart_request_id,
+            fake._restart_drain_scheduled,
+            fake._restart_drain_started,
+            fake._restart_drain_task,
+            fake._restart_drain_owner,
+            fake._provider_admission_generation,
+        )
+        cancelled = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"cancel_claim": True, "restart_request_id": request_id},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert failed.status_code == 500
+    assert restored_claim == (
+        True,
+        request_id,
+        False,
+        False,
+        None,
+        None,
+        claimed_generation,
+    )
+    assert fake._restart_in_progress is False
+    assert fake._provider_admission_generation == claimed_generation + 1
+    assert cancelled.status_code == 200
+    assert cancelled.json()["cancelled"] is True
+    fake.graceful_restart.assert_not_awaited()
+
+
+def test_restart_drain_exception_after_task_creation_restores_full_state():
+    """A failed published drain releases every fence and can be rescheduled."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.graceful_restart = AsyncMock(side_effect=RuntimeError("drain failed"))
+    server._orchestrator = fake
+    client = TestClient(app)
+    try:
+        first = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"drain_timeout_s": 0},
+        )
+        restored = (
+            fake._restart_in_progress,
+            fake._restart_drain_scheduled,
+            fake._restart_drain_started,
+            fake._restart_drain_task,
+            fake._restart_drain_owner,
+            fake._paused,
+            fake._quiesced,
+            fake._stopping,
+            fake._restart_requested,
+        )
+        fake.graceful_restart = AsyncMock(return_value=None)
+        second = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"drain_timeout_s": 0},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert first.status_code == 200
+    assert restored == (False, False, False, None, None, False, False, False, False)
+    assert fake._restart_in_progress is True  # second request owns a fresh claim
+    assert second.status_code == 200
+    assert second.json()["coalesced"] is False
+
+
+def test_restart_drain_failure_preserves_intervening_lifecycle_fence():
+    """A newer lifecycle generation wins over the API rollback snapshot."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+
+    async def _fenced_failure(**_kwargs):
+        fake._paused = True
+        fake._quiesced = True
+        fake._stopping = True
+        fake._restart_requested = True
+        fake._provider_admission_generation += 1
+        raise RuntimeError("drain failed after a newer lifecycle fence")
+
+    fake.graceful_restart = AsyncMock(side_effect=_fenced_failure)
+    server._orchestrator = fake
+    try:
+        response = TestClient(app).post(
+            "/api/v1/orchestrator/restart",
+            json={"drain_timeout_s": 0},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert fake._restart_in_progress is False
+    assert fake._restart_drain_task is None
+    assert fake._paused is True
+    assert fake._quiesced is True
+    assert fake._stopping is True
+    assert fake._restart_requested is True
+    assert fake._provider_admission_generation == 2
+
+
+def test_restart_drain_failure_preserves_persistence_fail_closed_fence():
+    """The HTTP completion callback cannot erase a durable-state failure."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+
+    async def _fail_closed_restart(**_kwargs):
+        fake._restart_persistence_failed = True
+        fake._quiesced = True
+        fake._provider_admission_generation += 1
+        raise OSError("restart rows were not durably persisted")
+
+    fake.graceful_restart = AsyncMock(side_effect=_fail_closed_restart)
+    server._orchestrator = fake
+    try:
+        response = TestClient(app).post(
+            "/api/v1/orchestrator/restart",
+            json={"drain_timeout_s": 0},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert fake._restart_in_progress is False
+    assert fake._restart_drain_task is None
+    assert fake._restart_persistence_failed is True
+    assert fake._quiesced is True
+    assert fake._provider_admission_generation >= 2
+
+
+def test_restart_drain_cancellation_after_task_creation_restores_full_state():
+    """CancelledError follows the same rollback path as a drain exception."""
+
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    cancelled = AsyncMock(side_effect=asyncio.CancelledError())
+    fake.graceful_restart = cancelled
+    server._orchestrator = fake
+    client = TestClient(app)
+    try:
+        response = client.post(
+            "/api/v1/orchestrator/restart",
+            json={"drain_timeout_s": 0},
+        )
+    finally:
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert fake._restart_in_progress is False
+    assert fake._restart_drain_scheduled is False
+    assert fake._restart_drain_started is False
+    assert fake._restart_drain_task is None
+    assert fake._restart_drain_owner is None
+    assert fake._paused is False
+    assert fake._quiesced is False
+    assert fake._stopping is False
+    assert fake._restart_requested is False
 
 
 def test_restart_api_rejects_invalid_timeout():

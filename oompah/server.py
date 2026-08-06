@@ -220,6 +220,73 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _await_fail_closed_orchestrator_stop(orchestrator: Any) -> None:
+    """Keep the process boundary alive until shutdown authority is durable."""
+
+    current = asyncio.current_task()
+    try_threadsafe_owner = True
+    while True:
+        stop_future = None
+        if try_threadsafe_owner:
+            try:
+                stop_future = orchestrator.stop_threadsafe()
+            except Exception:  # noqa: BLE001 - fall back to the live boundary loop
+                logger.exception(
+                    "Could not schedule safe stop on orchestrator loop; "
+                    "continuing on process-boundary loop"
+                )
+        try_threadsafe_owner = False
+        if stop_future is not None:
+            owned_stop = asyncio.wrap_future(stop_future)
+        else:
+            stop_until_safe = getattr(orchestrator, "stop_until_safe", None)
+            stop_call = (
+                stop_until_safe()
+                if callable(stop_until_safe)
+                else orchestrator.stop()
+            )
+            owned_stop = asyncio.create_task(stop_call, name="fail-closed-stop")
+
+        while not owned_stop.done():
+            try:
+                await asyncio.shield(owned_stop)
+            except asyncio.CancelledError:
+                if current is not None and current.cancelling():
+                    # Shutdown has already begun. Deferring outer cancellation
+                    # keeps this exact owner alive until its journal is durable.
+                    current.uncancel()
+                    logger.critical(
+                        "Deferring process-boundary cancellation until "
+                        "orchestrator shutdown recovery is durable"
+                    )
+                    continue
+                if owned_stop.cancelled():
+                    break
+                raise
+
+        if owned_stop.cancelled():
+            logger.critical(
+                "Safe-stop owner was cancelled before acknowledging durable "
+                "shutdown; replacing it on the process-boundary loop"
+            )
+            continue
+        try:
+            stopped = owned_stop.result()
+        except BaseException:  # noqa: BLE001 - never unwind an unsafe boundary
+            logger.exception(
+                "Safe-stop owner failed before acknowledging durable shutdown; "
+                "replacing it on the process-boundary loop"
+            )
+            continue
+        if stopped is False:
+            logger.critical(
+                "Safe-stop owner retained unsafe runtime authority; retrying "
+                "on the process-boundary loop"
+            )
+            continue
+        return
+
+
 def _task_priority_int(value: Any) -> int | None:
     """Normalize task priority values accepted by tracker-neutral APIs."""
     return normalize_priority_int(value)
@@ -456,14 +523,7 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         yield  # --- app is running ---
     finally:
         # Shutdown: stop all background tasks.
-        stop_future = services.orchestrator.stop_threadsafe()
-        if stop_future is not None:
-            try:
-                await _asyncio.wait_for(_asyncio.wrap_future(stop_future), timeout=5.0)
-            except (_asyncio.TimeoutError, Exception) as exc:
-                logger.warning("Timed out stopping orchestrator thread: %s", exc)
-        else:
-            await services.orchestrator.stop()
+        await _await_fail_closed_orchestrator_stop(services.orchestrator)
         await services.webhook_forwarder.stop()
         await services.gitlab_hook_manager.stop()
         supervise_task.cancel()
@@ -15150,15 +15210,40 @@ async def api_orchestrator_resume():
             cmd_id = _ipc.enqueue_command("unpause")
             return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        orch.unpause()
+        resumed = orch.unpause()
+        if resumed is False:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "paused": bool(getattr(orch, "_paused", True)),
+                    "restart_in_progress": True,
+                    "restart_request_id": getattr(
+                        orch, "_restart_request_id", None
+                    ),
+                    "error": "cannot resume while graceful restart is in progress",
+                },
+                status_code=409,
+            )
         return JSONResponse({"ok": True, "paused": False})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+def _create_restart_drain_task(coroutine, *, name: str) -> asyncio.Task:
+    """Create the restart owner task through an injectable narrow boundary."""
+
+    return asyncio.create_task(coroutine, name=name)
+
+
 @app.post("/api/v1/orchestrator/restart")
 async def api_orchestrator_restart(request: Request):
-    """Graceful restart: drain running agents, then restart the process."""
+    """Claim, start, or cancel one graceful-restart transaction.
+
+    ``claim_only`` installs the durable in-process admission fence used by the
+    canonical CLI cutover before that workflow quiesces or stages anything.
+    A matching ``restart_request_id`` later starts the one drain owner.
+    ``cancel_claim`` is valid only before the drain has been scheduled.
+    """
     try:
         orch = _get_orchestrator()
         body = {}
@@ -15166,6 +15251,27 @@ async def api_orchestrator_restart(request: Request):
             body = await request.json()
         except Exception:
             pass
+        claim_only = body.get("claim_only") is True
+        cancel_claim = body.get("cancel_claim") is True
+        supplied_request_id = body.get("restart_request_id")
+        if supplied_request_id is not None:
+            supplied_request_id = str(supplied_request_id).strip()
+            if not supplied_request_id:
+                return JSONResponse(
+                    {"error": "restart_request_id must be non-empty"},
+                    status_code=400,
+                )
+        if claim_only and cancel_claim:
+            return JSONResponse(
+                {"error": "claim_only and cancel_claim are mutually exclusive"},
+                status_code=400,
+            )
+        if cancel_claim and supplied_request_id is None:
+            return JSONResponse(
+                {"error": "cancel_claim requires restart_request_id"},
+                status_code=400,
+            )
+
         raw_timeout = body.get(
             "drain_timeout_s", orch.config.restart_drain_timeout_seconds
         )
@@ -15176,36 +15282,266 @@ async def api_orchestrator_restart(request: Request):
                 {"error": "drain_timeout_s must be a non-negative number"},
                 status_code=400,
             )
-        running_count = len(orch.state.running)
-        if getattr(orch, "_restart_in_progress", False):
+        request_id = supplied_request_id or str(uuid.uuid4())
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            running_count = len(orch.state.running)
+            in_progress = bool(getattr(orch, "_restart_in_progress", False))
+            existing_request_id = getattr(orch, "_restart_request_id", None)
+            # Task creation is part of the restart admission transaction.
+            # Preserve the exact prior claim so a failed scheduler call can
+            # restore either an unclaimed state or the still-cancellable
+            # matching preclaim that existed before this request.
+            restart_snapshot = {
+                "in_progress": in_progress,
+                "request_id": existing_request_id,
+                "requested_at": getattr(orch, "_restart_requested_at", None),
+                "initial_running": getattr(orch, "_restart_initial_running", 0),
+                "drain_scheduled": bool(
+                    getattr(orch, "_restart_drain_scheduled", False)
+                ),
+                "drain_started": bool(
+                    getattr(orch, "_restart_drain_started", False)
+                ),
+                "drain_task": getattr(orch, "_restart_drain_task", None),
+                "drain_owner": getattr(orch, "_restart_drain_owner", None),
+                "admission_generation": getattr(
+                    orch, "_provider_admission_generation", 0
+                ),
+                "paused": bool(getattr(orch, "_paused", False)),
+                "quiesced": bool(getattr(orch, "_quiesced", False)),
+                "stopping": bool(getattr(orch, "_stopping", False)),
+                "restart_requested": bool(
+                    getattr(orch, "_restart_requested", False)
+                ),
+            }
+            rollback_admission_generation: int | None = None
+
+            def _restore_restart_snapshot() -> None:
+                # ``graceful_restart`` can fail because its durable restart
+                # journal could not be written.  That failure deliberately
+                # installs a fail-closed admission fence before it escapes to
+                # this task callback.  Roll back the transient API claim, but
+                # never roll back that newer safety state to the unquiesced
+                # snapshot captured before the request.
+                persistence_failed = bool(
+                    getattr(orch, "_restart_persistence_failed", False)
+                )
+                current_generation = getattr(
+                    orch, "_provider_admission_generation", 0
+                )
+                lifecycle_cas_matches = (
+                    rollback_admission_generation is not None
+                    and current_generation == rollback_admission_generation
+                )
+                orch._restart_in_progress = restart_snapshot["in_progress"]
+                orch._restart_request_id = restart_snapshot["request_id"]
+                orch._restart_requested_at = restart_snapshot["requested_at"]
+                orch._restart_initial_running = restart_snapshot["initial_running"]
+                orch._restart_drain_scheduled = restart_snapshot["drain_scheduled"]
+                orch._restart_drain_started = restart_snapshot["drain_started"]
+                orch._restart_drain_task = restart_snapshot["drain_task"]
+                orch._restart_drain_owner = restart_snapshot["drain_owner"]
+                # A completed drain owns only the generation published by this
+                # API transaction. Any later pause/quiesce/stop mutation wins
+                # the CAS and its lifecycle state must remain untouched.
+                if lifecycle_cas_matches:
+                    orch._provider_admission_generation = restart_snapshot[
+                        "admission_generation"
+                    ]
+                    orch._paused = restart_snapshot["paused"]
+                    orch._quiesced = restart_snapshot["quiesced"]
+                    orch._stopping = restart_snapshot["stopping"]
+                    orch._restart_requested = restart_snapshot[
+                        "restart_requested"
+                    ]
+                if persistence_failed:
+                    if not orch._quiesced:
+                        orch._quiesced = True
+                        orch._provider_admission_generation = max(
+                            restart_snapshot["admission_generation"],
+                            current_generation,
+                            rollback_admission_generation or 0,
+                        ) + 1
+
+            if cancel_claim:
+                if not in_progress:
+                    return JSONResponse(
+                        {
+                            "ok": True,
+                            # Cancellation is idempotent: the requested claim
+                            # is definitively absent, including when the
+                            # original claim request never reached the server.
+                            "cancelled": True,
+                            "restart_request_id": supplied_request_id,
+                        }
+                    )
+                if existing_request_id != supplied_request_id:
+                    return JSONResponse(
+                        {
+                            "error": "restart_request_id does not own the active claim",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                if bool(getattr(orch, "_restart_drain_scheduled", False)) or bool(
+                    getattr(orch, "_restart_drain_started", False)
+                ):
+                    return JSONResponse(
+                        {
+                            "error": "restart drain has already started",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                orch._restart_in_progress = False
+                orch._restart_request_id = None
+                orch._restart_requested_at = None
+                orch._restart_initial_running = 0
+                orch._restart_drain_scheduled = False
+                orch._restart_drain_started = False
+                orch._restart_drain_task = None
+                orch._restart_drain_owner = None
+                orch._provider_admission_generation = (
+                    getattr(orch, "_provider_admission_generation", 0) + 1
+                )
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "cancelled": True,
+                        "restart_request_id": supplied_request_id,
+                    }
+                )
+
+            if in_progress:
+                if supplied_request_id is not None and (
+                    supplied_request_id != existing_request_id
+                ):
+                    return JSONResponse(
+                        {
+                            "error": "restart_request_id does not own the active claim",
+                            "restart_request_id": existing_request_id,
+                        },
+                        status_code=409,
+                    )
+                coalesced = True
+                schedule_drain = bool(
+                    not claim_only
+                    and supplied_request_id == existing_request_id
+                    and not getattr(orch, "_restart_drain_scheduled", False)
+                    and not getattr(orch, "_restart_drain_started", False)
+                    and getattr(orch, "_restart_drain_task", None) is None
+                )
+                if schedule_drain:
+                    orch._restart_drain_scheduled = True
+            else:
+                orch._restart_in_progress = True
+                orch._restart_drain_started = False
+                orch._restart_drain_scheduled = not claim_only
+                orch._restart_request_id = request_id
+                orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
+                orch._restart_initial_running = running_count
+                orch._provider_admission_generation = (
+                    getattr(orch, "_provider_admission_generation", 0) + 1
+                )
+                existing_request_id = request_id
+                coalesced = False
+                schedule_drain = not claim_only
+
+            if schedule_drain:
+                rollback_admission_generation = getattr(
+                    orch,
+                    "_provider_admission_generation",
+                    0,
+                )
+                publication_gate = asyncio.Event()
+
+                async def _run_published_restart() -> None:
+                    await publication_gate.wait()
+                    await orch.graceful_restart(
+                        drain_timeout_s=drain_timeout,
+                        request_id=existing_request_id,
+                    )
+
+                drain_coroutine = _run_published_restart()
+                try:
+                    drain_task = _create_restart_drain_task(
+                        drain_coroutine,
+                        name=f"graceful-restart-{existing_request_id}",
+                    )
+                except BaseException:
+                    # ``create_task`` leaves ownership with the caller when it
+                    # raises.  Close the coroutine and restore the precise
+                    # state observed before this request; a preclaim therefore
+                    # remains cancellable and a new claim disappears entirely.
+                    drain_coroutine.close()
+                    _restore_restart_snapshot()
+                    raise
+                orch._restart_drain_task = drain_task
+                orch._restart_drain_owner = existing_request_id
+
+                def _clear_drain_task(completed: asyncio.Task) -> None:
+                    failed = completed.cancelled()
+                    if not failed:
+                        try:
+                            failed = completed.exception() is not None
+                        except BaseException:
+                            failed = True
+                    with admission_lock or contextlib.nullcontext():
+                        if getattr(orch, "_restart_drain_task", None) is completed:
+                            if failed:
+                                _restore_restart_snapshot()
+                            else:
+                                orch._restart_drain_task = None
+                    if failed:
+                        save_paused = getattr(orch, "_save_paused_state", None)
+                        if callable(save_paused):
+                            save_paused()
+                        notify = getattr(orch, "_notify_observers", None)
+                        if callable(notify):
+                            notify()
+
+                drain_task.add_done_callback(_clear_drain_task)
+                publication_gate.set()
+
+        if claim_only:
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "claimed": True,
+                    "coalesced": coalesced,
+                    "restart_request_id": existing_request_id,
+                    "draining": running_count,
+                    "drain_timeout_s": drain_timeout,
+                },
+                status_code=202 if coalesced else 200,
+            )
+        if coalesced:
+            if schedule_drain:
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "coalesced": False,
+                        "restart_request_id": existing_request_id,
+                        "draining": running_count,
+                        "drain_timeout_s": drain_timeout,
+                    }
+                )
             return JSONResponse(
                 {
                     "ok": True,
                     "coalesced": True,
-                    "restart_request_id": orch._restart_request_id,
+                    "restart_request_id": existing_request_id,
                     "draining": len(orch.state.running),
                     "drain_timeout_s": drain_timeout,
                 },
                 status_code=202,
             )
-        request_id = str(uuid.uuid4())
-        # Claim synchronously so back-to-back HTTP requests cannot start two
-        # drain loops before the first task receives event-loop time.
-        orch._restart_in_progress = True
-        orch._restart_request_id = request_id
-        orch._restart_requested_at = datetime.now(timezone.utc).isoformat()
-        orch._restart_initial_running = running_count
-        asyncio.create_task(
-            orch.graceful_restart(
-                drain_timeout_s=drain_timeout,
-                request_id=request_id,
-            )
-        )
         return JSONResponse(
             {
                 "ok": True,
                 "coalesced": False,
-                "restart_request_id": request_id,
+                "restart_request_id": existing_request_id,
                 "draining": running_count,
                 "drain_timeout_s": drain_timeout,
             }
@@ -17355,7 +17691,13 @@ async def api_update_project(project_id: str, request: Request):
             fields["status_actor_login"] = _resolve_github_token_owner(
                 fields["access_token"]
             )
-        project = orch.project_store.update(project_id, **fields)
+        admission_lock = (
+            getattr(orch, "_provider_admission_lock", None)
+            if "paused" in fields
+            else None
+        )
+        with admission_lock or contextlib.nullcontext():
+            project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
                 {
@@ -17427,7 +17769,9 @@ async def api_project_pause(project_id: str):
     """
     try:
         orch = _get_orchestrator()
-        project = orch.project_store.update(project_id, paused=True)
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            project = orch.project_store.update(project_id, paused=True)
         if not project:
             return JSONResponse(
                 {
@@ -17454,7 +17798,9 @@ async def api_project_resume(project_id: str):
     """Resume dispatch for a single project (clear the per-project pause)."""
     try:
         orch = _get_orchestrator()
-        project = orch.project_store.update(project_id, paused=False)
+        admission_lock = getattr(orch, "_provider_admission_lock", None)
+        with admission_lock or contextlib.nullcontext():
+            project = orch.project_store.update(project_id, paused=False)
         if not project:
             return JSONResponse(
                 {

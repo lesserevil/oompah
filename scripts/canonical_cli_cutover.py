@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -606,12 +607,43 @@ def graceful_cutover(
     was_paused = bool(old_state.get("paused"))
     quiesced_by_cutover = False
     restart_attempted = False
+    restart_claim_id: str | None = None
     staged: StagedCLI | None = None
     activation: Activation | None = None
     try:
+        # Claim the server-side restart fence before quiescing.  This closes
+        # the canonical make-restart gap in which a delayed resume or IPC
+        # command could otherwise reopen dispatch after the drain appeared
+        # complete but before the restart endpoint was finally called.
+        restart_claim_id = str(uuid.uuid4())
+        claim = request(
+            "POST",
+            "/api/v1/orchestrator/restart",
+            {
+                "claim_only": True,
+                "restart_request_id": restart_claim_id,
+            },
+        )
+        if isinstance(claim, dict) and claim.get("coalesced") is True:
+            # The response proves our identity did not acquire the fence; do
+            # not attempt to cancel the transaction owned by another caller.
+            restart_claim_id = None
+            raise CutoverError(
+                "another graceful restart already owns the server admission fence"
+            )
+        if not isinstance(claim, dict):
+            raise CutoverError("restart claim returned a malformed response")
+        claimed_id = claim.get("restart_request_id")
+        if not isinstance(claimed_id, str) or not claimed_id.strip():
+            raise CutoverError("restart claim did not return an ownership identity")
+        if claimed_id.strip() != restart_claim_id:
+            raise CutoverError("restart claim returned a different ownership identity")
+
         if not was_paused:
-            request("POST", "/api/v1/orchestrator/quiesce", {})
+            # Mark intent before the request so a dropped response after the
+            # server accepted quiesce is still repaired by the exception path.
             quiesced_by_cutover = True
+            request("POST", "/api/v1/orchestrator/quiesce", {})
         if not force:
             drain_gate = "paused" if was_paused else "quiesced"
             try:
@@ -665,9 +697,33 @@ def graceful_cutover(
         restart_attempted = True
         restart_error: Exception | None = None
         try:
-            request("POST", "/api/v1/orchestrator/restart", {"drain_timeout_s": 0})
+            request(
+                "POST",
+                "/api/v1/orchestrator/restart",
+                {
+                    "drain_timeout_s": 0,
+                    "restart_request_id": restart_claim_id,
+                },
+            )
         except Exception as exc:  # noqa: BLE001 - acceptance may be unknowable
             restart_error = exc
+            # A transport failure before the final request reached the server
+            # leaves only our unscheduled preclaim.  Cancelling that exact
+            # identity is safe; rejection means the drain may have started and
+            # the normal identity-resolution/quarantine path remains required.
+            try:
+                cancelled = request(
+                    "POST",
+                    "/api/v1/orchestrator/restart",
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": restart_claim_id,
+                    },
+                )
+                if isinstance(cancelled, dict) and cancelled.get("cancelled") is True:
+                    restart_claim_id = None
+            except Exception:
+                pass
 
         resolution, observation = _wait_for_cutover_resolution(
             request,
@@ -685,6 +741,7 @@ def graceful_cutover(
             activation.commit()
             activation = None
             restart_attempted = False
+            restart_claim_id = None
             if not was_paused:
                 # Candidate health and state have already proved the new
                 # instance/revision pair.  Resume is a post-exec control-plane
@@ -713,6 +770,7 @@ def graceful_cutover(
             activation.rollback()
             activation = None
             restart_attempted = False
+            restart_claim_id = None
             if quiesced_by_cutover:
                 request("POST", "/api/v1/orchestrator/resume", {})
                 quiesced_by_cutover = False
@@ -767,6 +825,29 @@ def graceful_cutover(
 
         if activation is not None:
             activation.rollback()
+        if restart_claim_id is not None:
+            try:
+                cancelled = request(
+                    "POST",
+                    "/api/v1/orchestrator/restart",
+                    {
+                        "cancel_claim": True,
+                        "restart_request_id": restart_claim_id,
+                    },
+                )
+                if not (
+                    isinstance(cancelled, dict)
+                    and cancelled.get("cancelled") is True
+                ):
+                    raise CutoverError(
+                        "the pre-restart admission fence could not be cancelled"
+                    )
+                restart_claim_id = None
+            except Exception as cancel_exc:
+                raise CutoverError(
+                    f"{exc}; additionally could not cancel restart claim: "
+                    f"{cancel_exc}"
+                ) from exc
         if quiesced_by_cutover:
             try:
                 request("POST", "/api/v1/orchestrator/resume", {})

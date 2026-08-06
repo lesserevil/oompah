@@ -16,6 +16,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
@@ -412,6 +413,85 @@ class TestUnpausePostsEvent:
         orch.unpause()
         assert orch._refresh_requested.is_set()
 
+    def test_cross_loop_resume_waits_for_failed_task_publication(
+        self, tmp_path, event_loop
+    ):
+        """Resume cannot report success before its recovery owner exists."""
+
+        orch = _make_orchestrator(tmp_path)
+        entry = {
+            "issue_id": "TASK-cross-loop",
+            "identifier": "TASK-cross-loop",
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[entry])
+        orch._paused = True
+        orch._quiesced = True
+        owner_loop = MagicMock()
+        owner_loop.is_running.return_value = True
+        owner_loop.create_task.side_effect = RuntimeError("event loop is closing")
+        orch._dispatch_loop = owner_loop
+
+        callback_enqueued = threading.Event()
+        release_callback = threading.Event()
+        callback_threads = []
+
+        def _enqueue(callback):
+            def _delayed_callback():
+                assert release_callback.wait(timeout=3)
+                callback()
+
+            callback_thread = threading.Thread(target=_delayed_callback)
+            callback_threads.append(callback_thread)
+            callback_thread.start()
+            callback_enqueued.set()
+
+        owner_loop.call_soon_threadsafe.side_effect = _enqueue
+        results = []
+        resume_thread = threading.Thread(
+            target=lambda: results.append(orch.unpause())
+        )
+        resume_thread.start()
+
+        assert callback_enqueued.wait(timeout=1)
+        assert resume_thread.is_alive()
+        assert results == []
+
+        release_callback.set()
+        resume_thread.join(timeout=3)
+        callback_threads[0].join(timeout=3)
+
+        assert not resume_thread.is_alive()
+        assert results == [False]
+        assert orch._restart_recovery_task is None
+        assert orch._restart_issue_snapshot() == [entry]
+        assert orch._quiesced is True
+
+    def test_cross_loop_resume_fails_closed_when_loop_rejects_callback(
+        self, tmp_path, event_loop
+    ):
+        """A closing owner loop retains both the durable row and the fence."""
+
+        orch = _make_orchestrator(tmp_path)
+        entry = {
+            "issue_id": "TASK-closed-loop",
+            "identifier": "TASK-closed-loop",
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[entry])
+        orch._paused = True
+        orch._quiesced = True
+        owner_loop = MagicMock()
+        owner_loop.is_running.return_value = True
+        owner_loop.call_soon_threadsafe.side_effect = RuntimeError("loop closed")
+        orch._dispatch_loop = owner_loop
+
+        assert orch.unpause() is False
+
+        assert orch._restart_recovery_task is None
+        assert orch._restart_issue_snapshot() == [entry]
+        assert orch._quiesced is True
+
 
 # ---------------------------------------------------------------------------
 # Worker exit posts an event
@@ -691,6 +771,77 @@ class TestRunEventDrivenLoop:
         event_loop.run_until_complete(_run_and_stop())
         # At minimum the startup tick should have been called
         assert orch._tick.call_count >= 1
+
+    def test_startup_tracker_outage_keeps_dispatch_fenced_until_recovery(
+        self, tmp_path, event_loop
+    ):
+        """A retained restart row owns retry and blocks the first dispatch."""
+
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(
+            tmp_path,
+            config=_make_config(
+                poll_interval_ms=10,
+                full_sync_interval_ms=600000,
+            ),
+        )
+        entry = {
+            "issue_id": "TASK-startup-outage",
+            "identifier": "TASK-startup-outage",
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[entry])
+        tracker_state = {"value": "In Progress"}
+        fetch_count = 0
+        tracker = MagicMock()
+
+        def _fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            if fetch_count == 1:
+                raise RuntimeError("tracker unavailable during startup")
+            return [
+                Issue(
+                    id=entry["issue_id"],
+                    identifier=entry["identifier"],
+                    title="Interrupted implementation",
+                    state=tracker_state["value"],
+                    project_id=entry["project_id"],
+                )
+            ]
+
+        tracker.fetch_issue_states_by_ids.side_effect = _fetch
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(value=status)
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._run_terminal_audit_enforcement = MagicMock()
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch.startup_cleanup = AsyncMock()
+        orch._reconcile_pending_recovery_publications = MagicMock()
+        initial_tick_fences = []
+
+        async def _tick():
+            initial_tick_fences.append(orch._quiesced)
+            while orch._quiesced:
+                await asyncio.sleep(0.001)
+            orch._stopping = True
+
+        orch._tick = AsyncMock(side_effect=_tick)
+
+        event_loop.run_until_complete(
+            asyncio.wait_for(orch.run(), timeout=3.0)
+        )
+
+        assert initial_tick_fences == [True]
+        assert fetch_count >= 2
+        tracker.update_issue.assert_called_once_with(
+            entry["identifier"], status="Open"
+        )
+        assert tracker_state["value"] == "Open"
+        assert orch._restart_issue_snapshot() == []
+        assert orch._quiesced is False
 
     def test_run_calls_tick_for_queued_events(self, tmp_path, event_loop):
         """run() calls _tick() for queued events.
@@ -1027,6 +1178,109 @@ class TestDrainBackgroundWork:
             cancel_futures=False,
         )
 
+    def test_stop_awaits_foreign_restart_recovery_before_retry_mutation(
+        self,
+        tmp_path,
+        event_loop,
+    ):
+        """Shutdown cancels a sleeping recovery on its owner loop."""
+
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(
+            tmp_path,
+            config=_make_config(poll_interval_ms=1000),
+        )
+        self._mock_pools(orch)
+        entry = {
+            "issue_id": "TASK-stop-recovery",
+            "identifier": "TASK-stop-recovery",
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[entry])
+        orch._quiesced = True
+        tracker = MagicMock()
+        fetch_count = 0
+
+        def _fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            if fetch_count == 1:
+                raise RuntimeError("tracker temporarily unavailable")
+            return [
+                Issue(
+                    id=entry["issue_id"],
+                    identifier=entry["identifier"],
+                    title="Interrupted implementation",
+                    state="In Progress",
+                    project_id=entry["project_id"],
+                )
+            ]
+
+        tracker.fetch_issue_states_by_ids.side_effect = _fetch
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._activate_unpaused_dispatch = MagicMock()
+        retry_sleep_started = threading.Event()
+        original_sleep = asyncio.sleep
+
+        async def _blocked_retry_sleep(_delay):
+            retry_sleep_started.set()
+            await original_sleep(60)
+
+        owner_loop = asyncio.new_event_loop()
+        owner_loop_started = threading.Event()
+
+        def _run_owner_loop():
+            asyncio.set_event_loop(owner_loop)
+            owner_loop_started.set()
+            try:
+                owner_loop.run_forever()
+            finally:
+                owner_loop.close()
+
+        owner_thread = threading.Thread(target=_run_owner_loop)
+        owner_thread.start()
+        assert owner_loop_started.wait(timeout=1)
+
+        async def _publish_recovery():
+            task = asyncio.create_task(
+                orch._recover_restart_issues_for_resume(),
+                name="foreign-restart-recovery",
+            )
+            orch._restart_recovery_task = task
+            return task
+
+        foreign_task = None
+        try:
+            with patch(
+                "oompah.orchestrator.asyncio.sleep",
+                new=_blocked_retry_sleep,
+            ):
+                publication = asyncio.run_coroutine_threadsafe(
+                    _publish_recovery(),
+                    owner_loop,
+                )
+                foreign_task = publication.result(timeout=3)
+                assert retry_sleep_started.wait(timeout=3)
+                with orch._provider_admission_lock:
+                    orch._stopping = True
+                    orch._provider_admission_generation += 1
+                event_loop.run_until_complete(orch._drain_background_work())
+        finally:
+            if owner_loop.is_running():
+                owner_loop.call_soon_threadsafe(owner_loop.stop)
+            owner_thread.join(timeout=3)
+
+        assert not owner_thread.is_alive()
+        assert foreign_task is not None
+        assert foreign_task.cancelled()
+        assert orch._restart_recovery_task is None
+        assert fetch_count == 1
+        tracker.update_issue.assert_not_called()
+        assert orch._restart_issue_snapshot() == [entry]
+        assert orch._quiesced is True
+        orch._activate_unpaused_dispatch.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Dispatch queue: orchestrator has a queue attribute
@@ -1193,6 +1447,106 @@ class TestGracefulRestartShutdownEvent:
         )
         assert restart_issues[0]["issue_id"] == issue_id
 
+    def test_graceful_restart_refuses_replacement_when_state_save_fails(
+        self, tmp_path, event_loop
+    ):
+        """A restart cannot cross the process boundary without durable state."""
+
+        orch = _make_orchestrator(tmp_path)
+        with patch.object(orch, "_save_state", return_value=False):
+            with pytest.raises(OSError, match="not durably persisted"):
+                event_loop.run_until_complete(
+                    orch.graceful_restart(drain_timeout_s=0)
+                )
+
+        assert orch.wants_restart is False
+        assert orch._stopping is False
+        assert orch._restart_in_progress is False
+        assert orch._quiesced is True
+
+    def test_failed_cutover_unpause_recovers_setup_only_ordinary_worker(
+        self, tmp_path, event_loop
+    ):
+        """The old server owns and reopens work fenced before provider start."""
+
+        from datetime import datetime, timezone
+        from oompah.models import Issue, RunningEntry
+
+        orch = _make_orchestrator(tmp_path)
+        issue = Issue(
+            id="setup-only",
+            identifier="TASK-setup-only",
+            title="Interrupted ordinary setup",
+            state="In Progress",
+            project_id="proj-test",
+        )
+        worker_task = MagicMock()
+        worker_task.done.return_value = False
+        entry = RunningEntry(
+            worker_task=worker_task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            run_id="ordinary-setup-run",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.claimed.add(issue.id)
+        orch.state.claimed_issues[issue.id] = issue
+        tracker_state = {"state": "In Progress"}
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.side_effect = lambda _ids: [
+            Issue(
+                id=issue.id,
+                identifier=issue.identifier,
+                title=issue.title,
+                state=tracker_state["state"],
+                project_id=issue.project_id,
+            )
+        ]
+        tracker.update_issue.side_effect = (
+            lambda _identifier, *, status: tracker_state.update(state=status)
+        )
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        orch.quiesce()
+        assert orch._provider_launch_blocked(issue, entry.run_id) is True
+        assert entry.is_auditor is False
+        assert entry.provider_started is False
+        assert orch._restart_issue_snapshot()[0]["issue_id"] == issue.id
+        real_save_state = orch._save_state
+
+        def fail_cutover_stage(**updates):
+            if "paused" in updates and "restart_issues" in updates:
+                return False
+            return real_save_state(**updates)
+
+        with patch.object(
+            orch,
+            "_save_state",
+            side_effect=fail_cutover_stage,
+        ):
+            with pytest.raises(OSError, match="not durably persisted"):
+                event_loop.run_until_complete(
+                    orch.graceful_restart(drain_timeout_s=0)
+                )
+
+        async def _resume_and_wait():
+            assert orch.unpause() is True
+            recovery_owner = orch._restart_recovery_task
+            assert recovery_owner is not None
+            assert orch._quiesced is True
+            await recovery_owner
+
+        event_loop.run_until_complete(_resume_and_wait())
+
+        assert tracker_state["state"] == "Open"
+        assert orch._restart_issue_snapshot() == []
+        assert orch._quiesced is False
+        assert orch.wants_restart is False
+        assert entry.authority_revoked is True
+
     def test_restart_recovery_reopens_only_interrupted_implementation(
         self, tmp_path, event_loop
     ):
@@ -1311,6 +1665,94 @@ class TestGracefulRestartShutdownEvent:
 
         tracker.update_issue.assert_not_called()
         assert orch._load_state().get("restart_issues") == []
+
+    def test_restart_recovery_cancellation_keeps_unprocessed_suffix(
+        self, tmp_path, event_loop
+    ):
+        """Each successful row is acked without pre-clearing later rows."""
+
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        entries = [
+            {
+                "issue_id": f"TASK-{number}",
+                "identifier": f"TASK-{number}",
+                "project_id": "proj-test",
+            }
+            for number in (1, 2)
+        ]
+        orch._save_state(restart_issues=entries)
+        second_refresh_started = threading.Event()
+        release_second_refresh = threading.Event()
+        tracker = MagicMock()
+
+        def fetch(issue_ids):
+            issue_id = issue_ids[0]
+            if issue_id == "TASK-2":
+                second_refresh_started.set()
+                assert release_second_refresh.wait(timeout=3)
+            return [
+                Issue(
+                    id=issue_id,
+                    identifier=issue_id,
+                    title="Interrupted implementation",
+                    state="In Progress",
+                    project_id="proj-test",
+                )
+            ]
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        async def cancel_during_second_row():
+            recovery = asyncio.create_task(orch._recover_restart_issues())
+            await asyncio.to_thread(second_refresh_started.wait)
+            recovery.cancel()
+            release_second_refresh.set()
+            with pytest.raises(asyncio.CancelledError):
+                await recovery
+
+        event_loop.run_until_complete(cancel_during_second_row())
+
+        tracker.update_issue.assert_called_once_with("TASK-1", status="Open")
+        assert orch._restart_issue_snapshot() == [entries[1]]
+
+    def test_restart_recovery_ack_failure_retains_row_and_quiesces(
+        self, tmp_path, event_loop
+    ):
+        """A successful tracker repair is replayable until its ack commits."""
+
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        entry = {
+            "issue_id": "TASK-ack",
+            "identifier": "TASK-ack",
+            "project_id": "proj-test",
+        }
+        orch._save_state(restart_issues=[entry])
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id="TASK-ack",
+                identifier="TASK-ack",
+                title="Already recovered implementation",
+                state="Open",
+                project_id="proj-test",
+            )
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        with patch.object(orch, "_save_state", return_value=False):
+            recovered = event_loop.run_until_complete(
+                orch._recover_restart_issues()
+            )
+
+        assert recovered is False
+        assert orch._restart_issue_snapshot() == [entry]
+        assert orch._restart_persistence_failed is True
+        assert orch._quiesced is True
 
     def test_running_agents_that_complete_during_drain_are_not_requeued(
         self, tmp_path, event_loop
