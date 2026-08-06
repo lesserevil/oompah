@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T02:25:05.953819Z'
+updated_at: '2026-08-06T02:26:13.103617Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -57,14 +57,13 @@ oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
   state: ready
-  attempts: 1
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
-  head_sha: d0447990c5ff045015a33c41dc1efa3b61a4c866
-  submitted_at: '2026-08-06T02:15:25.972867+00:00'
-  updated_at: '2026-08-06T02:25:03.854355+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  head_sha: c402ffe9b648ae1999274af49717fd738680e5df
+  submitted_at: '2026-08-06T02:26:06.086782+00:00'
+  updated_at: '2026-08-06T02:26:06.086782+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -481,5 +480,15 @@ author: oompah
 created: 2026-08-06 02:24
 ---
 Independent review of d0447990c found the repo-heal test still exercised unrelated full-corpus release-addendum lease recovery inside _tick; increasing only its timeout would mask that test coupling. Cancelling the active exact gate before landing d044, then isolating the asserted maintenance-failure path with the same _recover_release_addendum_leases stub used by sibling tick tests. The candidate-fetch timeout remains a bounded cold-construction allowance.
+---
+author: oompah
+created: 2026-08-06 02:26
+---
+Independent review blocker resolved at exact head c402ffe9b648ae1999274af49717fd738680e5df: test_heal_failure_does_not_raise_from_tick now stubs unrelated full-corpus _recover_release_addendum_leases work, matching sibling tick-test isolation, while retaining a bounded 20-second cold-construction/future allowance. Reverification: 20 concurrent isolated runs passed (40 assertions) and both affected modules pass 320/320. Diff clean; pushed and resubmitting.
+---
+author: oompah
+created: 2026-08-06 02:26
+---
+Isolated the repo-heal failure assertion from unrelated full-corpus release-addendum recovery; 20 concurrent runs and 320 affected-module tests pass.
 ---
 <!-- COMMENTS:END -->
