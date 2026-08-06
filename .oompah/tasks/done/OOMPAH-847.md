@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-847
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Isolate dispatch-lock and epic-review unit tests from unrelated loaded-gate
   work
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T16:37:19.440003Z'
+updated_at: '2026-08-06T17:01:00.157176Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -84,6 +84,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T04:18:26.074882+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-e8d22fc3ce3a: '2026-08-06T17:00:56.766069+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-847
+    target_state: Done
+    evidence_fingerprint: 4513d1c6ef783deacf6839950e57125d58674e6399d5b8ceea9a0b48970f785f
+    audit_ids:
+    - audit-cedf0c7c11b7
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T17:00:56.766081+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-847
+    audit_id: audit-cedf0c7c11b7
+    attempt_id: attempt-e8d22fc3ce3a
+    target_state: Done
+    evidence_fingerprint: 4513d1c6ef783deacf6839950e57125d58674e6399d5b8ceea9a0b48970f785f
+    status: Done
+    audit_ids:
+    - audit-cedf0c7c11b7
+    applied: false
+    created_at: '2026-08-06T17:00:56.766098+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -91,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-847
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +124,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e8d22fc3ce3a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -110,13 +134,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T16:37:05.931002+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-847
+      verdict: pass
+      completed_at: '2026-08-06T17:00:56.765853+00:00'
+      ended_at: '2026-08-06T17:00:56.765853+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T16:36:24.622491+00:00'
-    updated_at: '2026-08-06T16:37:05.931002+00:00'
+    updated_at: '2026-08-06T17:00:56.765853+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e8d22fc3ce3a
