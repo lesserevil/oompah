@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T18:14:58.614493Z'
+updated_at: '2026-08-06T18:22:59.749899Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -22,22 +22,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 1adcfa5d277fcb50a57de91e98d6e3b03c5c589b5269106064b265e244db4997
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T18:22:55.936438+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862, OOMPAH-863.'
+  evidence: Project-owner review of the authoritative corpus found no duplicate. OOMPAH-864
+    is the distinct owner-resolution rearm bug reproduced by OOMPAH-863/OOMPAH-855;
+    its exact transaction, generation fencing, restart recovery, and worktree preservation
+    scope is not covered by the cited peers.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T18:14:41.838453+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T18:22:55.936438+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Project-owner review of the authoritative corpus found
+    no duplicate. OOMPAH-864 is the distinct owner-resolution rearm bug reproduced
+    by OOMPAH-863/OOMPAH-855; its exact transaction, generation fencing, restart recovery,
+    and worktree preservation scope is not covered by the cited peers.
 oompah.agent_run_id: f04326f4-28e6-4257-80aa-02f798222dde
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
