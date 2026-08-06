@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:36:25.622002Z'
+updated_at: '2026-08-06T04:37:01.697417Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -122,9 +122,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-826
+  base_branch: main
   head_sha: 4d05dd5a580ad667d7ae3871bdba83d9b78a7404
-  submitted_at: '2026-08-06T00:19:19.101140+00:00'
-  updated_at: '2026-08-06T00:19:19.101140+00:00'
+  submitted_at: '2026-08-06T04:36:54.498107+00:00'
+  updated_at: '2026-08-06T04:36:54.498107+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/729
 oompah.review_number: '729'
 oompah.work_branch: OOMPAH-826
@@ -606,5 +607,10 @@ author: oompah
 created: 2026-08-06 04:36
 ---
 Understanding: The task was reopened by the stalled-task watchdog after Merged→Needs Human audit exhaustion (independent auditor candidates unavailable). PR #729 was already merged into main (merge commit e12ee5edd) with the OOMPAH-826 implementation (4d05dd5a5). Local branch HEAD matches (4d05dd5a5). \`git log main..HEAD\` shows 0 commits ahead of main — the code is fully delivered. There is no failing CI here to fix; this is a bookkeeping situation. Plan: verify tree/state, then resubmit so oompah routes it back to terminal audit rather than treating the reopen as pending implementation work.
+---
+author: oompah
+created: 2026-08-06 04:37
+---
+Work already delivered and merged as PR #729 (merge commit e12ee5edd) containing implementation commit 4d05dd5a5. Existing open review adoption is now exact-head gated across webhook, standalone recovery, merge reconciliation, and cached/live integration handoff. Task was reopened by watchdog after audit-candidate exhaustion in Merged state; resubmitting so oompah routes it back to terminal audit rather than requesting new implementation work.
 ---
 <!-- COMMENTS:END -->
