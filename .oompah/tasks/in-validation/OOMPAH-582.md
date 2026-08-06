@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-08-06T17:32:37.078441Z'
+updated_at: '2026-08-06T17:35:48.658084Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -213,18 +213,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-582
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-339ecd6514f7
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+      created_at: '2026-08-06T17:35:38.742660+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-06T17:35:38.742660+00:00'
+      branch_key: OOMPAH-582
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T04:54:55.183299+00:00'
+    updated_at: '2026-08-06T17:35:38.742660+00:00'
   - version: 1
     audit_id: audit-c9362f973f19
     project_id: proj-14849f1b
@@ -259,6 +273,19 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T04:55:41.394020+00:00'
     failure_reason: 'unknown url type: ''/chat/completions'''
     next_retry_at: '2026-07-30T04:55:51.393988+00:00'
+  - version: 1
+    attempt_id: attempt-339ecd6514f7
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    created_at: '2026-08-06T17:35:38.742660+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-06T17:35:38.742660+00:00'
+    branch_key: OOMPAH-582
 ---
 ## Summary
 
@@ -435,5 +462,15 @@ author: oompah
 created: 2026-07-30 17:14
 ---
 Re-evaluated against current git ancestry. Commit bbd48ada7 is already on main, so the landed task is marked Merged by project-owner override.
+---
+author: oompah
+created: 2026-08-06 17:35
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-06 17:35
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
