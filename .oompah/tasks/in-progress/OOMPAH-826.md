@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:34:34.733227Z'
+updated_at: '2026-08-06T04:35:10.433382Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 5ccc92ec-5153-462f-b696-ecb94825a749
 oompah.task_costs:
   total_input_tokens: 302
   total_output_tokens: 10733
@@ -591,5 +591,15 @@ created: 2026-08-06 04:34
 **Evidence result:** `merged`
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-06 04:35
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 04:35
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
