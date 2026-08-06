@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:48:19.267537Z'
+updated_at: '2026-08-06T17:48:56.016698Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-06 17:48
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 17:48
+---
+Understanding: resume the preserved implementation, trace the free-tier dispatch/snapshot path, and ensure the focused tests exercise the exact counter projection without constructing or invoking unrelated storage, terminal-audit, maintenance, SCM, or corpus collectors. I will audit the existing diff, retain production semantics, run repeated serial and four-worker checks plus the complete budget module, then commit, push, and submit the exact verified head.
 ---
 <!-- COMMENTS:END -->
