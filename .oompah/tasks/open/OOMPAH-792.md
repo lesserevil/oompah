@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-04T21:31:04.976351Z'
+updated_at: '2026-08-06T16:08:30.507744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,3 +37,11 @@ Use the shared incident corpus to build full-stack scenarios spanning fact colle
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 16:08
+---
+All seven hard-start prerequisites are terminal and the live dependency audit found no remaining start blocker. Promoted to Open so the managed server can implement the historical full-stack scenario suite in parallel with operator-owned repair integration.
+---
+<!-- COMMENTS:END -->
