@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T09:33:28.378921Z'
+updated_at: '2026-08-06T09:38:18.592279Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -70,16 +70,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d4dc44e7-66e6-448e-92bc-650c72b410b5
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-835
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-835
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
-  updated_at: '2026-08-06T00:05:29.240933+00:00'
+  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  submitted_at: '2026-08-06T09:38:09.263995+00:00'
+  updated_at: '2026-08-06T09:38:09.263995+00:00'
 oompah.task_costs:
   total_input_tokens: 1672
   total_output_tokens: 2227
@@ -189,5 +191,10 @@ author: oompah
 created: 2026-08-06 01:19
 ---
 Production OOMPAH-835 implementation is complete in the reviewed OOMPAH-804 composition. OOMPAH-835 patch 6d02c085019924b6c6d605fa89f7948347ebe58a supplies fresh project-scoped forge facts, all ten review handlers, exact identity/head/generation fencing, TaskTransitionService lifecycle intents, merge replay/idempotency, capacity release, and multi-project routing. The complete prepared stack is 4fbf83346f21b153cb05d8dc4e75c307fb34fa9c on expected OOMPAH-781 parent 2360ea408; WAL+NORMAL remains last. Verification: 1,257 systemic workflow/transition/submission/orchestrator tests plus 68 review/runtime tests passed; compileall, diff, secret, and terminal-audit scans pass. Holding canonical push/submission until OOMPAH-791 and OOMPAH-781 land and the nested OOMPAH-804 container branch is aligned.
+---
+author: oompah
+created: 2026-08-06 09:38
+---
+Review/CI handlers and regression coverage are complete, with exact commit ffe8d5ad included in canonical validated composition f89c477d. Resubmitting canonical head after OOMPAH-858 task-scoped nested-delivery recovery so gate, integration, and audit share one exact candidate.
 ---
 <!-- COMMENTS:END -->
