@@ -5,7 +5,8 @@ status: In Progress
 priority: 1
 title: Expose one why-not-progressing projection and make alerts truthful
 parent: OOMPAH-770
-children: []
+children:
+- OOMPAH-859
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-796
@@ -13,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T09:37:15.372220Z'
+updated_at: '2026-08-06T11:42:33.911353Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
