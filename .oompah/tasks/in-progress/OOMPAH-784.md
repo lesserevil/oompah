@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T09:38:58.437589Z'
+updated_at: '2026-08-06T18:57:53.597861Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -316,5 +316,10 @@ author: oompah
 created: 2026-08-06 09:38
 ---
 Fresh independent static review rejected the latest repair for four remaining correctness gaps: semantic/evidence revision corruption can renew SLO; publication rollback excludes already-committed membership/cursor/job authority; valid-root restart timestamp corruption can raise at startup/snapshot; and reconcile_schedule can supersede workflow_managed=0 direct jobs. Repair is active with nonempty publication-failure, valid-root nested corruption, and mixed managed/unmanaged scope tests; no validation or submission until another independent review accepts it.
+---
+author: oompah
+created: 2026-08-06 18:57
+---
+Preserved the exact live dirty repair before upcoming epic reflows: diff SHA-256 e5d0871f4c02ce51007214b3e819da0b789a94a38f619d077622853b75a8d810 at backup ref refs/backup/OOMPAH-784-pre-resume-20260806 (e6996863d353f4360b887891d238e329be11622b). The working tree is unchanged.
 ---
 <!-- COMMENTS:END -->
