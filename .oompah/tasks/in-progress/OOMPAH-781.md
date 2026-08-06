@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T03:49:17.185008Z'
+updated_at: '2026-08-06T05:22:05.369536Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -456,5 +456,10 @@ author: oompah
 created: 2026-08-06 03:49
 ---
 Prepared the direct-owner stack on OOMPAH-791's repaired exact head 0b5b039a1. New local exact OOMPAH-781 head is add49a76ca7129f330c5f7005181d8784162031c (1ca8d5817 -> 736208ecc -> add49a76c). Range-diff marks all three commits '=', binary patch hashes are identical, and diff check is clean. Holding push/submission until OOMPAH-791 integrates into epic-OOMPAH-768.
+---
+author: oompah
+created: 2026-08-06 05:22
+---
+Restacked the three-commit terminal-audit lifecycle implementation onto the exact integrated OOMPAH-791 head 2c6fc5259. New clean pushed head is abb8fce3a; the ten-commit OOMPAH-804 production composition was also replayed cleanly on top as prepared head 336e4b4ad. Focused execution is deferred while OOMPAH-852 owns the single authoritative validation lane and the graceful restart drains it.
 ---
 <!-- COMMENTS:END -->
