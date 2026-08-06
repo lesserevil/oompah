@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-851
 type: bug
-status: Open
+status: Needs Human
 priority: 1
 title: Make every tick-test dispatch mock honor the timing mapping contract
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-06T04:43:40.279347Z'
+updated_at: '2026-08-06T04:43:46.394667Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -104,5 +104,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 35s
 - Log: OOMPAH-851__20260806T044259Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:43
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
