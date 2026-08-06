@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T02:16:29.805411Z'
+updated_at: '2026-08-06T02:16:45.535244Z'
 work_branch: OOMPAH-833
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/727
@@ -215,8 +215,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-56a0e0d0e1da
-    applied: false
+    applied: true
     created_at: '2026-08-06T02:16:24.416093+00:00'
+    applied_at: '2026-08-06T02:16:41.081817+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -512,5 +513,26 @@ author: oompah
 created: 2026-08-06 02:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 02:16
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
+- main_merge_commit: fd57e2e814c0f944fa7aeb082fd103371561b8ba
+- main_merge_first_parent: 415d6fbf3e06547ebd65f5e48ad277b2497c0fb6
+- merge_base: b98ebb40d269ebeb7a134dc43add36bf782d9402
+- ancestor_of_origin_main: true
+- author: oompah <lesserevil@users.noreply.github.com>
+- changed_files_count: 7
+- changed_paths: oompah/acp_agent.py, oompah/acp_tools.py, oompah/api_agent.py, oompah/orchestrator.py, oompah/tool_liveness.py, tests/test_acp_tool_output_bounds.py, tests/test_tool_liveness.py
+- systemic_epic_paths_touched: 0
+- new_regression_tests_confirmed: 7
+- branch_gate_result: passed (make test, 660.3s at c8e6efcd2)
+- pr_number: 727
 ---
 <!-- COMMENTS:END -->
