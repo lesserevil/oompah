@@ -371,6 +371,180 @@ def parse_canonical_landing_evidence(
         return None
 
 
+def _compute_child_landing_fingerprint(
+    project_id: str,
+    epic_id: str,
+    child_id: str,
+    base_sha: str,
+    source_sha: str,
+    target_base_sha: str,
+    target_sha: str,
+    generation: str,
+    created_at_utc: str,
+) -> str:
+    """Return the integrity digest for one direct-rebase child mapping."""
+
+    content = "|".join(
+        (
+            project_id,
+            epic_id,
+            child_id,
+            base_sha,
+            source_sha,
+            target_base_sha,
+            target_sha,
+            generation,
+            created_at_utc,
+        )
+    )
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class CanonicalChildLandingEvidence:
+    """Service-authored evidence mapping one original child range to a rebase.
+
+    A direct epic rebase changes commit identities without changing the child
+    task identity.  This record preserves both ends of that mapping instead of
+    rewriting the child's branch or replacing its original integration SHAs.
+    The generation is fenced by the orchestrator's durable per-epic generation
+    ledger, so a mapping from an older direct rebase cannot authorize a newer
+    rollup accidentally.
+    """
+
+    project_id: str
+    epic_id: str
+    child_id: str
+    base_sha: str
+    source_sha: str
+    target_base_sha: str
+    target_sha: str
+    generation: str
+    created_at_utc: str
+    evidence_fingerprint: str
+
+    def __post_init__(self) -> None:
+        for sha, name in (
+            (self.base_sha, "base_sha"),
+            (self.source_sha, "source_sha"),
+            (self.target_base_sha, "target_base_sha"),
+            (self.target_sha, "target_sha"),
+        ):
+            if not _is_valid_git_sha(sha):
+                raise ValueError(
+                    f"invalid git SHA for {name}: {sha!r} "
+                    "(must be 40-character hexadecimal)"
+                )
+        for value, name in (
+            (self.project_id, "project_id"),
+            (self.epic_id, "epic_id"),
+            (self.child_id, "child_id"),
+            (self.generation, "generation"),
+            (self.created_at_utc, "created_at_utc"),
+        ):
+            if not str(value or "").strip():
+                raise ValueError(f"{name} is required and cannot be empty")
+        if not _is_valid_git_sha(self.evidence_fingerprint, bits=256):
+            raise ValueError(
+                "invalid child landing evidence fingerprint "
+                "(must be 64-character hexadecimal)"
+            )
+        expected = _compute_child_landing_fingerprint(
+            str(self.project_id).strip(),
+            str(self.epic_id).strip(),
+            str(self.child_id).strip(),
+            str(self.base_sha).strip().lower(),
+            str(self.source_sha).strip().lower(),
+            str(self.target_base_sha).strip().lower(),
+            str(self.target_sha).strip().lower(),
+            str(self.generation).strip(),
+            str(self.created_at_utc).strip(),
+        )
+        if str(self.evidence_fingerprint).strip().lower() != expected:
+            raise ValueError("child landing evidence fingerprint mismatch")
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CanonicalChildLandingEvidence":
+        if not isinstance(value, Mapping):
+            raise ValueError("child landing evidence must be a mapping")
+
+        def get(*keys: str) -> object:
+            for key in keys:
+                if key in value:
+                    return value[key]
+            return None
+
+        required = {
+            "project_id": get("project_id"),
+            "epic_id": get("epic_id", "epic"),
+            "child_id": get("child_id", "child"),
+            "base_sha": get("base_sha", "base"),
+            "source_sha": get("source_sha", "source"),
+            "target_base_sha": get("target_base_sha"),
+            "target_sha": get("target_sha", "target"),
+            "generation": get("generation"),
+            "created_at_utc": get("created_at_utc"),
+            "evidence_fingerprint": get("evidence_fingerprint"),
+        }
+        if any(item is None for item in required.values()):
+            missing = [key for key, item in required.items() if item is None]
+            raise ValueError(
+                "child landing evidence missing required fields: "
+                + ", ".join(missing)
+            )
+        return cls(
+            project_id=str(required["project_id"] or "").strip(),
+            epic_id=str(required["epic_id"] or "").strip(),
+            child_id=str(required["child_id"] or "").strip(),
+            base_sha=str(required["base_sha"] or "").strip().lower(),
+            source_sha=str(required["source_sha"] or "").strip().lower(),
+            target_base_sha=str(required["target_base_sha"] or "").strip().lower(),
+            target_sha=str(required["target_sha"] or "").strip().lower(),
+            generation=str(required["generation"] or "").strip(),
+            created_at_utc=str(required["created_at_utc"] or "").strip(),
+            evidence_fingerprint=str(
+                required["evidence_fingerprint"] or ""
+            ).strip().lower(),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "project_id": self.project_id,
+            "epic_id": self.epic_id,
+            "child_id": self.child_id,
+            "base_sha": self.base_sha,
+            "source_sha": self.source_sha,
+            "target_base_sha": self.target_base_sha,
+            "target_sha": self.target_sha,
+            "generation": self.generation,
+            "created_at_utc": self.created_at_utc,
+            "evidence_fingerprint": self.evidence_fingerprint,
+        }
+
+    def is_evidence_fresh(self, max_age_hours: int = 24) -> bool:
+        try:
+            created = datetime.fromisoformat(
+                self.created_at_utc.replace("Z", "+00:00")
+            )
+            age = (datetime.now(timezone.utc) - created).total_seconds() / 3600
+            return 0 <= age <= max_age_hours
+        except (TypeError, ValueError):
+            return False
+
+
+def parse_canonical_child_landing_evidence(
+    value: object,
+) -> CanonicalChildLandingEvidence | None:
+    """Parse child mapping evidence without allowing partial records through."""
+
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return CanonicalChildLandingEvidence.from_dict(value)
+    except (TypeError, ValueError):
+        return None
+
+
 # Whitelist of known Oompah-authorized task IDs for which historical repair evidence
 # can be loaded without trusting arbitrary human comments. This bounded list:
 # - Is maintained by Oompah maintainers only (code review required)
