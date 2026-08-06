@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:55:28.409398Z'
+updated_at: '2026-08-06T23:23:00.194844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -319,5 +319,10 @@ author: oompah
 created: 2026-08-06 22:55
 ---
 Owner review hold: branch c15f58451 is preserved, but git show --check reports trailing whitespace in terminal_audit.py and 21 test lines, and the 440-line resolver refactor needs independent authority/parity review before an exact gate. No canonical branch or task evidence is being overridden.
+---
+author: oompah
+created: 2026-08-06 23:23
+---
+Repair complete, uncommitted pending independent review and validation. The implementation now resolves and persists an immutable selected_ref/selected_sha at audit-request time, CAS-protects and propagates it through attempts/retries/rearm/restart, checks out only the persisted SHA, preserves legacy fingerprint bytes, migrates legacy unbound records, and fails closed for invalid/unreachable immutable evidence. Exact repair diff SHA256 5bcfeb9539c2fcea2aa887bc2e58e575e8b2e2b70379c09f1090320bb96e2507; cumulative diff SHA256 e4c47f30ebbea1b5ea8401e6d0168955125b5cd308be5ca14a337181e8bfba48. Static compilation/lint/diff/secret checks pass; pytest is intentionally queued behind active dedicated CI.
 ---
 <!-- COMMENTS:END -->
