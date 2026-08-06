@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T04:10:00.659178Z'
+updated_at: '2026-08-06T04:15:26.422813Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 04:15
+---
+Repair analysis: the exact gate passed 16,085 tests; both failures are outside OOMPAH-831 auditor scope and occurred while server workers bypassed the sole validation-resource lease. Filed OOMPAH-846 for universal worker-command lease enforcement and OOMPAH-847 for the two leaking/under-isolated unit tests. A minimal in-flight repair is prepared locally: the lock test now exercises only the real outer async lock around a controlled inner failure/success, and the epic gate test mocks/asserts unrelated review-capacity persistence. Waiting for OOMPAH-791 to release the authoritative lane before focused verification and commit.
 ---
 <!-- COMMENTS:END -->

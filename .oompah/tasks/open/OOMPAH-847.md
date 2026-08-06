@@ -12,13 +12,40 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T04:13:55.414472Z'
-work_branch: null
+updated_at: '2026-08-06T04:15:28.415268Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 68036329739824bfaec7327f341fe5fc959ec48183a5d46321f7235245b9fcd7
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 2cc418ea-6327-4678-93cb-ccaea8d91107
+  claim_owner: 11468835-7c49-48df-a46d-b143af3a940a
+  claimed_at: '2026-08-06T04:15:00.444442+00:00'
+  claim_expires_at: '2026-08-06T04:45:00.444442+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 3ff29d92-79da-4d83-a732-8b1b63a9ac0a
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-847
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763--task-OOMPAH-847
+  base_branch: epic-OOMPAH-763
+  base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
+  updated_at: '2026-08-06T04:15:20.363018+00:00'
 ---
 ## Summary
 
@@ -30,3 +57,21 @@ The OOMPAH-831 exact combined-tree gate at head 93b0295bc passed 16,085 tests an
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 04:15
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 04:15
+---
+In-flight workaround prepared on claimed OOMPAH-831 (not yet tested/committed while OOMPAH-791 owns the validation lane): replace the dispatch-lock test full scheduler traversal with an AsyncMock of _handle_dispatch_needed_locked that raises then returns, asserting two awaits and real outer-lock release; mock/assert _adopt_open_review_capacity in the changed-head epic test so it does not perform unrelated SQLite I/O. The systemic task should independently verify exact failure classification, loaded repetitions, cleanup, and any adjacent cases rather than duplicate these two lines blindly. OOMPAH-846 separately owns universal lease-bypass prevention.
+---
+author: oompah
+created: 2026-08-06 04:15
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
