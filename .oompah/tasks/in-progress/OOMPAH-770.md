@@ -18,7 +18,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:56:03.317296Z'
-updated_at: '2026-08-05T14:19:21.400532Z'
+updated_at: '2026-08-06T00:13:10.773882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-04 21:22
 ---
 Hard-start prerequisites OOMPAH-765 and OOMPAH-766 have landed. Promoting this epic and its first unblocked child so the server can advance the liveness work in parallel with OOMPAH-768.
+---
+author: oompah
+created: 2026-08-06 00:13
+---
+Critical-path topology repair completed while project dispatch was paused. epic-OOMPAH-770 had no unique commits and was safely fast-forwarded from f1e7925b7263f980517f943291102c8c83335ed2 to exact parent epic-OOMPAH-763 head 58ffd477b19f370c7ed53a191e1a05580b016c85. The remote ref is verified and clean; this makes OOMPAH-806 and OOMPAH-807 code reachable for OOMPAH-796 and OOMPAH-821.
 ---
 <!-- COMMENTS:END -->
