@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T20:59:51.536213Z'
+updated_at: '2026-08-06T21:00:55.443799Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -478,5 +478,10 @@ author: oompah
 created: 2026-08-06 20:59
 ---
 Understanding: ACP's synchronous audit-result callback can block the dispatch event loop while waiting on coordinator work scheduled on that same loop. I will inspect the ACP and API-agent bridges, preserve validation and idempotency behavior, add/adjust same-loop and failure-path regressions, run focused suites plus make test, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-06 21:00
+---
+Discovery: current origin/main contains the merged ACP fix. Both Claude and OpenCode async submit_audit_result handlers offload submit_auditor_result via asyncio.to_thread (oompah/acp_tools.py), while orchestrator.py retains the synchronous bounded coordinator bridge for API and ACP sessions. Existing regression coverage exercises same-loop success/idempotency and rejection; I am validating current tests and checking for remaining coverage gaps.
 ---
 <!-- COMMENTS:END -->
