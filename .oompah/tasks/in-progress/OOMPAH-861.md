@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T14:03:02.436121Z'
+updated_at: '2026-08-06T14:19:11.977099Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-06 14:03
 ---
 Independent review found two pre-integration blockers: abort-recovery performs another state-only refresh without restoring accepted IntegrationRecord authority, and the helper treats any accepted snapshot as newer without comparing its accepted generation timestamps/head. Owner-claiming the task to add regression coverage and keep the exact accepted branch/head immutable across those paths before resubmission.
+---
+author: oompah
+created: 2026-08-06 14:19
+---
+Owner repair completed after independent rejection: accepted evidence now survives abort-recovery state refreshes, demonstrably stale accepted generations cannot replace the current branch and head, and ambiguous or newer concurrent accepted generations still fail closed. Three regressions cover stale ordering, concurrent replacement, and status-write failure rearm. Independent static re-review accepted; focused validation is waiting behind the active OOMPAH-860 terminal audit.
 ---
 <!-- COMMENTS:END -->
