@@ -44,6 +44,7 @@ from oompah.integration_workflow import (
     IntegrationWorkflowController,
 )
 from oompah.review_workflow import ReviewWorkflowController
+from oompah.review_workflow_adapter import FreshReviewFactSource
 from oompah.statuses import IN_VALIDATION, canonicalize_status
 from oompah.task_transition_service import (
     CoordinatorTerminalAdapter,
@@ -602,6 +603,22 @@ class WorkflowRuntime:
                 sources=sources,
                 landing_collector=landing,
             )
+            # Review decisions must never consume the legacy project sweep's
+            # `_reviews_cache`: runtime reconciliation happens before that
+            # sweep refreshes it.  Give only the review lane a fresh,
+            # project-scoped provider source so sibling domains retain their
+            # existing bounded fact costs.
+            review_sources = dict(sources)
+            review_sources[FactDomain.REVIEW_CI] = FreshReviewFactSource(
+                orchestrator,
+                project_id=project_id,
+            )
+            review_collector = WorkflowFactCollector(
+                project_id=project_id,
+                tracker=tracker,
+                sources=review_sources,
+                landing_collector=landing,
+            )
             epic_collector = EpicFactCollector(
                 project_id=project_id,
                 tracker=tracker,
@@ -702,7 +719,7 @@ class WorkflowRuntime:
                     decision_limit=configured_limit,
                 ),
                 review_controller=ReviewWorkflowController(
-                    collector=collector,
+                    collector=review_collector,
                     store=store,
                     decision_limit=configured_limit,
                 ),
