@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T02:02:08.444198Z'
+updated_at: '2026-08-06T02:06:13.146945Z'
 work_branch: OOMPAH-833
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/727
@@ -161,6 +161,31 @@ oompah.target_branch: main
 oompah.review_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f067cc122bc4: '2026-08-06T02:06:02.815962+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-833
+    target_state: Done
+    evidence_fingerprint: 6fe4f370885f73f29d404c268d27208fe600e43712eab92a23ded20d7a4d1134
+    audit_ids:
+    - audit-3ef17a87895f
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T02:06:02.815973+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-833
+    audit_id: audit-3ef17a87895f
+    attempt_id: attempt-f067cc122bc4
+    target_state: Done
+    evidence_fingerprint: 6fe4f370885f73f29d404c268d27208fe600e43712eab92a23ded20d7a4d1134
+    status: In Validation
+    audit_ids:
+    - audit-3ef17a87895f
+    applied: true
+    created_at: '2026-08-06T02:06:02.815987+00:00'
+    applied_at: '2026-08-06T02:06:10.476961+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -168,7 +193,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-833
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -177,7 +202,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f067cc122bc4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -187,13 +212,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T02:01:58.829424+00:00'
       branch_key: OOMPAH-833
+      verdict: pass
+      completed_at: '2026-08-06T02:06:02.815784+00:00'
+      ended_at: '2026-08-06T02:06:02.815784+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-06T02:01:28.702889+00:00'
-    updated_at: '2026-08-06T02:01:58.829424+00:00'
+    updated_at: '2026-08-06T02:06:02.815784+00:00'
   - version: 1
     audit_id: audit-56a0e0d0e1da
     project_id: proj-14849f1b
@@ -385,5 +413,23 @@ author: oompah
 created: 2026-08-06 02:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 02:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
+- main_merge_commit: fd57e2e814c0f944fa7aeb082fd103371561b8ba
+- changed_files_count: 7
+- changed_paths: oompah/acp_agent.py, oompah/acp_tools.py, oompah/api_agent.py, oompah/orchestrator.py, oompah/tool_liveness.py, tests/test_acp_tool_output_bounds.py, tests/test_tool_liveness.py
+- systemic_epic_paths_touched: 0
+- new_regression_tests: test_exited_child_enters_result_pending_until_provider_acknowledges; test_child_exit_concurrent_with_stall_scan_has_one_delivery_owner; test_result_delivery_deadline_is_precise_and_recoverable; test_public_state_exposes_pending_liveness_without_provider_details; test_command_result_stays_owned_until_bounded_api_bridge_ack; test_failing_command_uses_the_same_exactly_once_delivery_path; test_large_auditor_result_is_bounded_before_delivery_and_then_released
+- branch_gate_result: passed (make test, 660.3s at c8e6efcd2)
+- ancestor_of_origin_main: true
+- author: oompah <lesserevil@users.noreply.github.com>
 ---
 <!-- COMMENTS:END -->
