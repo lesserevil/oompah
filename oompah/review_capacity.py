@@ -342,6 +342,8 @@ class ReviewCapacityStore:
         target_branch: str,
         review_id: str,
         reservation_id: str,
+        authority_generation: str | None = None,
+        head_sha: str | None = None,
     ) -> ReviewCapacityReservation:
         """Record an already-open forge review for future close/merge release."""
         project_id = str(project_id)
@@ -349,6 +351,8 @@ class ReviewCapacityStore:
         source_branch = str(source_branch)
         target_branch = str(target_branch)
         review_id = str(review_id).strip()
+        authority_generation = str(authority_generation or "").strip() or None
+        head_sha = str(head_sha or "").strip().lower() or None
         now = time.time()
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -367,12 +371,24 @@ class ReviewCapacityStore:
                     (project_id, review_id, task_id, source_branch, target_branch),
                 ).fetchone()
                 if existing is not None:
-                    if not existing["review_id"]:
+                    if (
+                        not existing["review_id"]
+                        or authority_generation is not None
+                        or head_sha is not None
+                    ):
                         self._conn.execute(
                             "UPDATE review_capacity_reservations "
-                            "SET review_id = ?, lease_expires_at = NULL "
+                            "SET review_id = COALESCE(review_id, ?), "
+                            "authority_generation = COALESCE(?, authority_generation), "
+                            "head_sha = COALESCE(?, head_sha), "
+                            "lease_expires_at = NULL "
                             "WHERE reservation_id = ?",
-                            (review_id, existing["reservation_id"]),
+                            (
+                                review_id,
+                                authority_generation,
+                                head_sha,
+                                existing["reservation_id"],
+                            ),
                         )
                         existing = self._conn.execute(
                             "SELECT * FROM review_capacity_reservations "
@@ -386,13 +402,15 @@ class ReviewCapacityStore:
                     """
                     INSERT INTO review_capacity_reservations(
                         reservation_id, project_id, task_id, source_branch,
-                        target_branch, review_id, acquired_at,
+                        target_branch, review_id, authority_generation,
+                        head_sha, acquired_at,
                         lease_expires_at, released_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
                     """,
                     (
                         str(reservation_id), project_id, task_id,
-                        source_branch, target_branch, review_id, now,
+                        source_branch, target_branch, review_id,
+                        authority_generation, head_sha, now,
                     ),
                 )
                 self._conn.commit()
@@ -405,6 +423,8 @@ class ReviewCapacityStore:
                     review_id=review_id,
                     acquired_at=now,
                     lease_expires_at=None,
+                    authority_generation=authority_generation,
+                    head_sha=head_sha,
                 )
             except Exception:
                 self._conn.rollback()

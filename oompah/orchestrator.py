@@ -16004,6 +16004,8 @@ class Orchestrator:
                     source_branch=work_branch,
                     target_branch=target_branch,
                     review_id=review_id,
+                    authority_generation=authority.generation,
+                    head_sha=review_head,
                 )
             if not self._clear_standalone_delivery_alert(
                 authority.project_id,
@@ -22630,8 +22632,16 @@ class Orchestrator:
         source_branch: str,
         target_branch: str,
         review_id: Any,
+        authority_generation: str | None = None,
+        head_sha: str | None = None,
     ) -> None:
-        """Associate a pre-existing open review with durable capacity state."""
+        """Associate a pre-existing open review with durable capacity state.
+
+        Standalone adoption supplies the exact authority and review head that
+        were just verified under task ownership.  Other reconciliation paths
+        may not have that evidence, so their absent values must not erase an
+        exact reservation already persisted by a concurrent delivery sweep.
+        """
         review_id = str(review_id or "").strip()
         if not review_id:
             return
@@ -22643,6 +22653,8 @@ class Orchestrator:
                 target_branch=target_branch,
                 review_id=review_id,
                 reservation_id=str(uuid.uuid4()),
+                authority_generation=authority_generation,
+                head_sha=head_sha,
             )
         except Exception as exc:  # noqa: BLE001 - existing review is authoritative
             logger.warning(
