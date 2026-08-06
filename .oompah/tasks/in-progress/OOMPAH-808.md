@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-808
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T03:18:57.807707Z'
+updated_at: '2026-08-06T03:45:43.845570Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 76b7829b-681e-4e55-a791-4004eb6e577c
+oompah.agent_run_id: 7d90ec88-96ee-4011-afa0-d66ac9ab6699
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-808
 oompah.integration:
   version: 2
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-06 03:18
 ---
 Removed the temporary human-only dispatch fence now that OOMPAH-796 is terminal and its common-root lineage is canonically prepared. Keep the task Open for normal server dispatch after the currently quiesced/paused restart completes; re-check actual immediate-parent reachability before creating the private task branch as required by acceptance.
+---
+author: oompah
+created: 2026-08-06 03:45
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
