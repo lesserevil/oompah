@@ -778,60 +778,12 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
     arguments = command_tokens[first_argument:]
     if any(argument in {"--help", "-h", "--version"} for argument in arguments):
         return False
-    if any(
-        argument in {"-n", "--numprocesses", "--dist", "--forked"}
-        or argument.startswith(("-n=", "--numprocesses=", "--dist="))
-        or (
-            argument.startswith("-n")
-            and len(argument) > 2
-            and not argument.startswith("--")
-        )
-        for argument in arguments
-    ):
-        # One selected file can still fan out into a host-wide process tree.
-        return True
-    positionals: list[str] = []
-    skip_next = False
-    options_with_values = {
-        "-k",
-        "-m",
-        "-c",
-        "--confcutdir",
-        "--rootdir",
-        "--basetemp",
-        "--maxfail",
-        "--tb",
-        "--capture",
-        "--log-level",
-    }
-    for argument in arguments:
-        if skip_next:
-            skip_next = False
-            continue
-        if argument in options_with_values:
-            skip_next = True
-            continue
-        if argument.startswith("-"):
-            continue
-        positionals.append(argument)
-
-    # No selector, a directory selector, or an opaque selector may cover the
-    # full suite.  Only explicit Python test files/node ids are demonstrably
-    # focused and may bypass the host lease.
-    if not positionals:
-        return True
-    if not all("::" in item or item.endswith(".py") for item in positionals):
-        return True
-    if any(any(marker in item for marker in "*?[]{}") for item in positionals):
-        # Classification happens before the shell expands selectors.  A
-        # syntactically single ``tests/test_*.py`` token can therefore become
-        # the complete test tree at execution time and must fail closed.
-        return True
-    # A handful of broad subsystem files caused the production collision that
-    # introduced this lane.  Syntax alone cannot prove file size, so bypass is
-    # deliberately narrow: one explicit file or node.  Multiple files are a
-    # suite, even when each positional happens to end in ``.py``.
-    return len(positionals) > 1
+    # A focused file or node can still import the application, load plugins,
+    # start subprocesses, or otherwise contend with an exact gate.  The
+    # classifier runs before pytest expands selectors, so every real pytest
+    # invocation participates in the shared lane.  Help/version are the only
+    # pytest forms intentionally kept outside it.
+    return True
 
 
 def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
@@ -861,12 +813,9 @@ def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
     arguments = command_tokens[module_index + 2 :]
     if any(argument in {"--help", "-h", "--version"} for argument in arguments):
         return False
-    positionals = [argument for argument in arguments if not argument.startswith("-")]
-    if not positionals or positionals[0] == "discover":
-        return True
-    if any(any(marker in item for marker in "*?[]{}") for item in positionals):
-        return True
-    return len(positionals) > 1
+    # unittest selectors are executable test code even when they name one
+    # method.  Keep all actual runner invocations behind the shared lane.
+    return True
 
 
 def _npm_segment_is_heavy(tokens: list[str]) -> bool:
