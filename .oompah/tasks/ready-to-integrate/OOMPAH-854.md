@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:36:45.051722Z'
+updated_at: '2026-08-06T06:36:52.508663Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -208,5 +208,10 @@ Total: 61+ auditor/dispatch/lifecycle tests all passing
 Changes pushed to branch epic-OOMPAH-763--task-OOMPAH-854
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-06 06:36
+---
+Fenced terminal-auditor provider spawn during graceful quiesce/restart drain. Added atomic re-check of _dispatch_is_blocked() immediately before worker creation to prevent new auditors from being spawned while orchestrator is quiescing. Ensures running_count reaches zero and queued audits are preserved for retry after restart. All 61+ related tests pass.
 ---
 <!-- COMMENTS:END -->
