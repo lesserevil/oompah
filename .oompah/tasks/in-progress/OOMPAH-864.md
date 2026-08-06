@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:35:53.782519Z'
+updated_at: '2026-08-06T22:36:30.525327Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
     no duplicate. OOMPAH-864 is the distinct owner-resolution rearm bug reproduced
     by OOMPAH-863/OOMPAH-855; its exact transaction, generation fencing, restart recovery,
     and worktree preservation scope is not covered by the cited peers.
-oompah.agent_run_id: null
+oompah.agent_run_id: d36cc827-aa1a-43b4-8e31-faa0cd946d39
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
@@ -324,5 +324,10 @@ FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_t
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 22:36
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
