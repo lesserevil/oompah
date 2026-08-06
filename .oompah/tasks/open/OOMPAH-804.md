@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-804
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Wire durable workflow domains into the production runtime
 parent: OOMPAH-768
@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T12:54:16.851434Z'
+updated_at: '2026-08-06T12:56:07.755513Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -126,6 +126,27 @@ oompah.work_contributors:
     source_sha: 08f6a8c5afdaf904daaaeb625446aaec7e961a3c
     completed_at: '2026-08-04T20:26:04.014658+00:00'
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-864b22885a45
+    project_id: proj-14849f1b
+    task_id: OOMPAH-804
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 62a1b0c2e303d3c5dbd2a1299a9d23fb20a96eef45d09e49a0ab9c069438e883
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-08-06T12:56:06.488568+00:00'
+  attempt_history: []
 ---
 ## Summary
 
