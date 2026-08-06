@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T20:58:24.499224Z'
+updated_at: '2026-08-06T20:58:59.497055Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595

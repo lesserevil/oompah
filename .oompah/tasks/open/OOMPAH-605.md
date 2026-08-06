@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T20:57:03.388973Z'
+updated_at: '2026-08-06T20:58:53.587865Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -21,14 +21,47 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: e4e1fd83a6accda2abf8fec5abcd7a48c7db3a444d110c05190fe4b9c06bb2be
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T20:58:46.793350+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5ec46c26-5760-46d4-9f92-5d3a5118aed5
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T20:56:42.858848+00:00'
-  claim_expires_at: '2026-08-06T21:26:42.858848+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: ** OOMPAH-605 is the canonical tracking issue for the\
+    \ control-plane recovery work. The work has been completed and PR #593 is merged\
+    \ on main. The corpus contains no active open task that duplicates this recovery\
+    \ scope. Related component fixes (OOMPAH-589, OOMPAH-604) are delivered *within*\
+    \ this recovery, not duplicates of it. All similar tasks in the corpus are archived\
+    \ or in terminal states. The current \"Open\" status and recent watchdog reopen\
+    \ reflect auditor availability constraints, not duplication.\n## OOMPAH-605 Duplicate\
+    \ Investigation\n\nLooking at this task, I need to carefully analyze whether it\
+    \ represents a duplicate of an existing open issue.\n\n**Task Summary:**\n- OOMPAH-605:\
+    \ \"Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery\"\
+    \n- Status: Open\n- Type: Bug\n- Core objective: Break control-plane deadlock\
+    \ by delivering OOMPAH-589 and OOMPAH-604 fixes through a standalone recovery\
+    \ branch\n\n**Key Observations from Comments:**\n\n1. **Work is already completed**:\
+    \ The operator handoff (2026-07-30 18:07) confirms \"recovery branch OOMPAH-605\
+    \ is already complete and pushed at cfe2916c5\"\n\n2. **PR is merged**: PR #593\
+    \ (the recovery delivery) has been merged to main\n\n3. **Multiple audits have\
+    \ passed**:\n   - 2026-07-30 18:20: Audit PASS \u2014 Done (with full evidence\
+    \ trail)\n   - 2026-07-30 19:40: Audit PASS \u2014 Merged\n   - Recovery verification\
+    \ shows service restarted and auditors working correctly\n\n4. **Recent status**:\
+    \ The task entered \"Needs Human\" state due to auditor candidate limitations,\
+    \ then the watchdog audit reclassified it as \"actionable\" and reopened it (2026-08-06\
+    \ 20:55)\n\n**Duplicate Analysis Against Corpus:**\n\nScanning the 34 supplied\
+    \ similarity candidates:\n- All candidates are in terminal states (Archived, Done,\
+    \ Merged)\n- OOMPAH-589 and OOMPAH-604 are referenced as *component fixes* being\
+    \ delivered, not duplicates\n- No active open task describes the same control-plane\
+    \ deadlock recovery work\n- Related recovery/CI tasks (OOMPAH-1, OOMPAH-2) are\
+    \ archived and cover different issues\n\nThe stalled-task watchdog correctly identified\
+    \ that PR #593 is merged and the work is complete, but the task status handling\
+    \ is stuck due to auditor configuration issues\u2014not duplication.\n\n---\n\n\
+    **Focus handoff: duplicate_detector**\n\n**Duplicate preflight verdict: no_duplicate**\n\
+    \n**Matches: none**\n\n**Evidence:** OOMPAH-605 is the canonical tracking issue\
+    \ for the control-plane recovery work. The work has been completed and PR #593\
+    \ is merged on main. The corpus contains"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -36,13 +69,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: e292e4b7-b45e-48d5-8b24-948b46f219b2
 oompah.task_costs:
-  total_input_tokens: 1205372
-  total_output_tokens: 26296
+  total_input_tokens: 1205382
+  total_output_tokens: 28139
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1205133
-      output_tokens: 5491
+      input_tokens: 1205143
+      output_tokens: 7334
       cost_usd: 0.0
     unknown:
       input_tokens: 239
@@ -79,6 +112,12 @@ oompah.task_costs:
     output_tokens: 15
     cost_usd: 0.0
     recorded_at: '2026-08-06T20:50:02.968884+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1843
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T20:58:46.792025+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-605__20260730T175922Z
@@ -89,6 +128,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-605
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T18:01:23.897031+00:00'
+  - run_id: OOMPAH-605__20260806T205711Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-605
+    source_sha: f2b319c1182cd654112db622a0498171e508dead
+    completed_at: '2026-08-06T20:58:46.825570+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/593
 oompah.review_number: '593'
 oompah.work_branch: OOMPAH-605
@@ -510,5 +557,15 @@ author: oompah
 created: 2026-08-06 20:57
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 20:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.8K out [1.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 52s
+- Log: OOMPAH-605__20260806T205711Z.jsonl
 ---
 <!-- COMMENTS:END -->
