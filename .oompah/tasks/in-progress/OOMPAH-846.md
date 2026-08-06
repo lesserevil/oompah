@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T06:46:44.466390Z'
+updated_at: '2026-08-06T13:56:41.115276Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -237,5 +237,11 @@ author: oompah
 created: 2026-08-06 06:46
 ---
 Independent static re-review rejected the current repair. Blockers: native provider registration now returns two descriptors but both bootstrap callers treat the tuple as one fd, guaranteeing pre-exec failure and ignoring the direct source descriptor; light inspection still permits GNU sed e execution and Git config/subcommand hooks such as fsmonitor and credential/filter helpers without a lease; provider-tree descendants inherit the capability and can spoof guard-launch argv plus caller-selected hashes, so receipts remain forgeable; supervisor cleanup uses numeric killpg after leader exit without a final exact process-identity fence, risking PID/group reuse; and the new ACP backend test references undefined root, lease, and owner names. Descriptor truncation and extra-descriptor rejection are statically accepted, as is explicit flock unlock against detached descendants. Do not test or submit until these P0/P1 issues have been repaired and independently re-reviewed.
+---
+author: oompah
+created: 2026-08-06 13:56
+---
+New live reproduction at 2026-08-06 13:54 UTC: while exact gate OOMPAH-860 was the sole validation-resource owner, server-managed Codex worker OOMPAH-861 launched ....................................                                     [100%]
+36 passed in 1.77s in sandbox/process group 379079/child 379100. validation_resources showed only the O860 exact_gate owner and no O861 waiter/owner. The focused command exited before targeted termination; O861 agent session/edits remain intact. This confirms the uncovered provider-native focused-command path on deployed f2b319 and is an exact acceptance case for the in-progress universal guard.
 ---
 <!-- COMMENTS:END -->

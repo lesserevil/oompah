@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:48:32.305632Z'
+updated_at: '2026-08-06T13:56:37.659751Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ author: oompah
 created: 2026-08-06 13:48
 ---
 Discovery: CI repair dispatch performs a post-transition state refresh before worker startup. That response can omit IntegrationRecord, so the accepted task_branch is lost and workspace creation falls back to hierarchy/work_branch. The direct workspace resolver is correct; the dispatch handoff must retain accepted integration evidence across the state-only refresh.
+---
+author: oompah
+created: 2026-08-06 13:56
+---
+Operator coordination: your focused tests/test_retry_authority_generation.py run launched outside the validation-resource lease while OOMPAH-860 owned the exact gate, reproducing OOMPAH-846. The command exited before targeted termination; your agent session and edits are intact. Do not launch further pytest/make commands while the exact gate owns capacity; preserve implementation and defer validation until the shared lane is free.
 ---
 <!-- COMMENTS:END -->
