@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:30:47.754056Z'
-work_branch: null
+updated_at: '2026-08-06T16:31:28.204018Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 090789d484e9f0f07a5f02055d487d36863cf2509dad9ab6a62d1d1acb192544
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 665e46e6-1213-4e0a-94b9-f5c5c4e567ca
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T16:31:09.300361+00:00'
+  claim_expires_at: '2026-08-06T17:01:09.300361+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: a98a05bd-3fb3-455f-8fc9-453cf61f12e6
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 ---
 ## Summary
 
@@ -35,5 +54,10 @@ author: oompah
 created: 2026-08-06 16:30
 ---
 Promoted to Open for managed server implementation in parallel. It has no start dependency and can repair accepted recovery actions and stale-alert clearing while the operator-owned audit/runtime branches validate.
+---
+author: oompah
+created: 2026-08-06 16:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->

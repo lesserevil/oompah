@@ -12,14 +12,41 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-06T16:30:39.849128Z'
-work_branch: null
+updated_at: '2026-08-06T16:31:19.423303Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 0ad2f9dc5c677ad6cd902f1e9c2c86707b47b775130aff56c10ad27c67567388
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 36d97acc-06b2-4cb3-8e21-c9668ebd7d1f
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T16:30:58.958853+00:00'
+  claim_expires_at: '2026-08-06T17:00:58.958853+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 96b97b3c-86ea-4de3-b681-871074de63c9
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-855
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763--task-OOMPAH-855
+  base_branch: epic-OOMPAH-763
+  base_sha: 6b67846406858b585ce47939f70bec76eb706fe8
+  updated_at: '2026-08-06T16:31:12.980404+00:00'
 ---
 ## Summary
 
@@ -37,5 +64,15 @@ author: oompah
 created: 2026-08-06 16:30
 ---
 Promoted for the systemic completion program with an explicit hard-start on OOMPAH-854. The pause-retirement eligibility repair depends on OOMPAH-854 durable pre-provider audit fencing and must dispatch from that accepted lineage, avoiding a second overlapping quiesce/restart implementation.
+---
+author: oompah
+created: 2026-08-06 16:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 16:31
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
