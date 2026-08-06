@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:11:49.080676Z'
+updated_at: '2026-08-06T21:12:56.056155Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -45,14 +45,17 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
-  base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
+  base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
   head_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
   submitted_at: '2026-08-06T21:11:33.960837+00:00'
-  updated_at: '2026-08-06T21:11:33.960837+00:00'
+  updated_at: '2026-08-06T21:12:50.645250+00:00'
+  last_error: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs
+    from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing
+    to reset a preserved recovery snapshot
 oompah.task_costs:
   total_input_tokens: 46277
   total_output_tokens: 287
@@ -131,5 +134,12 @@ author: oompah
 created: 2026-08-06 21:11
 ---
 Implemented owner-resolution rearm with an exact Duplicate Candidate exclusion and preserved retry dispatch for other non-Open lanes. Independent race review accepted the final change; 62 focused tests passed both serially and in parallel; check-secrets and diff checks passed at a5d1973d043ff2375d56d89d0ea8bd5326e24f63, now pushed to both the task and shared epic branches.
+---
+author: oompah
+created: 2026-08-06 21:12
+---
+Integration could not verify `epic-OOMPAH-763--task-OOMPAH-864`: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
