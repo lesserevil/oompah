@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:25:39.156346Z'
+updated_at: '2026-08-06T09:31:02.019007Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-06 09:25
 ---
 Additional live finding: after removing the implicit parent->child rollup edges, OOMPAH-834 still waited on already-terminal external prerequisites because _integration_satisfied_dependencies and _execute_integration_item derive origin/epic-OOMPAH-804 from queue.epic_id. The authoritative nested delivery target recorded by submission is epic-OOMPAH-768--task-OOMPAH-804. The executor ignores IntegrationRecord.base_branch, so eligibility reachability, worktree creation, integration, and persisted base_branch can all use a stale sibling branch. The fix must resolve and fence the exact recorded immediate-parent target consistently; add a divergent stale epic-OOMPAH-804 alias regression. Task-scoped workaround will preserve the stale target under a backup ref and align the alias to the already validated f89c477d parent head so the deployed executor can complete the existing queue safely.
+---
+author: oompah
+created: 2026-08-06 09:31
+---
+Third live failure mode: when a child submitted head is already an ancestor of the current nested target, execute_integration resolves the combined candidate to the newer target head but keeps QualityGateOwner.head_sha at the older submitted head. The exact-head gate correctly refuses with owner metadata mismatch, the queue blocks, and repair dispatches unnecessarily. Production fix must canonicalize submitted/already-integrated delivery to the resolved candidate head atomically across queue generation, owner, gate, commit_allowed, integration metadata, and audit evidence; add an ancestor/no-op nested child regression that proves one gate and no repair worker.
 ---
 <!-- COMMENTS:END -->
