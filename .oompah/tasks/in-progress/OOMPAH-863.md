@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:43:58.726851Z'
+updated_at: '2026-08-06T21:46:50.941177Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-06 21:43
 ---
 Discovery: the accepted three-commit patch already implements the required exact-authority repair. Durable reservations persist normalized accepted head plus delivery generation; same-head contenders observe but cannot acquire the winning reservation; capacity-alert arm/clear and review creation/adoption are fenced by delivery authority; same-process sweeps coalesce while cross-process barrier tests preserve the real race. The rejected full gate failed only an unrelated event-loop assertion after leaked LogFileWatcher.start coroutine warnings; OOMPAH-845 commit 7bb2362fc fixes the leak solely in tests/test_error_watcher.py.
+---
+author: oompah
+created: 2026-08-06 21:46
+---
+Implementation: retained the independently accepted OOMPAH-863 patch unchanged at 3e5ddd154. It adds schema-v2 durable authority_generation/head_sha fields with serialized migration, exact-reservation observation in both capacity decision paths, authority-fenced alert suppression, owned create/adopt clearing, and same-process sweep coalescing while preserving cross-process CAS coverage. I am intentionally not cherry-picking OOMPAH-845; it is now the recorded dependency for the unrelated leaked-coroutine gate failure.
 ---
 <!-- COMMENTS:END -->
