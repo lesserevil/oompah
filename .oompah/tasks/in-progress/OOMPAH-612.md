@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:06:48.294346Z'
+updated_at: '2026-08-06T21:14:18.951148Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -488,5 +488,15 @@ author: oompah
 created: 2026-08-06 21:06
 ---
 Verification: focused auditor/ACP/terminal suites pass: 244 passed, including both ACP same-loop/idempotency regressions and coordinator rejection. The broad serial gate was attempted via the provisioned test runtime; its six unrelated ACP model-handoff failures were caused by OOMPAH_AGENT_LOG_DIR defaulting to the read-only operator checkout, while the issue-specific bridge tests passed. The normal make test setup is unavailable here because the inherited validation lease targets a read-only checkout and host uv fails its DBus transient scope.
+---
+author: oompah
+created: 2026-08-06 21:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 59
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 9s
+- Log: OOMPAH-612__20260806T205922Z.jsonl
 ---
 <!-- COMMENTS:END -->
