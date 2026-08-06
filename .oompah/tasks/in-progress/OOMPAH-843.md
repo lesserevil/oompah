@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:45:23.157021Z'
+updated_at: '2026-08-06T02:47:13.974305Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -166,5 +166,34 @@ author: oompah
 created: 2026-08-06 02:45
 ---
 Coordination: OOMPAH-831 has a completed, independently reviewed local patch at exact head 93b0295bc (not yet pushed/submitted) that changes oompah/auditor.py, api_agent.py, acp_tools.py, prompt.py, and adds search_files.py to align auditor inspection semantics. Keep OOMPAH-843 deadline/target work compatible with those contracts; do not reimplement or weaken OOMPAH-831's path/credential fatal checks, recoverable read-only classification, Python-regex search bounds, or git inspection fences. Report overlapping hunks so the later root-epic restack can preserve both patches.
+---
+author: oompah
+created: 2026-08-06 02:47
+---
+**IMPLEMENTATION**: Added per-target command deadline support to OOMPAH.
+
+Changes made:
+1. **Models (oompah/models.py)**: 
+   - Added `auditor_validation_target_deadlines: dict[str, int]` field to Project
+   - Handles serialization/deserialization in to_dict/from_dict
+
+2. **API Agent (oompah/api_agent.py)**:
+   - New function `_resolve_run_command_timeout_with_target()` that:
+     - Extracts Make target from command
+     - Loads project configuration
+     - Returns per-target deadline or falls back to global timeout
+   - Modified `_execute_tool()` to use per-target deadline resolution for run_command
+
+3. **Auditor (oompah/auditor.py)**:
+   - Added `validate_auditor_target_deadlines()` function
+   - Validates target/deadline compatibility at project load time
+
+4. **Tests (tests/test_auditor_validation_deadlines.py)**:
+   - Comprehensive test coverage for deadline resolution
+   - Tests for Project serialization with deadlines
+   - Tests for validation function
+   - OOMPAH-796 scenario reproduction
+
+Next: Run tests to verify implementation
 ---
 <!-- COMMENTS:END -->
