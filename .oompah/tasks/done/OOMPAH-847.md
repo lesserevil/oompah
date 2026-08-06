@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T17:01:06.341063Z'
+updated_at: '2026-08-06T17:01:37.480662Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -57,13 +57,17 @@ oompah.integration:
   submitted_at: '2026-08-06T16:18:12.240757+00:00'
   updated_at: '2026-08-06T16:36:21.746900+00:00'
 oompah.task_costs:
-  total_input_tokens: 45935
-  total_output_tokens: 400
+  total_input_tokens: 45941
+  total_output_tokens: 571
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 45935
       output_tokens: 400
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 171
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +76,12 @@ oompah.task_costs:
     output_tokens: 400
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:18:26.058304+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 171
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T17:01:34.298166+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-847__20260806T041558Z
@@ -271,5 +281,15 @@ Safe evidence:
 - contract_assertions: AsyncMock await_count==2, lock_states==[True,True], outer lock released, background futures remain None, adopt_capacity.assert_called_once_with correct kwargs
 - scoped_timeout: asyncio.wait_for(orch._handle_dispatch_needed(), timeout=1.0) — global timeout unchanged
 - cleanup_scope: autouse fixture drains pools, background futures, and stores; fails on leaked resources
+---
+author: oompah
+created: 2026-08-06 17:01
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 29, Tool calls: 18
+- Tokens: 6 in / 171 out [177 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 23s
+- Log: OOMPAH-847__20260806T163724Z.jsonl
 ---
 <!-- COMMENTS:END -->
