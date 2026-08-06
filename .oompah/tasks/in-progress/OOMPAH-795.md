@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T07:31:11.823566Z'
+updated_at: '2026-08-06T08:02:19.222598Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-08-06 07:31
 ---
 Independent static review REJECTED the current uncommitted repair. Blockers: queued audit age still becomes a false actionable error; failed-project truth is lost after cold restart; several alert and agent-panel identities remain identifier-only across projects; full-sync can publish old decisions with newer issues and discard the intervening update; reload epoch/tracker cutover is non-atomic and does not immediately notify/refresh; Done parity tests do not prove cache/API/UI behavior. Accepted epoch fencing, redaction, and card/detail identity work will be preserved while repair continues. No tests were run.
+---
+author: oompah
+created: 2026-08-06 08:02
+---
+Repair revision complete and under a second independent review. It now keeps audit queue age informational; persists failed-project availability across restart/recovery; scopes credential/epic alerts and agent activity by project+task(+run); replays WorkDecision races after full sync; atomically cuts public reload across config/tracker/mode/epoch/cache/durable availability with immediate refresh; and proves Done through controller/cache/snapshot/API/rendered card. A reload-vs-publication durable-state race was also fenced. Diff check passes; no tests/compile/commit/push yet.
 ---
 <!-- COMMENTS:END -->
