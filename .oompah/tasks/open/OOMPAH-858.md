@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:36:57.523916Z'
+updated_at: '2026-08-06T09:43:05.856668Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -23,21 +23,27 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: b246bd903dc87ce89edfb8c74322723bde4e0b6f84a19e884acf560e0426765a
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T09:43:02.597644+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-804, OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851,
-    OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856.'
+  evidence: Reviewed the authoritative Oompah task corpus and the structural peers
+    named by the bounded-corpus diagnostic. OOMPAH-858 is the distinct nested-integration
+    dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
+    task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
+    itself, not this integration bug.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T09:36:34.543302+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T09:43:02.597644+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Reviewed the authoritative Oompah task corpus and the structural
+    peers named by the bounded-corpus diagnostic. OOMPAH-858 is the distinct nested-integration
+    dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
+    task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
+    itself, not this integration bug.
 oompah.agent_run_id: 5b29980a-9b9a-4959-86e2-5b04287e09b2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
