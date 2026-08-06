@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:25:39.660509Z'
+updated_at: '2026-08-06T06:27:40.984748Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -123,5 +123,30 @@ author: oompah
 created: 2026-08-06 06:25
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 06:27
+---
+**Understanding & Plan**
+
+Issue: During graceful quiesce/restart, new auditor provider processes continue to be spawned despite quiesced=true being set, preventing running_count from reaching zero.
+
+Root cause: In _dispatch_audit_lane (line 7693), the dispatch is checked for quiesce status early, but between that check and the actual provider launch in _dispatch/worker creation (lines 33380+), there's an unprotected window where state can change. The orchestrator can quiesce mid-dispatch, but the auditor still gets spawned.
+
+Key code locations found:
+- orchestrator.py:3510 - quiesce() sets _quiesced=True
+- orchestrator.py:3522 - _dispatch_is_blocked() checks _quiesced flag
+- orchestrator.py:7693 - _dispatch_audit_lane() - checks blocked at start but not before provider launch
+- orchestrator.py:32608 - _dispatch() - checks blocked early, but needs re-check before running_entry creation
+- orchestrator.py:33380+ - where running_entry is registered
+
+Plan:
+1. Add atomic re-check of _dispatch_is_blocked() in _dispatch() immediately before _register_running_entry()
+2. If dispatch becomes blocked after initial check, cleanup the audit branch claim and return without spawning
+3. For terminal audits, mark the queued audit for retry without incrementing attempts (preserve as pending)
+4. Ensure queued audits resume exactly once after restart completes
+5. Add tests covering: quiesce during audit dispatch, graceful drain, restart resumption
+
+Starting code exploration next.
 ---
 <!-- COMMENTS:END -->
