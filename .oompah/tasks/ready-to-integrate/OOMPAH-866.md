@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:35:35.440878Z'
+updated_at: '2026-08-06T21:35:59.897501Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: cba004b7-3776-4f18-b2c2-8f273f3a628a
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  updated_at: '2026-08-06T21:20:49.548392+00:00'
+  head_sha: ee05a0ad8fbdf4459bf710a29a9926b088b70d10
+  submitted_at: '2026-08-06T21:35:44.775334+00:00'
+  updated_at: '2026-08-06T21:35:44.775334+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3166
@@ -193,5 +195,20 @@ author: oompah
 created: 2026-08-06 21:35
 ---
 Completion: revalidated the pushed ee05a0ad8 implementation. Focused canonical/epic/parallel-child/merged/worker/terminal suites: 568 passed in 11:28; compileall, diff check, and check-secrets passed. git pull --rebase was up to date, push was up to date, and the worktree is clean.
+---
+author: oompah
+created: 2026-08-06 21:35
+---
+Honor canonical child mappings after direct epic conflict rebases; focused suites and static checks pass at ee05a0ad8.
+---
+author: oompah
+created: 2026-08-06 21:35
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 33
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 17s
+- Log: OOMPAH-866__20260806T212059Z.jsonl
 ---
 <!-- COMMENTS:END -->
