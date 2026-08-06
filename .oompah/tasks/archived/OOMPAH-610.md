@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-08-06T21:01:32.719953Z'
+updated_at: '2026-08-06T21:03:53.528014Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 3514c39c-c179-4c65-a97c-34fc1997be79
 oompah.task_costs:
-  total_input_tokens: 2401095
-  total_output_tokens: 33565
+  total_input_tokens: 2401105
+  total_output_tokens: 33730
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,8 +57,8 @@ oompah.task_costs:
       output_tokens: 1645
       cost_usd: 0.0
     unknown:
-      input_tokens: 114
-      output_tokens: 21711
+      input_tokens: 124
+      output_tokens: 21876
       cost_usd: 0.0
   runs:
   - profile: default
@@ -91,6 +91,12 @@ oompah.task_costs:
     output_tokens: 776
     cost_usd: 0.0
     recorded_at: '2026-07-30T19:37:35.113256+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 10
+    output_tokens: 165
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T21:03:50.771027+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-610__20260730T185400Z
@@ -512,5 +518,15 @@ Safe evidence:
 - tests_passed: test_auditor_exit_cleanup.py: 2/2, test_auditor_dispatch.py: 7/7, test_terminal_audit.py: 28/28, test_auditor_focus.py: 12/12, test_auditor_result_api.py: 68/68, test_orchestrator_handlers.py: 272/272
 - commit_trailer: canonical oompah trailer present, no model-specific attribution
 - acceptance_criteria: all 4 criteria met: no stale claimed_issues, defensive pruning active, tests comprehensive, proper attribution
+---
+author: oompah
+created: 2026-08-06 21:03
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 84, Tool calls: 40
+- Tokens: 10 in / 165 out [175 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 19s
+- Log: OOMPAH-610__20260806T204346Z.jsonl
 ---
 <!-- COMMENTS:END -->
