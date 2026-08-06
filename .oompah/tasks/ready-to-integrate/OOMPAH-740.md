@@ -14,6 +14,7 @@ children:
 - OOMPAH-755
 - OOMPAH-761
 - OOMPAH-762
+- OOMPAH-857
 blocked_by: []
 start_blocked_by: []
 labels:
@@ -22,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:16:39.338938Z'
+updated_at: '2026-08-06T07:17:17.162677Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
