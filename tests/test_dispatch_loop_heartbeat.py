@@ -612,7 +612,7 @@ class TestGetSnapshotIncludesAlert:
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
