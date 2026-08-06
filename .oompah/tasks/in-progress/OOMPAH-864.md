@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:37:50.687315Z'
+updated_at: '2026-08-06T22:38:07.460106Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -307,5 +307,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 16s
 - Log: OOMPAH-864__20260806T223644Z.jsonl
+---
+author: oompah
+created: 2026-08-06 22:38
+---
+Owner takeover stopped the old-server CI fixer before it duplicated OOMPAH-845 or rewrote accepted head 742075be6. This exact gate again reached the full suite and failed only tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events after the same LogFileWatcher.start leak warnings. OOMPAH-845 7bb2362fc is the recorded finish dependency and exact fix. Preserve OOMPAH-864 unchanged; rebase/re-gate only after OOMPAH-845 lands.
 ---
 <!-- COMMENTS:END -->
