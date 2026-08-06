@@ -15,7 +15,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-04T13:58:48.205609Z'
-updated_at: '2026-08-04T22:16:14.089819Z'
+updated_at: '2026-08-06T16:09:20.566296Z'
 work_branch: epic-OOMPAH-769--task-OOMPAH-775
 target_branch: null
 review_url: null
@@ -224,5 +224,10 @@ author: oompah
 created: 2026-08-04 22:16
 ---
 Temporary collision fence: the existing hard-start on OOMPAH-806 prevents the original watchdog overlap, but OOMPAH-807 and OOMPAH-796 now legitimately modify the same audit/projects/orchestrator/transition seams and have explicit landing order 806 -> 807 -> 796. This task's broad API/CLI/watchdog/audit auxiliary-writer cutover must not dispatch on the older epic-OOMPAH-769 lineage as soon as 806 becomes Done. The human-only label is an operational dispatch fence; remove it after 796 lands and the canonical predecessor code is reachable, then run this task on the refreshed epic branch.
+---
+author: oompah
+created: 2026-08-06 16:09
+---
+Current fence re-evaluation: OOMPAH-796 is terminal, but its accepted head is not yet reachable from epic-OOMPAH-769; it remains isolated under the incomplete OOMPAH-770 rollup. Keep human-only until OOMPAH-770 lands into the shared parent and epic-OOMPAH-769/task OOMPAH-775 can be refreshed onto that canonical predecessor lineage. Removing the fence now would dispatch from the obsolete 6561d52e5 base and recreate the documented collision.
 ---
 <!-- COMMENTS:END -->
