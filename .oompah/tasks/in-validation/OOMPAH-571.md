@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-571
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Keep active terminal auditors alive in In Validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:10:34.338516Z'
+updated_at: '2026-08-06T00:24:41.593401Z'
 work_branch: OOMPAH-571
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/586
@@ -73,6 +73,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/586
 oompah.review_number: '586'
 oompah.work_branch: OOMPAH-571
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-daccfe18b915
+    project_id: proj-14849f1b
+    task_id: OOMPAH-571
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d086f03be09cbbb3d38e5d0e9dbb5b80f1997493fd3e0c5804b97a34ef1d1629
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T00:24:34.485366+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -152,5 +174,10 @@ author: oompah
 created: 2026-07-30 00:10
 ---
 YOLO: merged PR #586.
+---
+author: oompah
+created: 2026-08-06 00:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
