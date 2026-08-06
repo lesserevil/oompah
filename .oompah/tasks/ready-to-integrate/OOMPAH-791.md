@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T00:47:09.388252Z'
+updated_at: '2026-08-06T00:54:29.654921Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -56,48 +56,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
-  head_sha: 7b1640209d71b81c9c78e23d995e290d9464b5ac
-  submitted_at: '2026-08-06T00:18:09.398698+00:00'
-  updated_at: '2026-08-06T00:47:01.740628+00:00'
-  last_error: "Combined-tree quality gate failed:  reversed(teardowns):\n  Enable\
-    \ tracemalloc to get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_stop_terminates_all_tracked_processes\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-iplwsi3u/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7626eed4b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_orchestrator_full_sync.py::TestFullSyncDueIntervalVariants::test_parametrised[60000-59.9-False]\n\
-    FAILED tests/test_owner_claim.py::test_owner_claim_retires_exact_advertised_legacy_provider_only\n\
-    = 2 failed, 16192 passed, 8 skipped, 1 xfailed, 47 warnings in 1084.95s (0:18:04)\
-    \ =\n\n/home/shedwards/.oompah/tmp/oompah-quality-gate-iplwsi3u/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7626eed4b9c0>\n\nTraceback (most recent call last):\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n    self.close()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n    proto.pipe.close()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n    self._close(None)\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n    self._loop.call_soon(self._call_connection_lost, exc)\n\
-    \  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n    self._check_closed()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n    raise RuntimeError('Event loop is closed')\n\
-    RuntimeError: Event loop is closed\n\nEnable tracemalloc to get traceback where\
-    \ the object was allocated.\nSee https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n  warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    make: *** [Makefile:401: test] Error 1\n"
+  head_sha: cef3cad8f141adb5bb4d19ee75b3b11c5e5dd13f
+  submitted_at: '2026-08-06T00:54:22.382249+00:00'
+  updated_at: '2026-08-06T00:54:22.382249+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -413,5 +379,30 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 00:54
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #24)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** current CI evidence is passing at branch head cef3cad8f141 (repair advanced past accepted head 7b1640209d71); safe to reopen.
+**Evidence head:** `cef3cad8f141adb5bb4d19ee75b3b11c5e5dd13f`
+**Evidence result:** `ci_passing_at_advanced_head`
+**Evidence generation:** `integration-queue-v1:51f4cd497e855a75093f7f38c7e5fbee224bf8e526df3afcc34ef9e106ba96d7`
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-06 00:54
+---
+Repaired the two loaded full-gate flakes at exact pushed head cef3cad8f141adb5bb4d19ee75b3b11c5e5dd13f. The 59.9-second full-sync boundary test now freezes monotonic time instead of spending a real 100 ms margin under suite load. The legacy provider retirement process test now declares a 20-second timeout because its own bounded startup, retirement, and cleanup waits can exceed the suite-wide 5-second default. Both prior failures passed 20 independent four-way parallel reproductions (180 assertions total), and the complete affected modules pass 43/43; diff and secret scans are clean. Resubmitting for the server's exact-head full gate.
+---
+author: oompah
+created: 2026-08-06 00:54
+---
+Stabilized the two loaded full-gate timing races at cef3cad8f; targeted parallel reproductions and affected modules pass.
 ---
 <!-- COMMENTS:END -->
