@@ -517,16 +517,16 @@ class TestDefaultFirstDispatchWithBudgetExceeded:
 
 
 # ---------------------------------------------------------------------------
-# get_snapshot() — free_tier_active flag
+# _budget_snapshot() — free_tier_active flag
 # ---------------------------------------------------------------------------
 
 class TestGetSnapshotFreeTierActive:
-    """budget block must include free_tier_active flag."""
+    """The local budget projection must include free-tier state."""
 
     def test_free_tier_active_false_when_not_exceeded(self, tmp_path):
         orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
     def test_free_tier_active_false_when_exceeded_but_no_dispatches(self, tmp_path):
         """Exceeded + no free-tier dispatches yet = free_tier_active is False."""
@@ -534,57 +534,87 @@ class TestGetSnapshotFreeTierActive:
         _exceed_budget(orch)
         # No free-tier dispatches recorded
         assert orch.state.free_tier_dispatches_this_window == 0
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
     def test_free_tier_active_true_when_exceeded_and_dispatches_happened(self, tmp_path):
         """Exceeded + free-tier dispatch counter > 0 = free_tier_active is True."""
         orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
         _exceed_budget(orch)
         orch.state.free_tier_dispatches_this_window = 3  # simulated dispatches
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is True
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is True
 
     def test_free_tier_active_false_when_budget_limit_is_zero(self, tmp_path):
         """With budget_limit=0 (unlimited), budget_exceeded is never True → False."""
         orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=0.0)
         # budget_exceeded never gets set to True when budget_limit=0
         assert orch.state.budget_exceeded is False
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is False
+        snapshot = orch._budget_snapshot()
+        assert snapshot["free_tier_active"] is False
 
     def test_budget_block_has_free_tier_active_key(self, tmp_path):
         """budget block always has the free_tier_active key."""
         orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
-        snapshot = orch.get_snapshot()
-        assert "free_tier_active" in snapshot["budget"]
+        snapshot = orch._budget_snapshot()
+        assert "free_tier_active" in snapshot
 
     def test_budget_block_has_free_tier_dispatches_count(self, tmp_path):
         """budget block also exposes free_tier_dispatches_this_window count."""
         orch = _make_orchestrator(tmp_path, provider=_make_free_provider(), budget_limit=10.0)
         orch.state.free_tier_dispatches_this_window = 5
-        snapshot = orch.get_snapshot()
-        assert "free_tier_dispatches_this_window" in snapshot["budget"]
-        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 5
+        snapshot = orch._budget_snapshot()
+        assert "free_tier_dispatches_this_window" in snapshot
+        assert snapshot["free_tier_dispatches_this_window"] == 5
 
     @pytest.mark.timeout(20)
     def test_should_dispatch_increments_and_snapshot_reflects_it(self, tmp_path):
-        """End-to-end: _should_dispatch increments counter, snapshot reflects free_tier_active."""
+        """Dispatch increments once and the next budget projection reflects it."""
         provider = _make_free_provider()
         orch = _make_orchestrator(tmp_path, provider=provider, budget_limit=10.0)
         _exceed_budget(orch)
         issue = _make_issue()
-        # The adjacent snapshot tests cover the pre-dispatch projection.  Keep
-        # this end-to-end assertion focused on the counter transition so it
-        # performs only the one full snapshot needed by the contract.
-        assert orch.state.free_tier_dispatches_this_window == 0
+        # Before dispatch
+        before = orch._budget_snapshot()
+        assert before["free_tier_active"] is False
+        assert before["free_tier_dispatches_this_window"] == 0
         # Dispatch on free model
-        orch._should_dispatch(issue)
+        assert orch._should_dispatch(issue) is True
         # After dispatch
+        after = orch._budget_snapshot()
         assert orch.state.free_tier_dispatches_this_window == 1
-        snapshot = orch.get_snapshot()
-        assert snapshot["budget"]["free_tier_active"] is True
-        assert snapshot["budget"]["free_tier_dispatches_this_window"] == 1
+        assert after["free_tier_active"] is True
+        assert after["free_tier_dispatches_this_window"] == 1
+
+    def test_budget_projection_does_not_collect_unrelated_live_state(
+        self, tmp_path, monkeypatch
+    ):
+        """The budget projection must not touch heavyweight snapshot collectors."""
+        orch = _make_orchestrator(
+            tmp_path, provider=_make_free_provider(), budget_limit=10.0
+        )
+        collectors = []
+        for owner, name in (
+            (orch, "_running_values_snapshot"),
+            (orch, "_sync_terminal_audit_observability_alerts"),
+            (orch, "_reconcile_integration_retry_alerts"),
+            (orch, "_quality_gate_state_snapshot"),
+            (orch, "_tracker_read_stats_snapshot"),
+            (orch, "_reviews_summary"),
+            (orch.project_store, "list_all"),
+            (orch.validation_resource_lease, "status"),
+            (orch.workflow_job_store, "health_snapshot"),
+            (orch.workflow_shadow, "summary"),
+        ):
+            collector = MagicMock(side_effect=AssertionError(f"unexpected {name}"))
+            monkeypatch.setattr(owner, name, collector)
+            collectors.append(collector)
+
+        projection = orch._budget_snapshot()
+
+        assert projection["free_tier_active"] is False
+        for collector in collectors:
+            collector.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
