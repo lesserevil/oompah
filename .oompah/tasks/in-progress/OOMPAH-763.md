@@ -38,6 +38,7 @@ children:
 - OOMPAH-853
 - OOMPAH-854
 - OOMPAH-855
+- OOMPAH-856
 blocked_by: []
 start_blocked_by: []
 labels:
@@ -45,7 +46,7 @@ labels:
 - architecture
 assignee: null
 created_at: '2026-08-04T13:54:42.220415Z'
-updated_at: '2026-08-06T06:52:18.174424Z'
+updated_at: '2026-08-06T06:57:40.037775Z'
 work_branch: null
 target_branch: null
 review_url: null
