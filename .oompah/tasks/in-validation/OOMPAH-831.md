@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T17:24:18.267259Z'
+updated_at: '2026-08-06T17:46:31.155813Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -41,14 +41,37 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-831
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-831
   base_branch: epic-OOMPAH-763
-  base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
+  base_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
   head_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
+  integrated_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
   submitted_at: '2026-08-06T17:24:10.855191+00:00'
-  updated_at: '2026-08-06T17:24:10.855191+00:00'
+  updated_at: '2026-08-06T17:46:20.926541+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-16c1e6ef6c1c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-831
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9ec95b5a0be94baf980b3342f88516d2b55cc0b087fdafad5350cd96d1fc6191
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T17:46:23.709918+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -238,5 +261,10 @@ author: oompah
 created: 2026-08-06 17:24
 ---
 Aligned Python-regex search/context and safe read-only inspection across auditor backends while preserving fatal credential/path/mutation fences; composed OOMPAH-862/O847 and passed 716 serial plus 716 xdist/loadscope checks.
+---
+author: oompah
+created: 2026-08-06 17:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
