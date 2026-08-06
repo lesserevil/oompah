@@ -63,6 +63,7 @@ PENDING_REQUEST_STATES = frozenset({RequestState.PENDING, RequestState.IN_PROGRE
 TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+TERMINAL_REARM_HISTORY_KEY = "oompah.terminal_audit_rearm_history"
 LIFECYCLE_RECONCILIATIONS_KEY = "oompah.lifecycle_reconciliations"
 LIFECYCLE_RECONCILIATION_STATE_KEY = "lifecycle_reconciliation"
 LIFECYCLE_RECONCILIATION_VERSION = 1
@@ -932,6 +933,55 @@ class TerminalAuditEnforcement:
                         self._recover_terminal_result(store, tracker, issue, str(project_id))
             finally:
                 _recovery_snapshot.reset(token)
+            # Status-intent recovery above can move a task into or out of In
+            # Validation.  Refresh the tracker snapshot and build the dispatch
+            # projection from post-recovery state so a repaired rearm is
+            # immediately auditable in this same startup pass.  Some adapters
+            # do not mutate the Issue instance passed to ``update_issue``.
+            try:
+                all_issues = self._all_issues(tracker)
+            except Exception as exc:
+                self._error(f"validation_rescan_failed:{project_id}", exc)
+                self._recovery_scan_complete = False
+                self._recovery_scan_error_count += 1
+            issues = [
+                issue
+                for issue in all_issues
+                if status_key(getattr(issue, "state", ""))
+                == status_key(IN_VALIDATION)
+            ]
+            # A failed rearm status write intentionally leaves the task in its
+            # prior repair state, so it will not appear in ``issues`` yet.
+            # Still expose its unapplied durable intent as an actionable
+            # finalization failure until a later restart repairs the status.
+            for unstaged_issue in all_issues:
+                if status_key(getattr(unstaged_issue, "state", "")) == status_key(
+                    IN_VALIDATION
+                ):
+                    continue
+                try:
+                    unstaged_document = store.read(str(unstaged_issue.identifier))
+                except Exception:
+                    continue
+                raw_unstaged_intents = unstaged_document.unknown_fields.get(
+                    TERMINAL_RESULT_INTENTS_KEY, []
+                )
+                if not isinstance(raw_unstaged_intents, list):
+                    continue
+                failures = sum(
+                    1
+                    for raw_intent in raw_unstaged_intents
+                    if isinstance(raw_intent, Mapping)
+                    and raw_intent.get("applied", True) is False
+                    and raw_intent.get("project_id") == str(project_id)
+                    and raw_intent.get("task_id")
+                    == str(unstaged_issue.identifier)
+                )
+                if failures:
+                    self.finalization_failure_counts[str(project_id)] = (
+                        self.finalization_failure_counts.get(str(project_id), 0)
+                        + failures
+                    )
             for issue in issues:
                 current_fingerprint = self._authoritative_recovery_fingerprint(
                     issue,
@@ -2353,6 +2403,8 @@ class TerminalAuditEnforcement:
                     (item for item in document.pending_chain if item.audit_id == audit_id),
                     None,
                 )
+                intent_kind = str(raw_intent.get("kind") or "result")
+                rearm_intent = intent_kind == "audit_rearm"
                 stale_reason: str | None = None
                 target_state = _target_state_status(raw_intent.get("target_state"))
                 intent_fingerprint: EvidenceFingerprint | None = None
@@ -2384,11 +2436,118 @@ class TerminalAuditEnforcement:
                     # The task was revised after the result was persisted.
                     # Never replay a terminal status for an obsolete revision.
                     stale_reason = "current_evidence_mismatch"
-                elif stale_reason is None and record.request_state in (
+                if stale_reason is None and rearm_intent:
+                    history = document.unknown_fields.get(
+                        TERMINAL_REARM_HISTORY_KEY, []
+                    )
+                    history_row = next(
+                        (
+                            raw
+                            for raw in reversed(history)
+                            if isinstance(raw, Mapping)
+                            and raw.get("audit_id") == record.audit_id
+                            and raw.get("project_id") == project_id
+                            and raw.get("task_id") == identifier
+                            and raw.get("target_state") == record.target_state.value
+                        ),
+                        None,
+                    ) if isinstance(history, list) else None
+                    mode = history_row.get("mode") if history_row is not None else None
+                    expected_action = {
+                        "infrastructure_recovery": "audit_retry",
+                        "evidence_addendum": "audit_retry_evidence_addendum",
+                    }.get(mode)
+                    actor = history_row.get("actor") if history_row is not None else None
+                    superseded_id = (
+                        history_row.get("superseded_audit_id")
+                        if history_row is not None
+                        else None
+                    )
+                    prior = next(
+                        (
+                            candidate
+                            for candidate in document.pending_chain
+                            if candidate.audit_id == superseded_id
+                        ),
+                        None,
+                    )
+                    if (
+                        history_row is None
+                        or expected_action is None
+                        or not isinstance(actor, Mapping)
+                        or record.requested_by is None
+                        or actor.get("identity") != record.requested_by.identity
+                        or actor.get("source") != record.requested_by.source
+                        or prior is None
+                        or prior.project_id != project_id
+                        or prior.task_id != identifier
+                        or prior.target_state != record.target_state
+                        or prior.evidence_fingerprint != record.evidence_fingerprint
+                        or prior.request_state != RequestState.SUPERSEDED
+                    ):
+                        stale_reason = "invalid_audit_rearm_history"
+                    else:
+                        from oompah.terminal_transition_coordinator import (
+                            accepted_audit_recovery_action,
+                        )
+
+                        prior_action = accepted_audit_recovery_action(
+                            replace(prior, request_state=RequestState.COMPLETED)
+                        )
+                        if prior_action != expected_action:
+                            stale_reason = "invalid_audit_rearm_classification"
+                if stale_reason is None and record.request_state in (
                     RequestState.SUPERSEDED,
                     RequestState.CANCELLED,
                 ):
                     stale_reason = "audit_record_retired"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and status_key(desired_status) != status_key(IN_VALIDATION)
+                ):
+                    stale_reason = "invalid_rearm_status"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and record.request_state == RequestState.COMPLETED
+                ):
+                    # A concurrent verdict (especially PASS) has newer
+                    # authority than a retry's unacknowledged staging write.
+                    # Never regress its terminal status to In Validation.
+                    stale_reason = "audit_rearm_completed"
+                elif (
+                    stale_reason is None
+                    and rearm_intent
+                    and record.request_state
+                    not in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                ):
+                    stale_reason = "audit_rearm_not_pending"
+                elif stale_reason is None and rearm_intent:
+                    later_authority = next(
+                        (
+                            candidate
+                            for candidate in reversed(document.pending_chain)
+                            if candidate.audit_id != record.audit_id
+                            and candidate.project_id == project_id
+                            and candidate.task_id == identifier
+                            and candidate.target_state == record.target_state
+                            and candidate.request_state
+                            not in (
+                                RequestState.SUPERSEDED,
+                                RequestState.CANCELLED,
+                            )
+                        ),
+                        None,
+                    )
+                    if later_authority is not None:
+                        stale_reason = "audit_rearm_superseded"
+                    elif canonicalize_status(current_status) in {
+                        DONE,
+                        MERGED,
+                        ARCHIVED,
+                    }:
+                        stale_reason = "status_already_advanced"
                 elif stale_reason is None and record.request_state != RequestState.COMPLETED:
                     # The result intent may be ahead of the record write.  It
                     # is not stale, but it is not replayable until completion
@@ -2441,7 +2600,8 @@ class TerminalAuditEnforcement:
                     ):
                         try:
                             # TERMINAL-AUDIT-ALLOW OOMPAH-483: replay only a
-                            # current, completed terminal-audit decision.
+                            # current completed decision or an exact durable
+                            # owner-rearm staging intent.
                             tracker.update_issue(identifier, status=desired_status)
                         except Exception:
                             logger.warning(

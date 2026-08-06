@@ -23,6 +23,7 @@ from oompah.orchestrator import Orchestrator
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
+    FailureClassification,
     OverrideRecord,
     RequestState,
     TargetState,
@@ -44,6 +45,10 @@ from oompah.terminal_audit_metadata import (
     METADATA_KEY,
     TerminalAuditMetadata,
     TerminalAuditMetadataStore,
+)
+from oompah.terminal_transition_coordinator import (
+    AuditResult,
+    TerminalTransitionCoordinator,
 )
 
 
@@ -70,6 +75,12 @@ class _Tracker:
 
     def fetch_all_issues_enriched(self):
         return list(self.issues)
+
+    def fetch_issue_detail(self, identifier: str):
+        return next(
+            (issue for issue in self.issues if issue.identifier == identifier),
+            None,
+        )
 
     def get_metadata(self, identifier: str):
         return dict(self.metadata.get(identifier, {}))
@@ -1720,6 +1731,118 @@ def test_restart_replays_unacknowledged_result_status_and_is_idempotent(tmp_path
     updates_before_replay = tracker.set_calls
     assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
     assert tracker.set_calls == updates_before_replay
+
+
+def test_retry_status_failure_restarts_into_exact_validation_and_accepts_verdict(
+    tmp_path,
+):
+    """Real coordinator metadata is repaired by the restart enforcer."""
+
+    issue = _issue("TASK-1", "Needs Human", "evidence-a", project="project-a")
+    tracker = _Tracker([issue])
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    failed_attempt = AuditAttempt(
+        attempt_id="attempt-no-auditor",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.FAIL,
+        failure_classification=FailureClassification.NO_AUDITOR,
+    )
+    exhausted = TerminalAuditRecord(
+        audit_id="audit-exhausted",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[failed_attempt],
+        requested_by=ContributorIdentity("integration", "service"),
+        previous_state="Ready to Integrate",
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[exhausted]).to_dict()
+    }
+    lock_store = _LockStore()
+    coordinator = TerminalTransitionCoordinator(
+        tracker,
+        lock_store,
+        post_comments=False,
+    )
+    project = SimpleNamespace(
+        tracker_owner="project-owner",
+        status_actor_login=None,
+        status_label_authorized_logins=["project-owner"],
+    )
+
+    tracker.fail_status_updates = True
+    retry = asyncio.run(
+        coordinator.retry_failed_audit(
+            issue,
+            TargetState.DONE,
+            ContributorIdentity("project-owner", "api"),
+            "project-a",
+            "Independent auditor capacity restored.",
+            project,
+            evidence_fingerprint=fingerprint,
+        )
+    )
+    assert retry.success is False
+    assert retry.reason == "status_stage_failed"
+    document = TerminalAuditMetadata.from_dict(
+        tracker.metadata["TASK-1"][METADATA_KEY]
+    )
+    pending = document.pending_chain[-1]
+    intent = document.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][-1]
+    assert pending.request_state == RequestState.PENDING
+    assert intent["kind"] == "audit_rearm"
+    assert intent["status"] == "In Validation"
+    assert intent["applied"] is False
+
+    blocked_restart = TerminalAuditEnforcement(
+        str(tmp_path / "restart-state.json"),
+        terminal_states=("Done",),
+        project_store=lock_store,
+    )
+    assert blocked_restart.recover_pending_audits([("project-a", tracker)]) == []
+    assert issue.state == "Needs Human"
+    assert blocked_restart.finalization_failure_counts == {"project-a": 1}
+
+    tracker.fail_status_updates = False
+    restarted = TerminalAuditEnforcement(
+        str(tmp_path / "restart-state.json"),
+        terminal_states=("Done",),
+        project_store=lock_store,
+    )
+    recovered = restarted.recover_pending_audits([("project-a", tracker)])
+    assert issue.state == "In Validation"
+    assert [item.audit_id for item in recovered] == [pending.audit_id]
+
+    outcome = asyncio.run(
+        coordinator.apply_audit_result(
+            issue,
+            AuditResult(
+                audit_id=pending.audit_id,
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                verdict=Verdict.PASS,
+                message="Independent verification passed.",
+                attempt_id="attempt-pass-after-restart",
+            ),
+            "project-a",
+        )
+    )
+    assert outcome.success is True
+    assert issue.state == "Done"
+
+    restarted.recover_pending_audits([("project-a", tracker)])
+    assert issue.state == "Done"
+    assert not any(
+        item.get("kind") == "audit_rearm" and item.get("applied") is False
+        for item in TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        ).unknown_fields[TERMINAL_RESULT_INTENTS_KEY]
+    )
 
 
 def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):

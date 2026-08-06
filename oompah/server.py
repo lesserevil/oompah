@@ -6306,10 +6306,8 @@ async def _stage_terminal_transition(
                     project_id=str(project_id),
                     reason=retry_reason,
                     project=_project_by_id(orch, str(project_id)),
-                    evidence_fingerprint=(
-                        _terminal_evidence_fingerprint(current_issue, str(project_id))
-                        if evidence_addendum is not None
-                        else None
+                    evidence_fingerprint=_terminal_evidence_fingerprint(
+                        current_issue, str(project_id)
                     ),
                     evidence_addendum=evidence_addendum,
                 )
@@ -6322,7 +6320,9 @@ async def _stage_terminal_transition(
             logger.exception("Terminal audit retry failed")
             return None, ("The terminal audit retry could not be staged.", 503)
         if not result.success:
-            _rollback_dispatch_fence()
+            status_stage_failed = result.reason == "status_stage_failed"
+            if not status_stage_failed:
+                _rollback_dispatch_fence()
             if result.reason == "unauthorized_actor":
                 return None, ("Only a project owner may retry an audit.", 403)
             if result.reason == "invalid_evidence_addendum":
@@ -6333,10 +6333,22 @@ async def _stage_terminal_transition(
                     "refresh and retry.",
                     409,
                 )
+            if result.reason == "evidence_unavailable":
+                return None, (
+                    "The current task evidence could not be verified; no audit "
+                    "retry was recorded. Restore tracker reads and retry.",
+                    503,
+                )
             if result.reason in {"audit_not_retryable", "project_mismatch"}:
                 return None, (
                     "No matching exhausted audit can be retried for this task.",
                     409,
+                )
+            if status_stage_failed:
+                return None, (
+                    "The audit retry was recorded, but In Validation could not "
+                    "be restored; durable recovery will retry the status write.",
+                    503,
                 )
             if "shared-epic" in str(result.reason or "").lower() or "auto-filed epic" in str(result.reason or "").lower():
                 return None, (str(result.reason), 409)

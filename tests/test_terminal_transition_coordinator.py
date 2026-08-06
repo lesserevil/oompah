@@ -134,6 +134,24 @@ class _FailingUpdateTracker(_MemoryTracker):
         super().update_issue(identifier, **kwargs)
 
 
+class _RefreshingTracker(_MemoryTracker):
+    """Expose the canonical issue snapshot used by the retry CAS boundary."""
+
+    def __init__(self, issue: Issue) -> None:
+        super().__init__()
+        self.issue = issue
+
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        return self.issue if identifier == self.issue.identifier else None
+
+
+class _UnavailableRefreshingTracker(_MemoryTracker):
+    """Advertise a production detail reader that cannot prove current evidence."""
+
+    def fetch_issue_detail(self, _identifier: str) -> Issue | None:
+        raise RuntimeError("tracker detail read unavailable")
+
+
 class _BlockingMetadataTracker(_MemoryTracker):
     """Block the first metadata write to force cross-loop lock contention."""
 
@@ -1823,6 +1841,7 @@ from oompah.terminal_audit import (  # noqa: E402
     AuditAttempt,
     FailureClassification,
     Verdict,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_transition_coordinator import (  # noqa: E402
     AuditResult,
@@ -1958,6 +1977,39 @@ class TestRetryFailedAudit:
         )
         assert accepted_audit_recovery_action(not_rearmable) == "audit_override"
 
+        inconsistent = replace(
+            missing,
+            attempts=[
+                replace(
+                    missing.attempts[0],
+                    target_state=TargetState.MERGED,
+                )
+            ],
+        )
+        assert accepted_audit_recovery_action(inconsistent) == "audit_override"
+
+        wrong_fingerprint = replace(
+            missing,
+            attempts=[
+                replace(
+                    missing.attempts[0],
+                    evidence_fingerprint=_alt_fingerprint(),
+                )
+            ],
+        )
+        assert accepted_audit_recovery_action(wrong_fingerprint) == "audit_override"
+
+        passed = replace(
+            missing,
+            attempts=[
+                replace(
+                    missing.attempts[0],
+                    verdict=Verdict.PASS,
+                )
+            ],
+        )
+        assert accepted_audit_recovery_action(passed) == "audit_override"
+
     def test_successful_rearm_clears_integrated_task_alert(self) -> None:
         tracker = _MemoryTracker()
         exhausted = _exhausted_no_auditor_record()
@@ -1979,6 +2031,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Transport repaired.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
@@ -2000,6 +2053,7 @@ class TestRetryFailedAudit:
                 PROJECT_ID,
                 "Detached audit checkout support is deployed.",
                 self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
             )
         )
 
@@ -2024,7 +2078,8 @@ class TestRetryFailedAudit:
 
     def test_retry_is_idempotent_after_fresh_record_is_pending(self) -> None:
         tracker = _MemoryTracker()
-        _seed_metadata(tracker, [_exhausted_no_auditor_record()])
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
         coordinator = _coordinator(tracker, post_comments=False)
         args = (
             _issue(NEEDS_HUMAN),
@@ -2035,8 +2090,16 @@ class TestRetryFailedAudit:
             self._owner_project(),
         )
 
-        first = _run(coordinator.retry_failed_audit(*args))
-        second = _run(coordinator.retry_failed_audit(*args))
+        first = _run(
+            coordinator.retry_failed_audit(
+                *args, evidence_fingerprint=exhausted.evidence_fingerprint
+            )
+        )
+        second = _run(
+            coordinator.retry_failed_audit(
+                *args, evidence_fingerprint=exhausted.evidence_fingerprint
+            )
+        )
 
         assert first.success is True
         assert second.success is True
@@ -2046,6 +2109,242 @@ class TestRetryFailedAudit:
             tracker, _LockStore(), PROJECT_ID
         ).read(TASK_ID)
         assert len(stored.pending_chain) == 2
+
+    def test_ordinary_retry_rejects_changed_canonical_fingerprint(self) -> None:
+        issue = _issue(NEEDS_HUMAN)
+        issue.description = "current requirements"
+        current_fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+        exhausted = replace(
+            _exhausted_no_auditor_record(),
+            evidence_fingerprint=_alt_fingerprint(),
+            attempts=[
+                replace(
+                    attempt,
+                    evidence_fingerprint=_alt_fingerprint(),
+                )
+                for attempt in _exhausted_no_auditor_record().attempts
+            ],
+        )
+        assert exhausted.evidence_fingerprint != current_fingerprint
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [exhausted])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                issue,
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_fingerprint_mismatch"
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert stored.pending_chain == [exhausted]
+
+    def test_ordinary_retry_rejects_unavailable_authoritative_evidence(self) -> None:
+        issue = _issue(NEEDS_HUMAN)
+        exhausted = _exhausted_no_auditor_record()
+        tracker = _UnavailableRefreshingTracker()
+        _seed_metadata(tracker, [exhausted])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                issue,
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "evidence_unavailable"
+        assert tracker.update_calls == []
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [exhausted]
+
+    def test_ordinary_retry_does_not_select_older_matching_completed_record(
+        self,
+    ) -> None:
+        issue = _issue(NEEDS_HUMAN)
+        issue.description = "current requirements"
+        current_fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+        template = _exhausted_no_auditor_record()
+        older_current = replace(
+            template,
+            audit_id="audit-older-current",
+            evidence_fingerprint=current_fingerprint,
+            attempts=[
+                replace(attempt, evidence_fingerprint=current_fingerprint)
+                for attempt in template.attempts
+            ],
+        )
+        newer_stale = replace(
+            template,
+            audit_id="audit-newer-stale",
+            evidence_fingerprint=_alt_fingerprint(),
+            attempts=[
+                replace(attempt, evidence_fingerprint=_alt_fingerprint())
+                for attempt in template.attempts
+            ],
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [older_current, newer_stale])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                issue,
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=current_fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [older_current, newer_stale]
+
+    def test_ordinary_retry_does_not_coalesce_unowned_pending_audit(self) -> None:
+        issue = _issue(NEEDS_HUMAN)
+        fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+        pending = _pending_record(
+            target=TargetState.ARCHIVED,
+            fingerprint=fingerprint,
+            previous=MERGED,
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [pending])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                issue,
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [pending]
+
+    def test_ordinary_retry_rejects_older_live_same_key_sibling(self) -> None:
+        issue = _issue(NEEDS_HUMAN)
+        fingerprint = compute_issue_evidence_fingerprint(issue, PROJECT_ID)
+        template = _exhausted_no_auditor_record()
+        exhausted = replace(
+            template,
+            evidence_fingerprint=fingerprint,
+            attempts=[
+                replace(attempt, evidence_fingerprint=fingerprint)
+                for attempt in template.attempts
+            ],
+        )
+        older_pending = _pending_record(
+            audit_id="audit-older-unowned",
+            target=TargetState.ARCHIVED,
+            fingerprint=fingerprint,
+            previous=MERGED,
+        )
+        tracker = _RefreshingTracker(issue)
+        _seed_metadata(tracker, [older_pending, exhausted])
+
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                issue,
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=fingerprint,
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
+        assert tracker.update_calls == []
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert stored.pending_chain == [older_pending, exhausted]
+        assert "oompah.terminal_audit_rearm_history" not in stored.unknown_fields
+
+    def test_failed_status_stage_is_durable_and_not_reported_as_success(self) -> None:
+        tracker = _FailingUpdateTracker()
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
+        cleared: list[tuple[str, str]] = []
+        coordinator = _coordinator(
+            tracker,
+            post_comments=False,
+            clear_integrated_audit_recovery_alert=lambda project, task: cleared.append(
+                (project, task)
+            ),
+        )
+
+        failed = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+
+        assert failed.success is False
+        assert failed.reason == "status_stage_failed"
+        assert failed.audit_id is not None
+        assert cleared == []
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        fresh = stored.pending_chain[-1]
+        assert fresh.request_state == RequestState.PENDING
+        intents = stored.unknown_fields["oompah.terminal_audit_result_intents"]
+        assert intents[-1]["kind"] == "audit_rearm"
+        assert intents[-1]["status"] == IN_VALIDATION
+        assert intents[-1]["applied"] is False
+
+        tracker.fail_update = False
+        repaired = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Workspace transport repaired.",
+                self._owner_project(),
+                evidence_fingerprint=exhausted.evidence_fingerprint,
+            )
+        )
+        assert repaired.success is True
+        assert repaired.coalesced is True
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        assert cleared == [(PROJECT_ID, TASK_ID)]
 
     def test_non_owner_cannot_rearm_audit(self) -> None:
         tracker = _MemoryTracker()

@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
@@ -1464,8 +1464,12 @@ class Orchestrator:
         self._restart_request_id: str | None = None
         self._restart_requested_at: str | None = None
         self._restart_initial_running = 0
+        # API callbacks and scheduler maintenance can arm/clear alerts from
+        # different threads.  Integrated terminal-audit recovery relies on an
+        # atomic replace-by-source operation, so serialize that shared list.
+        self._alerts_lock = threading.RLock()
         self._alerts: list[
-            dict[str, str]
+            dict[str, Any]
         ] = []  # {"level": "warning", "message": "..."}
         # The last outcome is deliberately transient.  Interrupted gates are
         # retryable lifecycle events and must not be converted into a durable
@@ -1975,6 +1979,97 @@ class Orchestrator:
             stale = self._get_stale_cache(project_id, operation)
             return stale if stale is not None else [], False
 
+    def _alerts_snapshot(self) -> list[dict[str, Any]]:
+        """Return an isolated snapshot of the shared alert registry.
+
+        Alert producers run on the scheduler loop, API worker threads, and the
+        maintenance pool.  Every read/modify/write of ``self._alerts`` goes
+        through this lock boundary; callers must finish tracker/project work
+        before entering it so the global alert lock is never ordered ahead of
+        a project lock.
+        """
+
+        with self._alerts_lock:
+            return [dict(alert) for alert in self._alerts]
+
+    def _replace_alerts_matching(
+        self,
+        predicate: Callable[[Mapping[str, Any]], bool],
+        replacements: Iterable[Mapping[str, Any]] = (),
+    ) -> int:
+        """Atomically replace the alert family selected by ``predicate``."""
+
+        replacement_rows = [dict(alert) for alert in replacements]
+        with self._alerts_lock:
+            retained = [alert for alert in self._alerts if not predicate(alert)]
+            removed = len(self._alerts) - len(retained)
+            self._alerts = [*retained, *replacement_rows]
+        return removed
+
+    def _replace_alert_source(
+        self,
+        source: str,
+        alert: Mapping[str, Any] | None = None,
+    ) -> int:
+        """Atomically clear or replace one source-owned alert."""
+
+        replacements = () if alert is None else (alert,)
+        return self._replace_alerts_matching(
+            lambda candidate: candidate.get("source") == source,
+            replacements,
+        )
+
+    def _upsert_alert_source_if_changed(
+        self,
+        source: str,
+        alert: Mapping[str, Any],
+        *,
+        compare_keys: tuple[str, ...] = ("message",),
+    ) -> bool:
+        """Replace one alert unless its relevant payload is already current."""
+
+        replacement = dict(alert)
+        with self._alerts_lock:
+            existing = next(
+                (candidate for candidate in self._alerts if candidate.get("source") == source),
+                None,
+            )
+            if existing is not None and all(
+                existing.get(key) == replacement.get(key) for key in compare_keys
+            ):
+                return False
+            self._alerts = [
+                candidate
+                for candidate in self._alerts
+                if candidate.get("source") != source
+            ]
+            self._alerts.append(replacement)
+            return True
+
+    def _update_alert_source(
+        self,
+        source: str,
+        updater: Callable[[dict[str, Any]], Mapping[str, Any] | None],
+    ) -> bool:
+        """Atomically transform an existing source alert, if present."""
+
+        with self._alerts_lock:
+            existing = next(
+                (candidate for candidate in self._alerts if candidate.get("source") == source),
+                None,
+            )
+            if existing is None:
+                return False
+            replacement = updater(dict(existing))
+            self._alerts = [
+                candidate
+                for candidate in self._alerts
+                if candidate.get("source") != source
+            ]
+            if replacement is not None:
+                self._alerts.append(dict(replacement))
+            return True
+
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
 
@@ -1982,21 +2077,19 @@ class Orchestrator:
         reload_config, so a fresh WORKFLOW.md edit either raises or
         silences the dashboard banner without restart.
         """
-        # Always drop any previously-armed drift alert before re-checking.
-        self._alerts = [a for a in self._alerts if a.get("source") != "profile_drift"]
+        alert = None
         if getattr(self.config, "agent_profiles_drift", False):
-            self._alerts.append(
-                {
-                    "level": "warning",
-                    "source": "profile_drift",
-                    "message": (
-                        "WORKFLOW.md agent.profiles block detected and "
-                        "differs from persisted profile store — using the "
-                        "persisted store. Delete the agent.profiles "
-                        "section from WORKFLOW.md to clear this warning."
-                    ),
-                }
-            )
+            alert = {
+                "level": "warning",
+                "source": "profile_drift",
+                "message": (
+                    "WORKFLOW.md agent.profiles block detected and "
+                    "differs from persisted profile store — using the "
+                    "persisted store. Delete the agent.profiles "
+                    "section from WORKFLOW.md to clear this warning."
+                ),
+            }
+        self._replace_alert_source("profile_drift", alert)
 
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
@@ -2350,18 +2443,11 @@ class Orchestrator:
         }
         conditions.extend(self._terminal_audit_manual_alerts.values())
         alerts = self._terminal_audit_alerts.sync(conditions)
-        terminal_sources = {
-            condition.source for condition in self._terminal_audit_alerts.conditions
-        }
-        self._alerts = [
-            alert
-            for alert in self._alerts
-            if not str(alert.get("source", "")).startswith("terminal_audit:")
-            or str(alert.get("source", "")) in terminal_sources
-        ]
-        existing_sources = {str(alert.get("source", "")) for alert in self._alerts}
-        self._alerts.extend(
-            alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
+        self._replace_alerts_matching(
+            lambda alert: str(alert.get("source", "")).startswith(
+                "terminal_audit:"
+            ),
+            alerts,
         )
 
     def _reconcile_terminal_audit_observability_from_metadata(self) -> None:
@@ -2598,12 +2684,13 @@ class Orchestrator:
         # A partial scan preserves existing alerts rather than clearing them.
         if not scan_complete:
             return
-        self._alerts = [
-            a for a in self._alerts
-            if not str(a.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
-            and a.get("source") != "terminal_audit_health"
-        ]
-        self._alerts.extend(terminal_audit_health_alerts(health))
+        self._replace_alerts_matching(
+            lambda alert: str(alert.get("source", "")).startswith(
+                HEALTH_ALERT_PREFIX
+            )
+            or alert.get("source") == "terminal_audit_health",
+            terminal_audit_health_alerts(health),
+        )
         if health.degraded:
             self._save_state(terminal_audit_health=health.to_dict())
 
@@ -5559,28 +5646,25 @@ class Orchestrator:
         message; it does not add duplicate entries.
         """
         source = "dispatch_loop_stale"
-        was_armed = any(a.get("source") == source for a in self._alerts)
         threshold_ms = self.config.dispatch_stale_threshold_ms
         if threshold_ms == 0:
             threshold_ms = (
                 self.config.full_sync_interval_ms
                 * self.config.dispatch_loop_stale_factor
             )
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
-        self._alerts.append(
-            {
-                "level": "error",
-                "source": source,
-                "title": "Orchestrator dispatch loop is stale",
-                "message": (
-                    f"The dispatch loop has not completed a tick in "
-                    f"{elapsed_s:.0f}s "
-                    f"(threshold: {threshold_ms / 1000:.0f}s). "
-                    "Open issues will not be dispatched until the loop recovers. "
-                    "Automatic recovery has been attempted."
-                ),
-            }
-        )
+        alert = {
+            "level": "error",
+            "source": source,
+            "title": "Orchestrator dispatch loop is stale",
+            "message": (
+                f"The dispatch loop has not completed a tick in "
+                f"{elapsed_s:.0f}s "
+                f"(threshold: {threshold_ms / 1000:.0f}s). "
+                "Open issues will not be dispatched until the loop recovers. "
+                "Automatic recovery has been attempted."
+            ),
+        }
+        was_armed = bool(self._replace_alert_source(source, alert))
         # A stale-loop alert is an operational health signal with an
         # in-process recovery path, not an unhandled backend failure.  Keep
         # the dashboard alert at error severity, but log the first occurrence
@@ -5598,9 +5682,7 @@ class Orchestrator:
     def _clear_dispatch_stale_alert(self) -> None:
         """Clear the dispatch-loop-stale alert if present."""
         source = "dispatch_loop_stale"
-        before = len(self._alerts)
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
-        if len(self._alerts) != before:
+        if self._replace_alert_source(source):
             logger.info("Dispatch loop recovered — cleared stale-loop alert.")
 
     def recover_stale_dispatch_loop(self) -> bool:
@@ -6162,19 +6244,14 @@ class Orchestrator:
             # Replace only this feature's derived alert.  Recent but
             # safely-prunable artifacts remain green; an alert exists only
             # for overdue debt or a cleanup/inventory error.
-            self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source") != "repo_hygiene_health"
-            ]
+            alert = None
             if not health.is_healthy:
-                self._alerts.append(
-                    {
-                        "level": "warning",
-                        "source": "repo_hygiene_health",
-                        "message": health.summary,
-                    }
-                )
+                alert = {
+                    "level": "warning",
+                    "source": "repo_hygiene_health",
+                    "message": health.summary,
+                }
+            self._replace_alert_source("repo_hygiene_health", alert)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to evaluate repository hygiene health: %s", exc)
             # Maintain previous state rather than failing the entire maintenance sweep
@@ -8200,10 +8277,8 @@ class Orchestrator:
         """Surface one idempotent alert for an unexplained blocked row."""
 
         source = f"integration_delivery:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
-        self._alerts.append(
+        self._replace_alert_source(
+            source,
             {
                 "level": "warning",
                 "source": source,
@@ -8211,7 +8286,7 @@ class Orchestrator:
                     f"Blocked integration task {task_id} has no active retry "
                     f"or actionable human reason: {reason}."
                 ),
-            }
+            },
         )
 
     def _clear_integration_delivery_alert(
@@ -8222,9 +8297,7 @@ class Orchestrator:
         """Clear the blocked-row alert once recovery is explained."""
 
         source = f"integration_delivery:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        self._replace_alert_source(source)
 
         self._clear_integration_retry_alert(project_id, task_id)
 
@@ -8241,9 +8314,7 @@ class Orchestrator:
         """
 
         source = f"integration_retry:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        self._replace_alert_source(source)
 
     @staticmethod
     def _classify_integration_retry_recovery(
@@ -8436,45 +8507,48 @@ class Orchestrator:
         updated_at_iso = datetime.fromtimestamp(
             current, tz=timezone.utc
         ).isoformat()
-        for alert in self._alerts:
-            source = str(alert.get("source") or "")
-            if not source.startswith("integration_retry:"):
-                continue
-            project_id = str(alert.get("project_id") or "")
-            task_id = str(alert.get("task_id") or "")
-            if not project_id or not task_id:
-                # Legacy alerts without structured identifiers cannot be
-                # reconciled — leave them untouched so they surface as-is.
-                continue
-            queue_item = queue_index.get((project_id, task_id))
-            running_row = running_index.get((project_id, task_id))
-            integration_state: str | None = None
-            integration_updated_at: float | None = None
-            recovery_state, action_required, level = (
-                self._classify_integration_retry_recovery(
-                    alert,
-                    running_focus=(
-                        running_row.get("focus_name") if running_row else None
-                    ),
-                    running_last_event_at=(
-                        running_row.get("last_event_at") if running_row else None
-                    ),
-                    running_authority_revoked=bool(
-                        running_row.get("authority_revoked")
-                        if running_row
-                        else False
-                    ),
-                    queue_item=queue_item,
-                    integration_state=integration_state,
-                    integration_updated_at=integration_updated_at,
-                    now=current,
-                    freshness_seconds=freshness,
+        # Classification consumes only the indexes built above, so holding the
+        # alert lock here cannot invert with a project/tracker lock.
+        with self._alerts_lock:
+            for alert in self._alerts:
+                source = str(alert.get("source") or "")
+                if not source.startswith("integration_retry:"):
+                    continue
+                project_id = str(alert.get("project_id") or "")
+                task_id = str(alert.get("task_id") or "")
+                if not project_id or not task_id:
+                    # Legacy alerts without structured identifiers cannot be
+                    # reconciled — leave them untouched so they surface as-is.
+                    continue
+                queue_item = queue_index.get((project_id, task_id))
+                running_row = running_index.get((project_id, task_id))
+                integration_state: str | None = None
+                integration_updated_at: float | None = None
+                recovery_state, action_required, level = (
+                    self._classify_integration_retry_recovery(
+                        alert,
+                        running_focus=(
+                            running_row.get("focus_name") if running_row else None
+                        ),
+                        running_last_event_at=(
+                            running_row.get("last_event_at") if running_row else None
+                        ),
+                        running_authority_revoked=bool(
+                            running_row.get("authority_revoked")
+                            if running_row
+                            else False
+                        ),
+                        queue_item=queue_item,
+                        integration_state=integration_state,
+                        integration_updated_at=integration_updated_at,
+                        now=current,
+                        freshness_seconds=freshness,
+                    )
                 )
-            )
-            alert["recovery_state"] = recovery_state
-            alert["action_required"] = bool(action_required)
-            alert["level"] = level
-            alert["updated_at"] = updated_at_iso
+                alert["recovery_state"] = recovery_state
+                alert["action_required"] = bool(action_required)
+                alert["level"] = level
+                alert["updated_at"] = updated_at_iso
 
     def _integrated_audit_recovery_action(
         self,
@@ -8500,12 +8574,122 @@ class Orchestrator:
             if record.project_id == project_id
             and record.task_id == task_id
             and record.target_state == target
-            and record.request_state == RequestState.COMPLETED
-            and record.evidence_fingerprint == evidence_fingerprint
+            and record.request_state
+            not in (RequestState.SUPERSEDED, RequestState.CANCELLED)
         ]
         if not matching:
             return "audit_override"
-        return accepted_audit_recovery_action(matching[-1])
+        authority = matching[-1]
+        if authority.evidence_fingerprint != evidence_fingerprint:
+            return "audit_override"
+        return accepted_audit_recovery_action(authority)
+
+    @staticmethod
+    def _is_authoritative_integrated_audit_detail(
+        issue: Any,
+        project_id: str,
+        task_id: str,
+    ) -> bool:
+        """Return whether a tracker detail row names the requested task scope.
+
+        Project-scoped adapters such as native Markdown and GitLab do not
+        always repeat the managed project ID on each normalized ``Issue``.
+        Their adapter instance is already selected by ``project_id``; when a
+        detail row does advertise a project ID, however, it must match exactly.
+        A non-``Issue`` value or mismatched task identity is never authority to
+        clear or replace an actionable recovery alert.
+        """
+
+        if not isinstance(issue, Issue):
+            return False
+        if str(issue.identifier or "") != str(task_id):
+            return False
+        advertised_project = str(issue.project_id or "").strip()
+        return not advertised_project or advertised_project == str(project_id)
+
+    def _reconcile_integrated_audit_recovery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        target_state: str,
+        reason: str,
+        integrated_sha: str,
+        evidence_fingerprint: EvidenceFingerprint,
+        preserve_existing_on_unresolved: bool = False,
+    ) -> bool:
+        """Arm recovery only while the failed transition is still current.
+
+        The coordinator uses the same project lock for PASS and override
+        commits.  Holding it across the authoritative tracker/metadata read
+        and alert mutation makes the winner deterministic: a terminal commit
+        either clears an alert armed first, or is observed here and prevents
+        a stale warning from being armed afterward.
+        """
+
+        tracker = self._tracker_for_project(project_id)
+        with self.project_store.project_write_lock(project_id):
+            try:
+                current_issue = tracker.fetch_issue_detail(task_id)
+            except Exception as exc:
+                # Unknown tracker state cannot justify a specific owner action.
+                # Preserve whatever alert state won before this read: a
+                # terminal commit may just have cleared it under this same
+                # project lock, while an older unresolved warning must not be
+                # erased without evidence either.
+                logger.warning(
+                    "Could not reconcile integrated terminal-audit recovery for "
+                    "%s/%s: %s",
+                    project_id,
+                    task_id,
+                    exc,
+                )
+                return False
+            if not self._is_authoritative_integrated_audit_detail(
+                current_issue,
+                project_id,
+                task_id,
+            ):
+                # A missing, malformed, or cross-task response is not evidence
+                # that the requested task recovered.  Preserve the alert that
+                # was current before this authoritative read attempt.
+                return False
+            current_status = canonicalize_status(current_issue.state or "")
+            if current_status in {IN_VALIDATION, DONE, MERGED, ARCHIVED}:
+                self._clear_integrated_audit_recovery_alert(project_id, task_id)
+                return False
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                current_issue, project_id
+            )
+            if current_fingerprint != evidence_fingerprint:
+                self._clear_integrated_audit_recovery_alert(project_id, task_id)
+                return False
+
+            source = f"terminal_audit_recovery:{project_id}:{task_id}"
+            if preserve_existing_on_unresolved and any(
+                alert.get("source") == source
+                for alert in self._alerts_snapshot()
+            ):
+                # The tracker has not confirmed staging, but the existing alert
+                # still prescribes an action accepted by the durable authority.
+                # Keep that instruction byte-for-byte rather than deriving a
+                # generic action from the newly pending rearm record.
+                return False
+
+            recovery_action = self._integrated_audit_recovery_action(
+                project_id,
+                task_id,
+                target_state,
+                evidence_fingerprint,
+            )
+            return self._arm_integrated_audit_recovery_alert(
+                project_id,
+                task_id,
+                target_state,
+                reason,
+                integrated_sha,
+                recovery_action=recovery_action,
+                evidence_fingerprint=evidence_fingerprint,
+            )
 
     def _arm_integrated_audit_recovery_alert(
         self,
@@ -8549,24 +8733,15 @@ class Orchestrator:
             f"Integrated task {task_id} at {integrated_sha} has no active terminal "
             f"audit ({reason}). {instruction}"
         )
-        existing = next(
-            (alert for alert in self._alerts if alert.get("source") == source),
-            None,
-        )
-        if existing is not None and existing.get("message") == message:
-            return False
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
-        self._alerts.append(
+        return self._upsert_alert_source_if_changed(
+            source,
             {
                 "level": "warning",
                 "source": source,
                 "message": message,
                 "recovery_action": recovery_action,
-            }
+            },
         )
-        return True
 
     def _clear_integrated_audit_recovery_alert(
         self,
@@ -8576,9 +8751,7 @@ class Orchestrator:
         """Clear the recovery instruction after a fresh audit starts."""
 
         source = f"terminal_audit_recovery:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        self._replace_alert_source(source)
 
     def _audit_blocked_integration_rows(self, project_id: str, tracker) -> None:
         """Alert when a blocked queue row has no retry or human handoff."""
@@ -8596,30 +8769,20 @@ class Orchestrator:
         blocked_sources = {
             f"{delivery_prefix}{item.task_id}" for item in blocked
         }
-        self._alerts = [
-            alert
-            for alert in self._alerts
-            if not (
+        self._replace_alerts_matching(
+            lambda alert: (
                 str(alert.get("source", "")).startswith(delivery_prefix)
                 and alert.get("source") not in blocked_sources
             )
-        ]
+        )
         if not blocked:
-            self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source") != scan_source
-            ]
+            self._replace_alert_source(scan_source)
             return
         try:
             issues = tracker.fetch_all_issues()
         except Exception as exc:  # noqa: BLE001 - preserve an actionable alert
-            self._alerts = [
-                alert
-                for alert in self._alerts
-                if alert.get("source") != scan_source
-            ]
-            self._alerts.append(
+            self._replace_alert_source(
+                scan_source,
                 {
                     "level": "warning",
                     "source": scan_source,
@@ -8627,14 +8790,10 @@ class Orchestrator:
                         f"Could not audit blocked integration rows for "
                         f"project {project_id}: {exc}"
                     ),
-                }
+                },
             )
             return
-        self._alerts = [
-            alert
-            for alert in self._alerts
-            if alert.get("source") != scan_source
-        ]
+        self._replace_alert_source(scan_source)
 
         by_alias: dict[str, Issue] = {}
         for issue in issues or []:
@@ -9320,11 +9479,9 @@ class Orchestrator:
             ready_task_ids=ready_ids,
         )
         source_prefix = f"integration_container_cycle:{project_id}:"
-        self._alerts = [
-            alert
-            for alert in self._alerts
-            if not str(alert.get("source", "")).startswith(source_prefix)
-        ]
+        self._replace_alerts_matching(
+            lambda alert: str(alert.get("source", "")).startswith(source_prefix)
+        )
         if not cycles:
             return ()
 
@@ -9346,7 +9503,8 @@ class Orchestrator:
                 if cycle.authoritative_container
                 else "the project delivery branch"
             )
-            self._alerts.append(
+            self._replace_alert_source(
+                source,
                 {
                     "level": "warning",
                     "source": source,
@@ -9358,7 +9516,7 @@ class Orchestrator:
                         "do not synchronize unrelated sibling branches."
                     ),
                     "cycle": cycle.to_dict(),
-                }
+                },
             )
             for item in queue_items:
                 if item.state != "ready":
@@ -9433,30 +9591,25 @@ class Orchestrator:
                 else None
             )
             if repair_result is not None:
-                alert = next(
-                    (
-                        candidate
-                        for candidate in reversed(self._alerts)
-                        if candidate.get("source") == source
-                    ),
-                    None,
-                )
-                if alert is None:
-                    continue
                 if repair_result.status == "complete":
-                    self._alerts = [
-                        candidate
-                        for candidate in self._alerts
-                        if candidate.get("source") != source
-                    ]
+                    self._replace_alert_source(source)
                     affected_queue_ids.update(repair_result.restorable_rows)
                 else:
-                    alert["message"] = (
-                        f"{alert['message']} Automatic repair phase "
-                        f"{repair_result.phase} is {repair_result.status}. "
-                        f"{repair_result.error or 'retry is safe after restart'}."
+                    def _record_repair(
+                        alert: dict[str, Any],
+                    ) -> Mapping[str, Any]:
+                        alert["message"] = (
+                            f"{alert['message']} Automatic repair phase "
+                            f"{repair_result.phase} is {repair_result.status}. "
+                            f"{repair_result.error or 'retry is safe after restart'}."
+                        )
+                        alert["repair"] = repair_result.to_dict()
+                        return alert
+
+                    self._update_alert_source(
+                        source,
+                        _record_repair,
                     )
-                    alert["repair"] = repair_result.to_dict()
         if affected_queue_ids:
             self.request_refresh()
         return cycles
@@ -10191,10 +10344,8 @@ class Orchestrator:
                 )
                 return False
             source = f"standalone_ready_delivery:{project_id}:{task_id}"
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
-            self._alerts.append(
+            self._replace_alert_source(
+                source,
                 {
                     "level": "warning",
                     "source": source,
@@ -10202,7 +10353,7 @@ class Orchestrator:
                         f"Standalone Ready task {task_id} has no active delivery: "
                         f"{reason}."
                     ),
-                }
+                },
             )
             return True
 
@@ -10226,10 +10377,8 @@ class Orchestrator:
                 )
                 return False
             source = f"standalone_ready_delivery:{project_id}:{task_id}"
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
-            self._alerts.append(
+            self._replace_alert_source(
+                source,
                 {
                     "level": "info",
                     "source": source,
@@ -10237,7 +10386,7 @@ class Orchestrator:
                         f"Standalone Ready task {task_id} is waiting for finish-order "
                         f"dependencies: {', '.join(dependencies)}."
                     ),
-                }
+                },
             )
             return True
 
@@ -10262,10 +10411,8 @@ class Orchestrator:
                 )
                 return False
             source = f"standalone_ready_delivery:{project_id}:{task_id}"
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
-            self._alerts.append(
+            self._replace_alert_source(
+                source,
                 {
                     "level": "info",
                     "source": source,
@@ -10274,7 +10421,7 @@ class Orchestrator:
                         f"capacity ({review_count}/{review_limit}); retry will "
                         "resume automatically."
                     ),
-                }
+                },
             )
             return True
 
@@ -10288,7 +10435,10 @@ class Orchestrator:
         """Clear the stranded-submission alert once a delivery path exists."""
         source = f"standalone_ready_delivery:{project_id}:{task_id}"
         with self._standalone_delivery_authority_lock:
-            if not any(alert.get("source") == source for alert in self._alerts):
+            if not any(
+                alert.get("source") == source
+                for alert in self._alerts_snapshot()
+            ):
                 return True
             if authority is not None and not self._standalone_delivery_authorized(
                 authority
@@ -10298,9 +10448,7 @@ class Orchestrator:
                     "delivery authority was revoked before clearing an alert",
                 )
                 return False
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
+            self._replace_alert_source(source)
             return True
 
     @staticmethod
@@ -11561,9 +11709,7 @@ class Orchestrator:
                 # be running for the new head.
                 self._cancel_standalone_delivery_gate(authority)
             source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
+            self._replace_alert_source(source)
 
     def _revoke_auditor_authority(
         self,
@@ -12400,9 +12546,6 @@ class Orchestrator:
             level: str | None = None,
         ) -> None:
             source = f"integration_retry:{item.project_id}:{item.task_id}"
-            self._alerts = [
-                alert for alert in self._alerts if alert.get("source") != source
-            ]
             next_retry = (
                 datetime.fromtimestamp(next_retry_at, tz=timezone.utc).isoformat()
                 if next_retry_at is not None
@@ -12412,7 +12555,8 @@ class Orchestrator:
             resolved_level = level or (
                 "warning" if action_required else "info"
             )
-            self._alerts.append(
+            self._replace_alert_source(
+                source,
                 {
                     "level": resolved_level,
                     "source": source,
@@ -12437,7 +12581,7 @@ class Orchestrator:
                     "recovery_state": recovery_state,
                     "action_required": bool(action_required),
                     "recorded_at": recorded_at,
-                }
+                },
             )
 
         # An epic-head race is safe to retry from the rebased private head
@@ -12860,7 +13004,11 @@ class Orchestrator:
             tracker.fetch_issue_detail,
             item.task_id,
         )
-        if issue is None:
+        if not self._is_authoritative_integrated_audit_detail(
+            issue,
+            item.project_id,
+            item.task_id,
+        ):
             return
         if canonicalize_status(issue.state) in {
             IN_VALIDATION,
@@ -12868,9 +13016,16 @@ class Orchestrator:
             MERGED,
             ARCHIVED,
         }:
-            self._clear_integrated_audit_recovery_alert(
+            integration = getattr(issue, "integration", None)
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self._reconcile_integrated_audit_recovery_alert,
                 item.project_id,
                 item.task_id,
+                DONE,
+                "terminal audit status could not be confirmed",
+                str(getattr(integration, "integrated_sha", None) or item.head_sha),
+                compute_issue_evidence_fingerprint(issue, item.project_id),
             )
             return
         record = getattr(issue, "integration", None)
@@ -12887,38 +13042,69 @@ class Orchestrator:
             project_id=item.project_id,
             evidence_fingerprint=fingerprint,
         )
-        if not transition.success:
-            recovery_action = self._integrated_audit_recovery_action(
-                item.project_id,
-                item.task_id,
-                DONE,
-                fingerprint,
+        if not transition.success or not transition.status_staged:
+            # A durable audit record is not sufficient to clear the warning:
+            # the task must also have accepted the exact In Validation staging
+            # write.  In particular, an owner retry can commit its rearm intent
+            # while the tracker write remains unavailable.  Preserve that
+            # already-actionable retry instruction rather than replacing it
+            # with a generic override during periodic integrated replay.
+            source = (
+                f"terminal_audit_recovery:{item.project_id}:{item.task_id}"
             )
-            alert_added = self._arm_integrated_audit_recovery_alert(
+            alert_exists = any(
+                alert.get("source") == source
+                for alert in self._alerts_snapshot()
+            )
+            if transition.success and alert_exists:
+                logger.debug(
+                    "Integrated task %s has a durable audit but its validation "
+                    "status is still unstaged; retaining the recovery alert.",
+                    item.task_id,
+                )
+                return
+            failure_reason = transition.reason or (
+                "terminal audit is durable but In Validation status staging "
+                "was not confirmed"
+            )
+            alert_added = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self._reconcile_integrated_audit_recovery_alert,
                 item.project_id,
                 item.task_id,
                 DONE,
-                transition.reason or "terminal audit transition failed",
+                failure_reason,
                 record.integrated_sha,
-                recovery_action=recovery_action,
-                evidence_fingerprint=fingerprint,
+                fingerprint,
             )
             if alert_added:
                 logger.warning(
                     "Integrated task %s could not enter terminal audit: %s",
                     item.task_id,
-                    transition.reason,
+                    failure_reason,
                 )
             else:
                 logger.debug(
                     "Integrated task %s still awaits terminal audit recovery: %s",
                     item.task_id,
-                    transition.reason,
+                    failure_reason,
                 )
             return
-        self._clear_integrated_audit_recovery_alert(
+
+        # Confirm the post-write task identity and status through the same
+        # project-serialized reconciliation boundary used by terminal commits.
+        # A lying/no-op adapter response or a concurrent lifecycle change must
+        # not let this replay erase an alert based only on an optimistic return.
+        await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool,
+            self._reconcile_integrated_audit_recovery_alert,
             item.project_id,
             item.task_id,
+            DONE,
+            "terminal audit staging could not be confirmed",
+            record.integrated_sha,
+            fingerprint,
+            True,
         )
         try:
             await asyncio.get_running_loop().run_in_executor(
@@ -13328,24 +13514,21 @@ class Orchestrator:
         }
         self._maintenance_status["integration_queue"] = progress
         source = "integration_queue_progress"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        alert = None
         if degraded:
-            self._alerts.append(
-                {
-                    "level": "warning",
-                    "source": source,
-                    "message": (
-                        f"Integration queue has {ready_count} Ready row(s), "
-                        f"including an eligible row waiting {oldest_age_seconds:.0f}s "
-                        f"without a claim (timeout {claim_timeout}s)."
-                    ),
-                    "ready_count": str(ready_count),
-                    "eligible_ready_count": str(eligible_ready_count),
-                    "oldest_age_seconds": str(round(oldest_age_seconds, 1)),
-                }
-            )
+            alert = {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Integration queue has {ready_count} Ready row(s), "
+                    f"including an eligible row waiting {oldest_age_seconds:.0f}s "
+                    f"without a claim (timeout {claim_timeout}s)."
+                ),
+                "ready_count": str(ready_count),
+                "eligible_ready_count": str(eligible_ready_count),
+                "oldest_age_seconds": str(round(oldest_age_seconds, 1)),
+            }
+        self._replace_alert_source(source, alert)
 
     @staticmethod
     def _terminal_parent_recovery_target_name(
@@ -13500,7 +13683,7 @@ class Orchestrator:
         task_id: str,
     ) -> None:
         source = self._terminal_parent_recovery_alert_source(project_id, task_id)
-        self._alerts = [alert for alert in self._alerts if alert.get("source") != source]
+        self._replace_alert_source(source)
 
     def _arm_terminal_parent_recovery(
         self,
@@ -13524,14 +13707,8 @@ class Orchestrator:
             "consume a gate retry without a valid target."
         )
         source = self._terminal_parent_recovery_alert_source(project_id, child.identifier)
-        existing_alert = next(
-            (alert for alert in self._alerts if alert.get("source") == source),
-            None,
-        )
-        if existing_alert is not None and existing_alert.get("message") == message:
-            return
-        self._alerts = [alert for alert in self._alerts if alert.get("source") != source]
-        self._alerts.append(
+        changed = self._upsert_alert_source_if_changed(
+            source,
             {
                 "level": "warning",
                 "source": source,
@@ -13541,8 +13718,10 @@ class Orchestrator:
                 "parent_id": parent.identifier,
                 "recovery_target": recovery_target,
                 "action_required": True,
-            }
+            },
         )
+        if not changed:
+            return
         if self._tracker_comment_matches(tracker, child.identifier, message):
             return
         try:
@@ -14324,9 +14503,7 @@ class Orchestrator:
             )
             if count == 0:
                 # Clear any previous auto-update alert
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != "auto_update"
-                ]
+                self._replace_alert_source("auto_update")
                 return
 
             # Native tracker writes are committed and pushed to the same
@@ -14362,9 +14539,7 @@ class Orchestrator:
                     "skipping restart",
                     count,
                 )
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != "auto_update"
-                ]
+                self._replace_alert_source("auto_update")
                 return
 
             logger.info(
@@ -14417,11 +14592,9 @@ class Orchestrator:
                     pull.stderr.strip()[:200],
                 )
                 # Replace any existing auto-update alert
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != "auto_update"
-                ]
-                self._alerts.append(
-                    {"level": "warning", "source": "auto_update", "message": msg}
+                self._replace_alert_source(
+                    "auto_update",
+                    {"level": "warning", "source": "auto_update", "message": msg},
                 )
                 return
 
@@ -14431,9 +14604,9 @@ class Orchestrator:
         except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
             msg = f"Auto-update failed: {exc}"
             logger.debug("Auto-update check failed: %s", exc)
-            self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
-            self._alerts.append(
-                {"level": "warning", "source": "auto_update", "message": msg}
+            self._replace_alert_source(
+                "auto_update",
+                {"level": "warning", "source": "auto_update", "message": msg},
             )
 
     def _fetch_all_candidates(self) -> list[Issue]:
@@ -20624,21 +20797,19 @@ class Orchestrator:
             f"with unmerged branches: " + ", ".join(details)
         )
         # Drop any prior alert for this epic, then re-arm.
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
-        self._alerts.append(
+        self._replace_alert_source(
+            source,
             {
                 "level": "warning",
                 "source": source,
                 "message": message,
-            }
+            },
         )
 
     def _clear_stuck_epic_alert(self, epic_identifier: str) -> None:
         """Drop any ``stuck_epic`` alert previously armed for this epic."""
         source = f"stuck_epic:{epic_identifier}"
-        before = len(self._alerts)
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
-        if len(self._alerts) != before:
+        if self._replace_alert_source(source):
             logger.debug(
                 "Cleared stuck_epic alert for %s",
                 epic_identifier,
@@ -20809,13 +20980,9 @@ class Orchestrator:
         source = f"epic_stale:{epic.identifier}"
         target_branch = target_branch or project.default_branch or "main"
 
-        # Drop existing alert for this epic (if any)
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
-
         rebase_state = self._get_epic_rebase_state(epic.identifier)
         if rebase_state != EpicRebaseState.FAILED:
+            self._replace_alert_source(source)
             return
 
         shared_files_hint = ""
@@ -20842,7 +21009,8 @@ class Orchestrator:
             "the epic branch catches up."
         )
 
-        self._alerts.append(
+        self._replace_alert_source(
+            source,
             {
                 "source": source,
                 "level": "warning",
@@ -20857,7 +21025,7 @@ class Orchestrator:
                 "commits_behind": result.commits_behind,
                 "synchronization_policy": "action_required",
                 "synchronization_reason": "rebase_failed",
-            }
+            },
         )
         logger.info(
             "Armed failed-rebase alert for %s: %d commits behind, "
@@ -20870,11 +21038,7 @@ class Orchestrator:
     def _clear_epic_stale_alert(self, epic_identifier: str) -> None:
         """Drop any ``epic_stale`` alert previously armed for this epic."""
         source = f"epic_stale:{epic_identifier}"
-        before = len(self._alerts)
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
-        if len(self._alerts) != before:
+        if self._replace_alert_source(source):
             logger.debug(
                 "Cleared epic_stale alert for %s",
                 epic_identifier,
@@ -21953,8 +22117,8 @@ class Orchestrator:
     ) -> None:
         """Expose an unresolved hierarchy as a retryable dashboard alert."""
         source = f"epic_target_unresolved:{epic.identifier}"
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
-        self._alerts.append(
+        self._replace_alert_source(
+            source,
             {
                 "level": "warning",
                 "source": source,
@@ -21963,13 +22127,13 @@ class Orchestrator:
                     "This is retryable; no default-branch rebase, push, or helper "
                     "task will be created until the parent hierarchy is readable."
                 ),
-            }
+            },
         )
         logger.warning("%s", error)
 
     def _clear_epic_target_resolution_alert(self, epic_identifier: str) -> None:
         source = f"epic_target_unresolved:{epic_identifier}"
-        self._alerts = [a for a in self._alerts if a.get("source") != source]
+        self._replace_alert_source(source)
 
     def _remote_branch_exists(
         self,
@@ -25030,15 +25194,11 @@ class Orchestrator:
                 metrics["status_commented"] += int(status_metrics.get("commented", 0))
                 metrics["status_closed"] += int(status_metrics.get("closed", 0))
                 metrics["errors"] += int(status_metrics.get("errors", 0))
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != auth_alert_source
-                ]
+                self._replace_alert_source(auth_alert_source)
             except TrackerAuthError as exc:
                 metrics["errors"] += 1
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != auth_alert_source
-                ]
-                self._alerts.append(
+                self._replace_alert_source(
+                    auth_alert_source,
                     {
                         "level": "error",
                         "source": auth_alert_source,
@@ -25054,7 +25214,7 @@ class Orchestrator:
                             "OOMPAH_GITHUB_TOKEN / GitHub App credentials that "
                             "cover this repository."
                         ),
-                    }
+                    },
                 )
             except Exception as exc:  # noqa: BLE001
                 metrics["errors"] += 1
@@ -27753,9 +27913,7 @@ class Orchestrator:
 
     def _clear_historical_done_alert(self, project_id: str, task_id: str) -> None:
         source = self._historical_done_alert_source(project_id, task_id)
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        self._replace_alert_source(source)
 
     def _arm_historical_done_alert(
         self,
@@ -27774,15 +27932,13 @@ class Orchestrator:
             "record authoritative merge/integration evidence, or explicitly "
             "archive the task with a structured superseding disposition."
         )
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
-        self._alerts.append(
+        self._replace_alert_source(
+            source,
             {
                 "level": "warning",
                 "source": source,
                 "message": instruction,
-            }
+            },
         )
         if self._tracker_comment_matches(
             tracker, issue.identifier, instruction
@@ -40107,14 +40263,14 @@ class Orchestrator:
             # Global cooldown — stop dispatching new agents for a while
             cooldown_s = 120  # 2 minutes
             self._rate_limit_until = time.time() + cooldown_s
-            self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
             rl_ctx = self._describe_rate_limit_context(entry, error)
-            self._alerts.append(
+            self._replace_alert_source(
+                "rate_limit",
                 {
                     "level": "warning",
                     "source": "rate_limit",
                     "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
-                }
+                },
             )
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = max(cooldown_s * 1000, self._backoff_delay(next_attempt))
@@ -40234,16 +40390,14 @@ class Orchestrator:
             if is_rate_limit:
                 cooldown_s = 120
                 self._rate_limit_until = time.time() + cooldown_s
-                self._alerts = [
-                    a for a in self._alerts if a.get("source") != "rate_limit"
-                ]
                 rl_ctx = self._describe_rate_limit_context(entry, error)
-                self._alerts.append(
+                self._replace_alert_source(
+                    "rate_limit",
                     {
                         "level": "warning",
                         "source": "rate_limit",
                         "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
-                    }
+                    },
                 )
 
             next_attempt = (entry.retry_attempt or 0) + 1
@@ -40299,7 +40453,7 @@ class Orchestrator:
         if time.time() >= self._rate_limit_until:
             # Cooldown expired — clear alert
             self._rate_limit_until = 0.0
-            self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+            self._replace_alert_source("rate_limit")
             return False
         return True
 
@@ -43336,6 +43490,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         validation_resource_action_required = (
             validation_resource_state.get("status") == "action_required"
         )
+        alert_snapshot = self._alerts_snapshot()
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -43456,7 +43611,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "validation_resources": validation_resource_state,
             },
             "auth_health": auth_health_snapshot(),
-            "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),
+            "alerts": alert_snapshot + self._credential_error_alerts() + auth_health_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),

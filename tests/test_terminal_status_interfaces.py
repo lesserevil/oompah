@@ -954,6 +954,84 @@ def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     assert response.json()["audit_id"] == "audit-retry-1"
     assert coordinator.retries[0]["requested_target"] is TargetState.ARCHIVED
     assert coordinator.retries[0]["reason"] == "Detached audit checkout is deployed"
+    assert coordinator.retries[0]["evidence_fingerprint"] == (
+        server_module._terminal_evidence_fingerprint(issue, "proj-1")
+    )
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_audit_retry_reports_committed_status_divergence(client):
+    issue = Issue(
+        "task-retry-diverged",
+        "task-retry-diverged",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.retry_result = TransitionResult(
+        success=False,
+        audit_id="audit-retry-committed",
+        queued_targets=[TargetState.DONE],
+        status_staged=False,
+        reason="status_stage_failed",
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry-diverged",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry": True,
+                "audit_retry_reason": "Auditor capacity restored",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert "durable recovery" in response.json()["error"]["message"]
+    # The retry metadata is already authoritative, so its dispatch fence must
+    # survive the non-200 response until In Validation is repaired.
+    assert issue.id in orch.state.completed
+    orch.request_refresh.assert_not_called()
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_audit_retry_reports_unavailable_current_evidence(client):
+    issue = Issue(
+        "task-retry-unverified",
+        "task-retry-unverified",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.retry_result = TransitionResult(
+        success=False,
+        reason="evidence_unavailable",
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry-unverified",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry": True,
+                "audit_retry_reason": "Auditor capacity restored",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 503
+    assert "could not be verified" in response.json()["error"]["message"]
+    assert issue.id not in orch.state.completed
+    orch.request_refresh.assert_called_once_with()
     assert tracker.status_updates == []
 
 

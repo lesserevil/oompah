@@ -138,6 +138,67 @@ _AUDIT_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
 })
 
 
+def _audit_recovery_classifications(
+    record: TerminalAuditRecord,
+) -> set[FailureClassification] | None:
+    """Return a trustworthy failed-attempt classification set for *record*.
+
+    Recovery authority is derived from the complete attempt history, not just
+    the last classification written to a record.  Reject copied/corrupt rows
+    whose target or fingerprint does not belong to the containing audit, and
+    reject a PASS (or a verdict/classification combination that cannot have
+    produced the advertised recovery state).
+    """
+
+    if not record.attempts:
+        return None
+    classifications: set[FailureClassification] = set()
+    for attempt in record.attempts:
+        if (
+            attempt.target_state != record.target_state
+            or attempt.evidence_fingerprint != record.evidence_fingerprint
+        ):
+            return None
+        try:
+            classification = FailureClassification.from_raw(
+                attempt.failure_classification
+            )
+        except (TypeError, ValueError):
+            return None
+        verdict = attempt.verdict
+        if verdict is None:
+            if (
+                classification != FailureClassification.INFRASTRUCTURE_ERROR
+                or attempt.request_state
+                not in (RequestState.PENDING, RequestState.IN_PROGRESS)
+            ):
+                return None
+        elif attempt.request_state != RequestState.COMPLETED:
+            return None
+        if verdict == Verdict.PASS:
+            return None
+        if classification == FailureClassification.INFRASTRUCTURE_ERROR:
+            if verdict not in (None, Verdict.ERROR, Verdict.FAIL, Verdict.NEEDS_HUMAN):
+                return None
+        elif verdict not in (Verdict.FAIL, Verdict.NEEDS_HUMAN):
+            return None
+        classifications.add(classification)
+    return classifications
+
+
+def _classified_audit_recovery_action(record: TerminalAuditRecord) -> str:
+    """Classify a completed or durably superseded failed audit record."""
+
+    classifications = _audit_recovery_classifications(record)
+    if not classifications:
+        return "audit_override"
+    if classifications <= _EVIDENCE_REARM_CLASSES:
+        return "audit_retry_evidence_addendum"
+    if classifications <= _AUDIT_REARM_CLASSES:
+        return "audit_retry"
+    return "audit_override"
+
+
 def accepted_audit_recovery_action(record: TerminalAuditRecord) -> str:
     """Return the only owner recovery action accepted for *record*.
 
@@ -148,21 +209,9 @@ def accepted_audit_recovery_action(record: TerminalAuditRecord) -> str:
     owner override, which preserves the fail-closed boundary.
     """
 
-    if record.request_state != RequestState.COMPLETED or not record.attempts:
+    if record.request_state != RequestState.COMPLETED:
         return "audit_override"
-    classifications: set[FailureClassification] = set()
-    for attempt in record.attempts:
-        try:
-            classifications.add(
-                FailureClassification.from_raw(attempt.failure_classification)
-            )
-        except (TypeError, ValueError):
-            return "audit_override"
-    if classifications <= _EVIDENCE_REARM_CLASSES:
-        return "audit_retry_evidence_addendum"
-    if classifications <= _AUDIT_REARM_CLASSES:
-        return "audit_retry"
-    return "audit_override"
+    return _classified_audit_recovery_action(record)
 
 _OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 """Metadata key containing the historical owner-override ledger."""
@@ -1037,8 +1086,39 @@ class TerminalTransitionCoordinator:
             raise TypeError("evidence_addendum must be a mapping")
 
         def _operation() -> TransitionResult:
+            tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self._project_store, project_id
+            )
+            supplied_fingerprint = evidence_fingerprint
+            if supplied_fingerprint is None:
+                supplied_fingerprint = compute_issue_evidence_fingerprint(
+                    current_issue, project_id
+                )
+            if not isinstance(supplied_fingerprint, EvidenceFingerprint):
+                return TransitionResult(
+                    success=False,
+                    reason="evidence_fingerprint_mismatch",
+                )
+            refreshed_evidence = self._refresh_retry_evidence(
+                tracker,
+                current_issue,
+                project_id,
+                supplied_fingerprint,
+            )
+            if refreshed_evidence is None:
+                return TransitionResult(
+                    success=False,
+                    reason="evidence_unavailable",
+                )
+            locked_issue, locked_fingerprint = refreshed_evidence
+            if locked_fingerprint != supplied_fingerprint:
+                return TransitionResult(
+                    success=False,
+                    reason="evidence_fingerprint_mismatch",
+                )
             lifecycle_conflict = self._lifecycle_conflict(
-                current_issue, requested_target, project_id
+                locked_issue, requested_target, project_id
             )
             if lifecycle_conflict is not None:
                 return TransitionResult(success=False, reason=lifecycle_conflict)
@@ -1046,38 +1126,17 @@ class TerminalTransitionCoordinator:
                 project_id,
                 current_issue.identifier,
             )
-            tracker = self._tracker_for_project(project_id)
-            store = TerminalAuditMetadataStore(
-                tracker, self._project_store, project_id
-            )
-            locked_fingerprint = evidence_fingerprint
             if evidence_addendum is not None:
-                if not isinstance(evidence_fingerprint, EvidenceFingerprint):
-                    return TransitionResult(
-                        success=False,
-                        reason="evidence_fingerprint_mismatch",
-                    )
-                _, locked_fingerprint = self._refresh_override_evidence(
-                    tracker,
-                    current_issue,
-                    project_id,
-                    evidence_fingerprint,
-                )
-                if locked_fingerprint != evidence_fingerprint:
-                    return TransitionResult(
-                        success=False,
-                        reason="evidence_fingerprint_mismatch",
-                    )
-                supplied_fingerprint = evidence_addendum.get(
+                addendum_fingerprint = evidence_addendum.get(
                     "evidence_fingerprint",
                     evidence_addendum.get("fingerprint"),
                 )
-                if isinstance(supplied_fingerprint, Mapping):
-                    supplied_fingerprint = supplied_fingerprint.get(
+                if isinstance(addendum_fingerprint, Mapping):
+                    addendum_fingerprint = addendum_fingerprint.get(
                         "digest",
-                        supplied_fingerprint.get("sha256"),
+                        addendum_fingerprint.get("sha256"),
                     )
-                if supplied_fingerprint != evidence_fingerprint.digest:
+                if addendum_fingerprint != locked_fingerprint.digest:
                     return TransitionResult(
                         success=False,
                         reason="evidence_fingerprint_mismatch",
@@ -1096,60 +1155,136 @@ class TerminalTransitionCoordinator:
                 normalized_addendum = None
             decision = TransitionResult(success=False, reason="audit_not_retryable")
             retired_audit_id: str | None = None
+            rearm_intent_id: str | None = None
 
             def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
-                nonlocal decision, retired_audit_id
+                nonlocal decision, retired_audit_id, rearm_intent_id
                 chain = list(doc.pending_chain)
                 matching = [
                     record
                     for record in chain
                     if record.target_state == requested_target
                     and record.project_id == project_id
-                    and record.task_id
-                    in {current_issue.identifier, str(current_issue.id or "")}
+                    and record.task_id == current_issue.identifier
+                    and record.request_state
+                    not in (RequestState.SUPERSEDED, RequestState.CANCELLED)
                 ]
-                active = next(
-                    (
-                        record
-                        for record in reversed(matching)
-                        if record.request_state
-                        in (RequestState.PENDING, RequestState.IN_PROGRESS)
-                    ),
-                    None,
-                )
-                if active is not None:
-                    decision = TransitionResult(
-                        success=True,
-                        audit_id=active.audit_id,
-                        coalesced=True,
-                        status_staged=False,
-                    )
-                    return doc
-
                 requested_action = (
                     "audit_retry_evidence_addendum"
                     if evidence_addendum is not None
                     else "audit_retry"
                 )
-                exhausted = next(
-                    (
-                        record
-                        for record in reversed(matching)
-                        if record.request_state == RequestState.COMPLETED
-                        and accepted_audit_recovery_action(record)
-                        == requested_action
-                        and (
-                            evidence_addendum is None
-                            or (
-                                locked_fingerprint is not None
-                                and record.evidence_fingerprint == locked_fingerprint
-                            )
-                        )
-                    ),
-                    None,
-                )
-                if exhausted is None:
+                authority = matching[-1] if matching else None
+                if authority is None or authority.evidence_fingerprint != locked_fingerprint:
                     return doc
+                # A fresh owner rearm must become the sole live authority for
+                # this exact target/evidence key.  An older pending/in-progress
+                # sibling has no durable rearm history and may already own an
+                # auditor, so fail closed instead of appending a record that
+                # restart deduplication could hide behind that older identity.
+                if any(
+                    record.audit_id != authority.audit_id
+                    and record.evidence_fingerprint == locked_fingerprint
+                    and record.request_state
+                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    for record in matching
+                ):
+                    return doc
+
+                if authority.request_state in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
+                    history = doc.unknown_fields.get(_TERMINAL_REARM_HISTORY_KEY, [])
+                    if not isinstance(history, list):
+                        return doc
+                    history_row = next(
+                        (
+                            raw
+                            for raw in reversed(history)
+                            if isinstance(raw, Mapping)
+                            and raw.get("audit_id") == authority.audit_id
+                            and raw.get("project_id") == project_id
+                            and raw.get("task_id") == current_issue.identifier
+                            and raw.get("target_state") == requested_target.value
+                        ),
+                        None,
+                    )
+                    if history_row is None:
+                        return doc
+                    mode = (
+                        "evidence_addendum"
+                        if evidence_addendum is not None
+                        else "infrastructure_recovery"
+                    )
+                    if history_row.get("mode") != mode:
+                        return doc
+                    history_reason = history_row.get("reason")
+                    if not isinstance(history_reason, str) or not history_reason.strip():
+                        return doc
+                    if normalized_addendum is not None:
+                        if history_row.get("evidence_addendum") != normalized_addendum:
+                            return doc
+                    elif "evidence_addendum" in history_row:
+                        return doc
+                    try:
+                        history_actor = ContributorIdentity.from_dict(
+                            history_row.get("actor")
+                        )
+                    except (TypeError, ValueError):
+                        return doc
+                    if authority.requested_by != history_actor or not (
+                        is_authorized_status_actor(history_actor.identity, project)
+                        and is_project_owner(history_actor.identity, project)
+                    ):
+                        return doc
+                    superseded_id = history_row.get("superseded_audit_id")
+                    exhausted = next(
+                        (
+                            record
+                            for record in chain
+                            if record.audit_id == superseded_id
+                            and record.project_id == project_id
+                            and record.task_id == current_issue.identifier
+                            and record.target_state == requested_target
+                            and record.evidence_fingerprint == locked_fingerprint
+                            and record.request_state == RequestState.SUPERSEDED
+                            and _classified_audit_recovery_action(record)
+                            == requested_action
+                        ),
+                        None,
+                    )
+                    if exhausted is None:
+                        return doc
+                    decision = TransitionResult(
+                        success=True,
+                        audit_id=authority.audit_id,
+                        audit_ids=[authority.audit_id],
+                        queued_targets=[requested_target],
+                        coalesced=True,
+                        status_staged=False,
+                    )
+                    rearm_intent_id = f"audit-rearm:{authority.audit_id}"
+                    unknown_fields = _record_terminal_result_intent(
+                        doc.unknown_fields,
+                        project_id=project_id,
+                        task_id=current_issue.identifier,
+                        audit_id=authority.audit_id,
+                        target_state=requested_target,
+                        evidence_fingerprint=locked_fingerprint,
+                        attempt_id=rearm_intent_id,
+                        status=IN_VALIDATION,
+                        audit_ids=[authority.audit_id],
+                        kind="audit_rearm",
+                    )
+                    return replace(doc, unknown_fields=unknown_fields)
+
+                if (
+                    authority.request_state != RequestState.COMPLETED
+                    or accepted_audit_recovery_action(authority) != requested_action
+                ):
+                    return doc
+                exhausted = authority
 
                 now = _now_iso8601()
                 retired_audit_id = exhausted.audit_id
@@ -1196,6 +1331,19 @@ class TerminalTransitionCoordinator:
                 )
                 unknown_fields = dict(doc.unknown_fields)
                 unknown_fields[_TERMINAL_REARM_HISTORY_KEY] = rearm_history
+                rearm_intent_id = f"audit-rearm:{fresh.audit_id}"
+                unknown_fields = _record_terminal_result_intent(
+                    unknown_fields,
+                    project_id=project_id,
+                    task_id=current_issue.identifier,
+                    audit_id=fresh.audit_id,
+                    target_state=requested_target,
+                    evidence_fingerprint=locked_fingerprint,
+                    attempt_id=rearm_intent_id,
+                    status=IN_VALIDATION,
+                    audit_ids=[fresh.audit_id],
+                    kind="audit_rearm",
+                )
                 decision = TransitionResult(
                     success=True,
                     audit_id=fresh.audit_id,
@@ -1229,7 +1377,28 @@ class TerminalTransitionCoordinator:
                     "Failed to restore In Validation for retried audit %s",
                     current_issue.identifier,
                 )
+                decision.success = False
+                decision.reason = "status_stage_failed"
                 return decision
+
+            if decision.audit_id and rearm_intent_id:
+                try:
+                    def _finalize_rearm_intent(
+                        doc: TerminalAuditMetadata,
+                    ) -> TerminalAuditMetadata:
+                        unknown_fields = _mark_terminal_result_intent_applied(
+                            doc.unknown_fields,
+                            audit_id=decision.audit_id or "",
+                            attempt_id=rearm_intent_id or "",
+                        )
+                        return replace(doc, unknown_fields=unknown_fields)
+
+                    store.update(current_issue.identifier, _finalize_rearm_intent)
+                except Exception:
+                    logger.exception(
+                        "Failed to finalize terminal-audit rearm intent for %s",
+                        current_issue.identifier,
+                    )
 
             if not decision.coalesced:
                 try:
@@ -1405,6 +1574,42 @@ class TerminalTransitionCoordinator:
     # ------------------------------------------------------------------
     # Public API — override_transition
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _refresh_retry_evidence(
+        tracker: TrackerProtocol,
+        current_issue: Issue,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+    ) -> tuple[Issue, EvidenceFingerprint] | None:
+        """Return authoritative retry evidence or fail closed when unreadable.
+
+        Tracker-neutral embedders without a detail reader retain the explicit
+        caller contract.  Once an adapter advertises the production detail
+        reader, however, a failure or ambiguous response cannot prove that an
+        exhausted audit still describes the current task revision.
+        """
+
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if not callable(fetch_issue_detail):
+            return current_issue, evidence_fingerprint
+        try:
+            refreshed = fetch_issue_detail(current_issue.identifier)
+        except Exception:  # noqa: BLE001 - retry authority must fail closed
+            logger.warning(
+                "Could not refresh issue evidence for audit retry %s",
+                current_issue.identifier,
+                exc_info=True,
+            )
+            return None
+        if not isinstance(refreshed, Issue):
+            return None
+        if refreshed.identifier != current_issue.identifier:
+            return None
+        refreshed_project = str(getattr(refreshed, "project_id", "") or "")
+        if refreshed_project and refreshed_project != project_id:
+            return None
+        return refreshed, compute_issue_evidence_fingerprint(refreshed, project_id)
 
     @staticmethod
     def _refresh_override_evidence(
@@ -3122,8 +3327,9 @@ def _record_terminal_result_intent(
     attempt_id: str,
     status: str | None,
     audit_ids: list[str],
+    kind: str = "result",
 ) -> dict[str, Any]:
-    """Persist one status-write intent before mutating the tracker.
+    """Persist one result or owner-rearm intent before mutating the tracker.
 
     Tracker status and audit metadata cannot share a transaction.  The intent
     is therefore the durable hand-off between those two stores.  It remains
@@ -3157,6 +3363,7 @@ def _record_terminal_result_intent(
             "evidence_fingerprint": evidence_fingerprint.digest,
             "status": status,
             "audit_ids": list(dict.fromkeys(audit_ids)),
+            "kind": kind,
             "applied": False,
             "created_at": _now_iso8601(),
         }
@@ -3167,6 +3374,7 @@ def _record_terminal_result_intent(
                 "target_state": target_state.value,
                 "evidence_fingerprint": evidence_fingerprint.digest,
                 "status": status,
+                "kind": kind,
                 "audit_ids": list(
                     dict.fromkeys(
                         [
@@ -3181,6 +3389,15 @@ def _record_terminal_result_intent(
                 ),
             }
         )
+        if kind == "audit_rearm":
+            # A coalesced owner retry is also an explicit request to repair a
+            # diverged staging status.  Reopen the durable intent before the
+            # tracker write; successful staging marks it applied again.
+            matching["applied"] = False
+            matching.pop("applied_at", None)
+            matching.pop("retired_at", None)
+            matching.pop("retired_reason", None)
+            matching.pop("retired_by_recovery", None)
     new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = intents
     return new_unknown
 
