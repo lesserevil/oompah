@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:12:30.025999Z'
+updated_at: '2026-08-06T16:26:57.322765Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-08-06 16:12
 ---
 Understanding: I will map the existing full-stack scenario harness and historical incident coverage, then add workflow scenarios and UI assertions for OOMPAH-562/731/732/739/748/749/751. The scenarios will exercise real collector/evaluator/ledger-worker/transition/tracker/Git/UI composition, including restart and duplicate-event recovery, and verify executor/UI reason parity without manual mutations.
+---
+author: oompah
+created: 2026-08-06 16:26
+---
+Verification: full-stack incident replay passes all 7 corpus scenarios, including duplicate schedule delivery, abandoned-lease restart recovery, native tracker transitions, real Git ref/ancestry assertions, and UI diagnostic reason parity. Focused affected suites pass: 233 tests green; final contract/evaluator/full-stack rerun: 71 passed. Ruff and git diff checks are clean. make setup remains blocked by the sandbox validation lock/package-manager issue noted above.
 ---
 <!-- COMMENTS:END -->
