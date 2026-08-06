@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:16:08.106767Z'
+updated_at: '2026-08-06T07:16:21.166756Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -106,5 +106,10 @@ author: oompah
 created: 2026-08-06 07:15
 ---
 Verification: focused dashboard alert/contract/safety/credential/full-sync/scroll/recovery plus terminal-audit validation-resource suites pass: 71 passed in 11.12s. The directly affected Makefile setup contract also passes: 14 passed in 0.36s. Initial attempts were blocked by the managed validation shim targeting a read-only lease path; rerunning with the provisioned Python 3.12 environment and real /usr/bin Node executed the tests successfully. No product changes were made beyond conflict resolution.
+---
+author: oompah
+created: 2026-08-06 07:16
+---
+Completion: rebased epic-OOMPAH-740 onto current origin/main, reconciled the dashboard-state conflict without dropping branch-specific work, and force-pushed exact head 4cdcc7e6e4f2f13087bce5942edf6a19821b9979. Remote and local heads match; status is clean/up to date; the review diff is 19 expected dashboard/alert/docs/test files with eight unique epic commits and no whitespace errors. Focused verification: 71 dashboard/health tests plus 14 setup-contract tests passed.
 ---
 <!-- COMMENTS:END -->
