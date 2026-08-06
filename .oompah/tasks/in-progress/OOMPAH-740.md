@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:12:36.467452Z'
+updated_at: '2026-08-06T07:13:35.520112Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -96,5 +96,10 @@ author: oompah
 created: 2026-08-06 07:11
 ---
 Discovery: the first conflict is in Orchestrator._serialize_state. Current main added validation-resource health/status, while OOMPAH-741 added quality-gate facts plus normalization of the combined dashboard alert contract. Both are independent and required, so the resolution keeps validation resource telemetry/actionability and feeds quality-gate, credential, auth-health, and stored alerts through normalize_alerts exactly once.
+---
+author: oompah
+created: 2026-08-06 07:13
+---
+Implementation: rebased all eight branch-specific dashboard commits onto current origin/main. The sole content conflict was resolved by preserving main's validation-resource snapshot/degraded-health additions alongside the epic's aggregated quality-gate alerts and normalize_alerts presentation boundary. Three OOMPAH-760 patches were skipped only because git verified patch-equivalent versions already exist in main; git cherry confirms the eight unique epic patches remain.
 ---
 <!-- COMMENTS:END -->
