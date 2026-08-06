@@ -738,7 +738,7 @@ class TestOperatorDiagnostics:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -800,9 +800,12 @@ class TestSyntheticSlowJobs:
         orch._handle_review_check = AsyncMock(
             side_effect=lambda: call_order.append("review_check")
         )
-        orch._handle_dispatch_needed = AsyncMock(
-            side_effect=lambda: call_order.append("dispatch_needed")
-        )
+
+        async def dispatch_needed() -> dict[str, float]:
+            call_order.append("dispatch_needed")
+            return {}
+
+        orch._handle_dispatch_needed = dispatch_needed
         orch._handle_yolo_review = AsyncMock(
             side_effect=lambda: (call_order.append("yolo_review") or (0.0, 0.0, 0.0))
         )
