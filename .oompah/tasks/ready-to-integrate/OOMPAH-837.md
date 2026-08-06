@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:12:01.345596Z'
+updated_at: '2026-08-06T12:12:07.053514Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 15s
+---
+author: oompah
+created: 2026-08-06 12:12
+---
+Repaired the exact-gate-only async resource leak at ef2120815: removed six abandoned sleep coroutine fixtures and made both environment-dependent webhook spawn paths deterministic. Focused submission-fencing, webhook, and epic-rebase suites passed 265 serial and 265 xdist with RuntimeWarning and PytestUnraisableExceptionWarning promoted to errors; secret scan, diff check, and independent review passed.
 ---
 <!-- COMMENTS:END -->
