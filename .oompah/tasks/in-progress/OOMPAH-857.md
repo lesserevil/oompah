@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:20:25.291620Z'
+updated_at: '2026-08-06T07:20:50.463589Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -173,5 +173,23 @@ author: oompah
 created: 2026-08-06 07:20
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 07:20
+---
+**Understanding:** This task requires clearing stale operator Basic-auth failure warnings after successful authentication. The issue is that a failed auth probe leaves an actionable warning in the dashboard even after credentials work, causing false alerts. I need to:
+
+1. Separate auth failure telemetry from actionable warnings
+2. Track successful authenticated requests with context
+3. Demote/clear stale warnings when credentials demonstrably work
+4. Preserve security visibility for unexplained/continuing failures
+5. Ensure dashboard updates via sequenced state stream
+
+**Planned approach:**
+- Explore auth_health.py, server.py, and dashboard_alerts.py to understand current flow
+- Implement logic to record successful auth with config context
+- Create mechanism to invalidate stale credential-mismatch warnings
+- Add tests for: recovered failures, continuing failures, unknown principal failures, state stream updates
+- Ensure backward compatibility and security
 ---
 <!-- COMMENTS:END -->
