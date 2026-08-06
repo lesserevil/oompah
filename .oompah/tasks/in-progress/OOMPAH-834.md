@@ -1,18 +1,17 @@
 ---
 id: OOMPAH-834
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
 children: []
-blocked_by:
-- OOMPAH-781
+blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:28:08.005933Z'
+updated_at: '2026-08-06T09:28:33.312058Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -44,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 9162ae12-e303-4e78-af51-0eeb40b04d8b
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
@@ -131,5 +130,15 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-06 09:28
+---
+Task-scoped OOMPAH-858 recovery: removed the already-satisfied OOMPAH-781 finish edge after verifying OOMPAH-781 is Done/audited and exact head 6a84d9bcc is reachable from validated parent composition f89c477d. This prevents the deployed nested-queue target resolver from misclassifying the completed cross-container prerequisite while preserving its implementation evidence.
+---
+author: oompah
+created: 2026-08-06 09:28
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
