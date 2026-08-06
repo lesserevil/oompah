@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:12:30.726368Z'
+updated_at: '2026-08-06T18:20:11.136702Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-08-06 18:01
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 18:20
+---
+Direct-owner implementation claimed after the deployed scheduler completed multiple ticks with ten available agent slots but normal_dispatch=0. Filed OOMPAH-864 for the distinct owner-resolution rearm deadlock. OOMPAH-863 repair now persists accepted head and delivery generation on durable review reservations, makes concurrent/restarted same-head sweeps observe (not acquire) the winning reservation, and suppresses stale capacity alerts in both the pre-gate capacity and post-gate CAS paths. Deterministic same-process and restart regressions plus schema-v1 migration coverage are added. Static parsing and diff check pass; independent review and leased tests remain before commit/submission.
 ---
 <!-- COMMENTS:END -->
