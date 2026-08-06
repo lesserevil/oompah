@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-05T20:23:24.632729Z'
+updated_at: '2026-08-06T00:14:38.599678Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -52,14 +52,16 @@ oompah.agent_run_id: 5e122298-13ee-45f4-a1cd-8ecf6d95f6eb
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
-  base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  head_sha: 2af2f103d0375e267de1bcf542d06825bce80d44
+  base_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
+  head_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
   submitted_at: '2026-08-05T20:22:51.265104+00:00'
-  updated_at: '2026-08-05T20:23:22.443379+00:00'
+  updated_at: '2026-08-06T00:14:31.692224+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.task_costs:
   total_input_tokens: 46798
   total_output_tokens: 39745
@@ -383,5 +385,15 @@ Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 59m 39s
 - Log: OOMPAH-796__20260805T192450Z.jsonl
+---
+author: oompah
+created: 2026-08-06 00:14
+---
+The combined-tree quality gate failed on `epic-OOMPAH-770--task-OOMPAH-796`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
