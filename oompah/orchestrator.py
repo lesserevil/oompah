@@ -59,6 +59,7 @@ from oompah.container_cycle_repair import (
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
     effective_dependencies,
+    integration_dependencies,
     issue_index,
 )
 from oompah.duplicate_screening import (
@@ -11535,7 +11536,7 @@ class Orchestrator:
         for item in queue_items:
             issue = tasks_by_alias.get(item.task_id)
             result[item.task_id] = (
-                effective_dependencies(issue, index)
+                integration_dependencies(issue, index)
                 if issue is not None
                 else ()
             )

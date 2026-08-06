@@ -101,6 +101,78 @@ def combined_dependency_adjacency(
     return adjacency, aliases
 
 
+def integration_dependencies(
+    issue: Issue,
+    issues_by_id: Mapping[str, Issue],
+) -> tuple[str, ...]:
+    """Return finish dependencies for ordered integration, excluding container rollup edges.
+
+    Implicit parent->child rollup edges occur when a parent task has finish
+    dependencies on its children for rollup. These edges must be excluded from
+    integration queue dependencies to prevent deadlock: otherwise a child
+    would wait on itself (inherited from parent) and its siblings.
+
+    Preserves:
+    - Externally inherited finish-order prerequisites from ancestors
+    - Explicitly declared sibling dependencies
+    - Ancestor dependencies outside the current delivery container
+
+    Excludes:
+    - The immediate parent task
+    - Siblings whose only path to this task is through inherited parent rollup
+    """
+
+    # Get all effective dependencies (includes inherited from ancestors)
+    all_deps = effective_dependencies(issue, issues_by_id)
+    if not all_deps:
+        return ()
+
+    # Build set of container rollup dependencies to filter out
+    excluded: set[str] = set()
+
+    # Exclude the immediate parent if present
+    parent_id = str(issue.parent_id or "").strip()
+    if parent_id:
+        excluded.add(parent_id)
+        parent = issues_by_id.get(parent_id)
+
+        # Find all siblings (other children of the same parent)
+        if parent is not None:
+            # Check if parent has rollup dependencies on its children
+            parent_finish_deps = set(
+                effective_dependencies(parent, issues_by_id, hard_start=False)
+            )
+            # Find other children of parent
+            for candidate_id, candidate in issues_by_id.items():
+                parent_of_candidate = str(
+                    candidate.parent_id or ""
+                ).strip()
+                if (
+                    parent_of_candidate == parent_id
+                    and candidate_id != str(issue.identifier or issue.id or "").strip()
+                ):
+                    # This is a sibling.
+                    # Only exclude if it's ONLY in our dependencies because
+                    # it's in parent's rollup deps (not explicitly on this task)
+                    task_id = str(issue.identifier or issue.id or "").strip()
+                    task_explicit_deps = set(
+                        _ref_identifier(ref)
+                        for ref in (issue.blocked_by or [])
+                    )
+                    is_explicit_on_task = candidate_id in task_explicit_deps
+                    is_in_parent_rollup = candidate_id in parent_finish_deps
+
+                    # Only exclude if: not explicit on task AND in parent rollup
+                    if not is_explicit_on_task and is_in_parent_rollup:
+                        excluded.add(candidate_id)
+
+    # Filter out excluded dependencies
+    result = [
+        dep for dep in all_deps if dep not in excluded
+    ]
+    return tuple(result)
+
+
 def dependency_cycle_for_new_edge(
     issues: Sequence[Issue],
     blocked_identifier: str,
