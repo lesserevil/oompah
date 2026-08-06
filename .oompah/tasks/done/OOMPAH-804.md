@@ -20,7 +20,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T13:13:18.489434Z'
+updated_at: '2026-08-06T13:13:39.396734Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -90,8 +90,8 @@ oompah.integration:
   submitted_at: '2026-08-06T09:06:17.505575+00:00'
   updated_at: '2026-08-06T09:06:17.505575+00:00'
 oompah.task_costs:
-  total_input_tokens: 61
-  total_output_tokens: 13677
+  total_input_tokens: 179
+  total_output_tokens: 19957
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -101,6 +101,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 51
       output_tokens: 11443
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 118
+      output_tokens: 6280
       cost_usd: 0.0
   runs:
   - profile: default
@@ -115,6 +119,12 @@ oompah.task_costs:
     output_tokens: 11443
     cost_usd: 0.0
     recorded_at: '2026-08-04T21:32:49.107941+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 118
+    output_tokens: 6280
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T13:13:36.819014+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-804__20260804T202423Z
@@ -422,5 +432,15 @@ Safe evidence:
 - shadow_no_durable_mutation: test_shadow_runtime_compares_decisions_without_durable_mutation
 - multi_project_routing: test_factory_routes_same_action_to_exact_project
 - config_env_vars: OOMPAH_WORKFLOW_ENGINE_MODE, OOMPAH_WORKFLOW_RUNTIME_DECISION_LIMIT, OOMPAH_WORKFLOW_RUNTIME_BATCH_SIZE
+---
+author: oompah
+created: 2026-08-06 13:13
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 92
+- Tokens: 118 in / 6.3K out [6.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 9s
+- Log: OOMPAH-804__20260806T125638Z.jsonl
 ---
 <!-- COMMENTS:END -->

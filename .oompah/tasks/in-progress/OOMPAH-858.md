@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:43:05.856668Z'
+updated_at: '2026-08-06T13:13:55.772170Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
     task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
     itself, not this integration bug.
-oompah.agent_run_id: 5b29980a-9b9a-4959-86e2-5b04287e09b2
+oompah.agent_run_id: 19f8abe1-bcfe-43cf-bf8f-8a91ca57fed7
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
@@ -53,7 +53,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  updated_at: '2026-08-06T09:35:55.856464+00:00'
+  updated_at: '2026-08-06T13:13:52.887632+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 10
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-06 09:36
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-804, OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 13:13
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
