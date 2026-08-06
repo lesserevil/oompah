@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T17:18:25.428425Z'
+updated_at: '2026-08-06T17:18:36.508387Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,51 +48,12 @@ oompah.agent_run_id: c133a774-c415-49a5-9869-4f2884dfefe4
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
-  head_sha: c19133bd93131e2b5759614a7d718630a9aff149
-  submitted_at: '2026-08-06T16:59:27.103172+00:00'
-  updated_at: '2026-08-06T17:17:57.983700+00:00'
-  last_error: "Combined-tree quality gate failed:    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))\n\
-    \ntests/test_project_locks.py::TestEpicWorktreeLocking::test_concurrent_create_epic_worktree_same_project_are_serialized\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-sug0lisp/workspace/.venv/lib/python3.12/site-packages/_pytest/threadexception.py:58:\
-    \ PytestUnhandledThreadExceptionWarning: Exception in thread Thread-163 (create_epic_worktree)\n\
-    \  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/threading.py\"\
-    , line 1075, in _bootstrap_inner\n      self.run()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/threading.py\"\
-    , line 1012, in run\n      self._target(*self._args, **self._kwargs)\n    File\
-    \ \"/home/shedwards/.oompah/tmp/oompah-quality-gate-sug0lisp/workspace/oompah/projects.py\"\
-    , line 4876, in create_epic_worktree\n      return self._create_epic_worktree_locked(\n\
-    \             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py\"\
-    , line 1139, in __call__\n      return self._mock_call(*args, **kwargs)\n    \
-    \         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py\"\
-    , line 1143, in _mock_call\n      return self._execute_mock_call(*args, **kwargs)\n\
-    \             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/unittest/mock.py\"\
-    , line 1204, in _execute_mock_call\n      result = effect(*args, **kwargs)\n \
-    \              ^^^^^^^^^^^^^^^^^^^^^^^\n  TypeError: TestEpicWorktreeLocking.test_concurrent_create_epic_worktree_same_project_are_serialized.<locals>.mock_create_epic_locked()\
-    \ got an unexpected keyword argument 'branch_name'\n  \n  Enable tracemalloc to\
-    \ get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))\n\
-    \ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-sug0lisp/workspace/oompah/acp_backends/claude.py:508:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-sug0lisp/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-    =========================== short test summary info ============================\n\
-    FAILED tests/test_project_locks.py::TestEpicWorktreeLocking::test_create_epic_and_create_regular_same_project_are_serialized\n\
-    FAILED tests/test_project_locks.py::TestEpicWorktreeLocking::test_concurrent_create_epic_worktree_same_project_are_serialized\n\
-    FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_epic_rebase_omits_rewritten_base_from_verifier\n\
-    FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_api_submission_marks_queue_enqueue_as_explicit_retry\n\
-    FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_api_submission_does_not_rearm_without_fresh_ready_record\n\
-    = 5 failed, 16222 passed, 8 skipped, 1 xfailed, 46 warnings in 1053.49s (0:17:33)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  updated_at: '2026-08-06T17:18:31.032349+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 444
@@ -375,5 +336,10 @@ author: oompah
 created: 2026-08-06 17:18
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-06 17:18
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
