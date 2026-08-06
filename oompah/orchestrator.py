@@ -1305,6 +1305,13 @@ class Orchestrator:
 
         return build_integration_action_handlers(self, binding)
 
+    def workflow_review_action_handler_factory(self, binding: Any) -> dict:
+        """Bind exact review/CI actions for one durable project runtime."""
+
+        from oompah.review_workflow_adapter import build_review_workflow_handlers
+
+        return dict(build_review_workflow_handlers(self, binding))
+
     def schedule_workflow_integration_maintenance(self, binding: Any) -> Any:
         """Materialize project-scoped history independently of live task facts."""
 
