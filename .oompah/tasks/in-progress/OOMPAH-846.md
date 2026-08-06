@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T13:56:41.115276Z'
+updated_at: '2026-08-06T13:57:33.908996Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -243,5 +243,10 @@ created: 2026-08-06 13:56
 ---
 New live reproduction at 2026-08-06 13:54 UTC: while exact gate OOMPAH-860 was the sole validation-resource owner, server-managed Codex worker OOMPAH-861 launched ....................................                                     [100%]
 36 passed in 1.77s in sandbox/process group 379079/child 379100. validation_resources showed only the O860 exact_gate owner and no O861 waiter/owner. The focused command exited before targeted termination; O861 agent session/edits remain intact. This confirms the uncovered provider-native focused-command path on deployed f2b319 and is an exact acceptance case for the in-progress universal guard.
+---
+author: oompah
+created: 2026-08-06 13:57
+---
+Correction to comment 17: the original live worker reproduction was sandbox group 379079 with pytest child 379100, observed for about 68 seconds while validation state showed only the OOMPAH-860 exact-gate owner. It exited before termination. While posting that evidence, operator shell quoting accidentally replayed the same focused module once outside the lease; that separate operator run produced the inserted 36-passed output in 1.77 seconds. Both processes are gone. The worker bypass evidence remains valid, but any OOMPAH-860 gate failure in this run must be evaluated with the brief operator contention disclosed.
 ---
 <!-- COMMENTS:END -->
