@@ -340,11 +340,14 @@ class TestUiCloseCancelsPendingRetry:
             due_at_ms=0.0,
             timer_handle=FakeTimer(),
             error="connection refused",
+            project_id="proj-1",
         )
         orch.state.claimed.add("i-abc")
 
-        # Patch the tracker so close_issue is a noop.
+        # Return the exact tracker issue so cancellation is fenced by the
+        # same concrete task and project identity as the pending retry.
         mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = _issue(project_id="proj-1")
         with (
             patch("oompah.server._get_tracker", return_value=mock_tracker),
             patch.object(srv, "_orchestrator", orch),

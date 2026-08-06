@@ -144,6 +144,10 @@ def _make_project(
     p.tracker_repo = tracker_repo
     p.repo_path = repo_path
     p.repo_url = "https://github.com/acme/tasks"
+    # Keep the mock faithful to the concrete Project model.  An unset
+    # MagicMock attribute is itself truthy, which otherwise makes _dispatch
+    # treat every fixture project as individually paused.
+    p.paused = False
     return p
 
 
