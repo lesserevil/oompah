@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-05T23:59:24.689796Z'
+updated_at: '2026-08-06T00:00:03.010270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,20 +24,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 021b424b90fa3b4d4c36d58fb47ac251afa35bc811b0ef3bdeed4c57f7f945bd
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-05T23:59:50.112442+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 022512d0-264b-4f79-9d2e-b4e86803e77d
-  claim_owner: f7278be4-f84b-419e-8352-94d46afbf29e
-  claimed_at: '2026-08-05T23:59:07.262157+00:00'
-  claim_expires_at: '2026-08-06T00:29:07.262157+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-831 is the active implementation task for repairing\
+    \ terminal-auditor contracts. OOMPAH-832 is a distinct follow-on deployment/bootstrap\
+    \ task requiring porting the reviewed repair onto current main and controlled\
+    \ restart validation.\nFocus handoff: duplicate_detector  \nDuplicate preflight\
+    \ verdict: no_duplicate  \nMatches: none\n\nEvidence: OOMPAH-831 is the active\
+    \ implementation task for repairing terminal-auditor contracts. OOMPAH-832 is\
+    \ a distinct follow-on deployment/bootstrap task requiring porting the reviewed\
+    \ repair onto current main and controlled restart validation."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: a099b545-960f-449a-816b-af0ea096b342
+oompah.task_costs:
+  total_input_tokens: 46646
+  total_output_tokens: 314
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46646
+      output_tokens: 314
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46646
+    output_tokens: 314
+    cost_usd: 0.0
+    recorded_at: '2026-08-05T23:59:50.107402+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-832__20260805T235932Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-832
+    source_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
+    completed_at: '2026-08-05T23:59:50.115041+00:00'
 ---
 ## Summary
 
@@ -78,5 +112,15 @@ author: oompah
 created: 2026-08-05 23:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.6K in / 314 out [47.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 30s
+- Log: OOMPAH-832__20260805T235932Z.jsonl
 ---
 <!-- COMMENTS:END -->

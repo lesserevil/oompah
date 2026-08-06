@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-05T23:59:34.989746Z'
+updated_at: '2026-08-05T23:59:50.982407Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,3 +67,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-05 23:59
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-05 23:59
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T18:21:39.670324Z'
-updated_at: '2026-08-05T18:27:47.430729Z'
+updated_at: '2026-08-06T00:00:10.614683Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 52f697a2b11d797e87a4f0c4c40cf990f477ff479a52931be50caab547e7f51d
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: d2a619d0-8f07-4bff-8aeb-b1a9f7452941
+  claim_owner: f7278be4-f84b-419e-8352-94d46afbf29e
+  claimed_at: '2026-08-05T23:59:49.621227+00:00'
+  claim_expires_at: '2026-08-06T00:29:49.621227+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: ab4d0621-2243-4263-9c49-46a49be2efee
 ---
 ## Summary
 
@@ -35,5 +53,10 @@ author: oompah
 created: 2026-08-05 18:27
 ---
 Second live reproduction after project resume: OOMPAH-505 completed its deployment/configuration verification, submitted exact pushed head e1b0f4846, then blocked on the intentionally pruned remote epic-OOMPAH-502 even though that exact head is reachable from origin/main and parent OOMPAH-502 is Merged. This confirms the defect is generic to late/reopened children of terminal epics, not specific to authentication epic OOMPAH-521.
+---
+author: oompah
+created: 2026-08-06 00:00
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
