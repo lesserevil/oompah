@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:24:16.723117Z'
+updated_at: '2026-08-06T21:24:58.261022Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -217,8 +217,8 @@ oompah.terminal_audit:
     ended_at: '2026-08-06T20:51:51.492663+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
 oompah.task_costs:
-  total_input_tokens: 50509
-  total_output_tokens: 17977
+  total_input_tokens: 50589
+  total_output_tokens: 27258
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -228,6 +228,10 @@ oompah.task_costs:
     haiku:
       input_tokens: 50302
       output_tokens: 522
+      cost_usd: 0.0
+    opus:
+      input_tokens: 80
+      output_tokens: 9281
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -254,6 +258,12 @@ oompah.task_costs:
     output_tokens: 522
     cost_usd: 0.0
     recorded_at: '2026-08-06T20:58:17.602308+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 80
+    output_tokens: 9281
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T21:24:55.548161+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c04b91644e7d94fb8d239ada9bd3fd5d183776981094e7c4390e145129774882
@@ -529,5 +539,15 @@ author: oompah
 created: 2026-08-06 21:24
 ---
 ACP auditor result bridge already fixed on origin/main (PR #595, fix commit 8ce6fa0ad, merge c048ba706): Claude and OpenCode async submit_audit_result tools offload the synchronous coordinator bridge via asyncio.to_thread, keeping the dispatch loop free while target/attempt validation and the bounded 60s coordinator handler in oompah/orchestrator.py are preserved. Focused regressions in tests/test_acp_auditor_result_bridge.py (same-loop success, idempotency, coordinator rejection) plus 639-test focused suite all pass.
+---
+author: oompah
+created: 2026-08-06 21:24
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 57
+- Tokens: 80 in / 9.3K out [9.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 16s
+- Log: OOMPAH-612__20260806T211459Z.jsonl
 ---
 <!-- COMMENTS:END -->
