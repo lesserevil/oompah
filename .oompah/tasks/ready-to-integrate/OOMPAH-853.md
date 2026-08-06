@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:13:23.555099Z'
+updated_at: '2026-08-06T06:13:41.357454Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -254,5 +254,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 43s
 - Log: OOMPAH-853__20260806T060956Z.jsonl
+---
+author: oompah
+created: 2026-08-06 06:13
+---
+Operator correction to the preceding repair comment: Git author identity was not the cause of the prior gate rejection. QualityGateOwner is an internal lease record keyed to the submitted/resolved candidate head; OOMPAH-811 is the filed durable fix for rebase-generation rearming. Commit 52cf744ab is patch-equivalent to the prior clean feature commit and sits directly on current OOMPAH-763 parent 930cd74b9, so this resubmission is the safe in-flight workaround: it should require no integration rebase and therefore no mixed-head window. Do not rewrite the feature commit again.
 ---
 <!-- COMMENTS:END -->
