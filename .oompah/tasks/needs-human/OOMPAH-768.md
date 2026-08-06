@@ -24,7 +24,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T22:27:40.103250Z'
+updated_at: '2026-08-06T23:25:16.629608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ created: 2026-08-06 22:16
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-06 23:25
+---
+Composition repair checkpoint: initial 3,280-test focused gate was 3,261 passed / 18 failed. First repair rerun reduced this to 6 passed / 12 failed; second-order fixes are now applied across stale duplicate projection, restart commit fencing, startup-queued event loss, alert-lock legacy restore, null-mode identity, reparent target authority, and audit recovery/coalescence. Current uncommitted scratch diff SHA256 0584257e585225eab04a16fca3b395a4243ce3eadb058e2c25952cc8925138b6; AST and diff checks pass. Exact rerun is paused while dedicated CI consumes the box outside the validation lease.
 ---
 <!-- COMMENTS:END -->
