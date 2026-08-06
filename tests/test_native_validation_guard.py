@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import array
 import contextlib
+import errno
 import json
 import os
 import shlex
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from oompah import native_validation_guard as guard_module
+from oompah.api_agent import _validation_reuse_policy_decision
 from oompah.native_validation_guard import (
     cleanup_retired_native_validation_guards,
     consume_native_validation_boundary,
@@ -28,6 +30,7 @@ from oompah.validation_resource_lease import (
     ValidationLeaseCancelled,
     ValidationLeaseHandle,
     ValidationLeaseOwner,
+    ValidationCommandClassification,
     ValidationResourceLease,
 )
 
@@ -102,6 +105,130 @@ def test_broker_descriptor_reply_rejects_extra_descriptors(tmp_path: Path) -> No
         receiver.close()
         os.close(first)
         os.close(second)
+
+
+def test_broker_descriptor_reply_accepts_exact_one_and_two_descriptors(
+    tmp_path: Path,
+) -> None:
+    """The real Unix transport preserves the exact SCM_RIGHTS descriptor count."""
+
+    first = os.open(tmp_path / "first", os.O_CREAT | os.O_RDWR, 0o600)
+    second = os.open(tmp_path / "second", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        for payload, descriptors in (
+            (b"LEASE\n", (first,)),
+            (b"CAPABILITY-DIRECT\n", (first, second)),
+        ):
+            sender, receiver = socket.socketpair(
+                socket.AF_UNIX,
+                guard_module._BROKER_SOCKET_TYPE,
+            )
+            received: tuple[int, ...] = ()
+            try:
+                sender.sendmsg(
+                    [payload],
+                    [
+                        (
+                            socket.SOL_SOCKET,
+                            socket.SCM_RIGHTS,
+                            array.array("i", descriptors),
+                        )
+                    ],
+                )
+                received = guard_module._receive_descriptors(
+                    receiver,
+                    expected_payload=payload,
+                    expected_count=len(descriptors),
+                )
+                assert len(received) == len(descriptors)
+                assert all(
+                    os.fstat(descriptor).st_ino
+                    in {os.fstat(first).st_ino, os.fstat(second).st_ino}
+                    for descriptor in received
+                )
+            finally:
+                for descriptor in received:
+                    with contextlib.suppress(OSError):
+                        os.close(descriptor)
+                sender.close()
+                receiver.close()
+    finally:
+        os.close(first)
+        os.close(second)
+
+
+def test_broker_descriptor_reply_preserves_bounded_supervisor_failure() -> None:
+    sender, receiver = socket.socketpair(
+        socket.AF_UNIX,
+        guard_module._BROKER_SOCKET_TYPE,
+    )
+    try:
+        sender.sendall(b"DENIED UNSUPPORTED\n")
+        with pytest.raises(RuntimeError, match="pidfd supervision is unavailable"):
+            guard_module._receive_single_descriptor(
+                receiver,
+                expected_payload=b"LEASE\n",
+            )
+    finally:
+        sender.close()
+        receiver.close()
+
+
+@pytest.mark.parametrize(
+    ("args", "authority", "classification"),
+    [
+        (
+            {},
+            "stale_authority",
+            ValidationCommandClassification(True, "full", contains_configured=True),
+        ),
+        ({}, "reuse_authoritative_gate", None),
+        (
+            {},
+            "reuse_authoritative_gate",
+            ValidationCommandClassification(True, "full"),
+        ),
+    ],
+    ids=["stale-authority", "unavailable-classification", "distinct-mode-required"],
+)
+def test_reuse_policy_denials_have_typed_broker_outcomes(
+    args: dict[str, str],
+    authority: str,
+    classification: ValidationCommandClassification | None,
+) -> None:
+    """Policy prose must never decide whether a native denial is policy."""
+
+    _decision, denial, _justification = _validation_reuse_policy_decision(
+        args,
+        {"decision": "reuse_authoritative_gate", "command": "make test"},
+        lambda: authority,
+        classification=classification,
+    )
+
+    assert denial is not None
+    assert guard_module._broker_denial_response(
+        guard_module._reuse_policy_denied(denial)
+    ) == b"DENIED POLICY\n"
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_packet"),
+    [
+        (AttributeError("pidfd_open"), b"DENIED UNSUPPORTED\n"),
+        (OSError(errno.ENOSYS, "not implemented"), b"DENIED UNSUPPORTED\n"),
+        (OSError(errno.EOPNOTSUPP, "not supported"), b"DENIED UNSUPPORTED\n"),
+        (OSError(errno.ESRCH, "gone"), b"DENIED IDENTITY\n"),
+        (OSError(errno.EMFILE, "too many files"), b"DENIED TRANSPORT\n"),
+        (OSError(errno.EPERM, "not permitted"), b"DENIED TRANSPORT\n"),
+    ],
+)
+def test_pidfd_setup_failure_keeps_platform_peer_and_transport_distinct(
+    error: BaseException,
+    expected_packet: bytes,
+) -> None:
+    assert guard_module._broker_denial_response(
+        guard_module._pidfd_supervision_failure(error)
+    ) == expected_packet
 
 
 def test_broker_descriptor_reply_rejects_truncated_payload(tmp_path: Path) -> None:
@@ -187,6 +314,111 @@ def test_libc_memfd_capability_is_immutable_without_python_wrappers(
         os.close(descriptor)
 
 
+def test_native_supervisor_uses_libc_pidfd_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Minimal Python builds can still pin the supervisor's peer identity."""
+
+    monkeypatch.delattr(guard_module.os, "pidfd_open", raising=False)
+    descriptor = guard_module._pidfd_open(os.getpid())
+    try:
+        assert os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def test_supervisor_start_tick_mismatch_reports_typed_identity_without_ack_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup identity loss must not wait for an observer ACK that cannot exist."""
+
+    ready_read, ready_write = os.pipe()
+    status_read, status_write = os.pipe()
+    acknowledgement_read, acknowledgement_write = os.pipe()
+    lease_descriptor = os.open(os.devnull, os.O_RDONLY)
+    pidfd_descriptor = os.open(os.devnull, os.O_RDONLY)
+    result: list[int] = []
+    monkeypatch.setattr(
+        guard_module.sys,
+        "argv",
+        [
+            "supervisor",
+            "123",
+            "456",
+            str(lease_descriptor),
+            repr(time.time() + 60),
+            str(ready_write),
+            str(status_write),
+            str(acknowledgement_read),
+        ],
+    )
+    monkeypatch.setattr(guard_module, "_pidfd_open", lambda _pid: pidfd_descriptor)
+    monkeypatch.setattr(guard_module, "_process_start_ticks", lambda _pid: 999)
+    worker = threading.Thread(
+        target=lambda: result.append(guard_module._supervise_validation_lease({})),
+        daemon=True,
+    )
+    try:
+        worker.start()
+        worker.join(timeout=1)
+
+        assert worker.is_alive() is False
+        assert result == [1]
+        assert os.read(ready_read, 32) == guard_module._SUPERVISOR_IDENTITY_LOST
+        assert os.read(status_read, 32) == b""
+    finally:
+        for descriptor in (
+            ready_read,
+            ready_write,
+            status_read,
+            status_write,
+            acknowledgement_read,
+            acknowledgement_write,
+            lease_descriptor,
+            pidfd_descriptor,
+        ):
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
+def test_supervisor_startup_identity_packet_reaches_caller_as_typed_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bounded startup reader maps identity loss instead of generic EOF."""
+
+    class IdentityLostProcess:
+        def poll(self) -> int | None:
+            return None
+
+        def kill(self) -> None:
+            return None
+
+        def wait(self, timeout: float | None = None) -> int:
+            return 0
+
+    def start_identity_lost_process(arguments, **_kwargs) -> IdentityLostProcess:
+        ready_descriptor = int(arguments[5])
+        os.write(ready_descriptor, guard_module._SUPERVISOR_IDENTITY_LOST)
+        return IdentityLostProcess()
+
+    monkeypatch.setattr(guard_module.subprocess, "Popen", start_identity_lost_process)
+    lease_descriptor = os.open(tmp_path / "lease", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        with pytest.raises(RuntimeError, match="supervised peer changed identity"):
+            guard_module._start_validation_lease_supervisor(
+                tmp_path,
+                peer_pid=123,
+                peer_start_ticks=456,
+                lease_descriptor=lease_descriptor,
+                timeout_seconds=10,
+                terminal_handler=lambda _outcome: None,
+            )
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(lease_descriptor)
+
+
 def test_broker_rejects_copied_secret_in_distinct_sealed_memfd(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -235,7 +467,7 @@ def test_broker_rejects_copied_secret_in_distinct_sealed_memfd(
         )
 
         assert completed.returncode == 0
-        assert completed.stdout == b"DENIED\n"
+        assert completed.stdout == b"DENIED TRANSPORT\n"
         assert lease.status().owner_count == 0
     finally:
         os.close(spoofed)
@@ -382,6 +614,129 @@ def test_broker_stop_closes_and_joins_blocked_request_handlers(
     finally:
         client.close()
         broker.stop()
+
+
+@pytest.mark.parametrize("actor", ["handler", "observer", "publisher", "supervisor"])
+def test_retirement_retries_until_every_live_broker_actor_quiesces(
+    tmp_path: Path,
+    actor: str,
+) -> None:
+    """A live broker actor retains its guard root across durable retries."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id=f"RETRY-{actor.upper()}",
+        authority_generation="generation",
+    )
+    _guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    with guard_module._BROKER_REGISTRY_LOCK:
+        broker = guard_module._BROKER_REGISTRY[root.resolve()]
+    entered = threading.Event()
+    release = threading.Event()
+    retired = False
+
+    def block() -> None:
+        entered.set()
+        assert release.wait(timeout=5)
+
+    blocked = threading.Thread(target=block, daemon=True)
+    blocked.start()
+    assert entered.wait(timeout=5)
+
+    class BlockingSupervisor:
+        alive = True
+
+        def poll(self) -> int | None:
+            return None if self.alive else 0
+
+        def wait(self, timeout: float | None = None) -> int:
+            if self.alive:
+                raise subprocess.TimeoutExpired("supervisor", timeout)
+            return 0
+
+    supervisor = BlockingSupervisor()
+    if actor == "publisher":
+        run = guard_module._NativeValidationRun(
+            command="make test",
+            command_identity="0" * 64,
+            invocation_id="invocation",
+            scope="full",
+            started_at=time.monotonic(),
+        )
+        with broker._boundary_lock:
+            broker._validation_runs["123:456"] = run
+
+        def hold_callback_lock() -> None:
+            with run.callback_lock:
+                entered.set()
+                assert release.wait(timeout=5)
+
+        # Replace the generic blocker with the lock holder that makes the
+        # terminal publisher remain alive during the first retirement pass.
+        release.set()
+        blocked.join(timeout=5)
+        release.clear()
+        entered.clear()
+        blocked = threading.Thread(target=hold_callback_lock, daemon=True)
+        blocked.start()
+        assert entered.wait(timeout=5)
+    elif actor == "handler":
+        with broker._handler_lock:
+            broker._handler_threads.add(blocked)
+    elif actor == "observer":
+        with broker._handler_lock:
+            broker._supervisor_observers.add(blocked)
+    else:
+        with broker._handler_lock:
+            broker._supervisor_processes.add(supervisor)  # type: ignore[arg-type]
+
+    try:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is False
+        assert root.is_dir()
+        with guard_module._BROKER_REGISTRY_LOCK:
+            assert guard_module._BROKER_REGISTRY[root.resolve()] is broker
+
+        if actor == "supervisor":
+            supervisor.alive = False
+        release.set()
+        blocked.join(timeout=5)
+        assert blocked.is_alive() is False
+        if actor == "publisher":
+            _wait_until(
+                lambda: not any(
+                    publisher.is_alive()
+                    for publisher in broker._lifecycle_publishers
+                )
+            )
+
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+        retired = True
+        with guard_module._BROKER_REGISTRY_LOCK:
+            assert root.resolve() not in guard_module._BROKER_REGISTRY
+    finally:
+        release.set()
+        blocked.join(timeout=5)
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
 
 
 def test_register_provider_closes_descriptor_when_identity_validation_fails(
@@ -1479,6 +1834,149 @@ def test_native_blocked_started_callback_serializes_retirement(
             process.wait(timeout=1)
         if retirement.is_alive():
             retirement.join(timeout=5)
+        if root.exists():
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+def test_native_item_completion_and_stop_publish_one_terminal_event(
+    tmp_path: Path,
+) -> None:
+    """A direct completion owns publication before retirement can observe it."""
+
+    broker, _ = _test_native_broker(tmp_path, task_id="ITEM-STOP-RACE")
+    lifecycle: list[dict[str, object]] = []
+    completed_entered = threading.Event()
+    release_completed = threading.Event()
+
+    def record_lifecycle(**values) -> None:
+        lifecycle.append(values)
+        if values["phase"] == "completed":
+            completed_entered.set()
+            assert release_completed.wait(timeout=5)
+
+    broker.validation_command_handler = record_lifecycle
+    group = "321:654"
+    item_id = "item-321"
+    broker._start_validation_lifecycle(
+        group,
+        command="make test",
+        command_identity="f" * 64,
+        classification=ValidationCommandClassification(True, "full"),
+        invocation_id="item-stop-race",
+    )
+    with broker._boundary_lock:
+        broker._boundary_items[group] = item_id
+    completion_results: list[bool] = []
+    stop_results: list[bool] = []
+    completion = threading.Thread(
+        target=lambda: completion_results.append(
+            broker.complete_validation_item(
+                "f" * 64,
+                item_id,
+                succeeded=True,
+                outcome="passed",
+            )
+        )
+    )
+    stop = threading.Thread(target=lambda: stop_results.append(broker.stop()))
+    try:
+        completion.start()
+        assert completed_entered.wait(timeout=5)
+        stop.start()
+        stop.join(timeout=5)
+
+        assert stop.is_alive() is False
+        assert stop_results == [False]
+        assert completion.is_alive() is True
+        assert [entry["phase"] for entry in lifecycle] == ["started", "completed"]
+
+        release_completed.set()
+        completion.join(timeout=5)
+
+        assert completion.is_alive() is False
+        assert completion_results == [True]
+        assert [entry["phase"] for entry in lifecycle] == ["started", "completed"]
+        assert broker.stop() is True
+    finally:
+        release_completed.set()
+        completion.join(timeout=5)
+        stop.join(timeout=5)
+        broker.stop()
+
+
+def test_native_indefinite_started_callback_keeps_retirement_bounded(
+    tmp_path: Path,
+) -> None:
+    """A stuck telemetry consumer defers cleanup rather than deadlocking it."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-INDEFINITE-CALLBACK",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    started_callback = threading.Event()
+    release_callback = threading.Event()
+
+    def record_lifecycle(**values) -> None:
+        lifecycle.append(values)
+        if values["phase"] == "started":
+            started_callback.set()
+            # Deliberately no timeout: this models an indefinitely blocked
+            # consumer while the test controls when it can make progress.
+            release_callback.wait()
+
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=record_lifecycle,
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        assert started_callback.wait(timeout=5)
+        started_at = time.monotonic()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is False
+        assert time.monotonic() - started_at < 3
+        assert root.exists()
+        _wait_until(lambda: lease.status().owner_count == 0)
+
+        release_callback.set()
+        assert process.wait(timeout=5) != 0
+        _wait_until(lambda: [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ])
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+    finally:
+        release_callback.set()
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
         if root.exists():
             retire_native_validation_guard(
                 root,

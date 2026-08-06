@@ -49,6 +49,7 @@ from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
     _is_dynamic_loader_environment_name,
+    _pidfd_open,
     _terminate_exact_process_group,
     classify_validation_command,
     is_heavyweight_validation_command,
@@ -81,6 +82,17 @@ NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION = (
 )
 _PROVIDER_LAUNCHER_NAME = "oompah-validation-provider"
 _SUPERVISOR_LAUNCHER_NAME = "oompah-validation-supervisor"
+_SUPERVISOR_READY = b"READY\n"
+_SUPERVISOR_UNSUPPORTED = b"UNSUPPORTED\n"
+_SUPERVISOR_IDENTITY_LOST = b"IDENTITY-LOST\n"
+_SUPERVISOR_TRANSPORT_FAILURE = b"TRANSPORT-FAILURE\n"
+_BROKER_DENIAL_MESSAGES = {
+    b"DENIED AUTHORITY\n": "native validation authority was withdrawn",
+    b"DENIED POLICY\n": "native validation lease broker denied execution",
+    b"DENIED TRANSPORT\n": "native validation lease broker is unavailable",
+    b"DENIED UNSUPPORTED\n": "native validation pidfd supervision is unavailable",
+    b"DENIED IDENTITY\n": "native validation supervised peer changed identity",
+}
 # Python builds may omit Linux's memfd/seal wrappers even when the running
 # libc and kernel provide them.  These values are part of Linux's stable UAPI
 # (linux/memfd.h and linux/fcntl.h), not implementation-private CPython data.
@@ -589,6 +601,76 @@ class _NativeValidationRun:
     cleanup_outcome: str = ""
     terminal_outcome: str = ""
     terminal_succeeded: bool = False
+    # A terminal lifecycle callback is owned by exactly one caller.  The
+    # synchronous item-completion path and the bounded retirement path both
+    # take this state while holding ``state_lock``; a second contender must
+    # retain the guard root rather than publish a duplicate completion.
+    terminal_publication_state: str = "unclaimed"
+    # Retirement may move a blocked terminal callback off the broker thread.
+    # Keep the publisher associated with this exact run until a later bounded
+    # retirement pass observes that it has exited.  Otherwise a caller could
+    # delete the executable guard root while that daemon is still executing
+    # user supplied lifecycle code.
+    terminal_publisher: threading.Thread | None = field(default=None, repr=False)
+
+
+class _BrokerRequestFailure(RuntimeError):
+    """A typed, bounded rejection that can cross the broker socket."""
+
+    denial_packet = b"DENIED TRANSPORT\n"
+
+
+class _BrokerPolicyDenied(_BrokerRequestFailure):
+    denial_packet = b"DENIED POLICY\n"
+
+
+class _BrokerAuthorityDenied(_BrokerRequestFailure):
+    denial_packet = b"DENIED AUTHORITY\n"
+
+
+class _BrokerUnsupported(_BrokerRequestFailure):
+    denial_packet = b"DENIED UNSUPPORTED\n"
+
+
+class _BrokerIdentityLost(_BrokerRequestFailure):
+    denial_packet = b"DENIED IDENTITY\n"
+
+
+class _BrokerTransportFailure(_BrokerRequestFailure):
+    denial_packet = b"DENIED TRANSPORT\n"
+
+
+def _broker_denial_response(error: BaseException) -> bytes:
+    """Return the typed wire outcome; untyped failures are transport faults."""
+
+    if isinstance(error, _BrokerRequestFailure):
+        return error.denial_packet
+    return _BrokerTransportFailure.denial_packet
+
+
+def _reuse_policy_denied(denial: str) -> _BrokerPolicyDenied:
+    """Represent a live reusable-gate denial without parsing its prose."""
+
+    return _BrokerPolicyDenied(denial)
+
+
+def _pidfd_supervision_failure(error: BaseException) -> _BrokerRequestFailure:
+    """Classify pidfd setup failures without confusing platform and peer state."""
+
+    if isinstance(error, AttributeError):
+        return _BrokerUnsupported("native validation pidfd supervision is unavailable")
+    if isinstance(error, OSError):
+        # ENOSYS proves that this kernel lacks pidfds. EOPNOTSUPP is the
+        # equivalent platform-level refusal on systems that expose the call
+        # through libc but do not implement the feature. Other errors say
+        # something about this peer or local transport, not support.
+        if error.errno in {errno.ENOSYS, errno.EOPNOTSUPP, errno.ENOTSUP}:
+            return _BrokerUnsupported("native validation pidfd supervision is unavailable")
+        if error.errno == errno.ESRCH:
+            return _BrokerIdentityLost(
+                "native validation supervised peer changed identity"
+            )
+    return _BrokerTransportFailure("native validation pidfd supervision failed")
 
 
 class _NativeValidationLeaseBroker:
@@ -644,6 +726,8 @@ class _NativeValidationLeaseBroker:
         self._boundary_items: dict[str, str] = {}
         self._validation_runs: dict[str, _NativeValidationRun] = {}
         self._supervisor_observers: set[threading.Thread] = set()
+        self._supervisor_processes: set[subprocess.Popen[bytes]] = set()
+        self._lifecycle_publishers: set[threading.Thread] = set()
         self._provider_identity: tuple[int, int] | None = None
         self._capability_secret: bytes | None = None
         self._capability_identity: tuple[int, int] | None = None
@@ -1047,7 +1131,7 @@ class _NativeValidationLeaseBroker:
                 denial = initial_policy[1]
                 if denial is not None:
                     record_reuse_policy(initial_policy)
-                    raise RuntimeError(denial)
+                    raise _reuse_policy_denied(denial)
 
                 def cancellation_outcome() -> str:
                     if self._cleanup_requested.is_set():
@@ -1068,18 +1152,22 @@ class _NativeValidationLeaseBroker:
                     is_cancelled=cancelled,
                 )
                 if cancelled():
-                    raise RuntimeError("native validation authority was withdrawn")
+                    raise _BrokerAuthorityDenied(
+                        "native validation authority was withdrawn"
+                    )
                 handle.attach_process(
                     SimpleNamespace(pid=peer_pid),
                     timeout_seconds=self.timeout_seconds,
                 )
                 if cancelled():
-                    raise RuntimeError("native validation authority was withdrawn")
+                    raise _BrokerAuthorityDenied(
+                        "native validation authority was withdrawn"
+                    )
                 pretransfer_policy = reuse_policy_snapshot()
                 denial = pretransfer_policy[1]
                 if denial is not None:
                     record_reuse_policy(pretransfer_policy)
-                    raise RuntimeError(denial)
+                    raise _reuse_policy_denied(denial)
                 descriptor = handle.pass_fds[0]
                 lifecycle_run = self._start_validation_lifecycle(
                     boundary_group,
@@ -1092,7 +1180,9 @@ class _NativeValidationLeaseBroker:
                 pending_cancellation = cancellation_outcome()
                 if pending_cancellation:
                     failure_outcome = pending_cancellation
-                    raise RuntimeError("native validation launch was cancelled")
+                    raise _BrokerAuthorityDenied(
+                        "native validation launch was cancelled"
+                    )
                 supervisor_observer = _start_validation_lease_supervisor(
                     self.root,
                     peer_pid=peer_pid,
@@ -1108,10 +1198,19 @@ class _NativeValidationLeaseBroker:
                 )
                 with self._handler_lock:
                     self._supervisor_observers.add(supervisor_observer)
+                    supervisor_process = getattr(
+                        supervisor_observer,
+                        "_native_validation_supervisor_process",
+                        None,
+                    )
+                    if isinstance(supervisor_process, subprocess.Popen):
+                        self._supervisor_processes.add(supervisor_process)
                 pending_cancellation = cancellation_outcome()
                 if pending_cancellation:
                     failure_outcome = pending_cancellation
-                    raise RuntimeError("native validation launch was cancelled")
+                    raise _BrokerAuthorityDenied(
+                        "native validation launch was cancelled"
+                    )
                 if lifecycle_run is None:
                     raise RuntimeError("native validation lifecycle is unavailable")
                 # Take the last potentially blocking authority sample before
@@ -1182,12 +1281,13 @@ class _NativeValidationLeaseBroker:
                 if transfer_error:
                     if transfer_policy[1] is not None:
                         record_reuse_policy(transfer_policy)
-                    raise RuntimeError(transfer_error)
+                        raise _reuse_policy_denied(transfer_error)
+                    raise _BrokerTransportFailure(transfer_error)
                 # Allowed policy telemetry is immutable only after the kernel
                 # accepted the LEASE descriptor transfer.
                 record_reuse_policy(transfer_policy)
                 handle.relinquish_transferred_descriptor()
-            except Exception:
+            except Exception as exc:
                 defer_to_cleanup_supervisor = (
                     self._cleanup_requested.is_set()
                     and supervisor_observer is not None
@@ -1203,7 +1303,7 @@ class _NativeValidationLeaseBroker:
                         outcome=failure_outcome,
                     )
                 with contextlib.suppress(OSError):
-                    connection.sendall(b"DENIED\n")
+                    connection.sendall(_broker_denial_response(exc))
             finally:
                 if handle is not None and not descriptor_transferred:
                     handle.release()
@@ -1286,7 +1386,11 @@ class _NativeValidationLeaseBroker:
             return None
         with run.state_lock:
             run.supervisor_outcome = outcome
-            if outcome == "exited" or run.terminal_outcome:
+            if (
+                outcome == "exited"
+                or run.terminal_outcome
+                or run.terminal_publication_state != "unclaimed"
+            ):
                 return None
             resolved_outcome = outcome
             if (
@@ -1306,6 +1410,7 @@ class _NativeValidationLeaseBroker:
                 )
             run.launch_state = "terminated"
             run.terminal_outcome = resolved_outcome
+            run.terminal_publication_state = "publishing"
         # Remove the run from item-completion contention before acknowledging
         # the supervisor. A concurrent item that already captured ``run`` will
         # observe terminal_outcome under state_lock and cannot publish a generic
@@ -1321,16 +1426,20 @@ class _NativeValidationLeaseBroker:
             # callback lock preserves started-before-completed ordering, while
             # a blocked or failing telemetry consumer cannot delay mandatory
             # process termination or lease release.
-            with run.callback_lock:
-                self._notify_validation_lifecycle(
-                    command=run.command,
-                    phase="completed",
-                    succeeded=False,
-                    outcome=resolved_outcome,
-                    duration_seconds=time.monotonic() - run.started_at,
-                    invocation_id=run.invocation_id,
-                    validation_scope=run.scope,
-                )
+            try:
+                with run.callback_lock:
+                    self._notify_validation_lifecycle(
+                        command=run.command,
+                        phase="completed",
+                        succeeded=False,
+                        outcome=resolved_outcome,
+                        duration_seconds=time.monotonic() - run.started_at,
+                        invocation_id=run.invocation_id,
+                        validation_scope=run.scope,
+                    )
+            finally:
+                with run.state_lock:
+                    run.terminal_publication_state = "published"
             return True
 
         return publish_terminal
@@ -1341,10 +1450,10 @@ class _NativeValidationLeaseBroker:
         *,
         succeeded: bool,
         outcome: str,
+        callback_timeout_seconds: float | None = None,
     ) -> bool:
         with self._boundary_lock:
-            run = self._validation_runs.pop(boundary_group, None)
-            self._boundary_items.pop(boundary_group, None)
+            run = self._validation_runs.get(boundary_group)
         if run is None:
             return False
         with run.state_lock:
@@ -1354,17 +1463,84 @@ class _NativeValidationLeaseBroker:
                 run.terminal_succeeded = succeeded
             outcome = run.terminal_outcome
             succeeded = run.terminal_succeeded
-        with run.callback_lock:
-            self._notify_validation_lifecycle(
-                command=run.command,
-                phase="completed",
-                succeeded=succeeded,
-                outcome=outcome,
-                duration_seconds=time.monotonic() - run.started_at,
-                invocation_id=run.invocation_id,
-                validation_scope=run.scope,
+            # This is the sole terminal-publication ownership transfer for
+            # both direct item completion and bounded retirement.  In
+            # particular, a synchronous caller cannot read ``None`` and then
+            # publish while stop installs a daemon publisher for the same
+            # invocation.
+            if run.terminal_publication_state != "unclaimed":
+                return False
+            run.terminal_publication_state = "publishing"
+
+        def finish() -> None:
+            # Keep publication linearized to this exact run. A new command
+            # cannot replace a group identity, but checking identity here
+            # makes delayed daemon completion harmless under concurrent
+            # retirement retries.
+            with self._boundary_lock:
+                if self._validation_runs.get(boundary_group) is run:
+                    self._validation_runs.pop(boundary_group, None)
+                    self._boundary_items.pop(boundary_group, None)
+            with run.state_lock:
+                run.terminal_publication_state = "published"
+
+        def publish() -> None:
+            # A terminal event must wait behind its own started event. This is
+            # intentionally a separate function so retirement can let an
+            # uncooperative telemetry callback finish in a daemon publisher
+            # instead of acquiring callback_lock without a bound.
+            with run.callback_lock:
+                self._notify_validation_lifecycle(
+                    command=run.command,
+                    phase="completed",
+                    succeeded=succeeded,
+                    outcome=outcome,
+                    duration_seconds=time.monotonic() - run.started_at,
+                    invocation_id=run.invocation_id,
+                    validation_scope=run.scope,
+                )
+
+        if callback_timeout_seconds is None:
+            try:
+                publish()
+            finally:
+                finish()
+            return True
+
+        # A prior retirement may already have moved this completion into a
+        # daemon. Never start a second terminal publisher for the same
+        # invocation, and never discard the first while it is alive.
+        def publish_and_finish() -> None:
+            try:
+                publish()
+            finally:
+                finish()
+
+        publisher = threading.Thread(
+            target=publish_and_finish,
+            name=f"native-validation-lifecycle-completed-{boundary_group}",
+            daemon=True,
+        )
+        with run.state_lock:
+            # Ownership was claimed above under the same lock.  Recording the
+            # daemon is bookkeeping for bounded retirement, not a second
+            # ownership decision.
+            run.terminal_publisher = publisher
+        with self._handler_lock:
+            self._lifecycle_publishers.add(publisher)
+        publisher.start()
+        publisher.join(timeout=max(float(callback_timeout_seconds), 0.0))
+        with self._handler_lock:
+            self._lifecycle_publishers.intersection_update(
+                thread
+                for thread in self._lifecycle_publishers
+                if thread.is_alive()
             )
-        return True
+        if not publisher.is_alive():
+            with run.state_lock:
+                if run.terminal_publisher is publisher:
+                    run.terminal_publisher = None
+        return not publisher.is_alive()
 
     def complete_validation_item(
         self,
@@ -1407,7 +1583,7 @@ class _NativeValidationLeaseBroker:
             outcome=outcome,
         )
 
-    def stop(self, *, cleanup_outcome: str = "authority_withdrawn") -> None:
+    def stop(self, *, cleanup_outcome: str = "authority_withdrawn") -> bool:
         # Stop accepting first, then close every tracked peer before taking
         # the publication lock. A REGISTER send blocked inside that critical
         # section is thereby interrupted and can release the lock; a send that
@@ -1456,12 +1632,18 @@ class _NativeValidationLeaseBroker:
                     run.launch_state = "terminated"
         with contextlib.suppress(OSError):
             (self.root / _CANCELLATION_NAME).touch(mode=0o600, exist_ok=True)
+        handler_deadline = time.monotonic() + 0.5
         for handler in handlers:
             if handler is not threading.current_thread():
-                handler.join()
+                handler.join(
+                    timeout=max(handler_deadline - time.monotonic(), 0.0)
+                )
         with self._handler_lock:
             self._handler_connections.difference_update(connections)
-            self._handler_threads.difference_update(handlers)
+            self._handler_threads.difference_update(
+                handler for handler in handlers if not handler.is_alive()
+            )
+            handlers_exited = not self._handler_threads
             supervisor_observers = tuple(self._supervisor_observers)
         # Each supervisor claims timeout/withdrawal/transport status before
         # releasing its descriptor. Give those short claim/ACK phases one
@@ -1475,9 +1657,39 @@ class _NativeValidationLeaseBroker:
                     timeout=max(observer_deadline - time.monotonic(), 0.0)
                 )
         with self._handler_lock:
-            self._supervisor_observers.difference_update(supervisor_observers)
+            self._supervisor_observers.difference_update(
+                observer for observer in supervisor_observers if not observer.is_alive()
+            )
+            observers_exited = not self._supervisor_observers
+            supervisor_processes = tuple(self._supervisor_processes)
+        # A guard root contains executable shims. Do not scan or delete it
+        # until every locally-started supervisor has exited; before exec its
+        # /proc references can otherwise race the scan. This wait is bounded:
+        # an uncooperative supervisor retains the root for a later retry.
+        supervisor_deadline = time.monotonic() + 2.0
+        supervisors_exited = True
+        for process in supervisor_processes:
+            if process.poll() is not None:
+                continue
+            try:
+                process.wait(
+                    timeout=max(supervisor_deadline - time.monotonic(), 0.0)
+                )
+            except subprocess.TimeoutExpired:
+                supervisors_exited = False
+        with self._handler_lock:
+            self._supervisor_processes.difference_update(
+                process
+                for process in supervisor_processes
+                if process.poll() is not None
+            )
+            supervisors_exited = (
+                supervisors_exited and not self._supervisor_processes
+            )
         with self._boundary_lock:
             lifecycle_groups = tuple(self._validation_runs)
+        publication_deadline = time.monotonic() + 0.5
+        callbacks_published = True
         for boundary_group in lifecycle_groups:
             with self._boundary_lock:
                 run = self._validation_runs.get(boundary_group)
@@ -1496,14 +1708,47 @@ class _NativeValidationLeaseBroker:
                     run.terminal_outcome = outcome
                     run.terminal_succeeded = False
                 succeeded = run.terminal_succeeded
-            self._complete_validation_group(
+            callbacks_published = self._complete_validation_group(
                 boundary_group,
                 succeeded=succeeded,
                 outcome=outcome,
+                # Never let a user telemetry callback extend retirement.
+                # The daemon publisher preserves started-before-completed; a
+                # false return keeps this guard root for durable retry.
+                callback_timeout_seconds=max(
+                    publication_deadline - time.monotonic(),
+                    0.0,
+                ),
+            ) and callbacks_published
+        with self._handler_lock:
+            lifecycle_publishers = tuple(self._lifecycle_publishers)
+        for publisher in lifecycle_publishers:
+            if publisher is threading.current_thread():
+                continue
+            publisher.join(
+                timeout=max(publication_deadline - time.monotonic(), 0.0)
+            )
+        with self._handler_lock:
+            self._lifecycle_publishers.difference_update(
+                publisher
+                for publisher in lifecycle_publishers
+                if not publisher.is_alive()
+            )
+            callbacks_published = (
+                not self._lifecycle_publishers and callbacks_published
             )
         if descriptor is not None:
             with contextlib.suppress(OSError):
                 os.close(descriptor)
+        # A false return deliberately leaves the broker registered. The next
+        # durable retirement retry can re-close peers and verify every actor
+        # has quiesced before the guard root becomes deletable.
+        return (
+            handlers_exited
+            and observers_exited
+            and supervisors_exited
+            and callbacks_published
+        )
 
     def consume_recent_boundary(
         self,
@@ -1580,11 +1825,18 @@ def _stop_native_validation_broker(
     root: Path,
     *,
     cleanup_outcome: str = "authority_withdrawn",
-) -> None:
+) -> bool:
     with _BROKER_REGISTRY_LOCK:
-        broker = _BROKER_REGISTRY.pop(root.resolve(), None)
+        resolved_root = root.resolve()
+        broker = _BROKER_REGISTRY.get(resolved_root)
     if broker is not None:
-        broker.stop(cleanup_outcome=cleanup_outcome)
+        stopped = broker.stop(cleanup_outcome=cleanup_outcome)
+        if stopped:
+            with _BROKER_REGISTRY_LOCK:
+                if _BROKER_REGISTRY.get(resolved_root) is broker:
+                    _BROKER_REGISTRY.pop(resolved_root, None)
+        return stopped
+    return True
 
 
 def consume_native_validation_boundary(
@@ -2046,6 +2298,9 @@ def _receive_descriptors(
             continue
         values.frombytes(data[: len(data) - (len(data) % values.itemsize)])
         descriptors.extend(values)
+    denial = _BROKER_DENIAL_MESSAGES.get(payload)
+    if denial is not None and not descriptors and not malformed:
+        raise RuntimeError(denial)
     if (
         payload != expected_payload
         or len(descriptors) != expected_count
@@ -2315,12 +2570,44 @@ def _supervise_validation_lease(config: Mapping[str, object]) -> int:
         acknowledgement_descriptor = -1
 
     try:
-        if not hasattr(os, "pidfd_open"):
-            raise RuntimeError("native validation pidfd supervision is unavailable")
-        pidfd = os.pidfd_open(peer_pid)
+        try:
+            pidfd = _pidfd_open(peer_pid)
+        except (AttributeError, OSError) as exc:
+            # The parent needs a bounded, typed diagnosis rather than an
+            # ambiguous EOF which would otherwise be reported as a malformed
+            # SCM_RIGHTS reply by the guarded client. In particular, ESRCH is
+            # peer identity loss, while descriptor pressure and permission
+            # failures are transport failures rather than lack of support.
+            failure = _pidfd_supervision_failure(exc)
+            packet = {
+                _BrokerUnsupported: _SUPERVISOR_UNSUPPORTED,
+                _BrokerIdentityLost: _SUPERVISOR_IDENTITY_LOST,
+            }.get(type(failure), _SUPERVISOR_TRANSPORT_FAILURE)
+            with contextlib.suppress(OSError):
+                os.write(ready_descriptor, packet)
+            raise failure from exc
         if _process_start_ticks(peer_pid) != peer_start_ticks:
-            raise RuntimeError("native validation supervised peer changed identity")
-        os.write(ready_descriptor, b"READY\n")
+            # This check follows pidfd acquisition: the numeric PID still
+            # exists, but it is no longer the generation authorised by the
+            # broker. Report it on the startup pipe and exit directly. Do not
+            # use report_terminal here: the parent cannot send an ACK until it
+            # has received startup readiness and started its observer.
+            with contextlib.suppress(OSError):
+                os.write(ready_descriptor, _SUPERVISOR_IDENTITY_LOST)
+            with contextlib.suppress(OSError):
+                os.close(ready_descriptor)
+            ready_descriptor = -1
+            # No terminal observer exists on this startup path. Close both
+            # ends owned by the supervisor so ``finally`` cannot enter the
+            # ACK protocol that only starts after READY reaches the parent.
+            with contextlib.suppress(OSError):
+                os.close(status_descriptor)
+            status_descriptor = -1
+            with contextlib.suppress(OSError):
+                os.close(acknowledgement_descriptor)
+            acknowledgement_descriptor = -1
+            return 1
+        os.write(ready_descriptor, _SUPERVISOR_READY)
         os.close(ready_descriptor)
         ready_descriptor = -1
         cancellation_path = Path(str(config.get("cancellation_path") or ""))
@@ -2428,7 +2715,18 @@ def _start_validation_lease_supervisor(
         os.close(acknowledgement_read_descriptor)
         acknowledgement_read_descriptor = -1
         readable, _, _ = select.select([read_descriptor], [], [], 2.0)
-        if not readable or os.read(read_descriptor, 16) != b"READY\n":
+        ready_packet = os.read(read_descriptor, 16) if readable else b""
+        if ready_packet == _SUPERVISOR_UNSUPPORTED:
+            raise _BrokerUnsupported("native validation pidfd supervision is unavailable")
+        if ready_packet == _SUPERVISOR_IDENTITY_LOST:
+            raise _BrokerIdentityLost(
+                "native validation supervised peer changed identity"
+            )
+        if ready_packet == _SUPERVISOR_TRANSPORT_FAILURE:
+            raise _BrokerTransportFailure(
+                "native validation pidfd supervision failed"
+            )
+        if ready_packet != _SUPERVISOR_READY:
             raise RuntimeError("native validation lease supervisor did not start")
         threading.Thread(target=process.wait, daemon=True).start()
 
@@ -2465,6 +2763,7 @@ def _start_validation_lease_supervisor(
         )
         observer.start()
         observer_started = True
+        setattr(observer, "_native_validation_supervisor_process", process)
         return observer
     except BaseException:
         if process is not None and process.poll() is None:
@@ -2766,7 +3065,7 @@ def retire_native_validation_guard(
     # Let the live broker publish the exact cleanup cause before it creates
     # the cancellation fence. Otherwise its supervisor can observe that fence
     # first and collapse transport/session cleanup into authority withdrawal.
-    _stop_native_validation_broker(
+    supervisors_exited = _stop_native_validation_broker(
         root,
         cleanup_outcome=terminal_outcome,
     )
@@ -2777,6 +3076,8 @@ def retire_native_validation_guard(
         except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
             return False
     validation_lease.cancel_owner(owner)
+    if not supervisors_exited:
+        return False
     if _runtime_root_is_referenced(root):
         return False
     shutil.rmtree(root)
