@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:41:31.688154Z'
+updated_at: '2026-08-06T18:41:58.609058Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -44,16 +44,18 @@ oompah.duplicate_screening:
     dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
     task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
     itself, not this integration bug.
-oompah.agent_run_id: 9b79b581-dc4b-419c-b739-0982792e22e2
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
-  updated_at: '2026-08-06T18:41:01.999526+00:00'
+  head_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
+  submitted_at: '2026-08-06T18:41:41.551984+00:00'
+  updated_at: '2026-08-06T18:41:41.551984+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 596
@@ -472,5 +474,20 @@ author: oompah
 created: 2026-08-06 18:41
 ---
 Understanding: The implementation and earlier gate-fix commit are present at the pushed branch head. I will diagnose the remaining quality-gate owner-metadata mismatch, validate the exact candidate path with focused coverage, then run the full configured gate against the repaired head before re-submitting.
+---
+author: oompah
+created: 2026-08-06 18:41
+---
+Re-submit the exact server-restacked branch head 03563661c1b8998cfe5d081edddbe7313b62d10c after the deployed executor blocked the pre-restack c296b963a queue generation; the five-commit patch series is range-diff identical and 865 focused regressions pass.
+---
+author: oompah
+created: 2026-08-06 18:41
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 3
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 2s
+- Log: OOMPAH-858__20260806T184110Z.jsonl
 ---
 <!-- COMMENTS:END -->
