@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T01:53:28.547929Z'
+updated_at: '2026-08-06T01:54:09.024941Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -376,5 +376,10 @@ author: oompah
 created: 2026-08-06 01:53
 ---
 Implementation (CI repair): rebased OOMPAH-827 onto current origin/main, preserving the four-file observability change. Replaced AGENT_DISPATCHED's duplicate precedence expression with a call to classify_work_kind() on the exact RunningEntry registered for that dispatch, and extended the existing duplicate-dispatch regression to assert event/entry agreement. This gives the failed exact-head gate a fresh branch head without weakening the installed-CLI smoke tests.
+---
+author: oompah
+created: 2026-08-06 01:54
+---
+Verification (CI repair): focused parallel checks pass on the rebased branch: installed CLI smoke + authoritative work-kind suite + duplicate dispatch event test = 33 passed, 5 skipped; neighboring activity identity/provider/state API suites = 52 passed (3 pre-existing deprecation warnings). The previously failing eight installed-CLI cases all pass. Per project guidance, I did not rerun the complete make test gate; submission will run it once for the exact pushed head.
 ---
 <!-- COMMENTS:END -->
