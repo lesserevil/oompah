@@ -3178,6 +3178,7 @@ class TestOpenEpicMainPrs:
             source_branch="epic-epic-1",
             target_branch="main",
             state="open",
+            draft=False,
         )
         provider = MagicMock()
         provider.list_merged_reviews.return_value = []
