@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T00:00:03.010270Z'
+updated_at: '2026-08-06T18:27:20.354674Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a099b545-960f-449a-816b-af0ea096b342
+oompah.agent_run_id: c649b31a-3afd-4fb1-9cf5-3c3fc36d2e60
 oompah.task_costs:
   total_input_tokens: 46646
   total_output_tokens: 314
@@ -122,5 +122,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 30s
 - Log: OOMPAH-832__20260805T235932Z.jsonl
+---
+author: oompah
+created: 2026-08-06 18:27
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
