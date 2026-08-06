@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-08-06T17:35:48.658084Z'
+updated_at: '2026-08-06T17:37:44.613221Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -141,6 +141,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-ba83e71f4e4d-1: '2026-07-30T14:12:32.507045+00:00'
+    attempt-339ecd6514f7: '2026-08-06T17:37:33.558039+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-7520c8d7f6ad
@@ -160,6 +161,29 @@ oompah.terminal_audit:
       terminal audit failed only because of the forced-auditor transport bug; reopening
       implementation would duplicate landed work.
     created_at: '2026-07-30T17:14:28.511854+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    target_state: Merged
+    evidence_fingerprint: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    audit_ids:
+    - audit-6db456fe5e16
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T17:37:33.558051+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    audit_id: audit-6db456fe5e16
+    attempt_id: attempt-339ecd6514f7
+    target_state: Merged
+    evidence_fingerprint: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    status: In Validation
+    audit_ids:
+    - audit-6db456fe5e16
+    applied: true
+    created_at: '2026-08-06T17:37:33.558066+00:00'
+    applied_at: '2026-08-06T17:37:41.700729+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -213,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-582
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -222,7 +246,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-339ecd6514f7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -232,13 +256,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T17:35:38.742660+00:00'
       branch_key: OOMPAH-582
+      verdict: pass
+      completed_at: '2026-08-06T17:37:33.557872+00:00'
+      ended_at: '2026-08-06T17:37:33.557872+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T04:54:55.183299+00:00'
-    updated_at: '2026-08-06T17:35:38.742660+00:00'
+    updated_at: '2026-08-06T17:37:33.557872+00:00'
   - version: 1
     audit_id: audit-c9362f973f19
     project_id: proj-14849f1b
@@ -472,5 +499,25 @@ author: oompah
 created: 2026-08-06 17:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 17:37
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: bbd48ada7abbd726e2ad6ae761a5037cdbea1e6f
+- ancestor_of_origin_main: true
+- orchestrator_helper_uses: _integration_satisfied_dependencies@4862, stale_queue_repair@5173
+- server_helper_use: _integration_queue_summary@2083
+- focused_test_file: tests/test_parallel_epic_children.py
+- positive_test: test_cross_epic_done_dependency_uses_default_after_parent_lands
+- negative_parametrized_parent_states: None, 'In Progress', 'Done'
+- api_summary_positive_test: test_integration_queue_summary_accepts_done_child_of_landed_parent
+- api_summary_negative_test: test_integration_queue_summary_rejects_done_child_of_unlanded_parent
+- prior_focused_pass_count: 24
+- prior_make_test: 13694 passed, 7 skipped
 ---
 <!-- COMMENTS:END -->
