@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-08-06T04:55:14.038157Z'
+updated_at: '2026-08-06T04:55:22.178568Z'
 work_branch: OOMPAH-579
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/591
@@ -129,8 +129,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-761d8231b229
-    applied: false
+    applied: true
     created_at: '2026-08-06T04:55:09.092615+00:00'
+    applied_at: '2026-08-06T04:55:20.324613+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -428,5 +429,24 @@ author: oompah
 created: 2026-08-06 04:52
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 04:55
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: a994cad2c31d26067b8942c58b15b02e9b457a13
+- merge_commit: 3aa2bd65bebf902b96e933e845352b1a8b98fbe7
+- merged_to_main: true
+- merge_pr: #591
+- previous_terminal_audits: pass to Done and pass to Merged
+- focused_tests: tests/test_projects.py::TestRemoveWorktreeCleanup all passing (previously 16 passed)
+- changed_files: oompah/projects.py, tests/test_projects.py
+- scope_guardrails: fallback gated on not is_epic AND os.path.isdir(epic_worktree_path_for(same identifier)); candidate == epic_branch_name(same identifier); _remove_epic_worktree_locked called with same identifier; legacy_epic_task gate unchanged
+- test_parametrization: recorded_branch in ['epic-TASK-42', None] against real bare remote; shared-parent and arbitrary branches remain rejected
+- archive_safety: merge commit is ancestor of origin/main; work is fully integrated
 ---
 <!-- COMMENTS:END -->
