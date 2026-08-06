@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:42:03.211130Z'
+updated_at: '2026-08-06T04:42:25.815271Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -83,13 +82,13 @@ oompah.integration:
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
   updated_at: '2026-08-06T04:19:23.648706+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 2309
+  total_input_tokens: 976
+  total_output_tokens: 2544
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 2309
+      input_tokens: 976
+      output_tokens: 2544
       cost_usd: 0.0
   runs:
   - profile: default
@@ -98,6 +97,12 @@ oompah.task_costs:
     output_tokens: 2309
     cost_usd: 0.0
     recorded_at: '2026-08-06T04:17:28.840681+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 966
+    output_tokens: 235
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:42:14.623738+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-846__20260806T041358Z
@@ -197,5 +202,15 @@ author: oompah
 created: 2026-08-06 04:38
 ---
 Additional live evidence at 2026-08-06T04:29Z: OOMPAH-847 spawned provider-native command sandboxes 2957672 and 2961523 running absolute-venv pytest for tests/test_epic_strategy.py and tests/test_dispatch_lane_contract.py while exact gate OOMPAH-844 was starting. Both bypassed the validation-resource lease and were terminated at the sandbox roots only; the scheduler then preserved checkpoint 40fc05b01. Direct ownership now fences OOMPAH-847. OOMPAH-845 and OOMPAH-784, by contrast, correctly project waiting_for_capacity. Acceptance must cover this absolute-path command_execution route.
+---
+author: oompah
+created: 2026-08-06 04:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 58
+- Tokens: 966 in / 235 out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 58s
+- Log: OOMPAH-846__20260806T041933Z.jsonl
 ---
 <!-- COMMENTS:END -->
