@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-768
 type: epic
-status: In Validation
+status: Needs Human
 priority: 1
 title: Migrate every workflow domain to shared decisions and durable jobs
 parent: OOMPAH-763
@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T22:15:53.752619Z'
+updated_at: '2026-08-06T22:16:23.939578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,6 +32,31 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-d5cd537191ed-1: '2026-08-06T22:16:10.385491+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-768
+    target_state: Done
+    evidence_fingerprint: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+    audit_ids:
+    - audit-d5cd537191ed
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T22:16:10.385502+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-768
+    audit_id: audit-d5cd537191ed
+    attempt_id: infrastructure-exhausted-audit-d5cd537191ed-1
+    target_state: Done
+    evidence_fingerprint: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+    status: Needs Human
+    audit_ids:
+    - audit-d5cd537191ed
+    applied: true
+    created_at: '2026-08-06T22:16:10.385519+00:00'
+    applied_at: '2026-08-06T22:16:22.576275+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -39,7 +64,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-768
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -63,12 +88,24 @@ oompah.terminal_audit:
       failure_reason: 'terminal audit evidence has no safely resolvable revision for
         OOMPAH-768 (tried: origin/OOMPAH-768)'
       next_retry_at: '2026-08-06T22:15:58.142998+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-d5cd537191ed-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-06T22:16:10.385378+00:00'
+      completed_at: '2026-08-06T22:16:10.385378+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-08-06T22:15:02.037452+00:00'
-    updated_at: '2026-08-06T22:15:48.143037+00:00'
+    updated_at: '2026-08-06T22:16:10.385378+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ce475e01ee0b
@@ -139,5 +176,12 @@ author: oompah
 created: 2026-08-06 22:15
 ---
 Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-768 (tried: origin/OOMPAH-768). A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-06 22:16
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
