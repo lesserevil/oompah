@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:36:41.583367Z'
+updated_at: '2026-08-06T22:37:04.941621Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ author: oompah
 created: 2026-08-06 22:36
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 22:37
+---
+Understanding: The accepted owner-resolution safety repair at 742075be6 must be preserved. I will inspect the current combined branch and reproduce tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_run_calls_tick_for_queued_events, identify whether shared event-loop changes introduced a deterministic race or the gate saw a flaky assertion, add focused regression coverage only if code changes are warranted, then run make test, push, and resubmit.
 ---
 <!-- COMMENTS:END -->
