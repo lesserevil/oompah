@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:24:31.170559Z'
+updated_at: '2026-08-06T22:25:28.039844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,35 @@ This is a release-blocking regression where terminal-audit evidence fingerprinti
 **My expertise:** API/integration boundaries, clear interfaces, authorization/access control - I'll ensure the unified resolver is a clean, testable abstraction with proper validation and error handling.
 
 Starting exploration now.
+---
+author: oompah
+created: 2026-08-06 22:25
+---
+## Discovery
+
+Found the root cause of the divergence:
+
+**terminal_audit.py** (fingerprinting):
+- Has \`_resolve_epic_branch_names()\` function that resolves canonical epic branches (epic-OOMPAH-768) 
+- Uses it in \`compute_issue_evidence_fingerprint()\` as a fallback when no explicit work_branch
+- For standalone epic without work_branch: tries epic-EPIC-ID
+- For nested epic with parent: tries epic-PARENT-ID, then epic-EPIC-ID
+
+**orchestrator.py _create_workspace_for_auditor()** (workspace creation):
+- Builds candidates from: source_sha, integrated_sha, head_sha, target_sha
+- Then: source_branch, work_branch, integration.task_branch, branch_name
+- Then: origin/default_branch (if allowed)
+- **Missing**: canonical epic branch resolution (epic-OOMPAH-768)
+
+Result: For a standalone epic with no work_branch:
+- Fingerprint: epic-OOMPAH-768 ✓
+- Workspace: tries origin/OOMPAH-768 only ✗
+
+Relevant code sections:
+- terminal_audit.py lines 738-768 (_resolve_epic_branch_names)
+- terminal_audit.py lines 920-1070 (compute_issue_evidence_fingerprint uses it)
+- orchestrator.py lines 17561-17680 (_create_workspace_for_auditor has no epic branch logic)
+
+Next: Create unified revision candidate resolver with ordered precedence.
 ---
 <!-- COMMENTS:END -->
