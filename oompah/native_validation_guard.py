@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import array
 import contextlib
+import ctypes
+import errno
 import fcntl
 import hashlib
 import hmac
@@ -62,6 +64,23 @@ _BOUNDARY_GROUP_ENV = "OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP"
 _CAPABILITY_FD_ENV = "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"
 _PROVIDER_LAUNCHER_NAME = "oompah-validation-provider"
 _SUPERVISOR_LAUNCHER_NAME = "oompah-validation-supervisor"
+# Python builds may omit Linux's memfd/seal wrappers even when the running
+# libc and kernel provide them.  These values are part of Linux's stable UAPI
+# (linux/memfd.h and linux/fcntl.h), not implementation-private CPython data.
+_LINUX_MFD_CLOEXEC = 0x0001
+_LINUX_MFD_ALLOW_SEALING = 0x0002
+_LINUX_F_ADD_SEALS = 1033
+_LINUX_F_GET_SEALS = 1034
+_LINUX_F_SEAL_SEAL = 0x0001
+_LINUX_F_SEAL_SHRINK = 0x0002
+_LINUX_F_SEAL_GROW = 0x0004
+_LINUX_F_SEAL_WRITE = 0x0008
+_REQUIRED_CAPABILITY_SEALS = (
+    _LINUX_F_SEAL_SEAL
+    | _LINUX_F_SEAL_SHRINK
+    | _LINUX_F_SEAL_GROW
+    | _LINUX_F_SEAL_WRITE
+)
 _UNTRUSTED_SHELL_STARTUP_ENV_NAMES = frozenset(
     {
         "BASHOPTS",
@@ -272,23 +291,132 @@ def _capability_proof(
     return hmac.new(secret, message, hashlib.sha256).hexdigest()
 
 
+def _linux_fcntl_value(name: str, fallback: int) -> int:
+    value = getattr(fcntl, name, None)
+    if value is not None:
+        return int(value)
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("native validation capability sealing is unavailable")
+    return fallback
+
+
+def _create_linux_memfd(name: str, flags: int) -> int:
+    """Create a memfd even when the host Python omits ``os.memfd_create``.
+
+    Native validation already relies on Linux ``/proc`` and ``SO_PEERCRED``.
+    Calling the stable libc entry point on that same platform preserves the
+    anonymous, sealable kernel object instead of weakening the capability to
+    a task-reopenable temporary file.
+    """
+
+    create = getattr(os, "memfd_create", None)
+    if create is not None:
+        return int(create(name, flags))
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("native validation capability memfd is unavailable")
+    try:
+        libc_create = ctypes.CDLL(None, use_errno=True).memfd_create
+    except (AttributeError, OSError) as exc:
+        raise RuntimeError(
+            "native validation capability memfd is unavailable"
+        ) from exc
+    libc_create.argtypes = (ctypes.c_char_p, ctypes.c_uint)
+    libc_create.restype = ctypes.c_int
+    while True:
+        descriptor = int(libc_create(os.fsencode(name), int(flags)))
+        if descriptor >= 0:
+            return descriptor
+        error = ctypes.get_errno()
+        if error != errno.EINTR:
+            raise OSError(error, os.strerror(error))
+
+
+def _capability_descriptor_identity(descriptor: int) -> tuple[int, int]:
+    """Return the identity of an exact immutable capability memfd.
+
+    A regular read-only descriptor is insufficient: same-UID task code could
+    reopen its ``/proc/self/fd`` link writable or replace the descriptor with
+    another file containing a copied secret.  Requiring the complete seal set
+    prevents mutation, while the broker's device/inode comparison rejects a
+    different sealed memfd containing copied bytes.
+    """
+
+    get_seals = _linux_fcntl_value("F_GET_SEALS", _LINUX_F_GET_SEALS)
+    try:
+        seals = int(fcntl.fcntl(descriptor, get_seals))
+        descriptor_stat = os.fstat(descriptor)
+    except OSError as exc:
+        raise RuntimeError(
+            "native validation provider capability is not a sealed memfd"
+        ) from exc
+    if seals & _REQUIRED_CAPABILITY_SEALS != _REQUIRED_CAPABILITY_SEALS:
+        raise RuntimeError(
+            "native validation provider capability is not immutable"
+        )
+    return int(descriptor_stat.st_dev), int(descriptor_stat.st_ino)
+
+
+def _peer_capability_descriptor_matches(
+    peer_pid: int,
+    expected_identity: tuple[int, int],
+) -> bool:
+    """Prove a peer inherited the broker-issued capability object itself."""
+
+    descriptor = -1
+    try:
+        if peer_pid == os.getpid():
+            # The production peer is always a child shim. Keeping the direct
+            # integration-test mode exact avoids relying on whether libc's
+            # relocated setenv storage is reflected in /proc/self/environ.
+            environment = dict(os.environ)
+        else:
+            environment = {
+                os.fsdecode(key): os.fsdecode(value)
+                for item in Path(f"/proc/{peer_pid}/environ").read_bytes().split(
+                    b"\0"
+                )
+                if item
+                for key, separator, value in (item.partition(b"="),)
+                if separator
+            }
+        raw_descriptor = environment.get(_CAPABILITY_FD_ENV, "")
+        if not raw_descriptor.isdigit():
+            return False
+        descriptor = os.open(
+            f"/proc/{peer_pid}/fd/{int(raw_descriptor)}",
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0),
+        )
+        return _capability_descriptor_identity(descriptor) == expected_identity
+    except (OSError, RuntimeError, ValueError):
+        return False
+    finally:
+        if descriptor >= 0:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+
+
 def _sealed_capability_descriptor(secret: bytes) -> int:
-    flags = getattr(os, "MFD_CLOEXEC", 0) | getattr(
-        os, "MFD_ALLOW_SEALING", 0
+    flags = getattr(os, "MFD_CLOEXEC", _LINUX_MFD_CLOEXEC) | getattr(
+        os, "MFD_ALLOW_SEALING", _LINUX_MFD_ALLOW_SEALING
     )
-    descriptor = os.memfd_create("oompah-validation-capability", flags)
+    descriptor = _create_linux_memfd("oompah-validation-capability", flags)
     try:
         os.write(descriptor, secret)
         os.lseek(descriptor, 0, os.SEEK_SET)
         seals = (
-            getattr(fcntl, "F_SEAL_SEAL", 0)
-            | getattr(fcntl, "F_SEAL_SHRINK", 0)
-            | getattr(fcntl, "F_SEAL_GROW", 0)
-            | getattr(fcntl, "F_SEAL_WRITE", 0)
+            getattr(fcntl, "F_SEAL_SEAL", _LINUX_F_SEAL_SEAL)
+            | getattr(fcntl, "F_SEAL_SHRINK", _LINUX_F_SEAL_SHRINK)
+            | getattr(fcntl, "F_SEAL_GROW", _LINUX_F_SEAL_GROW)
+            | getattr(fcntl, "F_SEAL_WRITE", _LINUX_F_SEAL_WRITE)
         )
-        if not seals or not hasattr(fcntl, "F_ADD_SEALS"):
-            raise RuntimeError("native validation capability sealing is unavailable")
-        fcntl.fcntl(descriptor, fcntl.F_ADD_SEALS, seals)
+        if seals != _REQUIRED_CAPABILITY_SEALS:
+            raise RuntimeError("native validation capability seals are invalid")
+        fcntl.fcntl(
+            descriptor,
+            _linux_fcntl_value("F_ADD_SEALS", _LINUX_F_ADD_SEALS),
+            seals,
+        )
+        _capability_descriptor_identity(descriptor)
         return descriptor
     except BaseException:
         os.close(descriptor)
@@ -359,12 +487,20 @@ class _NativeValidationLeaseBroker:
         self.timeout_seconds = max(float(timeout_seconds), 1.0)
         self._stop = threading.Event()
         self._boundary_lock = threading.Lock()
+        self._handler_lock = threading.Lock()
+        self._handler_threads: set[threading.Thread] = set()
+        self._handler_connections: set[socket.socket] = set()
         self._boundaries: deque[tuple[float, str, str]] = deque()
         self._seen_boundary_groups: set[str] = set()
         self._bound_item_ids: set[str] = set()
         self._provider_identity: tuple[int, int] | None = None
         self._capability_secret: bytes | None = None
-        self._local_capability_fd: int | None = None
+        self._capability_identity: tuple[int, int] | None = None
+        # Keep one broker-owned reference for the whole session. Besides
+        # cleanup ownership, this pins the anonymous inode so the device/inode
+        # authentication tuple cannot be recycled after a provider closes its
+        # inherited copy.
+        self._capability_fd: int | None = None
         self._listener = socket.socket(socket.AF_UNIX, _BROKER_SOCKET_TYPE)
         self.socket_path.unlink(missing_ok=True)
         self._listener.bind(str(self.socket_path))
@@ -386,12 +522,33 @@ class _NativeValidationLeaseBroker:
                 continue
             except OSError:
                 return
-            threading.Thread(
-                target=self._handle,
+            handler = threading.Thread(
+                target=self._run_handler,
                 args=(connection,),
                 name=f"native-validation-request-{self.owner.task_id}",
                 daemon=True,
-            ).start()
+            )
+            with self._handler_lock:
+                if self._stop.is_set():
+                    connection.close()
+                    return
+                self._handler_connections.add(connection)
+                self._handler_threads.add(handler)
+                try:
+                    handler.start()
+                except BaseException:
+                    self._handler_connections.discard(connection)
+                    self._handler_threads.discard(handler)
+                    connection.close()
+                    raise
+
+    def _run_handler(self, connection: socket.socket) -> None:
+        try:
+            self._handle(connection)
+        finally:
+            with self._handler_lock:
+                self._handler_connections.discard(connection)
+                self._handler_threads.discard(threading.current_thread())
 
     def _register_provider(
         self,
@@ -408,7 +565,9 @@ class _NativeValidationLeaseBroker:
         response = b"CAPABILITY\n"
         claimed = False
         registered = False
+        close_descriptor = True
         try:
+            capability_identity = _capability_descriptor_identity(descriptor)
             config = json.loads(
                 (self.root / _CONFIG_NAME).read_text(encoding="utf-8")
             )
@@ -435,39 +594,66 @@ class _NativeValidationLeaseBroker:
                     )
                 response = b"CAPABILITY-DIRECT\n"
             with self._boundary_lock:
+                if self._stop.is_set():
+                    raise RuntimeError(
+                        "native validation broker stopped during registration"
+                    )
                 if self._provider_identity is not None:
                     raise RuntimeError(
                         "native validation provider was already registered"
                     )
                 self._provider_identity = (peer_pid, peer_start_ticks)
                 self._capability_secret = secret
+                self._capability_identity = capability_identity
+                self._capability_fd = descriptor
                 claimed = True
-            connection.sendmsg(
-                [response],
-                [
-                    (
-                        socket.SOL_SOCKET,
-                        socket.SCM_RIGHTS,
-                        array.array(
-                            "i",
-                            [
-                                descriptor,
-                                *((direct_descriptor,) if direct_descriptor >= 0 else ()),
-                            ],
-                        ),
+                close_descriptor = False
+                # Publication and stop are one critical section: either the
+                # capability reply is accepted before retirement begins, or a
+                # stopped broker sends no capability at all.
+                sent = connection.sendmsg(
+                    [response],
+                    [
+                        (
+                            socket.SOL_SOCKET,
+                            socket.SCM_RIGHTS,
+                            array.array(
+                                "i",
+                                [
+                                    descriptor,
+                                    *(
+                                        (direct_descriptor,)
+                                        if direct_descriptor >= 0
+                                        else ()
+                                    ),
+                                ],
+                            ),
+                        )
+                    ],
+                )
+                if sent != len(response):
+                    raise RuntimeError(
+                        "native validation capability reply was incomplete"
                     )
-                ],
-            )
-            registered = True
+                registered = True
         finally:
             if claimed and not registered:
                 with self._boundary_lock:
-                    if self._provider_identity == (peer_pid, peer_start_ticks):
+                    if (
+                        self._provider_identity == (peer_pid, peer_start_ticks)
+                        and self._capability_fd == descriptor
+                    ):
                         self._provider_identity = None
                         self._capability_secret = None
-            os.close(descriptor)
+                        self._capability_identity = None
+                        self._capability_fd = None
+                        close_descriptor = True
+            if close_descriptor:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
             if direct_descriptor >= 0:
-                os.close(direct_descriptor)
+                with contextlib.suppress(OSError):
+                    os.close(direct_descriptor)
 
     def issue_local_test_capability(self) -> int:
         """Issue a descriptor only for direct guard integration tests.
@@ -482,12 +668,29 @@ class _NativeValidationLeaseBroker:
             raise RuntimeError("native validation test capability is unavailable")
         secret = secrets.token_bytes(32)
         descriptor = _sealed_capability_descriptor(secret)
-        with self._boundary_lock:
-            self._provider_identity = (os.getpid(), creator_start)
-            self._capability_secret = secret
-            self._local_capability_fd = descriptor
-        os.set_inheritable(descriptor, True)
-        return descriptor
+        published = False
+        try:
+            capability_identity = _capability_descriptor_identity(descriptor)
+            os.set_inheritable(descriptor, True)
+            with self._boundary_lock:
+                if self._stop.is_set():
+                    raise RuntimeError(
+                        "native validation broker stopped during registration"
+                    )
+                if self._provider_identity is not None:
+                    raise RuntimeError(
+                        "native validation provider was already registered"
+                    )
+                self._provider_identity = (os.getpid(), creator_start)
+                self._capability_secret = secret
+                self._capability_identity = capability_identity
+                self._capability_fd = descriptor
+                published = True
+            return descriptor
+        finally:
+            if not published:
+                with contextlib.suppress(OSError):
+                    os.close(descriptor)
 
     def _authenticate_boundary_request(
         self,
@@ -500,10 +703,16 @@ class _NativeValidationLeaseBroker:
         with self._boundary_lock:
             provider_identity = self._provider_identity
             secret = self._capability_secret
+            capability_identity = self._capability_identity
         if (
             provider_identity is None
             or secret is None
+            or capability_identity is None
             or not _process_descends_from(peer_pid, provider_identity)
+            or not _peer_capability_descriptor_matches(
+                peer_pid,
+                capability_identity,
+            )
         ):
             raise RuntimeError("native validation provider capability is unavailable")
         nonce = secrets.token_bytes(32)
@@ -664,13 +873,35 @@ class _NativeValidationLeaseBroker:
                     handle.release()
 
     def stop(self) -> None:
-        self._stop.set()
+        # Stop accepting first, then close every tracked peer before taking
+        # the publication lock. A REGISTER send blocked inside that critical
+        # section is thereby interrupted and can release the lock; a send that
+        # completed first is the fully accepted side of the race.
         with contextlib.suppress(OSError):
             self._listener.close()
-        self._thread.join(timeout=1.0)
+        if self._thread is not threading.current_thread():
+            self._thread.join()
+        with self._handler_lock:
+            connections = tuple(self._handler_connections)
+            handlers = tuple(self._handler_threads)
+        for connection in connections:
+            with contextlib.suppress(OSError):
+                connection.shutdown(socket.SHUT_RDWR)
+            with contextlib.suppress(OSError):
+                connection.close()
         with self._boundary_lock:
-            descriptor = self._local_capability_fd
-            self._local_capability_fd = None
+            self._stop.set()
+            descriptor = self._capability_fd
+            self._capability_fd = None
+            self._provider_identity = None
+            self._capability_secret = None
+            self._capability_identity = None
+        for handler in handlers:
+            if handler is not threading.current_thread():
+                handler.join()
+        with self._handler_lock:
+            self._handler_connections.difference_update(connections)
+            self._handler_threads.difference_update(handlers)
         if descriptor is not None:
             with contextlib.suppress(OSError):
                 os.close(descriptor)
@@ -1039,9 +1270,15 @@ def install_native_validation_guard(
         owner=owner,
         timeout_seconds=timeout_seconds,
     )
-    if provider_bootstrap_entrypoint is None:
-        capability_descriptor = broker.issue_local_test_capability()
-        guarded[_CAPABILITY_FD_ENV] = str(capability_descriptor)
+    try:
+        if provider_bootstrap_entrypoint is None:
+            capability_descriptor = broker.issue_local_test_capability()
+            guarded[_CAPABILITY_FD_ENV] = str(capability_descriptor)
+    except BaseException:
+        # Installation has not returned an owner capable of retiring this
+        # root. Do not strand its broker listener/thread after bootstrap fails.
+        _stop_native_validation_broker(root)
+        raise
     return guarded, root
 
 
@@ -1204,18 +1441,25 @@ def _register_native_validation_provider(
         isinstance(bootstrap, dict)
         and bootstrap.get("command") == _PROVIDER_LAUNCHER_NAME
     )
-    with _broker_socket(config) as client:
-        client.sendall(b"REGISTER\n")
-        descriptors = _receive_descriptors(
-            client,
-            expected_payload=(
-                b"CAPABILITY-DIRECT\n" if direct else b"CAPABILITY\n"
-            ),
-            expected_count=2 if direct else 1,
-        )
-    for descriptor in descriptors:
-        os.set_inheritable(descriptor, True)
-    return descriptors[0], descriptors[1] if direct else None
+    descriptors: tuple[int, ...] = ()
+    try:
+        with _broker_socket(config) as client:
+            client.sendall(b"REGISTER\n")
+            descriptors = _receive_descriptors(
+                client,
+                expected_payload=(
+                    b"CAPABILITY-DIRECT\n" if direct else b"CAPABILITY\n"
+                ),
+                expected_count=2 if direct else 1,
+            )
+        for descriptor in descriptors:
+            os.set_inheritable(descriptor, True)
+        return descriptors[0], descriptors[1] if direct else None
+    except BaseException:
+        for descriptor in descriptors:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)
+        raise
 
 
 def _capability_secret() -> bytes:
@@ -1227,8 +1471,9 @@ def _capability_secret() -> bytes:
             "native validation provider capability is unavailable"
         ) from exc
     try:
+        _capability_descriptor_identity(descriptor)
         secret = os.pread(descriptor, 32, 0)
-    except OSError as exc:
+    except (OSError, RuntimeError) as exc:
         raise RuntimeError(
             "native validation provider capability is unavailable"
         ) from exc
