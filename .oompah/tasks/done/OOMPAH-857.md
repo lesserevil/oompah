@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T08:22:23.829978Z'
+updated_at: '2026-08-06T08:22:31.304720Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -370,5 +370,24 @@ author: oompah
 created: 2026-08-06 07:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 08:22
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
+- branch: epic-OOMPAH-740--task-OOMPAH-857
+- pushed_to_origin: yes
+- changed_files: oompah/auth_health.py, oompah/server.py, tests/test_auth_health.py
+- make_test_result: 15780 passed, 7 skipped, 1 xfailed, 53 warnings in 634.80s
+- new_public_api: record_operator_success()
+- recovery_semantics_alert: recovery_state=recovered, action_required=False, active=False, recovered=True
+- recovery_semantics_remediation: text changes from htpasswd/restart guidance to 'credentials restored' message
+- historical_counts_preserved: snapshot retains recent_401_count and total_401_count
+- dashboard_flow: auth_health_alerts() included in orchestrator state snapshot; dashboard_alerts.normalize_alert honors recovery_state='recovered' to clear action_required
 ---
 <!-- COMMENTS:END -->
