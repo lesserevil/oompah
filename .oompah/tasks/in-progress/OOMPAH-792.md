@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:37:10.898823Z'
+updated_at: '2026-08-06T16:37:33.119798Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -193,5 +193,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 34s
 - Log: OOMPAH-792__20260806T161210Z.jsonl
+---
+author: oompah
+created: 2026-08-06 16:37
+---
+Owner review rejected submitted head 040741ecb before exact integration and returned the task to In Progress. Blockers: conclusion-level facts and a fake handler replace causal full-stack boundaries; OOMPAH-749 still orders historical replay before live integration without asserting cursor/batch behavior; OOMPAH-748 never applies/asserts Done-to-Merged; UI/executor agreement copies expected data; restart/duplicate coverage manually mutates the queue and drains unboundedly; and terminal.preserve_verified_merged accepts unrelated LANDED facts without exact source/target/revision binding. Direct owner repair will replace these false positives with production-composed, bounded negative/positive regressions before resubmission.
 ---
 <!-- COMMENTS:END -->
