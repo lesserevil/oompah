@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:49:15.871143Z'
+updated_at: '2026-08-06T10:05:03.393868Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -244,5 +244,10 @@ Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: terminated, Duration: 21s
+---
+author: oompah
+created: 2026-08-06 10:05
+---
+Exact full-gate regression repair is pushed at c31b8d32a. The five canonical submission expectations now preserve one-time queue-mode repair, six dispatch fixtures model concrete unpaused projects, and the close-race fixture carries exact task/project retry authority. All three formerly failing modules pass 81/81; independent static review accepted the repair; make check-secrets and diff checks pass. Propagating this exact head to all OOMPAH-804 child branches for fresh exact gates.
 ---
 <!-- COMMENTS:END -->
