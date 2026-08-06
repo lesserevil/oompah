@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-848
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:47:38.989325Z'
+updated_at: '2026-08-06T17:48:08.270069Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 8d3cc572-340a-40af-ad47-846173e4dbd1
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-848
 oompah.integration:
   version: 2
@@ -198,5 +198,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-06 17:48
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
