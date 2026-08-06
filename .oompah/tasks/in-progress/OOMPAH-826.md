@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-05T23:59:13.934172Z'
+updated_at: '2026-08-06T00:00:36.333043Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-05 23:59
 ---
 Understanding: Continuing the preserved OOMPAH-826 CI-fix branch. I will reconcile the exact existing branch, inspect the preserved orchestrator patch and actual PR #721 failure evidence, reproduce the directly affected standalone/webhook/review-recovery tests, then make the minimal exact-head gating and regression-test corrections. I will keep existing reviews intact, verify same-head cache reuse and changed-head fencing, commit/push this same branch, and submit the task.
+---
+author: oompah
+created: 2026-08-06 00:00
+---
+Discovery: Read the actual GitHub Actions failure for PR #721 run 31005918588/job 92305629229. Exact head 74c4b71c failed on Python 3.13 because tests/test_close_gate.py::test_open_pr_allows_close timed out in an unmocked subprocess; repaired head 11c75e6c later passed all matrix checks. The preserved OOMPAH-826 patch adds gating at webhook adoption, standalone open/merged recovery, and cached/live _ensure_review_exists paths, but currently carries an unrelated uv.lock refresh and only one updated mock assertion. Focused tests and durable exact-head/cache/CAS regressions are still needed before this patch is valid.
 ---
 <!-- COMMENTS:END -->
