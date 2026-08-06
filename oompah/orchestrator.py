@@ -16363,6 +16363,12 @@ class Orchestrator:
     def _implementation_duplicate_screening_ready(self, issue: Issue) -> bool:
         """Return whether an ordinary Open-task dispatch passed qualification."""
 
+        # Owner-authorized duplicate candidates carry a conclusive screening
+        # record but have been routed out of implementation.  Preserve the
+        # normal preflight bypass for other non-Open implementation lanes
+        # (such as retries and mature epic repair).
+        if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE:
+            return False
         if not self._requires_duplicate_preflight(issue):
             return True
         return self._duplicate_screening_assessment(issue).implementation_eligible
