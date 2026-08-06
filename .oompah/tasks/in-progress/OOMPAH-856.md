@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T17:06:26.573073Z'
+updated_at: '2026-08-06T17:09:26.819152Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-08-06 17:06
 ---
 Implementation: centralized accepted recovery actions in terminal_transition_coordinator (ordinary audit_retry for no_auditor/infrastructure/policy, evidence addendum only for all-missing_evidence, override otherwise); integrated replay now reads the exact completed record/fingerprint and emits recovery_action plus an executable message. Wired task-level recovery alert cleanup through retry/override commit paths and documented the contract. Added coordinator and delivery-plane regression tests.
+---
+author: oompah
+created: 2026-08-06 17:09
+---
+Verification: focused delivery-plane, terminal-transition coordinator, terminal-status-interface, and observability suites pass (279 passed, 1 warning). Added coverage confirms no_auditor emits executable ordinary audit_retry, missing_evidence emits validated addendum with the exact fingerprint, non-rearmable records fall back to override, and retry/override/PASS clear the task-level alert callback. Direct compileall and git diff --check pass; the guarded default pytest/make wrappers were blocked by a read-only validation lease path, so I used the provisioned epic test interpreter for the focused run.
 ---
 <!-- COMMENTS:END -->
