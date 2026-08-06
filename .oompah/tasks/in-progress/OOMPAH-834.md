@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:47:48.225259Z'
+updated_at: '2026-08-06T09:48:51.045973Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 8f54bf2b-0dd9-4d1b-ab20-53c638d78db8
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
@@ -262,5 +262,10 @@ FAILED tests/test_worker_submission.py::test_same_head_ready_submit_backfills_mi
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 09:48
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
