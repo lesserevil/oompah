@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:13:19.615064Z'
-work_branch: null
+updated_at: '2026-08-06T04:13:37.979932Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
 review_number: null
@@ -36,6 +36,7 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 969feec9-63de-4079-b0d6-448f45f52875
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-846
 ---
 ## Summary
 
@@ -47,3 +48,11 @@ Live regression on 2026-08-06 after OOMPAH-816 reached Done: while the exact OOM
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 04:13
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
