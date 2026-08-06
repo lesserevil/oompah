@@ -8,11 +8,10 @@ parent: OOMPAH-804
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:29:58.632917Z'
+updated_at: '2026-08-06T09:30:27.139471Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -147,5 +146,20 @@ author: oompah
 created: 2026-08-06 09:29
 ---
 Understanding: I will reconcile the exact-head quality-gate metadata failure, inspect the existing lifecycle-event implementation and its focused tests, then make the smallest durable fix, verify it, push, and resubmit.
+---
+author: oompah
+created: 2026-08-06 09:30
+---
+Discovery: the previous gate compared the submitted pre-rebase head with the combined-tree candidate. The composed branch now includes OOMPAH-836's exact-head owner factory: integration gates derive QualityGateOwner.head_sha from the rebased candidate, preserving the same project/task/generation. No stale owner metadata remains on the current f89c477d head.
+---
+author: oompah
+created: 2026-08-06 09:30
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 20
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 48s
+- Log: OOMPAH-834__20260806T092846Z.jsonl
 ---
 <!-- COMMENTS:END -->
