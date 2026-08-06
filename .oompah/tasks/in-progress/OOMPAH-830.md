@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T00:21:45.764839Z'
+updated_at: '2026-08-06T00:22:13.783599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,5 +147,10 @@ author: oompah
 created: 2026-08-06 00:21
 ---
 Verification: focused server/dashboard/lifecycle/enforcement coverage passed (212 tests). The full Makefile workflow passed 15,665 tests, with 7 skipped, 1 xfailed, and 44 warnings; terminal mutation scan passed 8/8. The native setup wrapper could not create its read-only lease, so the gate used the provisioned project runtime after setup was bypassed.
+---
+author: oompah
+created: 2026-08-06 00:22
+---
+Implementation: centralized  in . It projects live active/current/next/final stages, completed and superseded history, stage-matched attempts, and redacted result-intent handoff state. The legacy flat summary fields now follow the active stage or final completed stage. List, detail, activity, and websocket board payloads already share this helper; dashboard cards/details now render current, next, and final targets. Added regression coverage in .
 ---
 <!-- COMMENTS:END -->
