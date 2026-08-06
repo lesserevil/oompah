@@ -77,14 +77,11 @@ from oompah.integration import (
 )
 from oompah.coordination import CoordinationStore
 from oompah.container_dependency_graph import (
-    find_container_dependency_cycles,
     container_dependency_cycle_for_new_edge,
 )
 from oompah.dependency_graph import (
-    dependency_parent_has_landed,
     dependency_cycle_for_new_edge,
     effective_dependencies,
-    integration_dependencies,
     issue_index,
 )
 from oompah.duplicate_screening import (
@@ -153,6 +150,7 @@ from oompah.projects import (
     ProjectStore,
     is_generated_worktree_helper,
 )
+from oompah.integration_projection import IntegrationDependencyProjection
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import TrackerError, normalize_priority_int
@@ -3011,67 +3009,43 @@ def _integration_queue_summary(
     issues,
     *,
     repair_evidence: Mapping[str, Any] | None = None,
+    dependency_projection: IntegrationDependencyProjection | None = None,
 ) -> dict[str, Any]:
-    """Serialize a queue row with its operator-facing wait reason."""
+    """Serialize a queue row with its operator-facing wait reason.
+
+    A matching ``dependency_projection`` was computed from the same raw issue
+    snapshot and reachability evidence used by the executor.  Request paths
+    never reconstruct those facts from display-mutated issue records.
+    """
 
     result = item.to_dict()
-    index = issue_index(issues)
-    container_cycles = find_container_dependency_cycles(
-        issues,
-        ready_task_ids=(
-            candidate.identifier
-            for candidate in issues
-            if canonicalize_status(candidate.state) == READY_TO_INTEGRATE
-        ),
+    _ = issue, issues
+    projection_matches = bool(
+        dependency_projection is not None
+        and dependency_projection.matches(item)
     )
-    container_cycle = next(
-        (
-            cycle
-            for cycle in container_cycles
-            if issue.identifier in cycle.affected_tasks
-        ),
-        None,
+    dependency_projection_current = bool(
+        projection_matches
+        and dependency_projection is not None
+        and dependency_projection.dependency_authoritative
     )
-    dependencies = integration_dependencies(issue, index)
-    unresolved: list[str] = []
-    unreachable: list[str] = []
-    parent = index.get(str(issue.parent_id or "").strip())
-    own_parent_aliases = {
-        str(value).strip()
-        for value in (
-            issue.parent_id,
-            getattr(parent, "id", None),
-            getattr(parent, "identifier", None),
-        )
-        if str(value or "").strip()
-    }
-    for dependency in dependencies:
-        blocker = index.get(dependency)
-        if blocker is None or not is_terminal_status(blocker.state):
-            unresolved.append(dependency)
-            continue
-        blocker_parent = index.get(str(blocker.parent_id or "").strip())
-        blocker_parent_aliases = {
-            str(value).strip()
-            for value in (
-                blocker.parent_id,
-                getattr(blocker_parent, "id", None),
-                getattr(blocker_parent, "identifier", None),
-            )
-            if str(value or "").strip()
-        }
-        if (
-            own_parent_aliases
-            and blocker_parent_aliases
-            and not own_parent_aliases & blocker_parent_aliases
-            and not (
-                canonicalize_status(blocker.state) == DONE
-                and dependency_parent_has_landed(blocker, index)
-            )
-        ):
-            unreachable.append(dependency)
+    container_cycle = (
+        dependency_projection.container_cycle
+        if projection_matches and dependency_projection is not None
+        else None
+    )
+    if dependency_projection_current and dependency_projection is not None:
+        unresolved = list(dependency_projection.unresolved)
+        unreachable = list(dependency_projection.unreachable)
+    else:
+        # A missing executor projection is unknown, not authority to derive
+        # claimability from a display-mutated tracker view.
+        unresolved = []
+        unreachable = []
 
     state = str(item.state or "ready")
+    projection_unknown = not dependency_projection_current
+    projection_wait = f"executor-dependency-scan:{item.task_id}"
     retry_at = getattr(item, "next_retry_at", None)
     retry_wait = ""
     if retry_at is not None:
@@ -3109,6 +3083,11 @@ def _integration_queue_summary(
         reason = "Rebasing, testing, and integrating the submitted head"
     elif state == "integrated":
         reason = "Integrated into the epic branch; waiting for terminal audit"
+    elif projection_unknown:
+        reason = (
+            "Waiting for the integration executor to refresh authoritative "
+            f"dependency facts for {item.task_id}"
+        )
     elif unresolved:
         reason = (
             "Waiting for finish dependencies to pass terminal audit: "
@@ -3125,7 +3104,17 @@ def _integration_queue_summary(
             reason = f"Last integration failure: {item.last_error}"
     if retry_wait:
         reason += retry_wait
-    result["waiting_on"] = [*unresolved, *unreachable]
+    result["waiting_on"] = (
+        [projection_wait]
+        if projection_unknown
+        else [*unresolved, *unreachable]
+    )
+    result["dependency_projection_status"] = (
+        "current" if dependency_projection_current else "unknown"
+    )
+    result["container_cycle_projection_status"] = (
+        "current" if projection_matches else "unknown"
+    )
     result["wait_reason"] = reason
     result["failing_step"] = (
         "generated-helper validation"
@@ -3151,6 +3140,11 @@ def _integration_queue_summary(
         )
         else "Inspect the failure above, repair the task branch, and submit again."
         if state == "blocked"
+        else (
+            "Wait for the next integration scan; if this persists, inspect "
+            "executor health for this project and epic."
+        )
+        if projection_unknown
         else "Wait for the scheduled retry."
     )
     if container_cycle is None:
@@ -3176,6 +3170,24 @@ def _container_cycle_repair_for_item(orch, item) -> dict[str, Any] | None:
             if isinstance(row, Mapping) and row.get("task_id") == item.task_id:
                 return dict(evidence)
     return None
+
+
+def _integration_dependency_projection_for_item(
+    orch,
+    item,
+) -> IntegrationDependencyProjection | None:
+    """Read an exact executor projection without tracker or repository I/O."""
+
+    getter = getattr(orch, "integration_dependency_projection", None)
+    if not callable(getter):
+        return None
+    projection = getter(item)
+    return (
+        projection
+        if isinstance(projection, IntegrationDependencyProjection)
+        and projection.matches(item)
+        else None
+    )
 
 
 def _fetch_and_serialize_issues(
@@ -3304,6 +3316,12 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
                     repair_evidence=_container_cycle_repair_for_item(
                         orch,
                         integration_item,
+                    ),
+                    dependency_projection=(
+                        _integration_dependency_projection_for_item(
+                            orch,
+                            integration_item,
+                        )
                     ),
                 )
                 if integration_item is not None
@@ -13354,12 +13372,15 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 None,
             )
             if integration_item is not None:
-                graph_issues = tracker.fetch_all_issues()
                 integration_queue_summary = _integration_queue_summary(
                     integration_item,
                     issue,
-                    graph_issues,
+                    [issue],
                     repair_evidence=_container_cycle_repair_for_item(
+                        orch,
+                        integration_item,
+                    ),
+                    dependency_projection=_integration_dependency_projection_for_item(
                         orch,
                         integration_item,
                     ),

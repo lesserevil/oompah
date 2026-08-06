@@ -96,6 +96,10 @@ from oompah.integration_executor import (
     execute_integration,
 )
 from oompah.integration_queue import IntegrationQueueItem, IntegrationQueueStore
+from oompah.integration_projection import (
+    IntegrationDependencyProjection,
+    build_integration_dependency_projections,
+)
 from oompah.review_capacity import (
     ReviewCapacityReservation,
     ReviewCapacityStore,
@@ -1476,6 +1480,13 @@ class Orchestrator:
         # standalone-delivery failure alert.
         self._quality_gate_outcomes_lock = threading.Lock()
         self._quality_gate_outcomes: dict[tuple[str, str], QualityGateResult] = {}
+        # Queue diagnostics consume the exact normalized dependency facts used
+        # by the executor.  This immutable projection keeps dashboard request
+        # threads away from repository fetches and project write locks.
+        self._integration_dependency_projections_lock = threading.Lock()
+        self._integration_dependency_projections: dict[
+            tuple[str, str, str], IntegrationDependencyProjection
+        ] = {}
         # A terminal transition can arrive while a standalone quality gate is
         # running in the maintenance pool.  Hold this lock for each delivery
         # side effect and let the terminal coordinator revoke under the same
@@ -11996,6 +12007,72 @@ class Orchestrator:
             )
         return result
 
+    def _publish_integration_dependency_projections(
+        self,
+        projections: tuple[IntegrationDependencyProjection, ...],
+    ) -> None:
+        """Atomically publish executor-owned normalized diagnostics."""
+
+        with self._integration_dependency_projections_lock:
+            updated = dict(self._integration_dependency_projections)
+            for projection in projections:
+                updated[
+                    (
+                        projection.project_id,
+                        projection.epic_id,
+                        projection.task_id,
+                    )
+                ] = projection
+            self._integration_dependency_projections = updated
+
+    def _invalidate_integration_dependency_projection_scope(
+        self,
+        project_id: str,
+        epic_id: str,
+    ) -> None:
+        """Discard cached facts before a scope is rescanned or skipped."""
+
+        scope = (str(project_id), str(epic_id))
+        with self._integration_dependency_projections_lock:
+            self._integration_dependency_projections = {
+                key: value
+                for key, value in self._integration_dependency_projections.items()
+                if key[:2] != scope
+            }
+
+    def _clear_integration_dependency_projections(self) -> None:
+        """Fail closed while a new integration scan establishes authority."""
+
+        with self._integration_dependency_projections_lock:
+            self._integration_dependency_projections = {}
+
+    def integration_dependency_projection(
+        self,
+        item: IntegrationQueueItem,
+    ) -> IntegrationDependencyProjection | None:
+        """Return cached facts only when the exact queue authority matches."""
+
+        lock = getattr(self, "_integration_dependency_projections_lock", None)
+        if lock is None:
+            return None
+        with lock:
+            projections = getattr(
+                self,
+                "_integration_dependency_projections",
+                None,
+            )
+            if not isinstance(projections, dict):
+                return None
+            projection = projections.get(
+                (item.project_id, item.epic_id, item.task_id)
+            )
+        return (
+            projection
+            if isinstance(projection, IntegrationDependencyProjection)
+            and projection.matches(item)
+            else None
+        )
+
     def _integration_task_still_ready(
         self,
         item: IntegrationQueueItem,
@@ -14057,6 +14134,7 @@ class Orchestrator:
     async def _process_integration_queues(self) -> None:
         """Recover, claim, integrate, and audit private epic child heads."""
 
+        self._clear_integration_dependency_projections()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             self._tick_pool,
@@ -14105,11 +14183,14 @@ class Orchestrator:
         # A task-level DAG can still contain an impossible delivery order
         # across private epic branches.  Diagnose and fence only those rows
         # before grouping; independent epic groups remain claimable below.
+        cycle_projections_by_scope: dict[
+            tuple[str, str], list[IntegrationDependencyProjection]
+        ] = {}
         for project in self.project_store.list_all():
             issues = project_issue_snapshots.get(str(project.id))
             if issues is None:
                 continue
-            self._audit_container_dependency_cycles(
+            cycles = self._audit_container_dependency_cycles(
                 str(project.id),
                 self._tracker_for_project(project.id),
                 issues,
@@ -14118,6 +14199,26 @@ class Orchestrator:
                     states=("ready", "integrating", "cancelled"),
                 ),
             )
+            if cycles:
+                cycle_items = self.integration_queue.items(
+                    project_id=project.id,
+                    states=("ready", "integrating", "cancelled"),
+                )
+                cycle_projections = build_integration_dependency_projections(
+                    issues,
+                    cycle_items,
+                    self._integration_dependency_map(issues, cycle_items),
+                    set(),
+                    container_cycles=cycles,
+                    dependency_authoritative=False,
+                )
+                for projection in cycle_projections:
+                    if projection.container_cycle is None:
+                        continue
+                    cycle_projections_by_scope.setdefault(
+                        (projection.project_id, projection.epic_id),
+                        [],
+                    ).append(projection)
 
         # A direct rebase can publish and persist its Ready record immediately
         # before a process restart, after which no queue row exists to drive
@@ -14166,7 +14267,12 @@ class Orchestrator:
                 if item.state in {"ready", "integrating"}
             }
         )
+        group_scopes = set(groups)
         for project_id, epic_id in groups:
+            self._invalidate_integration_dependency_projection_scope(
+                project_id,
+                epic_id,
+            )
             # Never integrate while an epic repair agent owns the delivery
             # branch. Private child agents do not touch it and are safe.
             if any(
@@ -14174,6 +14280,9 @@ class Orchestrator:
                 for entry in self._running_values_snapshot()
             ):
                 continue
+            self._publish_integration_dependency_projections(
+                tuple(cycle_projections_by_scope.get((project_id, epic_id), ()))
+            )
             tracker = self._tracker_for_project(project_id)
             issues = await loop.run_in_executor(
                 self._tick_pool,
@@ -14193,6 +14302,19 @@ class Orchestrator:
                 queue_items,
                 project_id=project_id,
                 epic_id=epic_id,
+            )
+            group_cycles = find_container_dependency_cycles(
+                issues,
+                ready_task_ids=(item.task_id for item in queue_items),
+            )
+            self._publish_integration_dependency_projections(
+                build_integration_dependency_projections(
+                    issues,
+                    queue_items,
+                    dependency_map,
+                    satisfied,
+                    container_cycles=group_cycles,
+                ),
             )
             max_attempts = max(
                 int(
@@ -14416,6 +14538,11 @@ class Orchestrator:
             staged_integrated_keys.add(
                 (integrated_item.project_id, integrated_item.task_id)
             )
+        for scope, projections in cycle_projections_by_scope.items():
+            if scope not in group_scopes:
+                self._publish_integration_dependency_projections(
+                    tuple(projections)
+                )
         audit_progress = await self._replay_integrated_audit_batch(
             skip=staged_integrated_keys
         )

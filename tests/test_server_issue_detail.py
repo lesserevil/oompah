@@ -22,13 +22,16 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.container_dependency_graph import ContainerDependencyCycle
 from oompah.duplicate_screening import (
     ScreeningVerdict,
     complete_claim_record,
     new_claim_record,
 )
+from oompah.integration_projection import build_integration_dependency_projections
+from oompah.integration_queue import IntegrationQueueStore
 from oompah.server import app, _find_tracker_for_issue
-from oompah.models import Issue
+from oompah.models import BlockerRef, Issue
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +204,181 @@ class TestIssueDetailWithProjectId:
         assert data["identifier"] == "my-issue"
         assert data["title"] == "Test Issue"
         assert data["project_id"] == "proj-1"
+
+    def test_integration_summary_reads_one_cached_executor_snapshot(
+        self,
+        client,
+        tmp_path,
+    ):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        task = _make_mock_issue(identifier="TASK-2")
+        task.state = "Ready to Integrate"
+        task.parent_id = "EPIC-2"
+        blocker = _make_mock_issue(identifier="TASK-1")
+        blocker.state = "Done"
+        blocker.parent_id = "EPIC-1"
+        task.blocked_by = [BlockerRef(identifier=blocker.identifier)]
+        queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite3"))
+        item = queue.enqueue(
+            project_id="proj-1",
+            epic_id="EPIC-2",
+            task_id=task.identifier,
+            task_branch="epic-EPIC-2--task-TASK-2",
+            head_sha="b" * 40,
+            base_branch="epic-ROOT--task-EPIC-2",
+            base_sha="c" * 40,
+        )
+        projection = build_integration_dependency_projections(
+            [task, blocker],
+            [item],
+            {task.identifier: (blocker.identifier,)},
+            {blocker.id, blocker.identifier},
+        )[0]
+        mock_orch.integration_queue = queue
+        mock_orch.integration_dependency_projection.return_value = projection
+        mock_orch._integration_satisfied_dependencies.side_effect = AssertionError(
+            "detail must not recompute reachability"
+        )
+        mock_orch._run_project_network_git.side_effect = AssertionError(
+            "detail must not fetch repository state"
+        )
+        mock_tracker.fetch_issue_detail.return_value = task
+        mock_tracker.fetch_all_issues.side_effect = AssertionError(
+            "detail must not mix a second tracker snapshot"
+        )
+
+        try:
+            with (
+                patch.object(
+                    server_module,
+                    "_get_orchestrator",
+                    return_value=mock_orch,
+                ),
+                patch.object(server_module._api_cache, "get", return_value=None),
+                patch.object(server_module._api_cache, "set"),
+            ):
+                resp = client.get(
+                    "/api/v1/issues/TASK-2/detail",
+                    params={"project_id": "proj-1"},
+                )
+        finally:
+            queue.close()
+
+        assert resp.status_code == 200
+        assert resp.json()["integration_queue"]["waiting_on"] == []
+        mock_tracker.fetch_issue_detail.assert_called_once_with("TASK-2")
+        mock_tracker.fetch_all_issues.assert_not_called()
+        mock_orch.integration_dependency_projection.assert_called_once()
+        mock_orch._integration_satisfied_dependencies.assert_not_called()
+        mock_orch._run_project_network_git.assert_not_called()
+        mock_orch.project_store.project_write_lock.assert_not_called()
+
+    def test_cycle_projection_is_consistent_and_invalidates_across_endpoints(
+        self,
+        client,
+        tmp_path,
+    ):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_orch.project_store.list_all.return_value[0].name = "Project"
+        task = _make_mock_issue(identifier="TASK-CYCLE")
+        task.state = "Ready to Integrate"
+        task.parent_id = "EPIC-A"
+        task.project_id = "proj-1"
+        blocker = _make_mock_issue(identifier="TERMINAL-UPSTREAM")
+        blocker.state = "Done"
+        blocker.parent_id = "EPIC-B"
+        task.blocked_by = [BlockerRef(identifier=blocker.identifier)]
+        queue = IntegrationQueueStore(str(tmp_path / "cycle.sqlite3"))
+        item = queue.enqueue(
+            project_id="proj-1",
+            epic_id="EPIC-A",
+            task_id=task.identifier,
+            task_branch="epic-EPIC-A--task-TASK-CYCLE",
+            head_sha="a" * 40,
+        )
+        assert queue.cancel(
+            "proj-1",
+            task.identifier,
+            reason="container dependency cycle requires authorized repair",
+        )
+        item = queue.get("proj-1", task.identifier)
+        assert item is not None
+        cycle = ContainerDependencyCycle(
+            path=("EPIC-A", "EPIC-B", "EPIC-A"),
+            edges=(),
+            affected_tasks=(task.identifier,),
+            affected_ready_tasks=(task.identifier,),
+            prerequisite_shas=(("UPSTREAM", "b" * 40),),
+            authoritative_container="ROOT",
+        )
+        projection = build_integration_dependency_projections(
+            [task, blocker],
+            [item],
+            {task.identifier: (blocker.identifier,)},
+            set(),
+            container_cycles=(cycle,),
+            dependency_authoritative=False,
+        )[0]
+        mock_orch.integration_queue = queue
+        mock_orch.integration_dependency_projection.return_value = projection
+        mock_tracker.fetch_issue_detail.return_value = task
+        mock_tracker.fetch_all_issues.side_effect = AssertionError(
+            "cycle diagnostics must not reread or derive the graph"
+        )
+
+        try:
+            board = server_module._serialize_issues(mock_orch, [task])
+            board_summary = board["Ready to Integrate"][0]["integration_queue"]
+            with (
+                patch.object(
+                    server_module,
+                    "_get_orchestrator",
+                    return_value=mock_orch,
+                ),
+                patch.object(server_module._api_cache, "get", return_value=None),
+                patch.object(server_module._api_cache, "set"),
+            ):
+                detail = client.get(
+                    "/api/v1/issues/TASK-CYCLE/detail",
+                    params={"project_id": "proj-1"},
+                ).json()["integration_queue"]
+
+                mock_orch.integration_dependency_projection.return_value = None
+                invalidated_board = server_module._serialize_issues(
+                    mock_orch,
+                    [task],
+                )["Ready to Integrate"][0]["integration_queue"]
+                invalidated_detail = client.get(
+                    "/api/v1/issues/TASK-CYCLE/detail",
+                    params={"project_id": "proj-1"},
+                ).json()["integration_queue"]
+        finally:
+            queue.close()
+
+        assert board_summary["container_cycle"] == detail["container_cycle"]
+        assert board_summary["container_cycle"]["path"] == [
+            "EPIC-A",
+            "EPIC-B",
+            "EPIC-A",
+        ]
+        assert projection.unreachable == ()
+        assert board_summary["dependency_projection_status"] == "unknown"
+        assert detail["dependency_projection_status"] == "unknown"
+        assert board_summary["container_cycle_projection_status"] == "current"
+        assert detail["container_cycle_projection_status"] == "current"
+        assert board_summary["waiting_on"] == detail["waiting_on"]
+        assert board_summary["waiting_on"] == [
+            "executor-dependency-scan:TASK-CYCLE"
+        ]
+        assert invalidated_board["container_cycle"] is None
+        assert invalidated_detail["container_cycle"] is None
+        assert invalidated_board["dependency_projection_status"] == "unknown"
+        assert invalidated_detail["dependency_projection_status"] == "unknown"
+        assert invalidated_board["container_cycle_projection_status"] == "unknown"
+        assert invalidated_detail["container_cycle_projection_status"] == "unknown"
+        assert invalidated_board["waiting_on"] == invalidated_detail["waiting_on"]
+        assert invalidated_board["waiting_on"]
+        mock_tracker.fetch_all_issues.assert_not_called()
 
     def test_returns_404_when_issue_not_found(self, client):
         """GET with project_id returns 404 when tracker returns None."""

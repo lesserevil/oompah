@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
@@ -7,8 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.container_dependency_graph import find_container_dependency_cycles
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
+from oompah.integration_projection import build_integration_dependency_projections
 from oompah.integration_queue import IntegrationQueueItem
 from oompah.auditor_dispatch import AuditDispatchPlan
 from oompah.models import (
@@ -27,13 +30,35 @@ from oompah.projects import (
     _worktree_recovery_ref,
 )
 from oompah.roles import Candidate
-from oompah.server import _integration_queue_summary
+from oompah.server import _fetch_and_serialize_issues, _integration_queue_summary
 from oompah.terminal_audit import EvidenceFingerprint, TargetState
 from tests.test_epic_strategy import (
     _make_issue,
     _make_orch,
     _make_project_record,
 )
+
+
+def _dependency_projection(
+    item,
+    issues,
+    satisfied,
+    *,
+    container_cycles=(),
+    dependency_authoritative=True,
+):
+    dependency_map = Orchestrator.__new__(Orchestrator)._integration_dependency_map(
+        issues,
+        [item],
+    )
+    return build_integration_dependency_projections(
+        issues,
+        [item],
+        dependency_map,
+        set(satisfied),
+        container_cycles=container_cycles,
+        dependency_authoritative=dependency_authoritative,
+    )[0]
 
 
 def test_parallel_mode_bypasses_same_epic_start_gate(tmp_path):
@@ -204,6 +229,170 @@ def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
             )
             == {upstream.id, upstream.identifier}
         )
+
+
+def test_dashboard_and_executor_agree_on_reachable_unlanded_dependency(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    target_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="In Progress",
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id=upstream_epic.identifier,
+        project_id=project.id,
+        state="Done",
+        integration=IntegrationRecord(
+            state="integrated",
+            integrated_sha="a" * 40,
+        ),
+    )
+    task = _make_issue(
+        identifier="TASK-2",
+        parent_id=target_epic.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task.blocked_by = [
+        BlockerRef(id=upstream.id, identifier=upstream.identifier)
+    ]
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="b" * 40,
+        base_branch="epic-ROOT--task-EPIC-2",
+        base_sha="c" * 40,
+    )
+    issues = [target_epic, upstream_epic, upstream, task]
+
+    fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    reachable = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        side_effect=[fetch, reachable],
+    ) as run:
+        satisfied = orchestrator._integration_satisfied_dependencies(
+            issues,
+            [item],
+            project_id=project.id,
+            epic_id=target_epic.identifier,
+        )
+
+    assert satisfied >= {upstream.id, upstream.identifier}
+    assert any(
+        "origin/epic-ROOT--task-EPIC-2" in call.args[0]
+        for call in run.call_args_list
+        if "merge-base" in call.args[0]
+    )
+    dependency_map = orchestrator._integration_dependency_map(issues, [item])
+    projection = build_integration_dependency_projections(
+        issues,
+        [item],
+        dependency_map,
+        satisfied,
+    )[0]
+    assert not projection.matches(replace(item, base_branch="epic-EPIC-2"))
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        lease_owner="reachable-unlanded",
+        dependency_map=dependency_map,
+        satisfied=satisfied,
+    )
+    summary = _integration_queue_summary(
+        item,
+        task,
+        issues,
+        dependency_projection=projection,
+    )
+
+    assert claimed is not None
+    assert claimed.task_id == task.identifier
+    assert summary["waiting_on"] == []
+    assert summary["wait_reason"] == "Waiting for the per-epic integration executor"
+
+
+def test_board_reads_raw_executor_projection_without_repository_io(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    target_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+        state="Proposed",
+    )
+    upstream_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="In Progress",
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id=upstream_epic.identifier,
+        project_id=project.id,
+        state="Done",
+    )
+    task = _make_issue(
+        identifier="TASK-2",
+        parent_id=target_epic.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task.blocked_by = [BlockerRef(identifier=upstream.identifier)]
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=target_epic.identifier,
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="b" * 40,
+        base_branch="epic-ROOT--task-EPIC-2",
+        base_sha="c" * 40,
+    )
+    raw_issues = [target_epic, upstream_epic, upstream, task]
+    projection = _dependency_projection(
+        item,
+        raw_issues,
+        {upstream.id, upstream.identifier},
+    )
+    orchestrator._publish_integration_dependency_projections(
+        (projection,),
+    )
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = raw_issues
+    orchestrator._project_trackers[project.id] = tracker
+    orchestrator._integration_satisfied_dependencies = MagicMock(
+        side_effect=AssertionError("dashboard must not recompute reachability")
+    )
+    orchestrator._run_project_network_git = MagicMock(
+        side_effect=AssertionError("dashboard must not fetch repository state")
+    )
+    orchestrator.project_store.project_write_lock.reset_mock()
+
+    board = _fetch_and_serialize_issues(orchestrator)
+
+    row = next(
+        candidate
+        for candidate in board["Proposed"]
+        if candidate["identifier"] == task.identifier
+    )
+    assert row["tracker_state"] == "Proposed"
+    assert row["integration_queue"]["waiting_on"] == []
+    tracker.fetch_all_issues.assert_called_once_with()
+    orchestrator._integration_satisfied_dependencies.assert_not_called()
+    orchestrator._run_project_network_git.assert_not_called()
+    orchestrator.project_store.project_write_lock.assert_not_called()
 
 
 def test_dependency_reachability_uses_recorded_nested_target_not_stale_alias(
@@ -793,7 +982,16 @@ def test_integration_queue_summary_explains_finish_dependency_wait():
         updated_at="2026-07-29T00:00:00+00:00",
     )
 
-    summary = _integration_queue_summary(item, task, [task, blocker])
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task, blocker],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, blocker],
+            set(),
+        ),
+    )
 
     assert summary["waiting_on"] == ["TASK-1"]
     assert summary["wait_reason"] == (
@@ -832,6 +1030,107 @@ def test_integration_queue_summary_surfaces_failure_retry_and_repair_action():
     assert summary["failing_step"] == "generated-helper validation"
     assert "Next retry at" in summary["wait_reason"]
     assert "git rm" in summary["repair_action"]
+
+
+@pytest.mark.parametrize(
+    "stale_field, stale_value",
+    [
+        (None, None),
+        ("task_branch", "epic-EPIC-1--task-STALE"),
+        ("head_sha", "1" * 40),
+        ("base_branch", "epic-STALE"),
+        ("base_sha", "2" * 40),
+        ("candidate_head_sha", "3" * 40),
+        ("candidate_base_sha", "4" * 40),
+    ],
+)
+def test_missing_or_stale_dependency_projection_fails_closed(
+    stale_field,
+    stale_value,
+):
+    task = Issue(
+        id="task-uuid",
+        identifier="TASK-2",
+        title="Dependent",
+        state="Ready to Integrate",
+    )
+    current = IntegrationQueueItem(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-1--task-TASK-2",
+        head_sha="a" * 40,
+        base_branch="epic-ROOT--task-EPIC-1",
+        base_sha="b" * 40,
+        candidate_head_sha="c" * 40,
+        candidate_base_sha="d" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    projection = _dependency_projection(current, [task], set())
+    item = (
+        current
+        if stale_field is None
+        else replace(current, **{stale_field: stale_value})
+    )
+    supplied_projection = None if stale_field is None else projection
+
+    if supplied_projection is None:
+        restarted = Orchestrator.__new__(Orchestrator)
+        assert restarted.integration_dependency_projection(item) is None
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task],
+        dependency_projection=supplied_projection,
+    )
+
+    assert summary["dependency_projection_status"] == "unknown"
+    assert summary["waiting_on"] == [
+        f"executor-dependency-scan:{task.identifier}"
+    ]
+    assert "refresh authoritative dependency facts" in summary["wait_reason"]
+    assert "executor health" in summary["repair_action"]
+
+
+def test_dependency_projection_read_is_atomic_with_invalidation(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    task = _make_issue(
+        identifier="TASK-RACE",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    item = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-1--task-TASK-RACE",
+        head_sha="a" * 40,
+    )
+    projection = _dependency_projection(item, [task], set())
+    orchestrator._publish_integration_dependency_projections((projection,))
+
+    class InvalidateBeforeLockAcquisition:
+        def __enter__(self):
+            orchestrator._integration_dependency_projections = {}
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+    # Model an invalidator winning while a reader waits to acquire the lock.
+    # A mapping captured before __enter__ would return the detached projection.
+    orchestrator._integration_dependency_projections_lock = (
+        InvalidateBeforeLockAcquisition()
+    )
+
+    assert orchestrator.integration_dependency_projection(item) is None
 
 
 def test_integration_queue_summary_accepts_done_child_of_landed_parent():
@@ -884,6 +1183,11 @@ def test_integration_queue_summary_accepts_done_child_of_landed_parent():
         item,
         task,
         [task, target_parent, blocker, upstream_parent],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, target_parent, blocker, upstream_parent],
+            {blocker.id, blocker.identifier},
+        ),
     )
 
     assert summary["waiting_on"] == []
@@ -933,6 +1237,11 @@ def test_integration_queue_summary_rejects_done_child_of_unlanded_parent():
         item,
         task,
         [task, blocker, upstream_parent],
+        dependency_projection=_dependency_projection(
+            item,
+            [task, blocker, upstream_parent],
+            set(),
+        ),
     )
 
     assert summary["waiting_on"] == ["TASK-1"]
@@ -1037,13 +1346,33 @@ def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
         task_branch=independent.integration.task_branch,
         head_sha=independent.integration.head_sha,
     )
-    cycle_summary = _integration_queue_summary(
-        orchestrator.integration_queue.items(
-            project_id=project.id,
-            epic_id=epic_a.identifier,
-        )[0],
+    cycle_item = orchestrator.integration_queue.items(
+        project_id=project.id,
+        epic_id=epic_a.identifier,
+    )[0]
+    cycle_issues = [
+        epic_a,
+        epic_b,
+        confined,
+        task_b,
         task_a,
-        [epic_a, epic_b, confined, task_b, task_a, independent_epic, independent],
+        independent_epic,
+        independent,
+    ]
+    detected_cycles = find_container_dependency_cycles(
+        cycle_issues,
+        ready_task_ids=[task_a.identifier, independent.identifier],
+    )
+    cycle_summary = _integration_queue_summary(
+        cycle_item,
+        task_a,
+        cycle_issues,
+        dependency_projection=_dependency_projection(
+            cycle_item,
+            cycle_issues,
+            set(),
+            container_cycles=detected_cycles,
+        ),
     )
     assert cycle_summary["container_cycle"]["path"] == [
         "EPIC-A",
