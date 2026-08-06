@@ -273,16 +273,26 @@ class IntegrationWorkflowController:
         *,
         landing_requests: Mapping[str, Sequence[LandingRequest]] | None = None,
     ) -> IntegrationDecisionBatch:
-        unique = {task.identifier: task for task in tasks}
-        if len(unique) > self.decision_limit:
-            selected = dict(sorted(unique.items())[: self.decision_limit])
-        else:
-            selected = unique
-        ready = tuple(
-            task
-            for _, task in sorted(selected.items())
-            if task.state == READY_TO_INTEGRATE
+        # The window belongs to the Ready lane.  Limiting the complete task
+        # corpus first lets stable terminal rows ahead of a Ready identifier
+        # hide it from every pass.
+        selected = sorted(
+            {
+                task.identifier: task
+                for task in tasks
+                if task.state == READY_TO_INTEGRATE
+            }.items()
         )
+        if len(selected) > self.decision_limit:
+            offset = self.store.allocate_decision_window(
+                total=len(selected),
+                limit=self.decision_limit,
+                scope=f"{self.collector.project_id}:integration",
+            )
+            selected = (selected[offset:] + selected[:offset])[
+                : self.decision_limit
+            ]
+        ready = tuple(task for _, task in selected)
         batches, cycles = self._topological_batches(ready)
         requests = landing_requests or {}
         evaluated: list[IntegrationTaskDecision] = []

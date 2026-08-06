@@ -254,6 +254,7 @@ async def test_worker_executes_effect_verifies_checkpoints_and_completes(store):
         "checkpointed",
         "checkpointed",
         "checkpointed",
+        "checkpointed",
         "completed",
     ]
 
@@ -417,7 +418,12 @@ async def test_stale_transition_race_supersedes_for_automatic_reassessment(store
 async def test_default_worker_does_not_claim_unregistered_action(store):
     queued = store.enqueue(job_spec(action="unregistered"))
 
-    result = await worker(store, ScriptedHandler()).run_once()
+    # Workers claim their registered action set by default so one domain
+    # cannot steal another domain's rows.  An explicitly requested unknown
+    # action still fails closed rather than disappearing.
+    result = await worker(store, ScriptedHandler()).run_once(
+        actions=("unregistered",)
+    )
 
     assert result.disposition is WorkflowRunDisposition.IDLE
     assert store.get(queued.job_id).state is WorkflowJobState.QUEUED

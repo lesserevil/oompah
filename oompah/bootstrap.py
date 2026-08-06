@@ -408,6 +408,7 @@ async def setup_services(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
         revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
+        revoke_auditor_authority=orchestrator._revoke_auditor_authority,
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
         validate_terminal_transition=orchestrator._validate_terminal_transition,
     )

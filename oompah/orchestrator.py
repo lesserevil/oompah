@@ -3371,6 +3371,13 @@ class Orchestrator:
         ``/api/v1/agent-profiles`` takes effect on the next dispatch
         without requiring a WORKFLOW.md edit (oompah-zlz_2-xaj).
         """
+        # Durable/legacy ownership cannot be transferred by a synchronous
+        # file-reload callback: either side may still have live workers or
+        # timers.  Validate the requested mode before mutating any service
+        # configuration so a rejected live cutover leaves the old process
+        # coherent; operators apply it through the graceful restart path.
+        if self.workflow_runtime is not None:
+            self.workflow_runtime.set_mode(config.workflow_engine_mode)
         self.config = config
         # Reload the agent profile store from disk and overwrite
         # config.agent_profiles with what the JSON store has, so:
@@ -3397,8 +3404,6 @@ class Orchestrator:
         self.workflow_shadow.max_diagnostic_bytes = (
             config.workflow_diagnostic_max_bytes
         )
-        if self.workflow_runtime is not None:
-            self.workflow_runtime.set_mode(config.workflow_engine_mode)
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()

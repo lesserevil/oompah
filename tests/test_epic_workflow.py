@@ -172,6 +172,29 @@ def test_nested_rollups_use_immediate_landing_without_parent_status_cycle(tmp_pa
     store.close()
 
 
+def test_bounded_controller_rotates_across_all_eligible_epics(tmp_path):
+    tasks = [
+        issue(f"EPIC-{suffix}", state=OPEN, issue_type="epic") for suffix in "ABC"
+    ]
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = EpicWorkflowController(
+        collector=EpicFactCollector(
+            project_id="project-1",
+            tracker=Tracker(tasks),
+        ),
+        store=store,
+        decision_limit=1,
+    )
+
+    observed = {
+        controller.evaluate(tasks, persist_evidence=False).tasks[0].task.identifier
+        for _ in range(3)
+    }
+
+    assert observed == {"EPIC-A", "EPIC-B", "EPIC-C"}
+    store.close()
+
+
 def test_shadow_epic_evaluation_does_not_persist_landing_evidence(tmp_path):
     make_git_fixture(tmp_path)
     epic = issue("TOP", state=OPEN, issue_type="epic")

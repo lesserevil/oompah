@@ -117,6 +117,21 @@ def test_controller_evaluates_every_topological_head_and_schedules_one_job(tmp_p
     store.close()
 
 
+def test_bounded_controller_rotates_across_all_eligible_integrations(tmp_path):
+    tasks = [issue(f"TASK-{suffix}") for suffix in "ABC"]
+    store = WorkflowJobStore(str(tmp_path / "integration.sqlite3"))
+    controller = IntegrationWorkflowController(
+        collector=collector(Tracker(tasks)), store=store, decision_limit=1
+    )
+
+    observed = {
+        controller.evaluate(tasks).tasks[0].task.identifier for _ in range(3)
+    }
+
+    assert observed == {"TASK-A", "TASK-B", "TASK-C"}
+    store.close()
+
+
 def test_dependency_cycle_is_visible_without_hiding_other_ready_work(tmp_path):
     tasks = [
         issue("TASK-A", dependencies=("TASK-B",)),

@@ -112,6 +112,21 @@ def test_controller_schedules_every_open_task_and_projects_same_decision(tmp_pat
     store.close()
 
 
+def test_bounded_controller_rotates_across_all_eligible_tasks(tmp_path):
+    tasks = [issue(identifier=f"TASK-{suffix}") for suffix in "ABC"]
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    controller = ImplementationWorkflowController(
+        collector=collector(tasks), store=store, decision_limit=1
+    )
+
+    observed = {
+        controller.evaluate(tasks).tasks[0].task.identifier for _ in range(3)
+    }
+
+    assert observed == {"TASK-A", "TASK-B", "TASK-C"}
+    store.close()
+
+
 def test_duplicate_candidate_schedules_durable_screening(tmp_path):
     task = issue(DUPLICATE_CANDIDATE)
     store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))

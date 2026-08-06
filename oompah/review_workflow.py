@@ -490,11 +490,29 @@ class ReviewWorkflowController:
             return ()
 
     def evaluate(self, tasks: Sequence[Issue]) -> ReviewDecisionBatch:
-        selected = dict(sorted({task.identifier: task for task in tasks}.items()))
+        # Bound the review lane after semantic filtering.  Applying the limit
+        # to unrelated project rows first can starve an In Review task forever
+        # when the same earlier identifiers are returned on every scan.
+        selected = list(
+            sorted(
+                {
+                    task.identifier: task
+                    for task in tasks
+                    if task.state == IN_REVIEW
+                }.items()
+            )
+        )
+        if len(selected) > self.decision_limit:
+            offset = self.store.allocate_decision_window(
+                total=len(selected),
+                limit=self.decision_limit,
+                scope=f"{self.collector.project_id}:review",
+            )
+            selected = (selected[offset:] + selected[:offset])[
+                : self.decision_limit
+            ]
         evaluated: list[ReviewTaskDecision] = []
-        for task in tuple(selected.values())[: self.decision_limit]:
-            if task.state != IN_REVIEW:
-                continue
+        for _, task in selected:
             facts = self.collector.collect(
                 task.identifier,
                 landing_requests=self._landing_request(task),

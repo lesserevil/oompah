@@ -16424,6 +16424,10 @@ async def api_project_pause(project_id: str):
                 },
                 status_code=404,
             )
+        # Wake the durable runtime so it withdraws the project's accepted
+        # projections immediately and stops claiming queued work.  The
+        # project-bound handler fence remains the final race boundary.
+        orch.request_refresh()
         return JSONResponse({"ok": True, "id": project_id, "paused": True})
     except ProjectError as exc:
         return JSONResponse(

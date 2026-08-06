@@ -203,7 +203,11 @@ class CompleteHandler:
     domain = "tracker"
 
     async def revalidate(self, context):
-        return RevalidationResult(context.job.generation)
+        return RevalidationResult(
+            context.job.generation,
+            evidence_revision=context.job.expected_evidence_revision,
+            head_sha=context.job.expected_head_sha,
+        )
 
     async def inspect(self, context):
         return EffectObservation(False)
@@ -540,5 +544,285 @@ def test_reconcile_async_executes_effects_on_callers_event_loop(tmp_path):
 
     assert report["worker"]["processed"] == 1
     assert observed_loops == [expected_loop]
+    runtime.close()
+    store.close()
+
+
+def test_domain_limits_are_applied_after_semantic_eligibility(tmp_path):
+    """Stable irrelevant rows must not hide a later actionable task forever."""
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+
+    implementation_tracker = NativeTracker(
+        [make_issue("A-DONE", state="Done"), make_issue("Z-OPEN", state="Open")]
+    )
+    implementation_binding, implementation_journal = make_binding(
+        tmp_path, implementation_tracker, store
+    )
+    implementation = ImplementationWorkflowController(
+        collector=implementation_binding.collector,
+        store=store,
+        decision_limit=1,
+    )
+    assert [item.task.identifier for item in implementation.evaluate(
+        list(implementation_tracker.issues.values())
+    ).tasks] == ["Z-OPEN"]
+
+    review_tracker = NativeTracker(
+        [
+            make_issue("A-DONE", state="Done", project_id="project-review"),
+            make_issue(
+                "Z-REVIEW", state="In Review", project_id="project-review"
+            ),
+        ]
+    )
+    review_binding, review_journal = make_binding(
+        tmp_path, review_tracker, store, project_id="project-review"
+    )
+    review = ReviewWorkflowController(
+        collector=review_binding.collector,
+        store=store,
+        decision_limit=1,
+    )
+    assert [item.task.identifier for item in review.evaluate(
+        list(review_tracker.issues.values())
+    ).tasks] == ["Z-REVIEW"]
+
+    integration_tracker = NativeTracker(
+        [
+            make_issue("A-DONE", state="Done", project_id="project-integration"),
+            make_issue(
+                "Z-READY",
+                state="Ready to Integrate",
+                project_id="project-integration",
+            ),
+        ]
+    )
+    integration_binding, integration_journal = make_binding(
+        tmp_path,
+        integration_tracker,
+        store,
+        project_id="project-integration",
+    )
+    integration = IntegrationWorkflowController(
+        collector=integration_binding.collector,
+        store=store,
+        decision_limit=1,
+    )
+    assert [item.task.identifier for item in integration.evaluate(
+        list(integration_tracker.issues.values())
+    ).tasks] == ["Z-READY"]
+
+    epic_tracker = NativeTracker(
+        [
+            make_issue("A-MERGED", state="Merged", issue_type="epic"),
+            make_issue("Z-EPIC", state="Open", issue_type="epic"),
+        ]
+    )
+    epic = EpicWorkflowController(
+        collector=EpicFactCollector(project_id="project-1", tracker=epic_tracker),
+        store=store,
+        decision_limit=1,
+    )
+    assert [item.task.identifier for item in epic.evaluate(
+        list(epic_tracker.issues.values()), persist_evidence=False
+    ).tasks] == ["Z-EPIC"]
+
+    for journal in {
+        implementation_journal,
+        review_journal,
+        integration_journal,
+    }:
+        journal.close()
+    store.close()
+
+
+def test_failed_project_does_not_stall_healthy_project_worker(tmp_path):
+    class FailingTracker(NativeTracker):
+        def fetch_all_issues_enriched(self):
+            raise RuntimeError("tracker unavailable")
+
+        fetch_all_issues = fetch_all_issues_enriched
+
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    bad_tracker = FailingTracker([])
+    good_tracker = NativeTracker(
+        [make_issue("GOOD-DONE", state="Done", project_id="project-good")]
+    )
+    bad_binding, bad_journal = make_binding(
+        tmp_path, bad_tracker, store, project_id="project-bad"
+    )
+    good_binding, good_journal = make_binding(
+        tmp_path, good_tracker, store, project_id="project-good"
+    )
+    handlers = complete_handlers()
+    runtime = WorkflowRuntime(
+        project_bindings={
+            "project-bad": bad_binding,
+            "project-good": good_binding,
+        },
+        store=store,
+        journals={
+            "project-bad": bad_journal,
+            "project-good": good_journal,
+        },
+        mode="enforce",
+        handlers=handlers,
+        handler_coverage={action: ("project-bad", "project-good") for action in handlers},
+    )
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-good",
+            task_id="GOOD-DONE",
+            generation="healthy-project-1",
+            action="review_refresh",
+            idempotency_key="healthy-project-worker",
+        )
+    )
+
+    asyncio.run(runtime.start())
+    report = asyncio.run(runtime.reconcile_async())
+
+    assert report["projects"]["project-bad"]["error"] == "RuntimeError"
+    assert report["worker"]["failed_projects"] == ["project-bad"]
+    assert report["worker"]["processed"] == 1
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    runtime.close()
+    store.close()
+
+
+def test_paused_project_keeps_due_job_unclaimed_until_resumed(tmp_path):
+    enabled = False
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-PAUSED", state="Done")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    binding.dispatch_enabled = lambda: enabled
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="enforce",
+        handlers=complete_handlers(),
+    )
+    job = store.enqueue(
+        WorkflowJobSpec(
+            project_id="project-1",
+            task_id="TASK-PAUSED",
+            generation="paused-project-1",
+            action="review_refresh",
+            idempotency_key="paused-project-job",
+        )
+    )
+
+    asyncio.run(runtime.start())
+    paused_report = asyncio.run(runtime.reconcile_async())
+    assert paused_report["projects"]["project-1"]["skipped"] is True
+    assert store.get(job.job_id).state is WorkflowJobState.QUEUED
+
+    enabled = True
+    resumed_report = asyncio.run(runtime.reconcile_async())
+    assert resumed_report["worker"]["processed"] == 1
+    assert store.get(job.job_id).state is WorkflowJobState.COMPLETED
+    runtime.close()
+    store.close()
+
+
+def test_started_runtime_rejects_live_mode_cutover(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker = NativeTracker([make_issue("TASK-MODE", state="Done")])
+    binding, journal = make_binding(tmp_path, tracker, store)
+    runtime = WorkflowRuntime(
+        project_bindings={"project-1": binding},
+        store=store,
+        journals={"project-1": journal},
+        mode="shadow",
+    )
+
+    asyncio.run(runtime.start())
+    with pytest.raises(WorkflowRuntimeError, match="graceful service restart"):
+        runtime.set_mode("enforce")
+    assert runtime.mode == "shadow"
+    runtime.close()
+    store.close()
+
+
+def test_multi_project_enforce_rejects_unscoped_static_handlers(tmp_path):
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    tracker_a = NativeTracker([])
+    tracker_b = NativeTracker([])
+    binding_a, journal_a = make_binding(
+        tmp_path, tracker_a, store, project_id="project-a"
+    )
+    binding_b, journal_b = make_binding(
+        tmp_path, tracker_b, store, project_id="project-b"
+    )
+
+    with pytest.raises(WorkflowRuntimeError, match="project-routed"):
+        WorkflowRuntime(
+            project_bindings={"project-a": binding_a, "project-b": binding_b},
+            store=store,
+            journals={"project-a": journal_a, "project-b": journal_b},
+            mode="enforce",
+            handlers=complete_handlers(),
+        )
+
+    journal_a.close()
+    journal_b.close()
+    store.close()
+
+
+def test_enforce_topology_change_requests_restart_before_claiming(tmp_path):
+    class Project:
+        def __init__(self, project_id):
+            self.id = project_id
+            self.repo_path = str(tmp_path)
+            self.default_branch = "main"
+
+    projects = [Project("project-a")]
+
+    class ProjectStore:
+        def list_all(self):
+            return list(projects)
+
+    class Config:
+        workflow_engine_mode = "enforce"
+        workflow_runtime_decision_limit = 20
+        workflow_runtime_batch_size = 4
+
+    restart_requests = []
+    store = WorkflowJobStore(str(tmp_path / "jobs.sqlite3"))
+    trackers = {
+        "project-a": NativeTracker(
+            [make_issue("TASK-A", state="Done", project_id="project-a")]
+        )
+    }
+
+    class OrchestratorDouble:
+        project_store = ProjectStore()
+        config = Config()
+        workflow_job_store = store
+        _state_path = str(tmp_path / "service-state.json")
+
+        def _tracker_for_project(self, project_id):
+            return trackers[project_id]
+
+        def workflow_action_handler_factory(self, binding):
+            return complete_handlers()
+
+        async def graceful_restart(self, *, request_id=None):
+            restart_requests.append(request_id)
+
+    runtime = WorkflowRuntime.from_orchestrator(
+        OrchestratorDouble(), state_dir=tmp_path
+    )
+    asyncio.run(runtime.start())
+    projects.append(Project("project-b"))
+
+    report = asyncio.run(runtime.reconcile_async())
+
+    assert report["restart_requested"] is True
+    assert report["reason"] == "workflow project bindings changed"
+    assert len(restart_requests) == 1
+    assert store.list_jobs() == ()
     runtime.close()
     store.close()
