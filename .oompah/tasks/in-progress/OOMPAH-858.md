@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T17:18:36.508387Z'
+updated_at: '2026-08-06T17:48:33.341314Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -341,5 +341,10 @@ author: oompah
 created: 2026-08-06 17:18
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 17:48
+---
+DISCOVERY: Analyzing 5 gate failures from combined-tree QA. Root causes: (1) test_project_locks.py - two tests mock _create_epic_worktree_locked without branch_name kwarg added in OOMPAH-858 commit; (2) test_task_handoff.py test_api_submission_marks_queue_enqueue_as_explicit_retry and _does_not_rearm - SimpleNamespace records missing base_branch field added to _enqueue_worker_submission; (3) test_task_handoff.py test_direct_acp_epic_rebase_omits_rewritten_base_from_verifier - _submission_record else branch uses issue.target_branch but direct maintenance issues have target_branch=None, should fall back to existing.base_branch. Code fix: add 'or existing.base_branch' fallback to preserve backwards compat for tasks without target_branch.
 ---
 <!-- COMMENTS:END -->
