@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:41:58.609058Z'
+updated_at: '2026-08-06T19:05:41.731811Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,14 +48,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
   head_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
+  integrated_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   submitted_at: '2026-08-06T18:41:41.551984+00:00'
-  updated_at: '2026-08-06T18:41:41.551984+00:00'
+  updated_at: '2026-08-06T19:05:33.876089+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 596
@@ -117,6 +118,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-858
     source_sha: c296b963a2544b701c237481a0dde7bdbb9a4afd
     completed_at: '2026-08-06T18:39:13.276371+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-606c3a2d184d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-858
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ff5aa2677f9873135fbebaa0d16d3848a5ea467dc7f92f0ff5658b7962c6edc3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T19:05:36.522366+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -489,5 +512,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 2s
 - Log: OOMPAH-858__20260806T184110Z.jsonl
+---
+author: oompah
+created: 2026-08-06 19:05
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
