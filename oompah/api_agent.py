@@ -362,6 +362,78 @@ def _resolve_run_command_timeout(raw: str | None = None) -> int:
     return max(1, int(math.ceil(parsed)))
 
 
+def _resolve_run_command_timeout_with_target(
+    command: str,
+    project_id: str | None = None,
+    raw_global: str | None = None,
+) -> int:
+    """Resolve command timeout, preferring per-target deadline if available.
+    
+    For Make targets, looks up the project's auditor_validation_target_deadlines
+    dict to find a specific deadline. Falls back to the global timeout when:
+    - project_id is None
+    - the target is not in the deadline dict
+    - the project cannot be loaded
+    
+    Parameters
+    ----------
+    command : str
+        The shell command being executed (may contain a Make target)
+    project_id : str | None
+        Optional project ID to look up per-target deadlines
+    raw_global : str | None
+        Optional override for the global timeout env var
+    
+    Returns
+    -------
+    int
+        The timeout in seconds
+    """
+    # First, resolve the global fallback timeout
+    global_timeout = _resolve_run_command_timeout(raw_global)
+    
+    # If no project_id, return global timeout
+    if not project_id:
+        return global_timeout
+    
+    # Try to extract a Make target from the command
+    import shlex
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        # Malformed shell syntax; fall back to global timeout
+        return global_timeout
+    
+    # Look for `make <target>` pattern
+    if len(tokens) < 2 or tokens[0].lower() != "make":
+        return global_timeout
+    
+    target = tokens[1] if len(tokens) > 1 else None
+    if not target:
+        return global_timeout
+    
+    # Load the project and look up the target deadline
+    try:
+        from oompah.projects import ProjectStore
+        store = ProjectStore()
+        project = store.get(project_id)
+        if not project:
+            return global_timeout
+        
+        # Check if the project has a per-target deadline for this target
+        if not project.auditor_validation_target_deadlines:
+            return global_timeout
+        
+        target_deadline = project.auditor_validation_target_deadlines.get(target)
+        if target_deadline and target_deadline > 0:
+            return target_deadline
+    except Exception:
+        # If anything goes wrong loading the project, fall back to global timeout
+        pass
+    
+    return global_timeout
+
+
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI function-calling schema)
 # ---------------------------------------------------------------------------
@@ -1640,8 +1712,15 @@ def _execute_tool(
             )
             if direct is not None:
                 return direct
+            # Resolve timeout, preferring per-target deadline if available
+            command_str = str(args.get("command", ""))
+            resolved_timeout = (
+                _resolve_run_command_timeout_with_target(command_str, project_id)
+                if cmd_timeout is None
+                else cmd_timeout
+            )
             command_kwargs = {
-                "timeout": cmd_timeout,
+                "timeout": resolved_timeout,
                 "env_overrides": env_overrides,
                 "isolate_remote_write": isolate_remote_write,
             }

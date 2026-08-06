@@ -1499,6 +1499,56 @@ def check_auditor_command(command: str, project_id: str | None = None) -> str | 
     return None
 
 
+def validate_auditor_target_deadlines(
+    validation_targets: list[str],
+    target_deadlines: dict[str, int],
+    global_timeout_seconds: int = 720,
+) -> str | None:
+    """Validate that all configured validation targets have compatible deadlines.
+    
+    For each target without an explicit deadline, the global timeout is used.
+    
+    Parameters
+    ----------
+    validation_targets : list[str]
+        List of allowed Make targets (e.g., ["test", "test-serial", "check-secrets"])
+    target_deadlines : dict[str, int]
+        Map of target name to deadline in seconds
+    global_timeout_seconds : int
+        Global fallback deadline when a target has no explicit deadline (default: 720)
+    
+    Returns
+    -------
+    str | None
+        An error message if any target lacks a compatible deadline, else None
+    """
+    if not validation_targets:
+        return None
+    
+    errors: list[str] = []
+    for target in validation_targets:
+        target_name = str(target or "").strip()
+        if not target_name:
+            continue
+        
+        # Get the deadline for this target
+        deadline_seconds = target_deadlines.get(target_name, global_timeout_seconds)
+        
+        # Validate that the deadline is positive
+        if deadline_seconds <= 0:
+            errors.append(
+                f"target {target_name!r} has invalid deadline {deadline_seconds} seconds"
+            )
+    
+    if errors:
+        return (
+            "auditor validation target deadline configuration error: "
+            + "; ".join(errors)
+        )
+    
+    return None
+
+
 __all__ = [
     "AUDITOR_ALLOWED_TOOLS",
     "AUDITOR_CAPABILITY_POLICY",
@@ -1525,4 +1575,5 @@ __all__ = [
     "pending_auditor_target",
     "parse_auditor_result",
     "submit_auditor_result",
+    "validate_auditor_target_deadlines",
 ]

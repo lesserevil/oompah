@@ -546,6 +546,13 @@ class Project:
     # default allowlist. Enables aligning auditor prompt guidance with actual
     # enforcement (OOMPAH-736).
     auditor_validation_targets: list[str] = field(default_factory=list)
+    # Per-target command deadlines (seconds) for auditor validation targets.
+    # Maps target name (from auditor_validation_targets) to its required execution
+    # deadline. When a target is not in this dict, the global
+    # OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS applies. Enables projects to run
+    # longer validation commands (e.g., integration tests) within their deadline.
+    # Example: {"test": 1800, "test-serial": 2400, "check-secrets": 300}
+    auditor_validation_target_deadlines: dict[str, int] = field(default_factory=dict)
     # Per-project strategy controlling how children of an epic relate to
     # branches and CI.  "shared" is the only supported value: each epic gets
     # ONE shared worktree and ONE shared branch; child tasks commit directly
@@ -754,6 +761,10 @@ class Project:
             d["test_skip_paths"] = list(self.test_skip_paths)
         if self.auditor_validation_targets:
             d["auditor_validation_targets"] = list(self.auditor_validation_targets)
+        if self.auditor_validation_target_deadlines:
+            d["auditor_validation_target_deadlines"] = dict(
+                self.auditor_validation_target_deadlines
+            )
         # Always emit epic_strategy so dashboards can render the current
         # mode without back-compat guessing.  "shared" is the only supported
         # value; always writing the field ensures legacy flat/stacked entries
@@ -989,6 +1000,19 @@ class Project:
                 state_branch_checkpoint_max_delay_ms = v if v > 0 else None
             except (TypeError, ValueError):
                 state_branch_checkpoint_max_delay_ms = None
+        # Auditor validation target deadlines (per-target command execution limits).
+        # Legacy records that lack this field default to an empty dict.
+        raw_deadlines = d.get("auditor_validation_target_deadlines") or {}
+        auditor_validation_target_deadlines: dict[str, int] = {}
+        if isinstance(raw_deadlines, dict):
+            for target, deadline in raw_deadlines.items():
+                try:
+                    target_name = str(target).strip()
+                    deadline_seconds = int(deadline)
+                    if target_name and deadline_seconds > 0:
+                        auditor_validation_target_deadlines[target_name] = deadline_seconds
+                except (TypeError, ValueError):
+                    pass
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -1019,6 +1043,7 @@ class Project:
                 for t in (d.get("auditor_validation_targets") or [])
                 if str(t).strip()
             ],
+            auditor_validation_target_deadlines=auditor_validation_target_deadlines,
             epic_strategy=epic_strategy,
             require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
             intake_auto_promote=bool(d.get("intake_auto_promote", True)),
