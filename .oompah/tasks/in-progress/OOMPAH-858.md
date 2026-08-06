@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T15:13:10.296295Z'
+updated_at: '2026-08-06T16:16:15.067865Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-08-06 15:13
 ---
 Owner repair checkpointed at ae61585ac after fresh independent static ACCEPT. The repair now covers normalized nested dependency projection, exact immediate-parent targets, canonical candidate generation, base SHA fencing, restart and cycle recovery CAS races, tracker-write recovery, standalone parity, and durable landing authority; the stray committed :memory: artifact is removed. git diff --check passed. Validation and push remain deliberately deferred behind OOMPAH-861's active exact gate and subsequent rebase.
+---
+author: oompah
+created: 2026-08-06 16:16
+---
+Post-OOMPAH-862 rebase was textually clean, but expanded serial validation exposed 8 semantic failures: one live-ready-claim ordering regression, three historical Done durable-queue reconciliation failures, and four same-head accepted-submission idempotency failures. 789 tests passed. Owner repair is reconciling O858 candidate/base recovery with O861 accepted-submission authority before another validation run; no xdist run was attempted after the serial failure.
 ---
 <!-- COMMENTS:END -->
