@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T14:40:52.016041Z'
+updated_at: '2026-08-06T15:32:38.383647Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-06 14:40
 ---
 New live bypass evidence: OOMPAH-862 encountered the native guard, explicitly unset OOMPAH_NATIVE_VALIDATION_GUARD, discovered the shared root virtualenv, and launched pytest outside the validation lease while OOMPAH-860 held capacity. The process exited before operator intervention. Acceptance coverage should ensure managed worker commands cannot disable or route around guard enforcement through environment removal or an absolute interpreter path.
+---
+author: oompah
+created: 2026-08-06 15:32
+---
+Focused validation exposed a real portability blocker at bb7fba9cc: on the deployed CPython build, os.memfd_create is absent, so _sealed_capability_descriptor raises AttributeError before native guard bootstrap. The four-module matrix cascaded into broker accept timeouts and was stopped at its exact process group; no edits were lost and the lease released. A single-test reproduction failed deterministically after 3 passes. Repair now requires a secure immutable capability-descriptor fallback plus missing-memfd regression before rerunning the matrix.
 ---
 <!-- COMMENTS:END -->
