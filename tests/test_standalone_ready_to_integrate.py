@@ -1198,6 +1198,75 @@ def test_concurrent_loser_does_not_arm_after_winner_reserves_capacity(harness):
     assert not _delivery_alerts(orch)
 
 
+def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harness):
+    """A stale loser sees the winner's exact existing-review adoption."""
+
+    orch, project, tracker, provider, _detect, _gate = harness
+    project.max_in_flight_prs = 1
+    task = _issue("TASK-CONCURRENT-ADOPTION")
+    tracker.fetch_issues_by_states.return_value = [task]
+    review = _review(task.identifier, review_id="604")
+    adopted = threading.Event()
+    stale_lookup = threading.Event()
+    loser_capacity_decided = threading.Event()
+    release_adoption = threading.Event()
+    original_adopt = orch._adopt_open_review_capacity
+    original_capacity_reservation = orch._standalone_review_capacity_reservation
+
+    def record_adoption(*args, **kwargs):
+        original_adopt(*args, **kwargs)
+        adopted.set()
+        assert release_adoption.wait(timeout=5)
+
+    def record_capacity_reservation(authority):
+        assert threading.current_thread().name == "stale-lookup-loser"
+        assert stale_lookup.is_set()
+        reservation = original_capacity_reservation(authority)
+        loser_capacity_decided.set()
+        return reservation
+
+    def find_review_for_sweep(*_args, **_kwargs):
+        if threading.current_thread().name == "adoption-winner":
+            return review
+        assert threading.current_thread().name == "stale-lookup-loser"
+        assert adopted.wait(timeout=5)
+        stale_lookup.set()
+        return None
+
+    provider.find_pr_for_branch.side_effect = find_review_for_sweep
+    provider.list_open_reviews.return_value = []
+    orch._adopt_open_review_capacity = record_adoption
+    orch._standalone_review_capacity_reservation = record_capacity_reservation
+
+    winner = threading.Thread(
+        name="adoption-winner",
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    loser = threading.Thread(
+        name="stale-lookup-loser",
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    winner.start()
+    try:
+        assert adopted.wait(timeout=5)
+        loser.start()
+        assert loser_capacity_decided.wait(timeout=5)
+    finally:
+        release_adoption.set()
+        winner.join(timeout=5)
+        loser.join(timeout=5)
+
+    assert not winner.is_alive()
+    assert not loser.is_alive()
+    assert provider.create_review.call_count == 0
+    assert not _delivery_alerts(orch)
+    [reservation] = orch.review_capacity_store.active(project.id)
+    authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
+    assert reservation.review_id == "604"
+    assert reservation.authority_generation == authority.generation
+    assert reservation.head_sha == "abc123"
+
+
 def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
     tmp_path,
     monkeypatch,
