@@ -132,6 +132,34 @@ def test_codex_native_validation_uses_server_authority_generation():
     assert session._native_cli_validation_generation == "server-generation"
 
 
+def test_codex_catalog_builder_threads_validation_reuse_policy(
+    tmp_path,
+    monkeypatch,
+):
+    policy = {"decision": "reuse_authoritative_gate", "command": "make test"}
+
+    def authority_check():
+        return "reuse_authoritative_gate"
+
+    captured = {}
+    monkeypatch.setattr(
+        "oompah.acp_tools.build_codex_tool_catalog",
+        lambda *args, **kwargs: captured.update(kwargs) or [],
+    )
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path=str(tmp_path),
+            prompt="audit",
+            validation_reuse_policy=policy,
+            validation_reuse_authority_check=authority_check,
+        )
+    )
+
+    assert session._build_tool_catalog() == []
+    assert captured["validation_reuse_policy"] is policy
+    assert captured["validation_reuse_authority_check"] is authority_check
+
+
 def test_native_validation_untrusted_roots_include_implicit_temp_dirs(
     tmp_path,
     monkeypatch,

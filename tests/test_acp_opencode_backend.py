@@ -64,6 +64,34 @@ class TestOpencodeRegistration:
         assert OpencodeAcpBackendSession is not None
 
 
+def test_opencode_catalog_builder_threads_validation_reuse_policy(
+    tmp_path,
+    monkeypatch,
+):
+    policy = {"decision": "reuse_authoritative_gate", "command": "make test"}
+
+    def authority_check():
+        return "reuse_authoritative_gate"
+
+    captured = {}
+    monkeypatch.setattr(
+        "oompah.acp_tools.build_tool_catalog",
+        lambda *args, **kwargs: captured.update(kwargs) or [],
+    )
+    session = OpencodeAcpBackendSession(
+        AcpBackendOptions(
+            workspace_path=str(tmp_path),
+            prompt="audit",
+            validation_reuse_policy=policy,
+            validation_reuse_authority_check=authority_check,
+        )
+    )
+
+    assert session._build_tool_catalog() == []
+    assert captured["validation_reuse_policy"] is policy
+    assert captured["validation_reuse_authority_check"] is authority_check
+
+
 # ----------------------------------------------------------------------
 # validate_provider: subscription auth + base_url validation
 # ----------------------------------------------------------------------

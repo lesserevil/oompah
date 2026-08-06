@@ -7,6 +7,7 @@ import contextlib
 import faulthandler
 import hashlib
 import logging
+import math
 import os
 import re
 import subprocess
@@ -16756,6 +16757,8 @@ class Orchestrator:
         issue: Issue,
         project: Project | None,
         audit_target: object,
+        *,
+        record_metrics: bool = True,
     ) -> dict[str, Any]:
         """Build the trusted exact-head gate bundle for an auditor prompt.
 
@@ -16767,67 +16770,161 @@ class Orchestrator:
         """
 
         command = self._quality_gate_command(project) if project is not None else ""
-        integration = getattr(issue, "integration", None)
-        accepted_head = str(
-            getattr(integration, "head_sha", "")
-            or getattr(issue, "source_sha", "")
-            or ""
-        ).strip().lower()
-        work_branch = str(
-            getattr(integration, "task_branch", "")
-            or assigned_work_branch(issue)
-            or getattr(issue, "source_branch", "")
-            or getattr(issue, "work_branch", "")
-            or getattr(issue, "branch_name", "")
-            or ""
-        ).strip()
-        target_branch = str(
-            getattr(integration, "base_branch", "")
-            or getattr(issue, "target_branch", "")
-            or (getattr(project, "default_branch", "") if project else "")
-            or ""
-        ).strip()
-        repo_identity = str(
-            (getattr(project, "repo_url", "") if project else "")
-            or (getattr(project, "repo_path", "") if project else "")
-            or (getattr(project, "id", "") if project else "")
-            or ""
-        ).strip()
+
+        def _identity(source: Issue) -> tuple[str, str, str, str]:
+            integration = getattr(source, "integration", None)
+            accepted = str(
+                getattr(integration, "head_sha", "")
+                or getattr(source, "source_sha", "")
+                or ""
+            ).strip().lower()
+            branch = str(
+                getattr(integration, "task_branch", "")
+                or assigned_work_branch(source)
+                or getattr(source, "source_branch", "")
+                or getattr(source, "work_branch", "")
+                or getattr(source, "branch_name", "")
+                or ""
+            ).strip()
+            target = str(
+                getattr(integration, "base_branch", "")
+                or getattr(source, "target_branch", "")
+                or (getattr(project, "default_branch", "") if project else "")
+                or ""
+            ).strip()
+            repository = str(
+                (getattr(project, "repo_url", "") if project else "")
+                or (getattr(project, "repo_path", "") if project else "")
+                or (getattr(project, "id", "") if project else "")
+                or ""
+            ).strip()
+            return accepted, branch, target, repository
+
+        accepted_head, work_branch, target_branch, repo_identity = _identity(issue)
         result: QualityGateResult | None = None
         reason = ""
+        authority_current = False
         if not command:
             decision = "not_configured"
             status = "not_configured"
             reason = "no configured full quality-gate command"
-        elif not accepted_head or not work_branch or not target_branch or not repo_identity:
-            decision = "full_gate_required"
-            status = "missing"
-            reason = "authoritative exact-head identity is incomplete"
         else:
-            result = self._branch_quality_gate.lookup(
-                repo_identity=repo_identity,
-                target_branch=target_branch,
-                work_branch=work_branch,
-                head_sha=accepted_head,
-                command=command,
-            )
-            if result is None:
-                decision = "full_gate_required"
-                status = "missing"
-                reason = "no current passing result for the accepted exact head"
-            elif result.status == "passed":
+            decision = "full_gate_required"
+            status = "stale"
+            try:
+                target = auditor_target_contract(
+                    audit_target,
+                    task_id=issue.identifier,
+                    project_id=str(issue.project_id or "legacy"),
+                )
+                if (
+                    target.task_id != issue.identifier
+                    or target.project_id != str(issue.project_id or "legacy")
+                ):
+                    raise ValueError("auditor target identity does not match task")
+                tracker = self._tracker_for_project(target.project_id)
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                current_issue = tracker.fetch_issue_detail(target.task_id)
+                if current_issue is None:
+                    raise ValueError("authoritative task is unavailable")
+                if not current_issue.project_id:
+                    current_issue.project_id = issue.project_id
+                if canonicalize_status(current_issue.state) != IN_VALIDATION:
+                    raise ValueError(
+                        "authoritative task is no longer In Validation"
+                    )
+                current_fingerprint = compute_issue_evidence_fingerprint(
+                    current_issue,
+                    target.project_id,
+                ).digest
+                if current_fingerprint != target.evidence_fingerprint:
+                    raise ValueError("auditor evidence fingerprint is stale")
+
+                accepted_head, work_branch, target_branch, repo_identity = (
+                    _identity(current_issue)
+                )
+                if not all(
+                    (accepted_head, work_branch, target_branch, repo_identity)
+                ):
+                    status = "missing"
+                    raise ValueError("authoritative exact-head identity is incomplete")
+
+                integration = getattr(current_issue, "integration", None)
+                integrated_sha = str(
+                    getattr(integration, "integrated_sha", "") or ""
+                ).strip().lower()
+                if (
+                    str(getattr(integration, "state", "") or "").casefold()
+                    == "integrated"
+                    and integrated_sha
+                    and integrated_sha != accepted_head
+                ):
+                    raise ValueError(
+                        "audit revision differs from the accepted pre-integration head"
+                    )
+
+                branch_head = self._quality_gate_branch_head(
+                    project,
+                    work_branch,
+                ).strip().lower()
+                if branch_head != accepted_head:
+                    raise ValueError(
+                        "authoritative work branch no longer names the accepted head"
+                    )
+                authority_current = True
+
+                result = self._branch_quality_gate.lookup(
+                    repo_identity=repo_identity,
+                    target_branch=target_branch,
+                    work_branch=work_branch,
+                    head_sha=accepted_head,
+                    command=command,
+                )
+                if result is None:
+                    status = "missing"
+                    raise ValueError(
+                        "no current passing result for the accepted exact head"
+                    )
+                status = result.status
+                if result.status != "passed":
+                    raise ValueError("authoritative exact-head gate did not pass")
+
+                raw_recorded_at = result.recorded_at
+                if isinstance(raw_recorded_at, bool):
+                    raise ValueError(
+                        "authoritative exact-head gate timestamp is missing or invalid"
+                    )
+                try:
+                    recorded_at = float(raw_recorded_at)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "authoritative exact-head gate timestamp is missing or invalid"
+                    ) from exc
+                now = time.time()
+                if (
+                    not math.isfinite(recorded_at)
+                    or recorded_at <= 0
+                    or now < recorded_at
+                ):
+                    raise ValueError(
+                        "authoritative exact-head gate timestamp is missing or invalid"
+                    )
                 decision = "reuse_authoritative_gate"
-                status = result.status
-            else:
-                decision = "full_gate_required"
-                status = result.status
-                reason = "authoritative exact-head gate did not pass"
+                reason = ""
+            except Exception as exc:  # fail closed on every authority ambiguity
+                reason = str(exc) or "authoritative gate evidence is stale"
 
         targets = []
         if project is not None:
             raw_targets = getattr(project, "auditor_validation_targets", None)
             if isinstance(raw_targets, (list, tuple)):
-                targets = [str(value).strip() for value in raw_targets if str(value).strip()]
+                targets = [
+                    str(value).strip()
+                    for value in raw_targets
+                    if str(value).strip()
+                ]
         bundle: dict[str, Any] = {
             "decision": decision,
             "command": command,
@@ -16842,6 +16939,7 @@ class Orchestrator:
             ),
             "recorded_at": result.recorded_at if result is not None else None,
             "reason": reason,
+            "authority_current": authority_current,
             "focused_evidence": {
                 "configured_auditor_targets": targets,
                 "supplemental_checks_allowed": True,
@@ -16854,7 +16952,7 @@ class Orchestrator:
         }
         metrics = getattr(self, "_terminal_audit_metrics", None)
         recorder = getattr(metrics, "record_quality_gate_decision", None)
-        if callable(recorder):
+        if record_metrics and callable(recorder):
             try:
                 recorder(
                     str(getattr(audit_target, "project_id", "") or issue.project_id or "legacy"),
@@ -16872,6 +16970,135 @@ class Orchestrator:
                 logger.debug("Unable to record terminal-audit gate decision", exc_info=True)
         return bundle
 
+    @staticmethod
+    def _auditor_validation_reuse_policy(
+        bundle: dict[str, Any],
+        audit_target: object,
+    ) -> dict[str, Any] | None:
+        """Freeze the exact reusable authority that command tools must recheck."""
+
+        if bundle.get("decision") != "reuse_authoritative_gate":
+            return None
+        policy = {
+            "decision": "reuse_authoritative_gate",
+            "command": str(bundle.get("command") or "").strip(),
+            "accepted_head_sha": str(
+                bundle.get("accepted_head_sha") or ""
+            ).strip().lower(),
+            "target_branch": str(bundle.get("target_branch") or "").strip(),
+            "work_branch": str(bundle.get("work_branch") or "").strip(),
+            "invalid_authority": True,
+        }
+        try:
+            target = auditor_target_contract(audit_target)
+        except (TypeError, ValueError):
+            return policy
+        policy.update(
+            {
+                "project_id": target.project_id,
+                "task_id": target.task_id,
+                "audit_id": target.audit_id,
+                "attempt_id": target.attempt_id or "",
+                "target_state": target.target_state,
+                "evidence_fingerprint": target.evidence_fingerprint,
+                "invalid_authority": not bool(target.attempt_id),
+            }
+        )
+        return policy
+
+    def _auditor_validation_reuse_authority_state(
+        self,
+        issue: Issue,
+        audit_target: object,
+        expected_policy: dict[str, Any],
+    ) -> str:
+        """Revalidate exact audit and gate authority at command invocation."""
+
+        try:
+            target = auditor_target_contract(audit_target)
+            if expected_policy.get("invalid_authority") is True:
+                return "stale_authority"
+            if not target.attempt_id:
+                return "stale_authority"
+            if any(
+                str(expected_policy.get(name) or "")
+                != str(getattr(target, name, "") or "")
+                for name in (
+                    "project_id",
+                    "task_id",
+                    "audit_id",
+                    "attempt_id",
+                    "target_state",
+                    "evidence_fingerprint",
+                )
+            ):
+                return "stale_authority"
+            current_project = self.project_store.get(target.project_id)
+            if current_project is None:
+                return "stale_authority"
+            lock = self.project_store.project_write_lock(target.project_id)
+            with lock:
+                bundle = self._terminal_audit_quality_gate_evidence(
+                    issue,
+                    current_project,
+                    target,
+                    record_metrics=False,
+                )
+                if bundle.get("authority_current") is not True:
+                    return "stale_authority"
+                tracker = self._tracker_for_project(target.project_id)
+                invalidate = getattr(tracker, "invalidate_read_cache", None)
+                if callable(invalidate):
+                    invalidate()
+                get_metadata = getattr(tracker, "get_metadata", None)
+                if not callable(get_metadata):
+                    return "stale_authority"
+                live_target = pending_auditor_target(
+                    get_metadata(target.task_id),
+                    task_id=target.task_id,
+                    project_id=target.project_id,
+                )
+                if live_target is None:
+                    return "stale_authority"
+                target_fields = (
+                    "project_id",
+                    "task_id",
+                    "audit_id",
+                    "attempt_id",
+                    "target_state",
+                    "evidence_fingerprint",
+                )
+                if any(
+                    str(getattr(live_target, name, "") or "")
+                    != str(getattr(target, name, "") or "")
+                    for name in target_fields
+                ):
+                    return "stale_authority"
+                policy_fields = (
+                    "command",
+                    "accepted_head_sha",
+                    "target_branch",
+                    "work_branch",
+                )
+                if any(
+                    str(expected_policy.get(name) or "")
+                    != str(bundle.get(name) or "")
+                    for name in policy_fields
+                ):
+                    return "stale_authority"
+                decision = str(bundle.get("decision") or "")
+                if decision in {
+                    "reuse_authoritative_gate",
+                    "full_gate_required",
+                }:
+                    return decision
+        except Exception:  # every authority ambiguity denies the escape
+            logger.debug(
+                "Unable to revalidate auditor gate reuse authority",
+                exc_info=True,
+            )
+        return "stale_authority"
+
     def record_auditor_validation_command(
         self,
         *,
@@ -16879,6 +17106,9 @@ class Orchestrator:
         command: str,
         duration_seconds: float = 0.0,
         succeeded: bool = True,
+        phase: str = "completed",
+        outcome: str = "",
+        invocation_id: str = "",
     ) -> None:
         """Record whether an auditor ran the full or focused validation lane."""
 
@@ -16897,9 +17127,51 @@ class Orchestrator:
                 configured_command=configured,
                 duration_seconds=duration_seconds,
                 succeeded=succeeded,
+                phase=phase,
+                outcome=outcome,
+                invocation_id=invocation_id,
             )
         except Exception:  # telemetry must not block an auditor command
             logger.debug("Unable to record auditor validation command", exc_info=True)
+
+    def record_auditor_validation_reuse_policy(
+        self,
+        *,
+        audit_target: object,
+        command: str,
+        decision: str,
+        justification: str,
+        invocation_id: str,
+    ) -> None:
+        """Record a bounded, redacted tool-layer gate-reuse decision."""
+
+        metrics = getattr(self, "_terminal_audit_metrics", None)
+        recorder = getattr(metrics, "record_validation_reuse_policy", None)
+        if not callable(recorder):
+            return
+        try:
+            target = auditor_target_contract(audit_target)
+            safe_command = str(
+                redact_sensitive_data(str(command or "").strip())
+            )[:1024]
+            safe_justification = str(
+                redact_sensitive_data(str(justification or "").strip())
+            )[:512]
+            recorder(
+                target.project_id,
+                target.task_id,
+                target.audit_id,
+                attempt_id=target.attempt_id or "",
+                invocation_id=str(invocation_id or "").strip(),
+                command=safe_command,
+                decision=str(decision or "").strip(),
+                justification=safe_justification,
+            )
+        except Exception:  # telemetry must not alter policy enforcement
+            logger.debug(
+                "Unable to record auditor validation reuse policy",
+                exc_info=True,
+            )
 
     @staticmethod
     def _worktree_head(path: str) -> str:
@@ -34893,6 +35165,7 @@ class Orchestrator:
 
                 audit_target = None
                 auditor_context = None
+                validation_reuse_policy = None
                 if focus.name.lower() == AUDITOR_FOCUS_NAME:
                     try:
                         metadata = tracker.get_metadata(issue.identifier)
@@ -34915,10 +35188,17 @@ class Orchestrator:
                             "pending_target": audit_target.to_dict(),
                             "pending_target_count": pending_count,
                         }
-                        evidence_summary["authoritative_quality_gate"] = (
+                        quality_gate_evidence = (
                             self._terminal_audit_quality_gate_evidence(
-                                issue,
-                                project_obj,
+                                issue, project_obj, audit_target
+                            )
+                        )
+                        evidence_summary["authoritative_quality_gate"] = (
+                            quality_gate_evidence
+                        )
+                        validation_reuse_policy = (
+                            self._auditor_validation_reuse_policy(
+                                quality_gate_evidence,
                                 audit_target,
                             )
                         )
@@ -34997,12 +35277,22 @@ class Orchestrator:
                     auditor_context=auditor_context,
                     duplicate_task_corpus=duplicate_task_corpus,
                 )
-                return wp, rendered, attachments, audit_target
+                return (
+                    wp,
+                    rendered,
+                    attachments,
+                    audit_target,
+                    validation_reuse_policy,
+                )
 
             loop = asyncio.get_event_loop()
-            workspace_path, prompt, attachment_paths, audit_target = await loop.run_in_executor(
-                self._tick_pool, _setup_worker
-            )
+            (
+                workspace_path,
+                prompt,
+                attachment_paths,
+                audit_target,
+                validation_reuse_policy,
+            ) = await loop.run_in_executor(self._tick_pool, _setup_worker)
 
             if issue.id in self.state.running and not self._worker_authority_current(
                 issue, run_id
@@ -35150,6 +35440,8 @@ class Orchestrator:
             api_tool_liveness = ToolLivenessMonitor()
             api_policy_denial_handler = None
             api_validation_success_handler = None
+            api_validation_reuse_policy_handler = None
+            api_validation_reuse_authority_check = None
             if focus.name.lower() == AUDITOR_FOCUS_NAME:
 
                 def api_policy_denial_handler(denial: str) -> None:
@@ -35160,18 +35452,38 @@ class Orchestrator:
                     )
 
                 if audit_target is not None:
+                    from oompah.acp_tools import (
+                        _auditor_validation_reuse_policy_handler,
+                        _auditor_validation_success_handler,
+                    )
 
-                    def api_validation_success_handler(
-                        command: str,
-                        command_workspace: Path,
-                        *,
-                        _target=audit_target,
-                    ) -> bool:
-                        return self.record_auditor_quality_evidence(
-                            audit_target=_target,
-                            workspace_path=command_workspace,
-                            command=command,
+                    api_validation_success_handler = (
+                        _auditor_validation_success_handler(
+                            self,
+                            auditor_mode=True,
+                            audit_target=audit_target,
                         )
+                    )
+                    api_validation_reuse_policy_handler = (
+                        _auditor_validation_reuse_policy_handler(
+                            self,
+                            auditor_mode=True,
+                            audit_target=audit_target,
+                        )
+                    )
+                    if validation_reuse_policy is not None:
+
+                        def api_validation_reuse_authority_check(
+                            *,
+                            _issue=issue,
+                            _target=audit_target,
+                            _policy=validation_reuse_policy,
+                        ) -> str:
+                            return self._auditor_validation_reuse_authority_state(
+                                _issue,
+                                _target,
+                                _policy,
+                            )
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -35234,6 +35546,13 @@ class Orchestrator:
                 policy_denial_handler=api_policy_denial_handler,
                 validation_lease=self.validation_resource_lease,
                 successful_validation_handler=api_validation_success_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    api_validation_reuse_authority_check
+                ),
+                validation_reuse_policy_handler=(
+                    api_validation_reuse_policy_handler
+                ),
                 project_store=self.project_store,
                 submission_handler=_api_submission_handler,
             )
@@ -35562,6 +35881,7 @@ class Orchestrator:
 
                 audit_target = None
                 auditor_context = None
+                validation_reuse_policy = None
                 if focus.name.lower() == AUDITOR_FOCUS_NAME:
                     try:
                         metadata = tracker.get_metadata(issue.identifier)
@@ -35584,10 +35904,17 @@ class Orchestrator:
                             "pending_target": audit_target.to_dict(),
                             "pending_target_count": pending_count,
                         }
-                        evidence_summary["authoritative_quality_gate"] = (
+                        quality_gate_evidence = (
                             self._terminal_audit_quality_gate_evidence(
-                                issue,
-                                project_obj,
+                                issue, project_obj, audit_target
+                            )
+                        )
+                        evidence_summary["authoritative_quality_gate"] = (
+                            quality_gate_evidence
+                        )
+                        validation_reuse_policy = (
+                            self._auditor_validation_reuse_policy(
+                                quality_gate_evidence,
                                 audit_target,
                             )
                         )
@@ -35663,13 +35990,22 @@ class Orchestrator:
                     auditor_context=auditor_context,
                     duplicate_task_corpus=duplicate_task_corpus,
                 )
-                return wp, rendered, attachments, audit_target
+                return (
+                    wp,
+                    rendered,
+                    attachments,
+                    audit_target,
+                    validation_reuse_policy,
+                )
 
             loop = asyncio.get_event_loop()
-            workspace_path, prompt, _attachment_paths, audit_target = await loop.run_in_executor(
-                self._tick_pool,
-                _setup_worker,
-            )
+            (
+                workspace_path,
+                prompt,
+                _attachment_paths,
+                audit_target,
+                validation_reuse_policy,
+            ) = await loop.run_in_executor(self._tick_pool, _setup_worker)
 
             if issue.id in self.state.running and not self._worker_authority_current(
                 issue, run_id
@@ -35786,6 +36122,7 @@ class Orchestrator:
                     }
 
             policy_denial_handler = None
+            validation_reuse_authority_check = None
             if focus.name.lower() == AUDITOR_FOCUS_NAME:
 
                 def policy_denial_handler(denial: str) -> None:
@@ -35794,6 +36131,20 @@ class Orchestrator:
                         run_id,
                         denial,
                     )
+
+                if validation_reuse_policy is not None and audit_target is not None:
+
+                    def validation_reuse_authority_check(
+                        *,
+                        _issue=issue,
+                        _target=audit_target,
+                        _policy=validation_reuse_policy,
+                    ) -> str:
+                        return self._auditor_validation_reuse_authority_state(
+                            _issue,
+                            _target,
+                            _policy,
+                        )
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 tool_liveness=(
@@ -35814,6 +36165,10 @@ class Orchestrator:
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
                 policy_denial_handler=policy_denial_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
                 action_policy=(
                     auditor_policy(
                         task_identifier=issue.identifier,
@@ -36106,6 +36461,10 @@ class Orchestrator:
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
                 terminal_transition_coordinator=self.terminal_transition_coordinator,
             )
             self._acp_agent_sessions[issue.id] = session

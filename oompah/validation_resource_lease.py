@@ -701,6 +701,41 @@ def _command_tokens(tokens: list[str]) -> list[str]:
     return tokens[index:]
 
 
+def _env_split_string_command(tokens: list[str]) -> str | None:
+    """Recover a literal GNU ``env -S`` command for policy comparison.
+
+    The heavyweight classifier intentionally treats split-string input as
+    opaque because ``env`` reparses it.  When the shell tokenizer already gave
+    us a literal value, however, recursively parsing that value lets reuse
+    policy recognize a configured gate hidden only by this wrapper.  Dynamic
+    or malformed forms remain opaque and therefore fail closed.
+    """
+
+    if _command_tokens(tokens) != ["__oompah_opaque_env_split_string__"]:
+        return None
+    for index, token in enumerate(tokens):
+        if os.path.basename(token) != "env":
+            continue
+        cursor = index + 1
+        while cursor < len(tokens):
+            option = tokens[cursor]
+            split_value = ""
+            remaining_index = cursor + 1
+            if option in {"-S", "--split-string"}:
+                if remaining_index >= len(tokens):
+                    return None
+                split_value = tokens[remaining_index]
+                remaining_index += 1
+            elif option.startswith("--split-string="):
+                split_value = option.partition("=")[2]
+            elif option.startswith("-S") and option != "-S":
+                split_value = option[2:]
+            if split_value:
+                return " ".join([split_value, *tokens[remaining_index:]]).strip()
+            cursor += 1
+    return None
+
+
 def _make_segment_is_heavy(tokens: list[str]) -> bool:
     command_tokens = _command_tokens(tokens)
     if not command_tokens or os.path.basename(command_tokens[0]) != "make":
@@ -786,12 +821,109 @@ def _pytest_segment_is_heavy(tokens: list[str]) -> bool:
     return True
 
 
-def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
-    """Return whether one segment invokes an unbounded unittest run."""
+def _pytest_segment_is_full_suite(tokens: list[str]) -> bool:
+    """Return whether a pytest invocation has no focused test selector.
+
+    Pytest flags may still narrow collection (for example ``-k``), but an
+    option-only invocation starts from the entire configured collection and is
+    therefore a full-suite run for gate-reuse policy.  Explicit files, node
+    IDs, or package selectors stay focused.  The conventional repository test
+    root is equivalent to an unqualified invocation.
+    """
+
+    command_tokens = _command_tokens(tokens)
+    invocation = _pytest_invocation(command_tokens)
+    if invocation is None:
+        return False
+    _, first_argument = invocation
+    arguments = command_tokens[first_argument:]
+    if any(argument in {"--help", "-h", "--version"} for argument in arguments):
+        return False
+
+    value_options = {
+        "-c",
+        "-k",
+        "-m",
+        "-n",
+        "-o",
+        "-p",
+        "-W",
+        "--basetemp",
+        "--capture",
+        "--code-highlight",
+        "--color",
+        "--confcutdir",
+        "--cov",
+        "--cov-config",
+        "--cov-context",
+        "--cov-report",
+        "--deselect",
+        "--dist",
+        "--doctest-glob",
+        "--durations",
+        "--durations-min",
+        "--ignore",
+        "--ignore-glob",
+        "--import-mode",
+        "--junit-prefix",
+        "--junitxml",
+        "--log-cli-format",
+        "--log-cli-level",
+        "--log-file",
+        "--log-file-format",
+        "--log-file-level",
+        "--log-format",
+        "--log-level",
+        "--max-worker-restart",
+        "--maxfail",
+        "--override-ini",
+        "--rootdir",
+        "--show-capture",
+        "--tb",
+        "--timeout",
+        "--tx",
+    }
+    attached_short_value_options = {"-c", "-k", "-m", "-n", "-o", "-p", "-W"}
+    selectors: list[str] = []
+    index = 0
+    options_finished = False
+    while index < len(arguments):
+        argument = arguments[index]
+        if not options_finished and argument == "--":
+            options_finished = True
+            index += 1
+            continue
+        if not options_finished and argument.startswith("-"):
+            option = argument.partition("=")[0]
+            if option in value_options and "=" not in argument:
+                index += 2
+                continue
+            if any(
+                argument.startswith(prefix) and argument != prefix
+                for prefix in attached_short_value_options
+            ):
+                index += 1
+                continue
+            index += 1
+            continue
+        selectors.append(argument)
+        index += 1
+
+    if not selectors:
+        return True
+    normalized_selectors = {
+        selector.replace("\\", "/").rstrip("/") or "."
+        for selector in selectors
+    }
+    return normalized_selectors <= {".", "./tests", "tests"}
+
+
+def _unittest_arguments(tokens: list[str]) -> list[str] | None:
+    """Return arguments after ``python -m unittest``, if present."""
 
     command_tokens = _command_tokens(tokens)
     if not command_tokens:
-        return False
+        return None
     python_executable = os.path.basename(command_tokens[0])
     if not (
         python_executable == "python"
@@ -800,21 +932,55 @@ def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
             and python_executable[6:].replace(".", "").isdigit()
         )
     ):
-        return False
+        return None
     try:
         module_index = command_tokens.index("-m", 1)
     except ValueError:
-        return False
+        return None
     if (
         module_index + 1 >= len(command_tokens)
         or command_tokens[module_index + 1] != "unittest"
     ):
+        return None
+    return command_tokens[module_index + 2 :]
+
+
+def _unittest_segment_is_heavy(tokens: list[str]) -> bool:
+    """Return whether one segment invokes an unbounded unittest run."""
+
+    arguments = _unittest_arguments(tokens)
+    if arguments is None:
         return False
-    arguments = command_tokens[module_index + 2 :]
     if any(argument in {"--help", "-h", "--version"} for argument in arguments):
         return False
     # unittest selectors are executable test code even when they name one
     # method.  Keep all actual runner invocations behind the shared lane.
+    return True
+
+
+def _unittest_segment_is_full_suite(tokens: list[str]) -> bool:
+    """Return whether unittest starts with discovery rather than named tests."""
+
+    arguments = _unittest_arguments(tokens)
+    if arguments is None or any(
+        argument in {"--help", "-h", "--version"} for argument in arguments
+    ):
+        return False
+    if "discover" in arguments:
+        return True
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "-k":
+            index += 2
+            continue
+        if argument.startswith("-k") and argument != "-k":
+            index += 1
+            continue
+        if argument.startswith("-"):
+            index += 1
+            continue
+        return False
     return True
 
 
@@ -1058,6 +1224,188 @@ def is_heavyweight_validation_command(command: str) -> bool:
                     return True
             elif "/" in executable:
                 return True
+    return False
+
+
+def is_full_suite_validation_command(
+    command: str,
+    *,
+    configured_command: str = "",
+) -> bool:
+    """Return whether auditor shell input launches a full-suite validation.
+
+    Evidence reuse deliberately requires byte-for-byte equality (after outer
+    whitespace trimming) with the configured command.  Observability has a
+    different job: it must recognize that wrappers, chains, and the project's
+    serial Make target still consume a full-suite lane.  Keep that semantic
+    classification here beside the shell parser without weakening the exact
+    quality-gate evidence key.
+    """
+
+    raw = str(command or "").strip()
+    if not raw:
+        return False
+    configured = str(configured_command or "").strip()
+    if configured and raw == configured:
+        return True
+
+    try:
+        segments = _shell_segments(raw)
+        configured_segments = _shell_segments(configured) if configured else []
+    except ValueError:
+        lowered = raw.casefold()
+        return "make test" in lowered or "make\ttest" in lowered
+
+    configured_tokens: list[str] | None = None
+    if len(configured_segments) == 1:
+        configured_tokens = _command_tokens(configured_segments[0])
+
+    for tokens in segments:
+        env_split_command = _env_split_string_command(tokens)
+        if env_split_command is not None and is_full_suite_validation_command(
+            env_split_command,
+            configured_command=configured,
+        ):
+            return True
+        command_tokens = _command_tokens(tokens)
+        if not command_tokens:
+            continue
+        if configured_tokens and command_tokens == configured_tokens:
+            return True
+
+        nested_command = _nested_shell_command(command_tokens)
+        if nested_command is not None and is_full_suite_validation_command(
+            nested_command,
+            configured_command=configured,
+        ):
+            return True
+
+        if _pytest_segment_is_full_suite(command_tokens):
+            return True
+        if _unittest_segment_is_full_suite(command_tokens):
+            return True
+        if _npm_segment_is_heavy(command_tokens) or _cargo_segment_is_heavy(
+            command_tokens
+        ):
+            return True
+        if os.path.basename(command_tokens[0]) in {"tox", "nox"}:
+            return True
+
+        if os.path.basename(command_tokens[0]) != "make":
+            continue
+        targets: list[str] = []
+        skip_next = False
+        for argument in command_tokens[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if argument == "--":
+                continue
+            if argument in {
+                "-C",
+                "--directory",
+                "-f",
+                "--file",
+                "-I",
+                "--include-dir",
+            }:
+                skip_next = True
+                continue
+            if argument.startswith("-") or "=" in argument:
+                continue
+            targets.append(argument)
+        if any(
+            target in {"test", "test-serial", "test-all", "tests"}
+            for target in targets
+        ):
+            return True
+    return False
+
+
+def is_focused_validation_command(command: str) -> bool:
+    """Return true only for provably selector-scoped heavyweight validation."""
+
+    raw = str(command or "").strip()
+    if not raw:
+        return False
+    try:
+        segments = _shell_segments(raw)
+    except ValueError:
+        return False
+    saw_focused = False
+    for tokens in segments:
+        command_tokens = _command_tokens(tokens)
+        nested_command = _nested_shell_command(command_tokens)
+        if nested_command is not None:
+            if is_heavyweight_validation_command(nested_command):
+                if not is_focused_validation_command(nested_command):
+                    return False
+                saw_focused = True
+            continue
+        if not is_heavyweight_validation_command(" ".join(tokens)):
+            continue
+        pytest_invocation = _pytest_invocation(command_tokens)
+        if pytest_invocation is not None:
+            if _pytest_segment_is_full_suite(command_tokens):
+                return False
+            saw_focused = True
+            continue
+        unittest_arguments = _unittest_arguments(command_tokens)
+        if unittest_arguments is not None:
+            if _unittest_segment_is_full_suite(command_tokens):
+                return False
+            saw_focused = True
+            continue
+        return False
+    return saw_focused
+
+
+def contains_configured_validation_command(
+    command: str,
+    *,
+    configured_command: str,
+) -> bool:
+    """Return whether shell input contains the configured gate invocation.
+
+    This comparison is stricter than full-suite classification but normalizes
+    non-semantic process wrappers such as ``env``, ``timeout``, and ``bash -c``.
+    It prevents a reused exact gate from being rerun merely by changing its
+    superficial shell spelling.  It is not used for evidence identity, which
+    remains exact-string keyed.
+    """
+
+    raw = str(command or "").strip()
+    configured = str(configured_command or "").strip()
+    if not raw or not configured:
+        return False
+    if raw == configured:
+        return True
+    try:
+        configured_segments = _shell_segments(configured)
+        segments = _shell_segments(raw)
+    except ValueError:
+        return False
+    if len(configured_segments) != 1:
+        return False
+    configured_tokens = _command_tokens(configured_segments[0])
+    if not configured_tokens:
+        return False
+    for tokens in segments:
+        env_split_command = _env_split_string_command(tokens)
+        if env_split_command is not None and contains_configured_validation_command(
+            env_split_command,
+            configured_command=configured,
+        ):
+            return True
+        command_tokens = _command_tokens(tokens)
+        if command_tokens == configured_tokens:
+            return True
+        nested_command = _nested_shell_command(command_tokens)
+        if nested_command is not None and contains_configured_validation_command(
+            nested_command,
+            configured_command=configured,
+        ):
+            return True
     return False
 
 

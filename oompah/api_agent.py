@@ -24,6 +24,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +49,8 @@ from oompah.validation_resource_lease import (
     ValidationLeaseError,
     ValidationLeaseOwner,
     ValidationResourceLease,
+    contains_configured_validation_command,
+    is_focused_validation_command,
     is_heavyweight_validation_command,
     managed_agent_validation_owner,
 )
@@ -148,6 +151,71 @@ _READ_FILE_DEFAULT_CHARS = 32_000
 _TOOL_RESULT_MAX_CHARS = 64_000
 _COMMAND_OUTPUT_PAGE_CHARS = 32_000
 _COMMAND_OUTPUT_MAX_RECORDS = 32
+_DISTINCT_VALIDATION_MODE = "task_required_distinct"
+
+
+def _validation_reuse_policy_decision(
+    args: Mapping[str, Any],
+    policy: Mapping[str, Any] | None,
+    authority_check: Callable[[], object] | None,
+) -> tuple[str, str | None, str]:
+    """Return a durable decision, optional denial, and bounded-mode reason.
+
+    A policy is present only when prompt construction observed reusable exact
+    gate evidence.  Heavy commands revalidate that authority at invocation
+    time.  If the proof has disappeared while task authority remains current,
+    the configured gate is required again and execution is allowed.
+    """
+
+    if not isinstance(policy, Mapping) or (
+        str(policy.get("decision") or "") != "reuse_authoritative_gate"
+    ):
+        return "", None, ""
+    command = str(args.get("command") or "").strip()
+    if not is_heavyweight_validation_command(command):
+        return "", None, ""
+    try:
+        authority = authority_check() if callable(authority_check) else "stale_authority"
+    except Exception:  # the distinct-mode escape must fail closed
+        authority = "stale_authority"
+    if authority is True:
+        authority = "reuse_authoritative_gate"
+    elif authority is False:
+        authority = "stale_authority"
+    if authority == "full_gate_required":
+        return "allowed_gate_now_required", None, ""
+    if authority != "reuse_authoritative_gate":
+        return (
+            "denied_stale_authority",
+            "Error: validation authority is stale; this heavyweight command was denied.",
+            "",
+        )
+
+    configured = str(policy.get("command") or "").strip()
+    if contains_configured_validation_command(
+        command,
+        configured_command=configured,
+    ):
+        return (
+            "denied_reused_gate",
+            "Error: the authoritative exact-head quality gate already passed; "
+            "rerunning that configured gate is denied.",
+            "",
+        )
+    if is_focused_validation_command(command):
+        return "", None, ""
+
+    mode = str(args.get("validation_mode") or "").strip()
+    justification = str(args.get("validation_justification") or "").strip()
+    if mode != _DISTINCT_VALIDATION_MODE or not justification:
+        return (
+            "denied_distinct_mode_required",
+            "Error: authoritative full-gate evidence is reusable. A different "
+            "full-suite mode requires validation_mode='task_required_distinct' "
+            "and a non-empty validation_justification. Focused checks remain allowed.",
+            "",
+        )
+    return "allowed_distinct_mode", None, justification
 
 _AUDITOR_FINALIZATION_PROMPT = (
     "This is the reserved audit-finalization turn. Do not continue inspecting "
@@ -345,7 +413,22 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "command": {
                         "type": "string",
                         "description": "The shell command to execute.",
-                    }
+                    },
+                    "validation_mode": {
+                        "type": "string",
+                        "enum": [_DISTINCT_VALIDATION_MODE],
+                        "description": (
+                            "Use task_required_distinct only when the task requires "
+                            "a full-suite mode distinct from a reusable exact gate."
+                        ),
+                    },
+                    "validation_justification": {
+                        "type": "string",
+                        "description": (
+                            "Required non-empty reason when validation_mode is "
+                            "task_required_distinct."
+                        ),
+                    },
                 },
                 "required": ["command"],
             },
@@ -779,6 +862,9 @@ def _exec_run_command(
     lease_cancelled: Callable[[], bool] | None = None,
     require_validation_lease: bool = False,
     successful_validation_handler: Callable[..., object] | None = None,
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
     result_delivery_required: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
@@ -790,6 +876,26 @@ def _exec_run_command(
     git_err = validate_git_command_is_noninteractive(command)
     if git_err:
         return f"Error: {git_err}"
+    validation_invocation_id = secrets.token_hex(16)
+    policy_decision, policy_denial, policy_justification = (
+        _validation_reuse_policy_decision(
+            args,
+            validation_reuse_policy,
+            validation_reuse_authority_check,
+        )
+    )
+    if policy_decision and callable(validation_reuse_policy_handler):
+        try:
+            validation_reuse_policy_handler(
+                command=command,
+                decision=policy_decision,
+                justification=policy_justification,
+                invocation_id=validation_invocation_id,
+            )
+        except Exception:  # policy enforcement must not depend on telemetry
+            logger.debug("Unable to record validation reuse policy", exc_info=True)
+    if policy_denial is not None:
+        return policy_denial
     # Build env from the agent's own env, layering caller-supplied overrides
     # on top, then remove client-only Basic-auth inputs before spawning a
     # command.  This applies even when no explicit overrides are supplied,
@@ -841,6 +947,60 @@ def _exec_run_command(
     validation_handle = None
     invocation_id: str | None = None
     result_pending = False
+    validation_process_started = False
+    validation_observation_completed = False
+    validation_command_started_at: float | None = None
+
+    handler_parameters: dict[str, inspect.Parameter] = {}
+    handler_accepts_kwargs = False
+    if callable(successful_validation_handler):
+        try:
+            handler_parameters = dict(
+                inspect.signature(successful_validation_handler).parameters
+            )
+            handler_accepts_kwargs = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in handler_parameters.values()
+            )
+        except (TypeError, ValueError):
+            handler_parameters = {}
+
+    def _notify_validation_observer(
+        *,
+        phase: str,
+        succeeded: bool,
+        outcome: str,
+        duration_seconds: float,
+    ) -> None:
+        """Bridge lifecycle-aware handlers without changing legacy callbacks."""
+
+        nonlocal validation_observation_completed
+        handler = successful_validation_handler
+        if not heavyweight_validation or not callable(handler):
+            return
+        lifecycle_aware = "phase" in handler_parameters
+        if phase == "started" and not lifecycle_aware:
+            return
+        if phase == "completed" and not lifecycle_aware and not succeeded:
+            return
+        values: dict[str, object] = {
+            "duration_seconds": max(float(duration_seconds), 0.0),
+            "succeeded": bool(succeeded),
+            "phase": phase,
+            "outcome": outcome,
+            "invocation_id": validation_invocation_id,
+        }
+        kwargs = {
+            name: value
+            for name, value in values.items()
+            if handler_accepts_kwargs or name in handler_parameters
+        }
+        try:
+            handler(command, workspace, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - evidence is an optimization
+            logger.warning("Unable to record auditor validation evidence: %s", exc)
+        if phase == "completed":
+            validation_observation_completed = True
 
     def _mark_result_pending() -> None:
         """Keep liveness ownership until the provider sees this result."""
@@ -951,7 +1111,15 @@ def _exec_run_command(
         if _authority_cancelled():
             return "Error: validation authority withdrawn before command launch"
         command_started = time.monotonic()
+        validation_command_started_at = command_started
         process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
+        validation_process_started = True
+        _notify_validation_observer(
+            phase="started",
+            succeeded=False,
+            outcome="running",
+            duration_seconds=0.0,
+        )
         if validation_handle is not None:
             try:
                 validation_handle.attach_process(
@@ -960,6 +1128,12 @@ def _exec_run_command(
                 )
             except ValidationLeaseError:
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="error",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 raise
         if invocation_id is not None:
             try:
@@ -969,11 +1143,23 @@ def _exec_run_command(
         while True:
             if _authority_cancelled():
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="authority_withdrawn",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 _mark_result_pending()
                 return "Error: validation authority withdrawn while command was running"
             remaining = runtime_deadline - time.monotonic()
             if remaining <= 0:
                 _terminate_process_tree(process)
+                _notify_validation_observer(
+                    phase="completed",
+                    succeeded=False,
+                    outcome="timed_out",
+                    duration_seconds=time.monotonic() - command_started,
+                )
                 _mark_result_pending()
                 return f"Error: command timed out after {timeout}s"
             try:
@@ -990,40 +1176,20 @@ def _exec_run_command(
         # provider while this bounded result is being prepared.
         _mark_result_pending()
 
-        if (
-            heavyweight_validation
-            and process.returncode == 0
-            and callable(successful_validation_handler)
-            and not _authority_cancelled()
-        ):
-            try:
-                try:
-                    signature = inspect.signature(successful_validation_handler)
-                    accepts_duration = (
-                        "duration_seconds" in signature.parameters
-                        or any(
-                            parameter.kind
-                            == inspect.Parameter.VAR_KEYWORD
-                            for parameter in signature.parameters.values()
-                        )
-                    )
-                except (TypeError, ValueError):
-                    accepts_duration = False
-                if accepts_duration:
-                    successful_validation_handler(
-                        command,
-                        workspace,
-                        duration_seconds=max(time.monotonic() - command_started, 0.0),
-                    )
-                else:
-                    # Keep the callback source-compatible with older tool
-                    # catalogs and tests that only accepted command/workspace.
-                    successful_validation_handler(command, workspace)
-            except Exception as exc:  # noqa: BLE001 - evidence is an optimization
-                logger.warning(
-                    "Unable to record auditor validation evidence: %s",
-                    exc,
-                )
+        authority_withdrawn = _authority_cancelled()
+        command_succeeded = process.returncode == 0 and not authority_withdrawn
+        _notify_validation_observer(
+            phase="completed",
+            succeeded=command_succeeded,
+            outcome=(
+                "passed"
+                if command_succeeded
+                else "authority_withdrawn"
+                if authority_withdrawn
+                else "failed"
+            ),
+            duration_seconds=time.monotonic() - command_started,
+        )
 
         parts: list[str] = []
         if stdout:
@@ -1056,6 +1222,17 @@ def _exec_run_command(
             f"{_COMMAND_OUTPUT_PAGE_CHARS}, limit={_COMMAND_OUTPUT_PAGE_CHARS})]"
         )
     except Exception as exc:
+        if validation_process_started and not validation_observation_completed:
+            _notify_validation_observer(
+                phase="completed",
+                succeeded=False,
+                outcome="error",
+                duration_seconds=(
+                    time.monotonic() - validation_command_started_at
+                    if validation_command_started_at is not None
+                    else 0.0
+                ),
+            )
         return f"Error running command: {exc}"
     finally:
         if invocation_id is not None:
@@ -1231,7 +1408,10 @@ def _execute_tool(
     command_output_store: CommandOutputStore | None = None,
     validation_lease: ValidationResourceLease | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
-    successful_validation_handler: Callable[[str, Path], object] | None = None,
+    successful_validation_handler: Callable[..., object] | None = None,
+    validation_reuse_policy: Mapping[str, Any] | None = None,
+    validation_reuse_authority_check: Callable[[], object] | None = None,
+    validation_reuse_policy_handler: Callable[..., object] | None = None,
     project_store: Any = None,
     submission_handler: Any = None,
 ) -> str:
@@ -1350,6 +1530,14 @@ def _execute_tool(
             if successful_validation_handler is not None:
                 command_kwargs["successful_validation_handler"] = (
                     successful_validation_handler
+                )
+            if validation_reuse_policy is not None:
+                command_kwargs["validation_reuse_policy"] = validation_reuse_policy
+                command_kwargs["validation_reuse_authority_check"] = (
+                    validation_reuse_authority_check
+                )
+                command_kwargs["validation_reuse_policy_handler"] = (
+                    validation_reuse_policy_handler
                 )
             if tool_liveness is not None:
                 command_kwargs["result_delivery_required"] = True
@@ -1665,7 +1853,10 @@ class ApiAgentSession:
         tool_liveness: Any = None,
         policy_denial_handler: Any = None,
         validation_lease: ValidationResourceLease | None = None,
-        successful_validation_handler: Callable[[str, Path], object] | None = None,
+        successful_validation_handler: Callable[..., object] | None = None,
+        validation_reuse_policy: Mapping[str, Any] | None = None,
+        validation_reuse_authority_check: Callable[[], object] | None = None,
+        validation_reuse_policy_handler: Callable[..., object] | None = None,
         project_store: Any = None,
         submission_handler: Any = None,
     ):
@@ -1729,6 +1920,9 @@ class ApiAgentSession:
         self.policy_denial_handler = policy_denial_handler
         self.validation_lease = validation_lease
         self.successful_validation_handler = successful_validation_handler
+        self.validation_reuse_policy = validation_reuse_policy
+        self.validation_reuse_authority_check = validation_reuse_authority_check
+        self.validation_reuse_policy_handler = validation_reuse_policy_handler
         self.project_store = project_store
         self.submission_handler = submission_handler
         self._force_audit_finalization = False
@@ -2157,6 +2351,13 @@ class ApiAgentSession:
                             lease_cancelled=is_cancelled,
                             successful_validation_handler=(
                                 self.successful_validation_handler
+                            ),
+                            validation_reuse_policy=self.validation_reuse_policy,
+                            validation_reuse_authority_check=(
+                                self.validation_reuse_authority_check
+                            ),
+                            validation_reuse_policy_handler=(
+                                self.validation_reuse_policy_handler
                             ),
                             project_store=self.project_store,
                             submission_handler=self.submission_handler,

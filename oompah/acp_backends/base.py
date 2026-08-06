@@ -141,6 +141,8 @@ class AcpBackendOptions:
     auditor: bool = False
     audit_target: Any = None
     audit_result_handler: Any = None
+    validation_reuse_policy: dict[str, Any] | None = None
+    validation_reuse_authority_check: Callable[[], object] | None = None
     # Server-owned terminal transition coordinator. ACP task mutation tools
     # use this instead of writing Done/Merged/Archived directly.
     terminal_transition_coordinator: Any = None
