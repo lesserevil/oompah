@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.config import ServiceConfig
 from oompah.error_watcher import ErrorWatcher
@@ -531,7 +533,7 @@ def test_stop_drains_blocked_maintenance_future_and_owned_executors(
     orch._recover_release_addendum_leases = lambda: None
     orch._handle_reconcile = async_noop
     orch._handle_review_check = async_noop
-    orch._handle_dispatch_needed = async_noop
+    orch._handle_dispatch_needed = tick_dispatch_mock()
     orch._handle_yolo_review = async_yolo_noop
     orch._handle_auto_update = async_noop
     orch._notify_observers = lambda: None

@@ -17,6 +17,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile, Issue
 from oompah.orchestrator import Orchestrator
@@ -281,7 +283,7 @@ class TestTickTimingsStorage:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={
+        orch._handle_dispatch_needed = tick_dispatch_mock({
             "candidate_fetch": 10.0,
             "blocker_pre_resolution": 5.0,
             "duplicate_detection": 2.0,
@@ -373,7 +375,7 @@ class TestTickTimingsStorage:
             "orphan_reset": 6.0,
         }
         orch = self._make_fast_tick_orch(tmp_path)
-        orch._handle_dispatch_needed = AsyncMock(return_value=expected_substeps)
+        orch._handle_dispatch_needed = tick_dispatch_mock(expected_substeps)
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
@@ -386,13 +388,13 @@ class TestTickTimingsStorage:
         orch = self._make_fast_tick_orch(tmp_path)
 
         # First tick
-        orch._handle_dispatch_needed = AsyncMock(return_value={"candidate_fetch": 50.0})
+        orch._handle_dispatch_needed = tick_dispatch_mock({"candidate_fetch": 50.0})
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
         first_dispatch_substeps = dict(orch._last_tick_timings["dispatch_substeps"])
 
         # Second tick with different timings
-        orch._handle_dispatch_needed = AsyncMock(return_value={"candidate_fetch": 200.0})
+        orch._handle_dispatch_needed = tick_dispatch_mock({"candidate_fetch": 200.0})
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
         second_dispatch_substeps = dict(orch._last_tick_timings["dispatch_substeps"])
@@ -520,7 +522,7 @@ class TestSlowTickSubstepLogging:
             "rebase_filing": 20.0,
             "orphan_reset": 30.0,
         }
-        orch._handle_dispatch_needed = AsyncMock(return_value=substeps)
+        orch._handle_dispatch_needed = tick_dispatch_mock(substeps)
 
         # Inject a deterministic clock: t0=0.0, t4b=3.0 → total_ms=3000 > 2000.
         orch._monotonic_clock = _make_slow_tick_clock()
@@ -566,7 +568,7 @@ class TestSlowTickSubstepLogging:
             "rebase_filing": 0.0,
             "orphan_reset": 0.0,
         }
-        orch._handle_dispatch_needed = AsyncMock(return_value=substeps)
+        orch._handle_dispatch_needed = tick_dispatch_mock(substeps)
 
         # Inject a deterministic clock: t0=0.0, t4b=3.0 → total_ms=3000 > 2000.
         orch._monotonic_clock = _make_slow_tick_clock()
@@ -602,7 +604,7 @@ class TestSlowTickSubstepLogging:
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
 
         # Inject a deterministic fast clock: all timing calls advance by 1 ms.
         # With ~12 calls in _tick(), total_ms ≤ 12 ms, far below the 2000 ms
@@ -629,7 +631,7 @@ class TestSlowTickSubstepLogging:
             orch._notify_observers = MagicMock()
             orch._maybe_run_watchdog = MagicMock()
             orch._maybe_heal_repos = MagicMock()
-            orch._handle_dispatch_needed = AsyncMock(return_value={})
+            orch._handle_dispatch_needed = tick_dispatch_mock()
             orch._monotonic_clock = _make_fast_tick_clock()
 
             with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
@@ -674,7 +676,7 @@ class TestTickTimingsSnapshot:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={
+        orch._handle_dispatch_needed = tick_dispatch_mock({
             "candidate_fetch": 5.0,
             "blocker_pre_resolution": 1.0,
             "duplicate_detection": 1.0,
@@ -725,7 +727,7 @@ class TestTickTimingsSnapshot:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={
+        orch._handle_dispatch_needed = tick_dispatch_mock({
             "candidate_fetch": 10.0,
             "blocker_pre_resolution": 5.0,
             "duplicate_detection": 2.0,
@@ -774,7 +776,7 @@ class TestTickTimingsSnapshot:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -799,13 +801,13 @@ class TestTickTimingsSnapshot:
         orch._maybe_heal_repos = MagicMock()
 
         # First tick
-        orch._handle_dispatch_needed = AsyncMock(return_value={"candidate_fetch": 10.0})
+        orch._handle_dispatch_needed = tick_dispatch_mock({"candidate_fetch": 10.0})
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
         snap1 = orch.get_snapshot()["tick_timings"]
 
         # Second tick with different substep timing
-        orch._handle_dispatch_needed = AsyncMock(return_value={"candidate_fetch": 999.0})
+        orch._handle_dispatch_needed = tick_dispatch_mock({"candidate_fetch": 999.0})
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
         snap2 = orch.get_snapshot()["tick_timings"]
@@ -861,7 +863,7 @@ class TestTimingRobustness:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
