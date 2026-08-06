@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T21:19:28.429311Z'
+updated_at: '2026-08-06T21:20:11.417275Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -47,14 +47,17 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-866
   base_branch: epic-OOMPAH-763
-  base_sha: 72cc4481c3eee5605345a4a36c3fe688149572b8
+  base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
   head_sha: ee05a0ad8fbdf4459bf710a29a9926b088b70d10
   submitted_at: '2026-08-06T21:19:03.576783+00:00'
-  updated_at: '2026-08-06T21:19:03.576783+00:00'
+  updated_at: '2026-08-06T21:20:05.159332+00:00'
+  last_error: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs
+    from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing
+    to reset a preserved recovery snapshot
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 3166
@@ -168,5 +171,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 27s
 - Log: OOMPAH-866__20260806T205418Z.jsonl
+---
+author: oompah
+created: 2026-08-06 21:20
+---
+Integration could not verify `epic-OOMPAH-763--task-OOMPAH-866`: epic worktree head 72cc4481c3eee5605345a4a36c3fe688149572b8 differs from the published epic head a5d1973d043ff2375d56d89d0ea8bd5326e24f63; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
