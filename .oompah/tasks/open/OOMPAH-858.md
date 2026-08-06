@@ -11,13 +11,40 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:35:29.080836Z'
-work_branch: null
+updated_at: '2026-08-06T09:36:00.357557Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: b246bd903dc87ce89edfb8c74322723bde4e0b6f84a19e884acf560e0426765a
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 638791e5-1727-4589-a020-9a3dcaa7cedb
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T09:35:40.775858+00:00'
+  claim_expires_at: '2026-08-06T10:05:40.775858+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 5b29980a-9b9a-4959-86e2-5b04287e09b2
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763--task-OOMPAH-858
+  base_branch: epic-OOMPAH-763
+  base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+  updated_at: '2026-08-06T09:35:55.856464+00:00'
 ---
 ## Summary
 
@@ -40,5 +67,15 @@ author: oompah
 created: 2026-08-06 09:31
 ---
 Third live failure mode: when a child submitted head is already an ancestor of the current nested target, execute_integration resolves the combined candidate to the newer target head but keeps QualityGateOwner.head_sha at the older submitted head. The exact-head gate correctly refuses with owner metadata mismatch, the queue blocks, and repair dispatches unnecessarily. Production fix must canonicalize submitted/already-integrated delivery to the resolved candidate head atomically across queue generation, owner, gate, commit_allowed, integration metadata, and audit evidence; add an ancestor/no-op nested child regression that proves one gate and no repair worker.
+---
+author: oompah
+created: 2026-08-06 09:35
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 09:36
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
