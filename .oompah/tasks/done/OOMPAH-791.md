@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T06:07:50.630198Z'
+updated_at: '2026-08-06T06:08:14.985018Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -71,8 +71,8 @@ oompah.integration:
     OOMPAH-793: a744be37d42047e25e6fc62a6a64878c187290e0
     OOMPAH-807: b1c089614b81076b961c7681b6ddad64ca68191e
 oompah.task_costs:
-  total_input_tokens: 13
-  total_output_tokens: 607
+  total_input_tokens: 16
+  total_output_tokens: 844
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -82,6 +82,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 3
       output_tokens: 51
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 3
+      output_tokens: 237
       cost_usd: 0.0
   runs:
   - profile: default
@@ -96,6 +100,12 @@ oompah.task_costs:
     output_tokens: 51
     cost_usd: 0.0
     recorded_at: '2026-08-04T21:39:32.456001+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 237
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T06:08:09.697386+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-791__20260804T202331Z
@@ -819,5 +829,15 @@ Safe evidence:
 - branch_matches_origin: epic-OOMPAH-768--task-OOMPAH-791 == 2c6fc5259c2428f816d4c25a9533f638a3e9df09
 - key_new_files: oompah/epic_workflow.py, plans/epic-workflow-facts.md, tests/test_epic_workflow.py
 - key_changed_files: oompah/orchestrator.py, oompah/work_decision.py, oompah/workflow_facts.py, oompah/workflow_jobs.py, oompah/projects.py
+---
+author: oompah
+created: 2026-08-06 06:08
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 84, Tool calls: 60
+- Tokens: 3 in / 237 out [240 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 54s
+- Log: OOMPAH-791__20260806T054330Z.jsonl
 ---
 <!-- COMMENTS:END -->
