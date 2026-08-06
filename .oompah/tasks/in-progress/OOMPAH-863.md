@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T21:50:32.882695Z'
+updated_at: '2026-08-06T21:50:41.697496Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-06 21:50
 ---
 Verification: exact pushed head remains 3e5ddd154 with no working-tree changes. Its focused suites previously passed 70/70 serial and 70/70 parallel, and check-secrets passed; the combined-tree gate then reached 16,309 passes with one unrelated event-loop failure caused by the leaked LogFileWatcher.start coroutine now fixed by dependency OOMPAH-845 at 7bb2362fc. Current git diff --check passes. A local re-run could not start because this session validation guard points its lease DB at a read-only operator checkout; no test assertion or secret scan failure was reported.
+---
+author: oompah
+created: 2026-08-06 21:50
+---
+Completion: delivered the exact standalone Ready authority/reservation race repair at 3e5ddd154. Same-task concurrent and restarted losers cannot publish stale capacity waits after an exact reservation or adopted review exists; genuine other-task capacity waits, ordering, one-review fencing, create-failure diagnostics, close/release, exact-head handling, and restart recovery remain covered. Branch is clean, pushed, and tracking its task remote; submission is intentionally ordered behind OOMPAH-845 so the next combined gate includes the unrelated coroutine-leak fix.
 ---
 <!-- COMMENTS:END -->
