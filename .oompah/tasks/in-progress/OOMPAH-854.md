@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T08:05:54.410813Z'
+updated_at: '2026-08-06T08:14:16.783414Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -312,5 +312,10 @@ author: oompah
 created: 2026-08-06 08:05
 ---
 Third repair revision complete and under independent review. Canonical restart now owns a pre-quiesce restart claim; delayed resume/IPC cannot reopen it; provider launch uses a two-phase generation handshake with atomic API/ACP/CLI start-task publication; rollback selects the first canonical unresolved record and preserves the Merged successor/retry budget; metrics immediately reconcile running→queued using retry_attempt; and two-audit restart/new-instance exactly-once races are covered. Diff check passes; no tests/commit/push yet.
+---
+author: oompah
+created: 2026-08-06 08:14
+---
+Third independent review REJECTED the repair. Remaining P0s: restart drain sets a scheduled marker before create_task and can permanently deadlock if task creation fails; final worker and provider phase-two create_task failures do not perform exact unadmitted cleanup, leaving claims/attempt budget; cancellation before the provider task's first turn is not generically rolled back; the two-audit test manually dispatches and does not prove fresh-orchestrator durable recovery/deduplication. Accepted canonical claim, rollback selection/CAS, metrics, and lock work remains. No tests were run.
 ---
 <!-- COMMENTS:END -->
