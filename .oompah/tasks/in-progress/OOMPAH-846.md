@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:42:25.815271Z'
+updated_at: '2026-08-06T04:50:52.567735Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 22m 58s
 - Log: OOMPAH-846__20260806T041933Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:50
+---
+Third live reproduction at 2026-08-06T04:52Z: completion auditor OOMPAH-826 projected tool_liveness phase=running and service-child PID 3113755 ran `python -m pytest tests/test_epic_strategy.py -x -q` for at least 226 seconds while OOMPAH-821 was the sole recorded exact_gate owner. validation_resources showed owner_count=1 (OOMPAH-821) and no auditor owner/waiter. The process exited before targeted termination. This proves the uncovered path includes terminal-auditor command execution as well as Codex native implementation command_execution. Tests must cover both routes and verify no process launches before lease ownership is durable.
 ---
 <!-- COMMENTS:END -->
