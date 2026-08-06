@@ -12,6 +12,8 @@ from unittest import mock
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project
@@ -251,7 +253,7 @@ def test_standalone_gate_does_not_hold_shared_queue_driver(harness):
     )
     orch._handle_reconcile = mock.AsyncMock()
     orch._handle_review_check = mock.AsyncMock()
-    orch._handle_dispatch_needed = mock.AsyncMock(return_value={})
+    orch._handle_dispatch_needed = tick_dispatch_mock()
     orch._handle_yolo_review = mock.AsyncMock(return_value=0.0)
     orch._notify_observers = mock.MagicMock()
     orch._maybe_run_watchdog = mock.MagicMock()

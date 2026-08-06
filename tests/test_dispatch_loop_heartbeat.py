@@ -36,6 +36,8 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.error_watcher import ErrorWatcher
 from oompah.models import Issue, RunningEntry
@@ -612,7 +614,7 @@ class TestGetSnapshotIncludesAlert:
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
