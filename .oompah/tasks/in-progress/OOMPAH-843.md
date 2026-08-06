@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:42:31.370582Z'
+updated_at: '2026-08-06T02:43:35.503280Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,30 @@ created: 2026-08-06 02:42
 **Relevant code to explore**: oompah/api_agent.py, oompah/acp_tools.py, oompah/auditor.py, project configuration, validation-resource lease/liveness.
 
 Starting code exploration now.
+---
+author: oompah
+created: 2026-08-06 02:43
+---
+**DISCOVERY**: Found the relevant code:
+
+1. **Project configuration** (oompah/models.py): Already has `auditor_validation_targets` field - list of allowed Make targets
+2. **Auditor validation** (oompah/auditor.py): Functions `_get_auditor_validation_targets()`, `_build_auditor_command_regex()`, and `check_auditor_command()` implement target-based command validation
+3. **Global timeout** (oompah/api_agent.py): 
+   - Default: 720 seconds
+   - Configurable via OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS env var
+   - Single global timeout applied uniformly to all targets
+
+**Key Gap**: No per-target deadline configuration. Need to:
+- Add `auditor_validation_target_deadlines` dict to Project model  
+- Validate at startup that each target has compatible deadline (deadline >= estimated_duration)
+- Modify deadline resolution in api_agent.py to use per-target values
+- Add startup validation to fail closed with configuration error
+
+**Implementation plan**:
+1. Extend Project model with per-target deadlines
+2. Add startup validation in project bootstrap/loading
+3. Modify `_resolve_run_command_timeout()` to accept target parameter
+4. Update auditor dispatch to pass target info
+5. Comprehensive test coverage
 ---
 <!-- COMMENTS:END -->
