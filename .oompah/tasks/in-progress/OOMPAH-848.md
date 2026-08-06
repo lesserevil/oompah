@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:53:33.472527Z'
+updated_at: '2026-08-06T04:53:46.614462Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -160,5 +160,15 @@ author: oompah
 created: 2026-08-06 04:51
 ---
 Implementation: added Orchestrator._budget_snapshot() as the single local-state budget projection and made get_snapshot() consume it, preserving the production budget shape. Updated the free-tier snapshot assertions to use the projection, strengthened the named regression to assert exactly one increment plus immediate active/count values, and added explicit assert-not-called coverage for audit, validation-lease, tracker, review, workflow, quality-gate, and running-state collectors.
+---
+author: oompah
+created: 2026-08-06 04:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 46
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 14s
+- Log: OOMPAH-848__20260806T044358Z.jsonl
 ---
 <!-- COMMENTS:END -->
