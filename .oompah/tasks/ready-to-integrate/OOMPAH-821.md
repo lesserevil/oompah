@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T03:01:38.827233Z'
+updated_at: '2026-08-06T03:43:14.944969Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -46,51 +46,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
-  head_sha: b8d6645cd65194d9bebdec1a38b5ab640190fcf9
-  submitted_at: '2026-08-06T01:13:47.542946+00:00'
-  updated_at: '2026-08-06T02:53:52.810809+00:00'
-  last_error: "Combined-tree quality gate failed: ders, stream = encode_request(\n\
-    \ntests/test_submission_fencing.py::test_late_tracked_changes_after_submission_acceptance_are_detected\n\
-    tests/test_submission_fencing.py::test_clean_submission_with_no_late_changes_proceeds_to_integration\n\
-    tests/test_submission_fencing.py::test_consumed_prior_checkpoint_does_not_reopen_successor_submission\n\
-    tests/test_submission_fencing.py::test_published_commit_tree_checkpoint_with_unchanged_head_reopens\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/events.py:88:\
-    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._context.run(self._callback,\
-    \ *self._args)\n  Enable tracemalloc to get traceback where the object was allocated.\n\
-    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_draft_not_counted\n\
-    \  <string>:8: RuntimeWarning: coroutine 'sleep' was never awaited\n  Enable tracemalloc\
-    \ to get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_submit_queue_concurrency.py::TestCountOpenReviews::test_three_non_draft_returns_three\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/oompah/orchestrator.py:1813:\
-    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    self._stale_cache_lock\
-    \ = threading.Lock()\n  Enable tracemalloc to get traceback where the object was\
-    \ allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_websocket_authenticated_bootstrap.py::TestWebSocketBootstrapIncludesAuth::test_ws_bootstrap_auth_disabled_shows_false\n\
-    tests/test_websocket_authenticated_bootstrap.py::TestRESTWebSocketConsistency::test_rest_and_ws_both_include_build_id\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-dhj2e8kn/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x713448cb39c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick\n\
-    ERROR tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick\n\
-    = 1 failed, 16116 passed, 8 skipped, 1 xfailed, 51 warnings, 1 error in 1010.38s\
-    \ (0:16:50) =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: dce011377c5294dfbfe656239bbe8c5d9d6c5a1f
+  submitted_at: '2026-08-06T03:43:07.123446+00:00'
+  updated_at: '2026-08-06T03:43:07.123446+00:00'
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -475,5 +438,15 @@ author: oompah
 created: 2026-08-06 03:01
 ---
 Direct owner repair in progress after the exact b8d6645 gate failed at the repo-heal unit test. Root cause is test coupling: _tick() invoked the unrelated full-corpus release-addendum recovery scan under xdist saturation, exceeded the global timeout, and left the intentionally failed maintenance future visible to teardown. The branch now stubs that unrelated scan and adds bounded per-test timeout coverage to this test and the cold tracker-kind constructor regression; the two exact tests pass. I will run repeated/affected coverage after the active serial audit gate drains, then push and resubmit.
+---
+author: oompah
+created: 2026-08-06 03:43
+---
+Direct CI repair complete at exact pushed head dce011377c5294dfbfe656239bbe8c5d9d6c5a1f. The repo-heal unit test now stubs only unrelated full-corpus release-addendum recovery while retaining real _tick maintenance/future failure semantics; it and the cold GitHub tracker-kind constructor have bounded 20-second lifecycle allowances. Exact reproducers passed, independent review found no blockers, and both affected modules now pass 320/320 with -n 4; diff is clean. Systemic recurrence is tracked by OOMPAH-844.
+---
+author: oompah
+created: 2026-08-06 03:43
+---
+Isolate the repo-heal error assertion from unrelated corpus recovery and bound cold lifecycle construction; exact reproducers, independent review, and 320 affected tests pass at dce011377.
 ---
 <!-- COMMENTS:END -->
