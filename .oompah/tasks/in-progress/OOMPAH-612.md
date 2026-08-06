@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:00:55.443799Z'
+updated_at: '2026-08-06T21:06:48.294346Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -483,5 +483,10 @@ author: oompah
 created: 2026-08-06 21:00
 ---
 Discovery: current origin/main contains the merged ACP fix. Both Claude and OpenCode async submit_audit_result handlers offload submit_auditor_result via asyncio.to_thread (oompah/acp_tools.py), while orchestrator.py retains the synchronous bounded coordinator bridge for API and ACP sessions. Existing regression coverage exercises same-loop success/idempotency and rejection; I am validating current tests and checking for remaining coverage gaps.
+---
+author: oompah
+created: 2026-08-06 21:06
+---
+Verification: focused auditor/ACP/terminal suites pass: 244 passed, including both ACP same-loop/idempotency regressions and coordinator rejection. The broad serial gate was attempted via the provisioned test runtime; its six unrelated ACP model-handoff failures were caused by OOMPAH_AGENT_LOG_DIR defaulting to the read-only operator checkout, while the issue-specific bridge tests passed. The normal make test setup is unavailable here because the inherited validation lease targets a read-only checkout and host uv fails its DBus transient scope.
 ---
 <!-- COMMENTS:END -->
