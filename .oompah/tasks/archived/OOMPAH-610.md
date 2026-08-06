@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-08-06T20:43:42.541366Z'
+updated_at: '2026-08-06T21:01:25.919546Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -118,6 +118,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-9ad0fa99a03f: '2026-07-30T19:29:33.337559+00:00'
     attempt-7fac07b83954: '2026-07-30T19:37:05.502638+00:00'
+    attempt-3cc33ac124a0: '2026-08-06T21:01:21.977916+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-610
+    target_state: Archived
+    evidence_fingerprint: f3cdbc2a7ba568ae0563863c51332bda5ce3e0a60137a4eabe8b0601bc4124fc
+    audit_ids:
+    - audit-0792a8f48e93
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T21:01:21.977927+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-610
+    audit_id: audit-0792a8f48e93
+    attempt_id: attempt-3cc33ac124a0
+    target_state: Archived
+    evidence_fingerprint: f3cdbc2a7ba568ae0563863c51332bda5ce3e0a60137a4eabe8b0601bc4124fc
+    status: Archived
+    audit_ids:
+    - audit-0792a8f48e93
+    applied: false
+    created_at: '2026-08-06T21:01:21.977944+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -193,7 +216,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-610
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -202,7 +225,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3cc33ac124a0
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -212,13 +235,16 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-06T20:43:22.520662+00:00'
       branch_key: OOMPAH-610
+      verdict: pass
+      completed_at: '2026-08-06T21:01:21.977710+00:00'
+      ended_at: '2026-08-06T21:01:21.977710+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-06T20:42:19.193953+00:00'
-    updated_at: '2026-08-06T20:43:22.520662+00:00'
+    updated_at: '2026-08-06T21:01:21.977710+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad0fa99a03f
