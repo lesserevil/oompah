@@ -339,6 +339,14 @@ non-owner actors, changed heads, failed checks, and previously passed audits
 are rejected. Repeating the identical request coalesces with the one pending
 audit and does not create another auditor.
 
+Integrated-audit recovery alerts expose a `recovery_action` matching the
+coordinator contract. `audit_retry` is used for infrastructure, policy, or
+`no_auditor` exhaustion; `audit_retry_evidence_addendum` is reserved for
+matching `missing_evidence` records; all other completed records prescribe
+`audit_override`. A successful retry or override clears the task-level alert
+immediately, and the durable terminal status prevents it from returning after
+restart.
+
 ## Explicit Owner Override
 
 When an audit is infeasible (e.g., no independent candidates available) or a

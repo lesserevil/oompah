@@ -38,6 +38,7 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
     _build_new_entries,
+    accepted_audit_recovery_action,
 )
 from oompah.statuses import IN_VALIDATION, DONE, MERGED, ARCHIVED
 
@@ -218,12 +219,16 @@ def _coordinator(
     post_comments: bool = True,
     metrics: Any | None = None,
     validate_terminal_transition: Any | None = None,
+    clear_integrated_audit_recovery_alert: Any | None = None,
 ) -> TerminalTransitionCoordinator:
     return TerminalTransitionCoordinator(
         tracker=tracker or _MemoryTracker(),
         project_store=_LockStore(),
         post_comments=post_comments,
         metrics=metrics,
+        clear_integrated_audit_recovery_alert=(
+            clear_integrated_audit_recovery_alert
+        ),
         validate_terminal_transition=validate_terminal_transition,
     )
 
@@ -1085,6 +1090,40 @@ class TestOwnerOverrides:
         assert stored.pending_chain[0].request_state == RequestState.CANCELLED
         assert ("overridden", (PROJECT_ID, TASK_ID, record.audit_id)) in metrics.calls
 
+    def test_successful_override_clears_integrated_task_alert(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_done_record()
+        _seed_metadata(tracker, [record])
+        cleared: list[tuple[str, str]] = []
+        coordinator = _coordinator(
+            tracker,
+            post_comments=False,
+            clear_integrated_audit_recovery_alert=lambda project, task: cleared.append(
+                (project, task)
+            ),
+        )
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                _fingerprint(),
+                "Owner approved this terminal transition.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert cleared == [(PROJECT_ID, TASK_ID)]
+
     def test_override_retires_all_duplicate_rows_and_replays_idempotently(self) -> None:
         tracker = _MemoryTracker()
         metrics = _MetricsRecorder()
@@ -1897,6 +1936,55 @@ class TestRetryFailedAudit:
             status_label_authorized_logins=["project-owner"],
         )
 
+    def test_recovery_action_matches_record_classification(self) -> None:
+        assert (
+            accepted_audit_recovery_action(_exhausted_no_auditor_record())
+            == "audit_retry"
+        )
+        assert (
+            accepted_audit_recovery_action(_exhausted_missing_evidence_record())
+            == "audit_retry_evidence_addendum"
+        )
+
+        missing = _exhausted_missing_evidence_record()
+        not_rearmable = replace(
+            missing,
+            attempts=[
+                replace(
+                    missing.attempts[0],
+                    failure_classification=FailureClassification.INCOMPLETE,
+                )
+            ],
+        )
+        assert accepted_audit_recovery_action(not_rearmable) == "audit_override"
+
+    def test_successful_rearm_clears_integrated_task_alert(self) -> None:
+        tracker = _MemoryTracker()
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
+        cleared: list[tuple[str, str]] = []
+        coordinator = _coordinator(
+            tracker,
+            post_comments=False,
+            clear_integrated_audit_recovery_alert=lambda project, task: cleared.append(
+                (project, task)
+            ),
+        )
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Transport repaired.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert cleared == [(PROJECT_ID, TASK_ID)]
+
     def test_owner_rearms_same_evidence_without_reopening_implementation(self) -> None:
         tracker = _MemoryTracker()
         metrics = _MetricsRecorder()
@@ -2311,6 +2399,23 @@ class TestApplyPassSingleTarget:
         _apply(coord, issue, _pass_result(record))
 
         assert tracker.current_status(TASK_ID) == DONE
+
+    def test_pass_clears_integrated_task_alert_after_terminal_status(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        cleared: list[tuple[str, str]] = []
+        coord = _coordinator(
+            tracker,
+            clear_integrated_audit_recovery_alert=lambda project, task: cleared.append(
+                (project, task)
+            ),
+        )
+
+        outcome = _apply(coord, issue, _pass_result(record))
+
+        assert outcome.success is True
+        assert cleared == [(PROJECT_ID, TASK_ID)]
 
     def test_pass_posts_result_comment_referencing_target(self) -> None:
         tracker = _MemoryTracker()

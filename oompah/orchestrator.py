@@ -216,6 +216,7 @@ from oompah.terminal_audit_health import (
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
+    accepted_audit_recovery_action,
 )
 from oompah.workflow_contract import TaskDisposition, WorkflowOwner
 from oompah.work_decision import PermittedAction
@@ -1419,6 +1420,9 @@ class Orchestrator:
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
             revoke_auditor_authority=self._revoke_auditor_authority,
             clear_audit_alert=self.clear_terminal_audit_alert,
+            clear_integrated_audit_recovery_alert=(
+                self._clear_integrated_audit_recovery_alert
+            ),
             validate_terminal_transition=self._validate_terminal_transition,
         )
         # Serializes the final implementation status claim with terminal-audit
@@ -8472,6 +8476,37 @@ class Orchestrator:
             alert["level"] = level
             alert["updated_at"] = updated_at_iso
 
+    def _integrated_audit_recovery_action(
+        self,
+        project_id: str,
+        task_id: str,
+        target_state: str,
+        evidence_fingerprint: EvidenceFingerprint,
+    ) -> str:
+        """Resolve the coordinator-accepted action for an integrated failure."""
+
+        try:
+            target = TargetState.from_raw(target_state)
+            tracker = self._tracker_for_project(project_id)
+            document = TerminalAuditMetadataStore(
+                tracker, self.project_store, project_id
+            ).read(task_id)
+        except Exception:  # metadata uncertainty must remain fail-closed
+            return "audit_override"
+
+        matching = [
+            record
+            for record in document.pending_chain
+            if record.project_id == project_id
+            and record.task_id == task_id
+            and record.target_state == target
+            and record.request_state == RequestState.COMPLETED
+            and record.evidence_fingerprint == evidence_fingerprint
+        ]
+        if not matching:
+            return "audit_override"
+        return accepted_audit_recovery_action(matching[-1])
+
     def _arm_integrated_audit_recovery_alert(
         self,
         project_id: str,
@@ -8479,15 +8514,40 @@ class Orchestrator:
         target_state: str,
         reason: str,
         integrated_sha: str,
+        *,
+        recovery_action: str = "audit_override",
+        evidence_fingerprint: EvidenceFingerprint | None = None,
     ) -> bool:
-        """Surface one owner-rearm instruction for a completed audit failure."""
+        """Surface one executable owner action for a completed audit failure."""
 
         source = f"terminal_audit_recovery:{project_id}:{task_id}"
+        if recovery_action == "audit_retry":
+            instruction = (
+                f"An authenticated project owner must repair the reported audit "
+                f"condition and rearm target {target_state} with `audit_retry=true` "
+                "and an `audit_retry_reason`; do not provide an evidence addendum."
+            )
+        elif recovery_action == "audit_retry_evidence_addendum":
+            fingerprint = (
+                evidence_fingerprint.digest
+                if isinstance(evidence_fingerprint, EvidenceFingerprint)
+                else "the exact current canonical fingerprint"
+            )
+            instruction = (
+                f"An authenticated project owner must rearm target {target_state} "
+                "with `audit_retry=true` and a validated "
+                f"`audit_retry_evidence_addendum` for fingerprint `{fingerprint}`; "
+                "include only successful named checks."
+            )
+        else:
+            instruction = (
+                f"Only an authenticated project owner may use `audit_override=true` "
+                f"to apply target {target_state} after verifying the current "
+                "evidence fingerprint; the task remains fail-closed."
+            )
         message = (
             f"Integrated task {task_id} at {integrated_sha} has no active terminal "
-            f"audit ({reason}). An authenticated project owner must supply the "
-            f"required evidence and rearm target {target_state} with "
-            "`audit_retry_evidence_addendum`; the task remains fail-closed."
+            f"audit ({reason}). {instruction}"
         )
         existing = next(
             (alert for alert in self._alerts if alert.get("source") == source),
@@ -8503,6 +8563,7 @@ class Orchestrator:
                 "level": "warning",
                 "source": source,
                 "message": message,
+                "recovery_action": recovery_action,
             }
         )
         return True
@@ -12827,12 +12888,20 @@ class Orchestrator:
             evidence_fingerprint=fingerprint,
         )
         if not transition.success:
+            recovery_action = self._integrated_audit_recovery_action(
+                item.project_id,
+                item.task_id,
+                DONE,
+                fingerprint,
+            )
             alert_added = self._arm_integrated_audit_recovery_alert(
                 item.project_id,
                 item.task_id,
                 DONE,
                 transition.reason or "terminal audit transition failed",
                 record.integrated_sha,
+                recovery_action=recovery_action,
+                evidence_fingerprint=fingerprint,
             )
             if alert_added:
                 logger.warning(

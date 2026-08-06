@@ -131,6 +131,38 @@ _TERMINAL_REARM_HISTORY_KEY = "oompah.terminal_audit_rearm_history"
 _EVIDENCE_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
     FailureClassification.MISSING_EVIDENCE,
 })
+_AUDIT_REARM_CLASSES: frozenset[FailureClassification] = frozenset({
+    FailureClassification.NO_AUDITOR,
+    FailureClassification.INFRASTRUCTURE_ERROR,
+    FailureClassification.POLICY_INCOMPATIBILITY,
+})
+
+
+def accepted_audit_recovery_action(record: TerminalAuditRecord) -> str:
+    """Return the only owner recovery action accepted for *record*.
+
+    The action vocabulary intentionally mirrors the terminal status API.  A
+    recovery alert can therefore be rendered from this function without
+    suggesting an evidence addendum for a record that the coordinator will
+    reject.  Unknown, incomplete, or mixed failure histories fall back to an
+    owner override, which preserves the fail-closed boundary.
+    """
+
+    if record.request_state != RequestState.COMPLETED or not record.attempts:
+        return "audit_override"
+    classifications: set[FailureClassification] = set()
+    for attempt in record.attempts:
+        try:
+            classifications.add(
+                FailureClassification.from_raw(attempt.failure_classification)
+            )
+        except (TypeError, ValueError):
+            return "audit_override"
+    if classifications <= _EVIDENCE_REARM_CLASSES:
+        return "audit_retry_evidence_addendum"
+    if classifications <= _AUDIT_REARM_CLASSES:
+        return "audit_retry"
+    return "audit_override"
 
 _OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 """Metadata key containing the historical owner-override ledger."""
@@ -574,6 +606,8 @@ class TerminalTransitionCoordinator:
         revoke_delivery_authority: Callable[[str, str], None] | None = None,
         revoke_auditor_authority: Callable[[str, str], None] | None = None,
         clear_audit_alert: Callable[[str, str, str], None] | None = None,
+        clear_integrated_audit_recovery_alert: Callable[[str, str], None]
+        | None = None,
         validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
         | None = None,
     ) -> None:
@@ -603,6 +637,13 @@ class TerminalTransitionCoordinator:
         # in-memory dashboard identity while the durable metadata remains the
         # source of truth across a restart.
         self._clear_audit_alert = clear_audit_alert
+        # Integrated delivery raises one task-level recovery alert in
+        # addition to per-audit observability conditions.  Keep its cleanup
+        # callback separate because it has no audit ID and must be cleared in
+        # the same response that commits a retry or owner override.
+        self._clear_integrated_audit_recovery_alert = (
+            clear_integrated_audit_recovery_alert
+        )
         # The orchestrator owns project/SCM-specific shared-epic knowledge.
         # Keep the coordinator as the single mutation boundary while letting
         # that owner supply a fail-closed lifecycle compatibility check.
@@ -663,6 +704,24 @@ class TerminalTransitionCoordinator:
             )
             return str(exc)
         return None
+
+    def _clear_integrated_recovery_alert(
+        self, project_id: str, task_id: str
+    ) -> None:
+        """Clear the task-level integrated recovery alert after commit."""
+
+        callback = self._clear_integrated_audit_recovery_alert
+        if callback is None:
+            return
+        try:
+            callback(project_id, task_id)
+        except Exception:  # alert cleanup must not change transition semantics
+            logger.warning(
+                "integrated-audit recovery alert cleanup failed for %s/%s",
+                project_id,
+                task_id,
+                exc_info=True,
+            )
 
     def _revoke_delivery_for_terminal_transition(
         self,
@@ -934,11 +993,12 @@ class TerminalTransitionCoordinator:
     ) -> TransitionResult:
         """Rearm an exhausted audit without reopening implementation work.
 
-        This is an owner-authorized recovery operation for infrastructure or
-        transport repairs.  It supersedes the completed ``NO_AUDITOR`` record,
-        preserves its attempt history, appends a fresh pending record for the
-        exact same evidence fingerprint, and restores ``In Validation``.  A
-        repeated request coalesces with that pending record.
+        This is an owner-authorized recovery operation for infrastructure,
+        transport, or independent-auditor exhaustion.  It supersedes the
+        completed rearmable record, preserves its attempt history, appends a
+        fresh pending record for the same evidence fingerprint, and restores
+        ``In Validation``.  A repeated request coalesces with that pending
+        record.
 
         ``evidence_addendum`` is the explicit evidence-only recovery contract.
         It is accepted only for an audit whose completed attempts all failed
@@ -1066,34 +1126,23 @@ class TerminalTransitionCoordinator:
                     )
                     return doc
 
+                requested_action = (
+                    "audit_retry_evidence_addendum"
+                    if evidence_addendum is not None
+                    else "audit_retry"
+                )
                 exhausted = next(
                     (
                         record
                         for record in reversed(matching)
                         if record.request_state == RequestState.COMPLETED
-                        and record.attempts
+                        and accepted_audit_recovery_action(record)
+                        == requested_action
                         and (
-                            (
-                                evidence_addendum is not None
-                                and locked_fingerprint is not None
-                                and record.evidence_fingerprint == locked_fingerprint
-                                and all(
-                                    attempt.failure_classification
-                                    in _EVIDENCE_REARM_CLASSES
-                                    for attempt in record.attempts
-                                )
-                            )
+                            evidence_addendum is None
                             or (
-                                evidence_addendum is None
-                                and all(
-                                    attempt.failure_classification
-                                    in {
-                                        FailureClassification.NO_AUDITOR,
-                                        FailureClassification.INFRASTRUCTURE_ERROR,
-                                        FailureClassification.POLICY_INCOMPATIBILITY,
-                                    }
-                                    for attempt in record.attempts
-                                )
+                                locked_fingerprint is not None
+                                and record.evidence_fingerprint == locked_fingerprint
                             )
                         )
                     ),
@@ -1207,6 +1256,9 @@ class TerminalTransitionCoordinator:
                     current_issue.identifier,
                     retired_audit_id,
                 )
+            self._clear_integrated_recovery_alert(
+                project_id, current_issue.identifier
+            )
             if decision.audit_id and not decision.coalesced:
                 self._record_metric(
                     "record_queued",
@@ -1338,6 +1390,10 @@ class TerminalTransitionCoordinator:
                     self._clear_retired_alert(
                         project_id, current_issue.identifier, cancelled_audit_id
                     )
+            if outcome.success and outcome.applied_status in TERMINAL_STATUSES:
+                self._clear_integrated_recovery_alert(
+                    project_id, current_issue.identifier
+                )
             return outcome
 
         return await asyncio.to_thread(
@@ -1499,6 +1555,9 @@ class TerminalTransitionCoordinator:
                                 "message": cleanup_error,
                             }
                         )
+                self._clear_integrated_recovery_alert(
+                    project_id, current_issue.identifier
+                )
             return outcome
 
         return await asyncio.to_thread(
