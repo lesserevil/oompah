@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-06T11:45:22.057881Z'
+updated_at: '2026-08-06T11:45:41.851373Z'
 work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
@@ -25,13 +25,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: b6e7bcf0-742e-4e7a-adf1-9f165ee7083d
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T11:44:54.563307+00:00'
-  claim_expires_at: '2026-08-06T12:14:54.563307+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: 'git worktree add failed: fatal: invalid reference: origin/epic-OOMPAH-770--task-OOMPAH-795'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-06T11:47:16.869563+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
