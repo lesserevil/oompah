@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T22:15:10.455758Z'
+updated_at: '2026-08-06T22:15:53.752619Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,50 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ce475e01ee0b
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+      created_at: '2026-08-06T22:15:30.198053+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-06T22:15:30.198053+00:00'
+      branch_key: OOMPAH-768
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-06T22:15:48.143037+00:00'
+      failure_reason: 'terminal audit evidence has no safely resolvable revision for
+        OOMPAH-768 (tried: origin/OOMPAH-768)'
+      next_retry_at: '2026-08-06T22:15:58.142998+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-08-06T22:15:02.037452+00:00'
-  attempt_history: []
+    updated_at: '2026-08-06T22:15:48.143037+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-ce475e01ee0b
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: db765ca23847f4d117699f2b10474ae6eed749091fd9c26036c808c5a6ab0f59
+    created_at: '2026-08-06T22:15:30.198053+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-06T22:15:30.198053+00:00'
+    branch_key: OOMPAH-768
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-06T22:15:48.143037+00:00'
+    failure_reason: 'terminal audit evidence has no safely resolvable revision for
+      OOMPAH-768 (tried: origin/OOMPAH-768)'
+    next_retry_at: '2026-08-06T22:15:58.142998+00:00'
 ---
 ## Summary
 
@@ -83,5 +120,24 @@ author: oompah
 created: 2026-08-06 22:15
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 22:15
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-06 22:15
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 3s
+---
+author: oompah
+created: 2026-08-06 22:15
+---
+Auditor attempt ended: terminal audit evidence has no safely resolvable revision for OOMPAH-768 (tried: origin/OOMPAH-768). A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->

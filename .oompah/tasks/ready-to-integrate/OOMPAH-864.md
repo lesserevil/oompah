@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:15:29.113431Z'
+updated_at: '2026-08-06T22:15:38.812846Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -50,9 +50,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
   base_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
-  head_sha: af7a4595b3b350ea28a86a89153c56a0922a45f5
-  submitted_at: '2026-08-06T21:43:14.192557+00:00'
-  updated_at: '2026-08-06T21:44:14.617467+00:00'
+  head_sha: 742075be6bc166405156bcbfeb39c7d99d355530
+  submitted_at: '2026-08-06T22:15:25.868367+00:00'
+  updated_at: '2026-08-06T22:15:25.868367+00:00'
 oompah.task_costs:
   total_input_tokens: 46287
   total_output_tokens: 677
@@ -217,5 +217,10 @@ author: oompah
 created: 2026-08-06 22:07
 ---
 Owner repair is now a single clean commit at 742075be6. The unsafe unconditional integration-metadata deletion was removed: because IntegrationRecord v2 has no duplicate-preflight claim/run provenance, owner resolution and restart preserve working/accepted evidence and emit an explicit fail-closed reassessment diagnostic. Fresh independent review ACCEPTED exact content diff 55febe478b; git diff --check and make check-secrets pass. Focused serial+parallel validation is durably queued behind the active OOMPAH-605 exact gate.
+---
+author: oompah
+created: 2026-08-06 22:15
+---
+Delivered safe owner-resolution/restart reassessment at 742075be6: preserve unproven working and all accepted integration evidence because v2 records lack duplicate-preflight provenance; emit actionable fail-closed diagnostics. Independent static review accepted exact diff 55febe478b. 67 focused tests pass serially and 67 in parallel; check-secrets and diff checks pass.
 ---
 <!-- COMMENTS:END -->
