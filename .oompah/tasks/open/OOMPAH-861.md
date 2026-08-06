@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:30:47.802645Z'
+updated_at: '2026-08-06T13:40:59.946648Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -22,21 +22,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 210ae92181a8873ff8114a0ada021b62c6bd7c15043520e8a66fa5a16d3b94e9
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T13:40:56.263764+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860.'
+  evidence: 'Owner reviewed the authoritative corpus: OOMPAH-815 is the completed
+    predecessor whose accepted-branch invariant regressed; OOMPAH-861 records the
+    new exact OOMPAH-860 post-accept repair reproduction and is not duplicate active
+    work.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T13:30:28.791384+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T13:40:56.263764+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Owner reviewed the authoritative corpus: OOMPAH-815 is
+    the completed predecessor whose accepted-branch invariant regressed; OOMPAH-861
+    records the new exact OOMPAH-860 post-accept repair reproduction and is not duplicate
+    active work.'
 oompah.agent_run_id: a33a7b59-e651-4680-887e-dc51f00db7d7
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-861
 oompah.integration:
