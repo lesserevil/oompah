@@ -39278,6 +39278,30 @@ class Orchestrator:
         worker_kwargs = (
             {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
         )
+        # OOMPAH-854: re-check quiesce/pause immediately before the provider
+        # task is spawned.  OOMPAH-865 deliberately registers the auditor
+        # first so owner maintenance can observe its durable identity; unwind
+        # that provisional registration if drain began in the final window.
+        if self._dispatch_is_blocked():
+            logger.info(
+                "Skipping provider spawn of %s: orchestrator dispatch blocked during final fence",
+                issue.identifier,
+            )
+            self._remove_running_entry(issue.id, running_entry)
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            if auditor_plan is not None:
+                self._release_audit_budget_reservation(
+                    self._audit_reservation_key_for_issue(running_issue)
+                )
+                self._release_audit_branch_claim(
+                    auditor_plan.branch_key,
+                    auditor_plan.attempt_id,
+                )
+            await _release_preflight(
+                "provider spawn aborted because orchestrator dispatch is blocked"
+            )
+            return
         try:
             worker_task = asyncio.create_task(
                 self._run_worker(
