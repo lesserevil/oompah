@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T15:19:34.730879Z'
+updated_at: '2026-08-06T15:19:59.416761Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -99,7 +99,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-861
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,13 +124,27 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-06T15:19:37.668185+00:00'
+    - version: 1
+      attempt_id: attempt-cfbee243cd13
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d546e5122ba89137a6d272e762d5489ad80eff51fa423b7aec642515a35256b9
+      created_at: '2026-08-06T15:19:49.669468+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-06T15:19:49.669468+00:00'
+      branch_key: epic-OOMPAH-763--task-OOMPAH-861
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T15:16:37.842407+00:00'
-    updated_at: '2026-08-06T15:19:27.668221+00:00'
+    updated_at: '2026-08-06T15:19:49.669468+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-400f401740cd
@@ -151,6 +165,20 @@ oompah.terminal_audit:
       auditor capability policy permits only read-only repository inspection and configured
       test commands; command denied'
     next_retry_at: '2026-08-06T15:19:37.668185+00:00'
+  - version: 1
+    attempt_id: attempt-cfbee243cd13
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d546e5122ba89137a6d272e762d5489ad80eff51fa423b7aec642515a35256b9
+    created_at: '2026-08-06T15:19:49.669468+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-06T15:19:49.669468+00:00'
+    branch_key: epic-OOMPAH-763--task-OOMPAH-861
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -293,5 +321,15 @@ author: oompah
 created: 2026-08-06 15:19
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-06 15:19
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-06 15:19
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
