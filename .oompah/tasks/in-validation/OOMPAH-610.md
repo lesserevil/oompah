@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:37:36.756542Z'
+updated_at: '2026-08-06T20:42:24.294770Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -188,6 +188,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-30T19:15:33.898604+00:00'
     updated_at: '2026-07-30T19:37:05.502397+00:00'
+  - version: 1
+    audit_id: audit-0792a8f48e93
+    project_id: proj-14849f1b
+    task_id: OOMPAH-610
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f3cdbc2a7ba568ae0563863c51332bda5ce3e0a60137a4eabe8b0601bc4124fc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T20:42:19.193953+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad0fa99a03f
