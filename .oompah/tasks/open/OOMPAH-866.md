@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T20:39:48.645499Z'
-work_branch: null
+updated_at: '2026-08-06T20:40:43.429945Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: f6fa104c55944a49b854bbec75c62de4274454d3c9988840d226afcba8e0b265
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 216bdcef-0fcf-4ba3-8633-01a10785235d
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T20:40:27.136617+00:00'
+  claim_expires_at: '2026-08-06T21:10:27.136617+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 507e1570-42af-456d-8dab-4cc33e54ef1a
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 ---
 ## Summary
 
@@ -29,3 +48,11 @@ Fix the shared-epic landing gate regression reproduced by OOMPAH-740 PR 731: chi
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 20:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
