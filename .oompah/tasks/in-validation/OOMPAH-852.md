@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-852
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Protect exact gates from concurrent focused validation commands
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T05:09:52.216190Z'
+updated_at: '2026-08-06T05:37:35.213148Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -70,14 +70,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-852
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-852
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
   head_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
+  integrated_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
   submitted_at: '2026-08-06T05:09:38.706077+00:00'
-  updated_at: '2026-08-06T05:09:38.706077+00:00'
+  updated_at: '2026-08-06T05:37:26.362352+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2708
@@ -104,6 +105,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-852
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T04:54:44.089618+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-39bfc465060c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-852
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 80e25e6933ff77e7884dea18cec3a2590757ce3a854bcb8eaab1d70bb0b6b8ac
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T05:37:28.953202+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -191,5 +214,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 1s
 - Log: OOMPAH-852__20260806T045701Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:37
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
