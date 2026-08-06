@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:32:09.799721Z'
+updated_at: '2026-08-06T23:39:08.191182Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,38 @@ Currently, the system is only integrated into ACP Codex backends (native_validat
 2. Update ci-dedicated.yml to call the wrapper
 3. Add tests for lease acquisition, concurrent capacity enforcement, and cancellation
 4. Verify GitHub check conclusions and artifact diagnostics remain correct
+---
+author: oompah
+created: 2026-08-06 23:39
+---
+**IMPLEMENTATION**: Created validation-resource lease brokering for dedicated CI.
+
+**What was implemented**:
+1. scripts/ci-dedicated-broker.py - Python script that:
+   - Acquires ValidationResourceLease with exact_gate priority (priority=20)
+   - Uses stable owner identity: project='oompah', task='dedicated-ci-{run_id}', kind='exact_gate'
+   - Runs pytest with bounded output (-q --tb=short) instead of verbose (-v)
+   - Captures full test results to JUnit XML for complete failure diagnostics
+   - Releases lease on completion, cancellation, or timeout (3600s default)
+   - Logs acquisition, execution, and release events for observability
+
+2. tests/test_ci_dedicated_broker.py - 7 comprehensive tests:
+   - test_broker_acquires_and_releases_lease: Verifies proper lifecycle
+   - test_dedicated_run_waits_while_capacity_owned: Tests queueing behavior
+   - test_concurrent_dedicated_runs_cannot_exceed_capacity: Enforces capacity=1
+   - test_pytest_failure_diagnostics_available_without_verbose_output: Verifies bounded output
+   - test_broker_creates_junit_xml_artifacts: Confirms artifact capture
+   - test_dedicated_ci_uses_exact_gate_priority: Validates owner priority
+   - test_dedicated_ci_owner_identity_format: Validates owner identity fields
+
+**Integration Note**: 
+The workflow file (.github/workflows/ci-dedicated.yml) requires modification due to GitHub token scope restrictions. The change needed is:
+- Replace: pytest -v
+- With: python scripts/ci-dedicated-broker.py ~/.oompah/tmp/validation-resource.sqlite3 tests/ --tb=short
+- Add artifact upload for JUnit XML results
+
+This will be applied in a follow-up task or by operator with workflow scope.
+
+**Testing**: All 7 tests pass. Existing validation_resource_lease tests (20 tests) still pass.
 ---
 <!-- COMMENTS:END -->
