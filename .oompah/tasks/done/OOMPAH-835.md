@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T11:40:58.883211Z'
+updated_at: '2026-08-06T11:57:50.945743Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -127,6 +127,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T00:03:48.252494+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-811f8103d61f: '2026-08-06T11:57:47.592280+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-835
+    target_state: Done
+    evidence_fingerprint: b4336b86ba4cafd3ded72ecfdfb7fad2479970508209b560129dbf4f95aad5a1
+    audit_ids:
+    - audit-5bf7c2444b03
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T11:57:47.592292+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-835
+    audit_id: audit-5bf7c2444b03
+    attempt_id: attempt-811f8103d61f
+    target_state: Done
+    evidence_fingerprint: b4336b86ba4cafd3ded72ecfdfb7fad2479970508209b560129dbf4f95aad5a1
+    status: Done
+    audit_ids:
+    - audit-5bf7c2444b03
+    applied: false
+    created_at: '2026-08-06T11:57:47.592309+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -134,7 +158,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-835
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -158,7 +182,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-811f8103d61f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -169,13 +193,16 @@ oompah.terminal_audit:
       started_at: '2026-08-06T11:40:48.955754+00:00'
       branch_key: epic-OOMPAH-804--task-OOMPAH-835
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-06T11:57:47.592071+00:00'
+      ended_at: '2026-08-06T11:57:47.592071+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T10:38:15.979621+00:00'
-    updated_at: '2026-08-06T11:40:48.955754+00:00'
+    updated_at: '2026-08-06T11:57:47.592071+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2186b35cd3ae
