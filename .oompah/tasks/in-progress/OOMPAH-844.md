@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T03:55:39.437921Z'
+updated_at: '2026-08-06T04:01:32.379370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-06 03:55
 ---
 Understanding: I will inspect the named repo-heal and storage-backed orchestrator tests plus adjacent _tick tests, isolate only unrelated release-addendum recovery, add explicit bounded startup timeouts where justified, and verify focused suites under concurrency without changing production timeout policy.
+---
+author: oompah
+created: 2026-08-06 04:01
+---
+Discovery: HEAD predates the existing OOMPAH-821 stabilization patch. The exact outlier is TestRepoHealErrorReporting::test_heal_failure_does_not_raise_from_tick, which lacks the recovery stub while sibling tick tests already stub it. The storage-backed lifecycle construction outlier is TestCandidateFetchGitHub::test_github_issues_have_correct_tracker_kind; prior gate evidence uses a 20-second pytest marker for its cold startup. I will apply those scoped changes and preserve the global five-second timeout.
 ---
 <!-- COMMENTS:END -->
