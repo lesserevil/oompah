@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:30:13.940585Z'
+updated_at: '2026-08-06T23:32:09.799721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,20 @@ created: 2026-08-06 23:30
 5. Verify only one heavyweight process runs at a time across all CI paths
 
 **Focus**: Discovering the current validation-resource lease mechanism and CI workflow integration points
+---
+author: oompah
+created: 2026-08-06 23:32
+---
+**DISCOVERY**: Found the validation-resource lease system at oompah/validation_resource_lease.py and oompah/native_validation_guard.py. The system already exists to broker capacity (capacity=1 by default) across exact gates, auditors, and workers. It uses durable SQLite database + file locks to prevent concurrent heavyweight validation processes.
+
+Currently, the system is only integrated into ACP Codex backends (native_validation_guard wraps commands). The dedicated CI workflow (.github/workflows/ci-dedicated.yml) runs pytest -v directly without:
+1. Acquiring a validation-resource lease before pytest starts
+2. Using bounded console output (currently uses -v which emits 16,000+ per-test logs causing jbd2_log_wait_commit stalls)
+
+**Implementation Plan**:
+1. Create a script wrapper for dedicated CI that acquires ValidationResourceLease, runs pytest with bounded output, captures full results to artifact, and releases the lease
+2. Update ci-dedicated.yml to call the wrapper
+3. Add tests for lease acquisition, concurrent capacity enforcement, and cancellation
+4. Verify GitHub check conclusions and artifact diagnostics remain correct
 ---
 <!-- COMMENTS:END -->
