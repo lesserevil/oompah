@@ -7,11 +7,12 @@ title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-804
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:36:00.357557Z'
+updated_at: '2026-08-06T09:36:42.982024Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -45,6 +46,33 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
   updated_at: '2026-08-06T09:35:55.856464+00:00'
+oompah.start_blocked_by: *id001
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1982
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1982
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1982
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T09:36:34.541822+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-858__20260806T093605Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-858
+    source_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+    completed_at: '2026-08-06T09:36:34.548768+00:00'
 ---
 ## Summary
 
@@ -77,5 +105,15 @@ author: oompah
 created: 2026-08-06 09:36
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 09:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 46s
+- Log: OOMPAH-858__20260806T093605Z.jsonl
 ---
 <!-- COMMENTS:END -->
