@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:39:57.927330Z'
+updated_at: '2026-08-06T06:40:20.280887Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -277,5 +277,10 @@ author: oompah
 created: 2026-08-06 06:39
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 06:40
+---
+Understanding: the previous final blocked check is not atomic with quiesce, and deferred abandonment recovery leaves the audit non-queued during the drain race. I will inspect the shared lifecycle/admission synchronization, terminal-audit claim/requeue paths, restart recovery, and existing tests; then implement an atomic admission fence with immediate attempt-preserving restoration and deterministic race/startup coverage. I will keep tests paused until the operator explicitly clears the shared validation lane.
 ---
 <!-- COMMENTS:END -->
