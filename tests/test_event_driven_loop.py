@@ -1100,6 +1100,9 @@ class TestGracefulRestartShutdownEvent:
         tracker.update_issue.assert_called_once_with(issue_id, status="Open")
         assert orch._load_state().get("restart_issues") == []
 
+    # Keep real storage, transition-lock, and asyncio.to_thread coverage while
+    # allowing bounded scheduler headroom under the saturated xdist gate.
+    @pytest.mark.timeout(20)
     @pytest.mark.parametrize(
         "superseding_state",
         ["Merged", "Archived", "In Validation", "Needs Human"],
