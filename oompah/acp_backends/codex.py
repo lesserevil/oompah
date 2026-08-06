@@ -100,7 +100,13 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
-from oompah.native_validation_guard import install_native_validation_guard
+from oompah.native_validation_guard import (
+    cleanup_retired_native_validation_guards,
+    consume_native_validation_boundary,
+    install_native_validation_guard,
+    native_validation_provider_launcher,
+    retire_native_validation_guard,
+)
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TASK_ENV,
@@ -161,6 +167,7 @@ def _create_native_validation_runtime_root(
         )
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     parent.chmod(0o700)
+    cleanup_retired_native_validation_guards(parent)
     runtime_root = tempfile.mkdtemp(
         prefix="oompah-codex-validation-",
         dir=parent,
@@ -922,9 +929,9 @@ class CodexAcpBackendSession(AcpBackendSession):
 
         # The subscription CLI owns a native shell surface below the SDK
         # process. Install command shims that acquire capacity only around an
-        # actual heavyweight validation process. The shim execs that process
-        # with the flock descriptor inherited, so a service/SDK crash cannot
-        # release the lane while validation is still running.
+        # actual heavyweight validation process. An operator-side supervisor
+        # owns the flock independently of both the sandbox and service, so a
+        # service/SDK crash cannot release or permanently pin the lane.
         coordination_service = self._options.coordination_service
         if coordination_service is not None:
             validation_lease = getattr(
@@ -978,11 +985,7 @@ class CodexAcpBackendSession(AcpBackendSession):
                 entrypoint_stat = os.fstat(executable_fd)
                 entrypoint_prefix = os.pread(executable_fd, 128, 0)
                 node_bootstrap = entrypoint_prefix.startswith(b"#!/usr/bin/env node")
-                codex_launch_path = (
-                    codex_entrypoint
-                    if node_bootstrap
-                    else f"/proc/{os.getpid()}/fd/{executable_fd}"
-                )
+                codex_launch_path = codex_entrypoint if node_bootstrap else None
                 node_interpreter = None
                 if node_bootstrap:
                     node_interpreter = shutil.which(
@@ -999,20 +1002,21 @@ class CodexAcpBackendSession(AcpBackendSession):
                     validation_lease=validation_lease,
                     owner=validation_owner,
                     timeout_seconds=self._options.turn_timeout_s,
-                    provider_bootstrap_entrypoint=(
-                        codex_entrypoint if node_bootstrap else None
-                    ),
+                    provider_bootstrap_entrypoint=codex_entrypoint,
                     provider_bootstrap_interpreter=node_interpreter,
                     provider_bootstrap_entrypoint_identity=(
-                        (
-                            int(entrypoint_stat.st_dev),
-                            int(entrypoint_stat.st_ino),
-                        )
-                        if node_bootstrap
-                        else None
+                        int(entrypoint_stat.st_dev),
+                        int(entrypoint_stat.st_ino),
+                    ),
+                    provider_bootstrap_entrypoint_fd=(
+                        executable_fd if not node_bootstrap else None
                     ),
                     provider_untrusted_roots=untrusted_roots,
                 )
+                if not node_bootstrap:
+                    codex_launch_path = native_validation_provider_launcher(
+                        runtime_root
+                    )
             except Exception as exc:
                 self._cleanup_worker_runtime_dir()
                 self._last_error = (
@@ -1148,10 +1152,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         cleaned up from inside the sandbox (it's read-only), so cleanup happens
         from the orchestrator process. Failures are logged but not fatal.
         """
-        for label, directory in (
-            ("worker runtime", self._worker_runtime_dir),
-            ("validation guard", self._validation_guard_dir),
-        ):
+        for label, directory in (("worker runtime", self._worker_runtime_dir),):
             if not directory:
                 continue
             try:
@@ -1170,14 +1171,37 @@ class CodexAcpBackendSession(AcpBackendSession):
                     directory,
                     exc,
                 )
+        validation_authority_retired = self._validation_guard_dir is None
+        if self._validation_guard_dir:
+            try:
+                removed = retire_native_validation_guard(
+                    self._validation_guard_dir,
+                    validation_lease=self._native_validation_lease,
+                    owner=self._native_validation_owner,
+                )
+                logger.debug(
+                    "%s native validation guard directory after authority "
+                    "withdrawal: %s",
+                    "Removed" if removed else "Retained referenced",
+                    self._validation_guard_dir,
+                )
+                validation_authority_retired = True
+            except Exception as exc:
+                logger.warning(
+                    "Failed to retire validation guard directory %s: %s; "
+                    "the cancellation fence remains authoritative",
+                    self._validation_guard_dir,
+                    exc,
+                )
         if self._codex_executable_fd is not None:
             with contextlib.suppress(OSError):
                 os.close(self._codex_executable_fd)
         self._worker_runtime_dir = None
-        self._validation_guard_dir = None
-        self._native_validation_owner = None
-        self._native_validation_lease = None
-        self._native_validation_cancel_path = None
+        if validation_authority_retired:
+            self._validation_guard_dir = None
+            self._native_validation_owner = None
+            self._native_validation_lease = None
+            self._native_validation_cancel_path = None
         self._codex_executable_fd = None
 
     def _absorb_cli_usage(self, usage: Any) -> None:
@@ -1294,6 +1318,25 @@ class CodexAcpBackendSession(AcpBackendSession):
                     )
         elif item_type == "command_execution":
             if ev_type == "item.started":
+                boundary_seen = self._validation_guard_dir is None
+                if self._validation_guard_dir:
+                    boundary_deadline = time.monotonic() + 1.0
+                    while time.monotonic() < boundary_deadline:
+                        if consume_native_validation_boundary(
+                            self._validation_guard_dir,
+                            str(getattr(item, "command", "") or ""),
+                            str(getattr(item, "id", "") or ""),
+                        ):
+                            boundary_seen = True
+                            break
+                        await asyncio.sleep(0.01)
+                if not boundary_seen:
+                    if self._cli_abort is not None:
+                        self._cli_abort.set()
+                    raise RuntimeError(
+                        "Codex native command runner bypassed the required "
+                        "validation guard boundary"
+                    )
                 self._counters.last_event = "tool_use"
                 yield self._emit(
                     "acp_tool_use",

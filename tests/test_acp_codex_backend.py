@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -44,6 +45,10 @@ from oompah.acp_backends.codex import (
     _get_worktree_git_meta_dir,
 )
 from oompah.models import ModelProvider
+from oompah.native_validation_guard import (
+    install_native_validation_guard,
+    retire_native_validation_guard,
+)
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
     ValidationResourceLease,
@@ -506,6 +511,9 @@ def _install_fake_cli(monkeypatch, *, events, capture=None):
                 cap["validation_guard_config"] = json.loads(
                     config_path.read_text(encoding="utf-8")
                 )
+                bash_env = Path(str(environment["BASH_ENV"]))
+                cap["validation_guard_bash_env"] = str(bash_env)
+                cap["validation_guard_bash_env_installed"] = bash_env.is_file()
 
         def start_thread(self, options=None):
             cap["thread_options"] = options
@@ -918,6 +926,152 @@ class TestCodexCliPath:
         assert "tool_result" in kinds
         assert sess.status == "succeeded"
 
+    def test_managed_command_event_fails_closed_without_runner_boundary(
+        self,
+        tmp_path,
+    ):
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path), billing_model="subscription"
+            )
+        )
+        session._validation_guard_dir = str(tmp_path / "missing-guard")
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item("command_execution", id="c1", command="opaque"),
+                )
+            ]
+
+        with pytest.raises(RuntimeError, match="bypassed.*guard boundary"):
+            asyncio.run(translate())
+        assert session._cli_abort.is_set()
+
+    def test_managed_command_event_accepts_recent_real_bash_boundary(
+        self,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        )
+        guarded, root = install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+        )
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "printf ok"],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert completed.returncode == 0
+        assert completed.stdout == "ok"
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path), billing_model="subscription"
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item("command_execution", id="c1", command="printf ok"),
+                )
+            ]
+
+        events = asyncio.run(translate())
+        assert [event.kind for event in events] == ["tool_use"]
+        assert session._cli_abort.is_set() is False
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+    def test_managed_command_event_rejects_other_command_boundary(
+        self,
+        tmp_path,
+    ):
+        lease = ValidationResourceLease(
+            tmp_path / "validation.sqlite3",
+            poll_seconds=0.01,
+        )
+        owner = ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        )
+        guarded, root = install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+        )
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "printf first"],
+            env={**os.environ, **guarded},
+            pass_fds=(
+                int(guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"]),
+            ),
+            check=False,
+            timeout=5,
+        )
+        assert completed.returncode == 0
+
+        session = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path=str(tmp_path), billing_model="subscription"
+            )
+        )
+        session._validation_guard_dir = str(root)
+        session._cli_abort = asyncio.Event()
+
+        async def translate():
+            return [
+                event
+                async for event in session._translate_cli_item(
+                    "item.started",
+                    _cli_item(
+                        "command_execution",
+                        id="c1",
+                        command="printf second",
+                    ),
+                )
+            ]
+
+        with pytest.raises(RuntimeError, match="bypassed.*guard boundary"):
+            asyncio.run(translate())
+        assert session._cli_abort.is_set()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
     def test_managed_native_cli_does_not_lease_an_entire_light_turn(
         self,
         monkeypatch,
@@ -961,6 +1115,9 @@ class TestCodexCliPath:
         assert lease.status().owner_count == 1
         guarded_env = capture["codex_kwargs"]["env"]
         assert "validation-guard-bin" in guarded_env["PATH"]
+        assert guarded_env["BASH_ENV"].endswith("validation-guard-bash-env")
+        assert capture["validation_guard_bash_env_installed"] is True
+        assert not Path(capture["validation_guard_bash_env"]).exists()
         gate.release()
 
     def test_managed_native_cli_fences_exact_provider_bootstrap(
@@ -1151,16 +1308,20 @@ class TestCodexCliPath:
         events = asyncio.run(run())
 
         assert events[0].kind == "session_start"
-        assert capture["codex_kwargs"]["codex_path_override"].startswith(
-            f"/proc/{os.getpid()}/fd/"
+        assert capture["codex_kwargs"]["codex_path_override"].endswith(
+            "/validation-guard-bin/oompah-validation-provider"
         )
-        assert capture["codex_path_identity"] == (
+        bootstrap = capture["validation_guard_config"]["provider_bootstrap"]
+        assert (
+            bootstrap["entrypoint_device"],
+            bootstrap["entrypoint_inode"],
+        ) == (
             int(original_direct_stat.st_dev),
             int(original_direct_stat.st_ino),
         )
+        assert bootstrap["source_fd"] >= 0
         replacement_stat = direct_binary.stat()
         assert int(replacement_stat.st_ino) != int(original_direct_stat.st_ino)
-        assert "provider_bootstrap" not in capture["validation_guard_config"]
 
     def test_managed_native_cli_rejects_task_writable_direct_codex(
         self,
@@ -1568,7 +1729,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = str(tmp_path / "workspace")
         import os
         os.makedirs(workspace)
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(workspace) is None
 
     def test_returns_none_when_git_is_directory(self, tmp_path):
@@ -1578,7 +1738,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "main-repo"
         workspace.mkdir()
         (workspace / ".git").mkdir()
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_meta_dir_for_worktree_with_absolute_gitdir(self, tmp_path):
@@ -1593,7 +1752,6 @@ class TestGetWorktreeGitMetaDir:
         workspace.mkdir(parents=True)
         (workspace / ".git").write_text(f"gitdir: {meta_dir}\n")
 
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert result == str(meta_dir)
 
@@ -1611,7 +1769,6 @@ class TestGetWorktreeGitMetaDir:
         rel = os.path.relpath(str(meta_dir), str(workspace))
         (workspace / ".git").write_text(f"gitdir: {rel}\n")
 
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert os.path.normpath(result) == os.path.normpath(str(meta_dir))
 
@@ -1623,7 +1780,6 @@ class TestGetWorktreeGitMetaDir:
         (workspace / ".git").write_text(
             "gitdir: /nonexistent/path/.git/worktrees/STALE\n"
         )
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_none_when_git_file_has_no_gitdir_prefix(self, tmp_path):
@@ -1632,7 +1788,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "ws"
         workspace.mkdir()
         (workspace / ".git").write_text("not a gitdir file\n")
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         assert _get_worktree_git_meta_dir(str(workspace)) is None
 
     def test_returns_none_when_git_file_is_unreadable(self, tmp_path):
@@ -1644,7 +1799,6 @@ class TestGetWorktreeGitMetaDir:
         git_file.write_text("gitdir: /some/path\n")
         git_file.chmod(0o000)
         try:
-            from oompah.acp_backends.codex import _get_worktree_git_meta_dir
             result = _get_worktree_git_meta_dir(str(workspace))
             # Either None (no permission) or the path — depends on
             # whether tests run as root. Either way, no exception.
@@ -1660,7 +1814,6 @@ class TestGetWorktreeGitMetaDir:
         workspace = tmp_path / "ws"
         workspace.mkdir()
         (workspace / ".git").write_text(f"gitdir: {meta_dir}  \n")
-        from oompah.acp_backends.codex import _get_worktree_git_meta_dir
         result = _get_worktree_git_meta_dir(str(workspace))
         assert result is not None
         import os
