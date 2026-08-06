@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T19:55:26.547076Z'
+updated_at: '2026-08-06T19:55:29.882348Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -192,5 +192,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 21m 3s
 - Log: OOMPAH-740__20260806T082342Z.jsonl
+---
+author: oompah
+created: 2026-08-06 19:55
+---
+Repaired blocked PR #731 exact CI failure: the Chrome DOM browser regression now has a narrow 35s pytest bound around its existing 30s subprocess kill bound, while the global timeout remains 5s; removed nine trailing-whitespace failures. Independent review accepted, the exact failing browser test passes, check-secrets and diff checks pass. Pushed exact PR head 46e5857a9ad886e5cd4647cac496bf6ce29eb276.
 ---
 <!-- COMMENTS:END -->
