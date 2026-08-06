@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:27:49.663161Z'
+updated_at: '2026-08-06T05:28:42.192306Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-08-06 05:27
 ---
 Implementation: duplicate corpus construction now validates tracker records, clips untrusted text by UTF-8 bytes, reserves all structural peers before ordinary candidates, and emits compact structural_peers identity/title/status/relationship/evidence records when full rows exceed task or byte limits. Corpus availability stays authoritative for healthy budget pressure; corrupt/unavailable reads use bounded retry handling. Updated investigator guidance/docs and replaced the obsolete insufficient-budget escalation tests with OOMPAH-851, terminal/missing-peer, and corrupt-read regressions.
+---
+author: oompah
+created: 2026-08-06 05:28
+---
+Verification: focused duplicate-preflight, focus, prompt, and orchestrator duplicate-detection suites pass (265 tests). The bounded regression confirms serialized UTF-8 corpus bytes stay within 3,500, all three structural peers are represented, and the durable no_duplicate completion remains Open without a Needs Human comment; corrupt tracker reads still reach the existing actionable owner-resolution path.
 ---
 <!-- COMMENTS:END -->
