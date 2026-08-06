@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-830
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Project the active terminal-audit stage in multi-target chains
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T00:23:57.544073Z'
+updated_at: '2026-08-06T00:24:23.563990Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: efe27cc0-2b8c-4a7f-ab0c-4ef65b2ef6c2
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46476
   total_output_tokens: 303
@@ -68,6 +68,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-830
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:25:59.312915+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-830
+  head_sha: d101c5712fe359efdbfbc295b41ed0a9680faa83
+  submitted_at: '2026-08-06T00:24:04.803952+00:00'
+  updated_at: '2026-08-06T00:24:04.803952+00:00'
 ---
 ## Summary
 
@@ -162,5 +170,20 @@ author: oompah
 created: 2026-08-06 00:23
 ---
 Completion: delivered and pushed commit d101c5712. Terminal-audit observability now projects the active stage in multi-target chains, exposes truthful current/next/final and completed-stage context, handles result-intent windows and supersession safely, and keeps list/detail/activity/dashboard payloads aligned with legacy fields preserved. Focused and full Makefile verification passed.
+---
+author: oompah
+created: 2026-08-06 00:24
+---
+Projected active terminal-audit stages across multi-target chains; added redacted chain/result-intent observability, aligned dashboard surfaces, and regression coverage. Full Makefile gate passed.
+---
+author: oompah
+created: 2026-08-06 00:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 99
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 31s
+- Log: OOMPAH-830__20260805T235859Z.jsonl
 ---
 <!-- COMMENTS:END -->

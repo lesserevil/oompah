@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-569
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Sanitize credentials from branch quality-gate subprocesses
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-07-29T23:41:27.956523Z'
+updated_at: '2026-08-06T00:24:32.089014Z'
 work_branch: OOMPAH-569
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/585
@@ -29,6 +29,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/585
 oompah.review_number: '585'
 oompah.work_branch: OOMPAH-569
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fbb0069d7349
+    project_id: proj-14849f1b
+    task_id: OOMPAH-569
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9313d092850089e39f1d2a0def72aa464f31fb2ca9f1bd370eaee0d9d64c2923
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T00:24:24.808263+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -51,5 +73,10 @@ author: oompah
 created: 2026-07-29 23:41
 ---
 YOLO: merged PR #585.
+---
+author: oompah
+created: 2026-08-06 00:24
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
