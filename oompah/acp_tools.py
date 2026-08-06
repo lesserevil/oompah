@@ -105,6 +105,10 @@ def _auditor_validation_success_handler(
         workspace: Path,
         *,
         duration_seconds: float = 0.0,
+        succeeded: bool = True,
+        phase: str = "completed",
+        outcome: str = "",
+        invocation_id: str = "",
     ) -> object:
         if callable(command_recorder):
             try:
@@ -112,10 +116,15 @@ def _auditor_validation_success_handler(
                     audit_target=audit_target,
                     command=command,
                     duration_seconds=duration_seconds,
-                    succeeded=True,
+                    succeeded=succeeded,
+                    phase=phase,
+                    outcome=outcome,
+                    invocation_id=invocation_id,
                 )
             except Exception:  # telemetry must not block evidence recording
                 logger.debug("Auditor validation telemetry failed", exc_info=True)
+        if phase != "completed" or not succeeded:
+            return False
         if callable(recorder):
             return recorder(
                 audit_target=audit_target,
@@ -124,6 +133,43 @@ def _auditor_validation_success_handler(
                 duration_seconds=duration_seconds,
             )
         return None
+
+    return record
+
+
+def _auditor_validation_reuse_policy_handler(
+    coordination_service: Any,
+    *,
+    auditor_mode: bool,
+    audit_target: Any,
+):
+    """Return a best-effort bridge for durable gate-reuse policy telemetry."""
+
+    recorder = getattr(
+        coordination_service,
+        "record_auditor_validation_reuse_policy",
+        None,
+    )
+    if not auditor_mode or audit_target is None or not callable(recorder):
+        return None
+
+    def record(
+        *,
+        command: str,
+        decision: str,
+        justification: str,
+        invocation_id: str,
+    ) -> None:
+        try:
+            recorder(
+                audit_target=audit_target,
+                command=command,
+                decision=decision,
+                justification=justification,
+                invocation_id=invocation_id,
+            )
+        except Exception:  # telemetry must not alter the policy decision
+            logger.debug("Auditor validation reuse telemetry failed", exc_info=True)
 
     return record
 
@@ -206,6 +252,24 @@ def _search_files_input_schema() -> dict[str, Any]:
             },
         },
         "required": ["pattern"],
+        "additionalProperties": False,
+    }
+
+
+def _run_command_input_schema() -> dict[str, Any]:
+    """Return the provider-neutral structured validation escape schema."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string"},
+            "validation_mode": {
+                "type": "string",
+                "enum": ["task_required_distinct"],
+            },
+            "validation_justification": {"type": "string"},
+        },
+        "required": ["command"],
         "additionalProperties": False,
     }
 
@@ -1169,6 +1233,8 @@ def build_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -1245,6 +1311,11 @@ def build_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -1351,7 +1422,7 @@ def build_tool_catalog(
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",
-        {"command": str},
+        _run_command_input_schema(),
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
@@ -1386,6 +1457,11 @@ def build_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
+                validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
             )
         )
@@ -1569,6 +1645,8 @@ def build_codex_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -1656,6 +1734,11 @@ def build_codex_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -1754,7 +1837,11 @@ def build_codex_tool_catalog(
         )
 
     @function_tool
-    async def run_command(command: str) -> str:
+    async def run_command(
+        command: str,
+        validation_mode: str = "",
+        validation_justification: str = "",
+    ) -> str:
         """Run a shell command inside the workspace. Stays inside the
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
@@ -1780,7 +1867,11 @@ def build_codex_tool_catalog(
         return await asyncio.to_thread(
             _exec_run_command,
             workspace,
-            {"command": command},
+            {
+                "command": command,
+                "validation_mode": validation_mode,
+                "validation_justification": validation_justification,
+            },
             timeout=run_command_timeout_s,
             tool_liveness=tool_liveness,
             output_store=command_output_store,
@@ -1789,6 +1880,9 @@ def build_codex_tool_catalog(
             lease_cancelled=lease_cancelled,
             require_validation_lease=(validation_lease is not None or auditor_mode),
             successful_validation_handler=validation_success_handler,
+            validation_reuse_policy=validation_reuse_policy,
+            validation_reuse_authority_check=validation_reuse_authority_check,
+            validation_reuse_policy_handler=validation_reuse_policy_handler,
             result_delivery_required=tool_liveness is not None,
         )
 
@@ -1950,6 +2044,8 @@ def build_opencode_tool_catalog(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     policy_denial_handler: Any = None,
+    validation_reuse_policy: dict[str, Any] | None = None,
+    validation_reuse_authority_check: Any = None,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -2029,6 +2125,11 @@ def build_opencode_tool_catalog(
     )
     lease_cancelled = getattr(tool_liveness, "is_cancelled", None)
     validation_success_handler = _auditor_validation_success_handler(
+        coordination_service,
+        auditor_mode=auditor_mode,
+        audit_target=audit_target,
+    )
+    validation_reuse_policy_handler = _auditor_validation_reuse_policy_handler(
         coordination_service,
         auditor_mode=auditor_mode,
         audit_target=audit_target,
@@ -2135,7 +2236,7 @@ def build_opencode_tool_catalog(
         "workspace — `cd` to absolute paths outside is refused. "
         "Project-specific tracker environment overrides are applied "
         "when configured. Returns stdout, stderr, and exit code.",
-        {"command": str},
+        _run_command_input_schema(),
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
@@ -2170,6 +2271,11 @@ def build_opencode_tool_catalog(
                 lease_cancelled=lease_cancelled,
                 require_validation_lease=(validation_lease is not None or auditor_mode),
                 successful_validation_handler=validation_success_handler,
+                validation_reuse_policy=validation_reuse_policy,
+                validation_reuse_authority_check=(
+                    validation_reuse_authority_check
+                ),
+                validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
             )
         )

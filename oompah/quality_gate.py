@@ -6,6 +6,7 @@ import hashlib
 from importlib import metadata
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -1308,6 +1309,69 @@ class BranchQualityGate:
             except OSError as exc:
                 logger.warning("Failed to persist branch quality evidence: %s", exc)
 
+    @staticmethod
+    def _decode_evidence_result(
+        entry: object,
+        *,
+        repo_identity: str,
+        target_branch: str,
+        work_branch: str,
+        head_sha: str,
+        command: str,
+    ) -> QualityGateResult | None:
+        """Decode one exact-key entry or fail closed to a cache miss."""
+
+        if not isinstance(entry, dict):
+            return None
+        status = str(entry.get("status", "") or "").strip()
+        if not status:
+            return None
+        expected_identity = {
+            "repo_identity": repo_identity,
+            "target_branch": target_branch,
+            "work_branch": work_branch,
+            "head_sha": head_sha,
+            "command": command,
+        }
+        for field_name, expected in expected_identity.items():
+            actual = str(entry.get(field_name, "") or "").strip()
+            if field_name == "head_sha":
+                actual = actual.lower()
+                expected = expected.lower()
+            if actual != expected:
+                return None
+
+        raw_recorded_at = entry.get("recorded_at")
+        if isinstance(raw_recorded_at, bool):
+            return None
+        try:
+            recorded_at = float(raw_recorded_at)
+        except (TypeError, ValueError):
+            return None
+        if (
+            not math.isfinite(recorded_at)
+            or recorded_at <= 0
+            or recorded_at > time.time()
+        ):
+            return None
+
+        raw_duration = entry.get("duration_seconds", 0)
+        try:
+            duration = float(raw_duration or 0)
+        except (TypeError, ValueError):
+            duration = 0.0
+        if not math.isfinite(duration) or duration < 0:
+            duration = 0.0
+        return QualityGateResult(
+            status=status,
+            head_sha=head_sha,
+            command=command,
+            duration_seconds=duration,
+            output_tail=str(entry.get("output_tail", "") or ""),
+            cached=True,
+            recorded_at=recorded_at,
+        )
+
     def record_compatible_auditor_pass(
         self,
         proof: AuditorQualityEvidenceProof,
@@ -1398,10 +1462,15 @@ class BranchQualityGate:
         head = str(head_sha or "").strip().lower()
         if not command or not re.fullmatch(r"[0-9a-f]{40,64}", head):
             return None
+        repository = str(repo_identity or "").strip()
+        target = str(target_branch or "").strip()
+        branch = str(work_branch or "").strip()
+        if not repository or not target or not branch:
+            return None
         key = self._evidence_key(
-            repo_identity=str(repo_identity or "").strip(),
-            target_branch=str(target_branch or "").strip(),
-            work_branch=str(work_branch or "").strip(),
+            repo_identity=repository,
+            target_branch=target,
+            work_branch=branch,
             head_sha=head,
             command=command,
         )
@@ -1410,24 +1479,13 @@ class BranchQualityGate:
                 entry = self._load().get(key)
         except OSError:
             return None
-        if not isinstance(entry, dict) or not entry.get("status"):
-            return None
-        try:
-            duration = max(float(entry.get("duration_seconds", 0) or 0), 0.0)
-        except (TypeError, ValueError):
-            duration = 0.0
-        try:
-            recorded_at = float(entry.get("recorded_at"))
-        except (TypeError, ValueError):
-            recorded_at = None
-        return QualityGateResult(
-            status=str(entry["status"]),
+        return self._decode_evidence_result(
+            entry,
+            repo_identity=repository,
+            target_branch=target,
+            work_branch=branch,
             head_sha=head,
             command=command,
-            duration_seconds=duration,
-            output_tail=str(entry.get("output_tail", "") or ""),
-            cached=True,
-            recorded_at=recorded_at,
         )
 
     @contextmanager
@@ -1619,27 +1677,23 @@ class BranchQualityGate:
                     loaded = self._load()
             except OSError:
                 loaded = {}
-            cached_entry = loaded.get(key)
-            if not isinstance(cached_entry, dict) or not cached_entry.get("status"):
-                return loaded, None
-            cached_status = str(cached_entry["status"])
-            if retry_forced and cached_status in {"failed", "timed_out", "error"}:
-                return loaded, None
-            return loaded, QualityGateResult(
-                status=cached_status,
+            cached_result = self._decode_evidence_result(
+                loaded.get(key),
+                repo_identity=repo_identity,
+                target_branch=target_branch,
+                work_branch=work_branch,
                 head_sha=head_sha,
                 command=command,
-                duration_seconds=float(
-                    cached_entry.get("duration_seconds", 0) or 0
-                ),
-                output_tail=str(cached_entry.get("output_tail", "") or ""),
-                cached=True,
-                recorded_at=(
-                    float(cached_entry.get("recorded_at"))
-                    if cached_entry.get("recorded_at") is not None
-                    else None
-                ),
             )
+            if cached_result is None:
+                return loaded, None
+            if retry_forced and cached_result.status in {
+                "failed",
+                "timed_out",
+                "error",
+            }:
+                return loaded, None
+            return loaded, cached_result
 
         # Fast cache lookup does not consume host capacity.  Crucially, the
         # evidence key is released before a lease wait: a successful auditor

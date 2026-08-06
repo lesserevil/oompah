@@ -13,6 +13,7 @@ import threading
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -34,7 +35,7 @@ from oompah.quality_gate import (
     _editable_oompah_source,
     _validate_trusted_runtime_source,
 )
-from oompah.statuses import OPEN, READY_TO_INTEGRATE
+from oompah.statuses import IN_VALIDATION, OPEN, READY_TO_INTEGRATE
 from oompah.terminal_audit import compute_issue_evidence_fingerprint
 from oompah.validation_resource_lease import (
     ValidationLeaseOwner,
@@ -117,7 +118,8 @@ def test_quality_gate_lookup_returns_persisted_exact_head_duration(tmp_path):
         text=True,
         check=True,
     ).stdout.strip()
-    gate = _gate(tmp_path / "quality.json", repo)
+    state_path = tmp_path / "quality.json"
+    gate = _gate(state_path, repo)
     proof = AuditorQualityEvidenceProof(
         repo_identity="repo",
         target_branch="main",
@@ -150,6 +152,25 @@ def test_quality_gate_lookup_returns_persisted_exact_head_duration(tmp_path):
         target_branch="main",
         work_branch="work",
         head_sha="a" * 40,
+        command="make test",
+    ) is None
+    assert gate.lookup(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        command="make test-serial",
+    ) is None
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    only_entry = next(iter(persisted["results"].values()))
+    only_entry["work_branch"] = "tampered"
+    state_path.write_text(json.dumps(persisted), encoding="utf-8")
+    assert gate.lookup(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
         command="make test",
     ) is None
 
@@ -378,15 +399,55 @@ def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(tmp_pa
 @pytest.mark.parametrize(
     ("gate_result", "expected_decision"),
     [
-        (QualityGateResult("passed", "a" * 40, "make test", 10.0), "reuse_authoritative_gate"),
-        (QualityGateResult("failed", "a" * 40, "make test", 10.0), "full_gate_required"),
+        (
+            QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                10.0,
+                recorded_at=9_999.0,
+            ),
+            "reuse_authoritative_gate",
+        ),
+        (
+            QualityGateResult(
+                "passed",
+                "a" * 40,
+                "make test",
+                10.0,
+                recorded_at=None,
+            ),
+            "full_gate_required",
+        ),
+        (
+            QualityGateResult(
+                "failed",
+                "a" * 40,
+                "make test",
+                10.0,
+                recorded_at=9_999.0,
+            ),
+            "full_gate_required",
+        ),
+        (
+            QualityGateResult(
+                "not_configured",
+                "a" * 40,
+                "make test",
+                0.0,
+                recorded_at=9_999.0,
+            ),
+            "full_gate_required",
+        ),
         (None, "full_gate_required"),
     ],
 )
 def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_evidence(
     gate_result,
     expected_decision,
+    monkeypatch,
 ):
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
     project = Project(
         id="project",
         name="project",
@@ -400,6 +461,7 @@ def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_eviden
         identifier="TASK-1",
         title="Task",
         project_id="project",
+        state=IN_VALIDATION,
         integration=IntegrationRecord(
             state="ready",
             task_branch="work",
@@ -412,6 +474,237 @@ def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_eviden
     orchestrator._branch_quality_gate = MagicMock()
     orchestrator._branch_quality_gate.lookup.return_value = gate_result
     orchestrator._terminal_audit_metrics = metrics
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    tracker = MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator.config = SimpleNamespace(audit_stale_pending_seconds=3600)
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            target_state="Done",
+            evidence_fingerprint=fingerprint,
+        ),
+    )
+
+    assert bundle["decision"] == expected_decision
+    assert bundle["command"] == "make test"
+    assert bundle["accepted_head_sha"] == "a" * 40
+    if gate_result is not None:
+        assert bundle["duration_seconds"] == gate_result.duration_seconds
+    tracker.invalidate_read_cache.assert_called_once_with()
+    tracker.fetch_issue_detail.assert_called_once_with("TASK-1")
+    metrics.record_quality_gate_decision.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "recorded_at",
+    [None, float("nan"), float("inf"), "invalid", False, 10_001.0],
+)
+def test_terminal_audit_quality_gate_bundle_rejects_invalid_timestamps(
+    recorded_at,
+    monkeypatch,
+):
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.config = SimpleNamespace(audit_stale_pending_seconds=60)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(
+        return_value=MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    )
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        "a" * 40,
+        "make test",
+        recorded_at=recorded_at,
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            target_state="Done",
+            evidence_fingerprint=fingerprint,
+        ),
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert "timestamp is missing or invalid" in bundle["reason"]
+
+
+def test_terminal_audit_quality_gate_bundle_reuses_old_current_authority(
+    monkeypatch,
+):
+    monkeypatch.setattr(time, "time", lambda: 10_000.0)
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=IN_VALIDATION,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(
+        return_value=MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    )
+    orchestrator._quality_gate_branch_head = MagicMock(return_value="a" * 40)
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        "a" * 40,
+        "make test",
+        recorded_at=1.0,
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            target_state="Done",
+            evidence_fingerprint=fingerprint,
+        ),
+    )
+
+    assert bundle["decision"] == "reuse_authoritative_gate"
+    assert bundle["recorded_at"] == 1.0
+
+
+@pytest.mark.parametrize("stale_surface", ["fingerprint", "branch", "state"])
+def test_terminal_audit_quality_gate_bundle_rejects_stale_authority(
+    stale_surface,
+):
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=OPEN if stale_surface == "state" else IN_VALIDATION,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.config = SimpleNamespace(audit_stale_pending_seconds=3600)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(
+        return_value=MagicMock(fetch_issue_detail=MagicMock(return_value=issue))
+    )
+    orchestrator._quality_gate_branch_head = MagicMock(
+        return_value=("b" if stale_surface == "branch" else "a") * 40
+    )
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+        "passed",
+        "a" * 40,
+        "make test",
+        recorded_at=time.time(),
+    )
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            target_state="Done",
+            evidence_fingerprint=(
+                "b" * 64 if stale_surface == "fingerprint" else fingerprint
+            ),
+        ),
+    )
+
+    assert bundle["decision"] == "full_gate_required"
+    assert (
+        "stale" in bundle["reason"]
+        or "no longer names" in bundle["reason"]
+        or "no longer In Validation" in bundle["reason"]
+    )
+    if stale_surface in {"fingerprint", "state"}:
+        orchestrator._branch_quality_gate.lookup.assert_not_called()
+
+
+def test_terminal_audit_quality_gate_bundle_reports_not_configured_explicitly():
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+    )
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._branch_quality_gate = MagicMock()
 
     bundle = orchestrator._terminal_audit_quality_gate_evidence(
         issue,
@@ -423,12 +716,149 @@ def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_eviden
         ),
     )
 
-    assert bundle["decision"] == expected_decision
-    assert bundle["command"] == "make test"
-    assert bundle["accepted_head_sha"] == "a" * 40
-    if gate_result is not None:
-        assert bundle["duration_seconds"] == 10.0
-    metrics.record_quality_gate_decision.assert_called_once()
+    assert bundle["decision"] == "not_configured"
+    assert bundle["status"] == "not_configured"
+    assert bundle["command"] == ""
+    orchestrator._branch_quality_gate.lookup.assert_not_called()
+
+
+def test_reusable_gate_policy_marks_missing_attempt_authority_invalid():
+    policy = Orchestrator._auditor_validation_reuse_policy(
+        {
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "accepted_head_sha": "a" * 40,
+            "target_branch": "main",
+            "work_branch": "work",
+        },
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+            attempt_id="",
+            target_state="Done",
+            evidence_fingerprint="f" * 64,
+        ),
+    )
+
+    assert policy is not None
+    assert policy["invalid_authority"] is True
+    assert policy["attempt_id"] == ""
+
+
+@pytest.mark.parametrize(
+    ("authority_surface", "expected"),
+    [
+        ("current", "reuse_authoritative_gate"),
+        ("missing_gate", "full_gate_required"),
+        ("invalid_timestamp", "full_gate_required"),
+        ("status", "stale_authority"),
+        ("head", "stale_authority"),
+        ("branch", "stale_authority"),
+        ("target_fingerprint", "stale_authority"),
+        ("live_audit", "stale_authority"),
+        ("live_attempt", "stale_authority"),
+        ("live_fingerprint", "stale_authority"),
+    ],
+)
+def test_auditor_validation_reuse_authority_rechecks_live_surfaces(
+    authority_surface,
+    expected,
+    monkeypatch,
+):
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="/managed/repo",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        state=OPEN if authority_surface == "status" else IN_VALIDATION,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project").digest
+    target = SimpleNamespace(
+        project_id="project",
+        task_id="TASK-1",
+        audit_id="audit-1",
+        attempt_id="attempt-1",
+        target_state="Done",
+        evidence_fingerprint=(
+            "b" * 64 if authority_surface == "target_fingerprint" else fingerprint
+        ),
+    )
+    live_target = SimpleNamespace(**vars(target))
+    if authority_surface == "live_audit":
+        live_target.audit_id = "audit-2"
+    elif authority_surface == "live_attempt":
+        live_target.attempt_id = "attempt-2"
+    elif authority_surface == "live_fingerprint":
+        live_target.evidence_fingerprint = "b" * 64
+
+    policy = Orchestrator._auditor_validation_reuse_policy(
+        {
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "accepted_head_sha": "a" * 40,
+            "target_branch": "main",
+            "work_branch": (
+                "other-work" if authority_surface == "branch" else "work"
+            ),
+        },
+        target,
+    )
+    assert policy is not None
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    tracker.get_metadata.return_value = {"unused": True}
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator.project_store = MagicMock()
+    orchestrator.project_store.get.return_value = project
+    orchestrator.project_store.project_write_lock.return_value = nullcontext()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._terminal_audit_metrics = MagicMock()
+    orchestrator._quality_gate_branch_head = MagicMock(
+        return_value=("b" if authority_surface == "head" else "a") * 40
+    )
+    orchestrator._branch_quality_gate = MagicMock()
+    if authority_surface == "missing_gate":
+        orchestrator._branch_quality_gate.lookup.return_value = None
+    else:
+        orchestrator._branch_quality_gate.lookup.return_value = QualityGateResult(
+            "passed",
+            "a" * 40,
+            "make test",
+            recorded_at=(
+                float("nan")
+                if authority_surface == "invalid_timestamp"
+                else time.time()
+            ),
+        )
+    monkeypatch.setattr(
+        "oompah.orchestrator.pending_auditor_target",
+        lambda *_args, **_kwargs: live_target,
+    )
+
+    result = orchestrator._auditor_validation_reuse_authority_state(
+        issue,
+        target,
+        policy,
+    )
+
+    assert result == expected
+    if expected != "stale_authority":
+        tracker.get_metadata.assert_called_once_with("TASK-1")
 
 
 def _git_repo(tmp_path):
@@ -580,6 +1010,38 @@ def test_passing_head_is_cached_and_survives_restart(tmp_path):
     assert first.passed and not first.cached
     assert second.passed and second.cached
     assert counter.read_text(encoding="utf-8") == "x"
+
+
+@pytest.mark.parametrize(
+    "malformed_surface",
+    ["malformed_timestamp", "nonfinite_timestamp", "partial_identity"],
+)
+def test_normal_gate_reruns_instead_of_reusing_malformed_evidence(
+    tmp_path,
+    malformed_surface,
+):
+    repo = _git_repo(tmp_path)
+    counter = tmp_path / "counter"
+    command = f"printf x >> {shlex.quote(str(counter))}"
+    state = tmp_path / "quality.json"
+    gate = _gate(state, repo)
+
+    assert _run(gate, repo, command).passed
+    persisted = json.loads(state.read_text(encoding="utf-8"))
+    entry = next(iter(persisted["results"].values()))
+    if malformed_surface == "malformed_timestamp":
+        entry["recorded_at"] = "not-a-number"
+    elif malformed_surface == "nonfinite_timestamp":
+        entry["recorded_at"] = float("nan")
+    else:
+        entry.pop("command")
+    state.write_text(json.dumps(persisted), encoding="utf-8")
+
+    result = _run(_gate(state, repo), repo, command)
+
+    assert result.passed
+    assert result.cached is False
+    assert counter.read_text(encoding="utf-8") == "xx"
 
 
 def test_new_head_command_or_target_invalidates_pass(tmp_path):

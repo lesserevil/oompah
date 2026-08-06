@@ -120,6 +120,8 @@ class AcpAgentSession:
         auditor: bool = False,
         audit_target: Any = None,
         audit_result_handler: Any = None,
+        validation_reuse_policy: dict[str, Any] | None = None,
+        validation_reuse_authority_check: Callable[[], object] | None = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -162,6 +164,8 @@ class AcpAgentSession:
         self.auditor = auditor
         self.audit_target = audit_target
         self.audit_result_handler = audit_result_handler
+        self.validation_reuse_policy = validation_reuse_policy
+        self.validation_reuse_authority_check = validation_reuse_authority_check
         self.terminal_transition_coordinator = terminal_transition_coordinator
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
@@ -294,6 +298,10 @@ class AcpAgentSession:
             auditor=self.auditor,
             audit_target=self.audit_target,
             audit_result_handler=self.audit_result_handler,
+            validation_reuse_policy=self.validation_reuse_policy,
+            validation_reuse_authority_check=(
+                self.validation_reuse_authority_check
+            ),
         )
 
         try:
