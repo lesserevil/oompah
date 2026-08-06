@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-06T06:56:00.613068Z'
+updated_at: '2026-08-06T06:56:06.111412Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -166,7 +166,7 @@ oompah.terminal_audit:
     evidence_fingerprint: a7c99834908b7136ca80e9cd2a73f5db73d4e1cb424ca4634cd87a1f4c565832
     audit_ids:
     - audit-e1f46d62a09b
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-08-04T16:51:59.855761+00:00'
   oompah.terminal_audit_result_intents:
@@ -182,6 +182,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-04T16:51:59.855772+00:00'
     applied_at: '2026-08-04T16:52:07.148485+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-10c05f6357b0
@@ -204,7 +205,7 @@ oompah.terminal_audit:
       by the coordinator, so this override resolves the verified unchanged task without
       reopening implementation.
     created_at: '2026-08-06T06:55:57.258887+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -701,5 +702,12 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 47s
 - Log: OOMPAH-745__20260805T044812Z.jsonl
+---
+author: oompah
+created: 2026-08-06 06:56
+---
+Override by oompah-cli: terminal transition to Done applied by project owner.
+
+Reason: Independent operator review confirms exact integrated head b08a12057 and canonical fingerprint a7c99834908b. The combined-tree integration gate passed, 143 focused dashboard and WebSocket tests passed, and the terminal-mutation scan passed 8 of 8. The old no-auditor record predates current auditor transport; both the alert-prescribed evidence rearm and ordinary owner rearm are rejected by the coordinator, so this override resolves the verified unchanged task without reopening implementation.
 ---
 <!-- COMMENTS:END -->
