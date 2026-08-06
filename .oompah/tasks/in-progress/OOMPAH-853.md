@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:27:38.820384Z'
+updated_at: '2026-08-06T05:27:49.663161Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-06 05:27
 ---
 Discovery: the OOMPAH-728 selection path reserves structural peers only as full rows, marks any row/byte overflow as availability=insufficient, and _finish_duplicate_preflight_sync converts that diagnostic directly into Needs Human. Healthy budget pressure is therefore misclassified as tracker failure. The fix retains all present structural peers as bounded structural_peers summaries, keeps normal rows when they fit, and reserves task/byte space before similarity/generic candidates; only unavailable/corrupt fetches remain retryable/actionable.
+---
+author: oompah
+created: 2026-08-06 05:27
+---
+Implementation: duplicate corpus construction now validates tracker records, clips untrusted text by UTF-8 bytes, reserves all structural peers before ordinary candidates, and emits compact structural_peers identity/title/status/relationship/evidence records when full rows exceed task or byte limits. Corpus availability stays authoritative for healthy budget pressure; corrupt/unavailable reads use bounded retry handling. Updated investigator guidance/docs and replaced the obsolete insufficient-budget escalation tests with OOMPAH-851, terminal/missing-peer, and corrupt-read regressions.
 ---
 <!-- COMMENTS:END -->
