@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T03:53:36.998986Z'
+updated_at: '2026-08-06T03:53:46.610814Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
