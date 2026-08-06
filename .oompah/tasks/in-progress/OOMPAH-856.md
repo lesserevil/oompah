@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:51:15.370298Z'
+updated_at: '2026-08-06T16:53:47.576230Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
     with coordinator eligibility and clears resolved integrated-audit alerts; the
     omitted structural peers cover distinct validation, quiesce, isolation, and delivery
     concerns.'
-oompah.agent_run_id: a98a05bd-3fb3-455f-8fc9-453cf61f12e6
+oompah.agent_run_id: 6ccfc901-da26-4a4b-a17c-3f08a21a1f87
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
   version: 2
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-08-06 16:32
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 16:53
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
