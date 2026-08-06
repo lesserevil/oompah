@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:29:39.217815Z'
+updated_at: '2026-08-06T23:30:13.940585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,19 @@ author: oompah
 created: 2026-08-06 23:29
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 23:30
+---
+**UNDERSTANDING**: The issue is that dedicated self-hosted CI runs bypass the validation-resource capacity broker (capacity=1), allowing multiple heavyweight pytest processes to run concurrently on the same host. Run #31129704050 emitted 16,000+ per-test verbose logs causing filesystem journal waits (jbd2_log_wait_commit), blocking other CI and local validation.
+
+**PLAN**:
+1. Add validation-resource lease acquisition to .github/workflows/ci-dedicated.yml before pytest starts, with project/task/run identity and timeout-based release
+2. Route pytest through lease holder check with fallback error handling
+3. Replace pytest -v with bounded output (quiet/short summary) while capturing full test results to artifact
+4. Implement tests for: concurrent capacity enforcement, cancellation/death cleanup, success/failure diagnostics
+5. Verify only one heavyweight process runs at a time across all CI paths
+
+**Focus**: Discovering the current validation-resource lease mechanism and CI workflow integration points
 ---
 <!-- COMMENTS:END -->
