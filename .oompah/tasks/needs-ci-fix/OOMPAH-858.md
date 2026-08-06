@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:39:27.194180Z'
+updated_at: '2026-08-06T18:40:33.569811Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,14 +48,16 @@ oompah.agent_run_id: 55e9f95c-af4d-471f-9d6d-05eef63f3822
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 2
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
-  head_sha: c296b963a2544b701c237481a0dde7bdbb9a4afd
+  head_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   submitted_at: '2026-08-06T18:38:51.476510+00:00'
-  updated_at: '2026-08-06T18:39:24.853014+00:00'
+  updated_at: '2026-08-06T18:40:26.269621+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 596
@@ -449,5 +451,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 13m 44s
 - Log: OOMPAH-858__20260806T182548Z.jsonl
+---
+author: oompah
+created: 2026-08-06 18:40
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-858`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
