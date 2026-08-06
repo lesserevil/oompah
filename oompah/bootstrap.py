@@ -403,6 +403,9 @@ async def setup_services(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
         revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
+        clear_integrated_audit_recovery_alert=(
+            orchestrator._clear_integrated_audit_recovery_alert
+        ),
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
         validate_terminal_transition=orchestrator._validate_terminal_transition,
     )
