@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:36:52.508663Z'
+updated_at: '2026-08-06T06:37:06.736251Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -213,5 +213,35 @@ author: oompah
 created: 2026-08-06 06:36
 ---
 Fenced terminal-auditor provider spawn during graceful quiesce/restart drain. Added atomic re-check of _dispatch_is_blocked() immediately before worker creation to prevent new auditors from being spawned while orchestrator is quiescing. Ensures running_count reaches zero and queued audits are preserved for retry after restart. All 61+ related tests pass.
+---
+author: oompah
+created: 2026-08-06 06:37
+---
+**Completion Summary**
+
+Issue OOMPAH-854 is complete and submitted for integration.
+
+**What was fixed:**
+During graceful orchestrator quiesce/restart, new auditor provider processes were being spawned despite quiesced=true being set, preventing running_count from reaching zero and extending shutdown indefinitely.
+
+**Root cause:**
+The _dispatch() method checked _dispatch_is_blocked() at the start but not immediately before spawning the worker task, leaving a race window during tracker I/O and state reconciliation.
+
+**Solution implemented:**
+Added an atomic re-check of _dispatch_is_blocked() in orchestrator._dispatch() immediately before creating the worker task (line ~33376-33399). If dispatch becomes blocked after initial check:
+- Abort cleanly without spawning provider
+- Release all claimed state (issue, audit branch, preflight)
+- Audit record remains IN_PROGRESS until next scan
+- Recovery logic marks abandoned attempts as PENDING
+- Queued audits retry exactly once after restart
+
+**Implementation details:**
+- File: oompah/orchestrator.py (96 lines added)
+- Tests: tests/test_auditor_quiesce_fence.py (6 comprehensive tests)
+- All existing tests pass (61+ auditor/dispatch/lifecycle tests)
+
+**Verification:**
+Branch: epic-OOMPAH-763--task-OOMPAH-854
+Submitted for orchestrator integration.
 ---
 <!-- COMMENTS:END -->
