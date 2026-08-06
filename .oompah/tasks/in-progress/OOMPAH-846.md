@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:20:51.021907Z'
+updated_at: '2026-08-06T04:31:28.555626Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-06 04:20
 ---
 Third live reproduction at 04:20 UTC: OOMPAH-795 provider-native Codex paths concurrently spawned absolute /home/shedwards/src/oompah/.venv/bin/python pytest commands over three files (retry_authority_generation/auto_concurrency/default_first_dispatch) and two files (submit_queue_concurrency/stall_to_dispatch_recovery) while OOMPAH-791 owned capacity=1. Neither appeared in validation-resource owners/waiters. Operator terminated only top-level sandboxes 2871518/2871522; worker and dirty worktree were preserved. Enforcement must cover parallel tool calls and absolute interpreter paths before spawn.
+---
+author: oompah
+created: 2026-08-06 04:31
+---
+Live reproduction at 2026-08-06T04:29Z: OOMPAH-847 spawned two provider-native command sandboxes (top PIDs 2957672 and 2961523) running absolute-venv pytest against tests/test_epic_strategy.py and tests/test_dispatch_lane_contract.py while the authoritative OOMPAH-791 make test gate was starting. Both bypassed the validation-resource lease. I terminated only those two test sandboxes; their implementation edits remain intact. This is direct evidence that worker command_execution paths must acquire the same lease as gates/auditors.
 ---
 <!-- COMMENTS:END -->
