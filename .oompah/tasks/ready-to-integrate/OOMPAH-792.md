@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:28:10.454282Z'
+updated_at: '2026-08-06T16:28:24.027078Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -82,12 +82,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-767--task-OOMPAH-792
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-767--task-OOMPAH-792
   base_branch: epic-OOMPAH-767
   base_sha: 6ae941a31682dce6cd9346c3c4d7116a4c2db8ae
-  updated_at: '2026-08-06T16:12:00.597781+00:00'
+  head_sha: 040741ecba1a447c6f01f2c33ca8cad9a27fcfba
+  submitted_at: '2026-08-06T16:28:09.047343+00:00'
+  updated_at: '2026-08-06T16:28:09.047343+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 4652
@@ -176,5 +178,20 @@ author: oompah
 created: 2026-08-06 16:28
 ---
 Completion: committed and pushed 040741ecb. Delivered the parameterized seven-incident full-stack replay, restart/duplicate-event safety checks, native Git/tracker/evaluator/worker/transition/UI diagnostic composition, verified-landing reason preservation, and audited direct-maintenance transition coverage. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-06 16:28
+---
+Added seven historical full-stack workflow incident replays with restart and duplicate-event safety, verified executor/UI reason parity, and preserved audited merged/maintenance transitions.
+---
+author: oompah
+created: 2026-08-06 16:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 152
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 34s
+- Log: OOMPAH-792__20260806T161210Z.jsonl
 ---
 <!-- COMMENTS:END -->
