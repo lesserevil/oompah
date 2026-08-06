@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-05T23:58:12.777880Z'
+updated_at: '2026-08-06T00:16:17.999836Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -56,14 +56,54 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
-  base_sha: a744be37d42047e25e6fc62a6a64878c187290e0
+  base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
   head_sha: 43cd830ae312725d336299e0199618a99c923838
   submitted_at: '2026-08-05T23:58:06.550927+00:00'
-  updated_at: '2026-08-05T23:58:06.550927+00:00'
+  updated_at: '2026-08-06T00:16:11.494626+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: warning: skipped previously
+    applied commit 08f6a8c5a
+
+    warning: skipped previously applied commit ef5e8c30e
+
+    warning: skipped previously applied commit 69dba9d56
+
+    warning: skipped previously applied commit a744be37d
+
+    warning: skipped previously applied commit 1230456cc
+
+    warning: skipped previously applied commit a1e0da778
+
+    warning: skipped previously applied commit a3948097f
+
+    warning: skipped previously applied commit 742327deb
+
+    warning: skipped previously applied commit ce2526a8b
+
+    hint: use --reapply-cherry-picks to include skipped commits
+
+    hint: Disable this message with "git config set advice.skippedCherryPicks false"
+
+    Rebasing (1/9)
+
+    error: could not apply 7eada51f6... OOMPAH-813: fence revoked submission exit
+    scope
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 7eada51f6... # OOMPAH-813: fence revoked submission exit scope'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -301,5 +341,10 @@ author: oompah
 created: 2026-08-05 23:58
 ---
 Restacked and independently reviewed the seven-commit LandingFact epic workflow implementation onto the current OOMPAH-768 parent. Exact head 43cd830ae312725d336299e0199618a99c923838 is pushed, branch clean, focused tests and secret scan green.
+---
+author: oompah
+created: 2026-08-06 00:16
+---
+Integration found a rebase conflict on `epic-OOMPAH-768--task-OOMPAH-791`. Resolve it against `epic-OOMPAH-768`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
