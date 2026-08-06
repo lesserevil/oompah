@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:32:15.071077Z'
+updated_at: '2026-08-06T04:32:20.973779Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -134,6 +134,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-7974892cf5b3: '2026-08-06T04:10:24.548168+00:00'
+    no-auditor-audit-812557c71067-2: '2026-08-06T04:32:18.194296+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-826
@@ -144,6 +145,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-06T04:10:24.548178+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    target_state: Merged
+    evidence_fingerprint: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+    audit_ids:
+    - audit-812557c71067
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T04:32:18.194315+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-826
@@ -157,6 +167,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-06T04:10:24.548190+00:00'
     applied_at: '2026-08-06T04:10:38.341484+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-826
+    audit_id: audit-812557c71067
+    attempt_id: no-auditor-audit-812557c71067-2
+    target_state: Merged
+    evidence_fingerprint: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+    status: Needs Human
+    audit_ids:
+    - audit-812557c71067
+    applied: false
+    created_at: '2026-08-06T04:32:18.194335+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -198,7 +219,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-826
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -235,13 +256,25 @@ oompah.terminal_audit:
       candidate_rotation_count: 1
       ended_at: '2026-08-06T04:32:13.881751+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-812557c71067-2
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f9cd6dd80786995412eb43bf649045ad0fa36a1ebf4abd9423dc35844ac5fab3
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-06T04:32:18.194114+00:00'
+      completed_at: '2026-08-06T04:32:18.194114+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-06T04:02:29.056807+00:00'
-    updated_at: '2026-08-06T04:23:11.428729+00:00'
+    updated_at: '2026-08-06T04:32:18.194114+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7974892cf5b3
