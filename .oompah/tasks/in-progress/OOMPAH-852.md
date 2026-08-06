@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T05:07:49.999117Z'
+updated_at: '2026-08-06T05:09:29.172856Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-06 05:07
 ---
 Verification: focused classifier/lease selection tests passed (118 selected); full validation_resource_lease.py passed (149 before the added help/version cases, with the focused additions also green); native guard passed 18 tests when excluding one orphaned-runner cancellation case; ACP tool/liveness passed 34; ACP Codex validation passed 5; API budget passed 105; Ruff and git diff checks are clean. make test was attempted but setup could not invoke the installed uv due the host DBus transient-scope error.
+---
+author: oompah
+created: 2026-08-06 05:09
+---
+Completion: focused pytest/py.test/unittest invocations no longer bypass ValidationResourceLease, including named and absolute Python selectors. Exact-gate ordering, one-time focused execution, inspection concurrency, and existing cancellation/liveness behavior are covered. Commit 930cd74b9 is pushed and the branch is clean/up to date. Full make test could not reach pytest because uv setup failed with the host DBus transient-scope error; focused suites and Ruff are green.
 ---
 <!-- COMMENTS:END -->
