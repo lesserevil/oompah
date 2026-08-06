@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:22:57.122637Z'
+updated_at: '2026-08-06T00:23:05.857415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -261,5 +261,10 @@ author: oompah
 created: 2026-08-06 00:22
 ---
 Verification: the preserved focused ACP/tool-liveness/result-output suite passed 35/35; adjacent ACP/provider-retirement/validation/lifecycle coverage passed 561/573, with only 12 documented read-only operator-path failures. The new test proves child-exit concurrent with a stall scan has exactly one delivery owner and acknowledgement; auditor large output remains under 65KB until release, while provider handoff expiry reports the precise timeout. Current git diff --check is clean and the pushed branch is clean/up to date. Re-running make test, terminal scan, and secret scan is blocked before execution by the native validation guard chmod failure on its read-only service lock directory; no guard bypass was used.
+---
+author: oompah
+created: 2026-08-06 00:23
+---
+Completion: delivered and pushed c8e6efcd2 on OOMPAH-833. The standalone main backport retains command liveness through bounded provider delivery for both implementation workers and terminal auditors, reports precise delivery stalls, and has exact-once race coverage. Submitting this exact head for integration and its configured terminal gate.
 ---
 <!-- COMMENTS:END -->
