@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T01:53:35.404186Z'
+updated_at: '2026-08-06T01:54:33.227304Z'
 work_branch: OOMPAH-830
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/726
@@ -159,18 +159,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-830
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ea04ec1700e74b31a1d48a63e3115fe906780bb64052f41e2580faf2f05c32be
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e6c23960134c
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ea04ec1700e74b31a1d48a63e3115fe906780bb64052f41e2580faf2f05c32be
+      created_at: '2026-08-06T01:54:22.789861+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-06T01:54:22.789861+00:00'
+      branch_key: OOMPAH-830
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-06T01:34:41.033554+00:00'
+    updated_at: '2026-08-06T01:54:22.789861+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b848a80f557
@@ -184,6 +198,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-06T01:35:38.240531+00:00'
+    branch_key: OOMPAH-830
+  - version: 1
+    attempt_id: attempt-e6c23960134c
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ea04ec1700e74b31a1d48a63e3115fe906780bb64052f41e2580faf2f05c32be
+    created_at: '2026-08-06T01:54:22.789861+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-06T01:54:22.789861+00:00'
     branch_key: OOMPAH-830
 ---
 ## Summary
@@ -343,5 +370,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 17m 33s
 - Log: OOMPAH-830__20260806T013618Z.jsonl
+---
+author: oompah
+created: 2026-08-06 01:54
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-06 01:54
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
