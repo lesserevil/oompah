@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T20:50:07.697792Z'
+updated_at: '2026-08-06T20:51:20.568957Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -107,6 +107,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-9e1fc07668b1: '2026-07-30T18:20:54.953530+00:00'
     attempt-5fc96a15b7da: '2026-07-30T19:40:25.722852+00:00'
+    no-auditor-audit-8e46f26327c7-1: '2026-08-06T20:51:19.218510+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Archived
+    evidence_fingerprint: d0b661e9828ee97df8f3c3961ecae2673cf9a079be864fc05cd07f486ffadc23
+    audit_ids:
+    - audit-8e46f26327c7
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T20:51:19.218521+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    audit_id: audit-8e46f26327c7
+    attempt_id: no-auditor-audit-8e46f26327c7-1
+    target_state: Archived
+    evidence_fingerprint: d0b661e9828ee97df8f3c3961ecae2673cf9a079be864fc05cd07f486ffadc23
+    status: Needs Human
+    audit_ids:
+    - audit-8e46f26327c7
+    applied: false
+    created_at: '2026-08-06T20:51:19.218537+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -182,7 +205,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-605
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -191,7 +214,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7c1235482ea8
       target_state: Archived
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -201,13 +224,27 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-06T20:43:12.825258+00:00'
       branch_key: OOMPAH-605
+      ended_at: '2026-08-06T20:51:13.172919+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-8e46f26327c7-1
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d0b661e9828ee97df8f3c3961ecae2673cf9a079be864fc05cd07f486ffadc23
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-06T20:51:19.218340+00:00'
+      completed_at: '2026-08-06T20:51:19.218340+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-06T20:42:11.133927+00:00'
-    updated_at: '2026-08-06T20:43:12.825258+00:00'
+    updated_at: '2026-08-06T20:51:19.218340+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9e1fc07668b1
@@ -238,7 +275,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-7c1235482ea8
     target_state: Archived
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -248,6 +285,8 @@ oompah.terminal_audit:
     model: haiku
     started_at: '2026-08-06T20:43:12.825258+00:00'
     branch_key: OOMPAH-605
+    ended_at: '2026-08-06T20:51:13.172919+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
