@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T03:38:33.503630Z'
+updated_at: '2026-08-06T03:44:23.429590Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Regression after OOMPAH-805: OOMPAH-791 exact head c402ffe9b reached 16,193 pass
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 03:44
+---
+Additional focused evidence: after the minimal marker, the complete event-driven-loop module passed 60/60 with -n 4, but pytest emitted a destroyed-pending quarantine-worker task from another test in the same module. Include that event-loop cleanup leak in the systemic audit/acceptance rather than treating a warning from normal teardown as healthy. The in-flight OOMPAH-791 workaround remains scoped only to the proven restart-recovery timeout.
+---
+<!-- COMMENTS:END -->
