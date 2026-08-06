@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-862
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prevent terminal auditors from redundantly rerunning authoritative full gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:25:24.228562Z'
+updated_at: '2026-08-06T14:26:56.337762Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
     exact full gate. Related OOMPAH-847 through OOMPAH-861 tasks address test isolation,
     resource fencing, dependency flow, and branch authority, not redundant terminal-audit
     gate reuse.
-oompah.agent_run_id: 31ffd653-fabf-4646-bbab-1de449aec7c9
+oompah.agent_run_id: 8517ca93-c711-4906-9cf4-de73c5fba4dd
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-862
 oompah.integration:
   version: 2
@@ -52,7 +52,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-763--task-OOMPAH-862
   base_branch: epic-OOMPAH-763
   base_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
-  updated_at: '2026-08-06T14:21:51.939134+00:00'
+  updated_at: '2026-08-06T14:26:53.282139+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2503
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-08-06 14:22
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 14:26
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
