@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-05T22:42:46.599198Z'
+updated_at: '2026-08-06T01:13:55.089343Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -51,9 +51,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: f1e7925b7263f980517f943291102c8c83335ed2
-  head_sha: d5ee41a18c3ced4958b679b50a224f412c2bf895
-  submitted_at: '2026-08-05T15:01:08.633641+00:00'
-  updated_at: '2026-08-05T15:01:08.633641+00:00'
+  head_sha: b8d6645cd65194d9bebdec1a38b5ab640190fcf9
+  submitted_at: '2026-08-06T01:13:47.542946+00:00'
+  updated_at: '2026-08-06T01:13:47.542946+00:00'
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -361,5 +361,15 @@ author: oompah
 created: 2026-08-05 22:42
 ---
 Correction to the preceding live-repro comment: the attempted owner command was oompah task set-status OOMPAH-745 Done --project proj-14849f1b --audit-retry with a retry reason. The server returned HTTP 409: No matching exhausted audit can be retried for this task. No task status changed. The rest of the reported deployed-main evidence and acceptance case is unchanged.
+---
+author: oompah
+created: 2026-08-06 01:13
+---
+Restacked all four OOMPAH-821 commits onto the now-integrated OOMPAH-796 exact parent 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b. The pushed exact head is b8d6645cd65194d9bebdec1a38b5ab640190fcf9. Conflict resolution was import-only and preserves OOMPAH-796 statuses plus OOMPAH-821 audit provenance/server coverage. Verification: 253 focused tests passed; py_compile, diff check, terminal-audit mutation scan 8/8, and make check-secrets passed.
+---
+author: oompah
+created: 2026-08-06 01:13
+---
+Restacked the terminal-audit alert repair onto integrated OOMPAH-796; exact pushed head b8d6645cd passes 253 focused tests and static checks.
 ---
 <!-- COMMENTS:END -->
