@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T19:11:27.467127Z'
+updated_at: '2026-08-06T19:13:35.738412Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -46,14 +46,20 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-856
   base_branch: epic-OOMPAH-763
-  base_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
+  base_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   head_sha: 6b759e1ca46593b2d62bb20e91b92b444d56b3d5
   submitted_at: '2026-08-06T19:11:14.301052+00:00'
-  updated_at: '2026-08-06T19:11:14.301052+00:00'
+  updated_at: '2026-08-06T19:13:28.244110+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Trusted quality-gate
+    runtime corruption detected; candidate CI was not run: trusted editable source
+    mapping is inconsistent: expected one of [''/home/shedwards/src/oompah''] or immutable
+    candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-qmnpvxfy/workspace;
+    actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-856. Repair or replace
+    the service test runtime before rerunning the branch gate.'
 oompah.task_costs:
   total_input_tokens: 48330
   total_output_tokens: 378
@@ -172,5 +178,15 @@ author: oompah
 created: 2026-08-06 19:11
 ---
 Serialized terminal alert reconciliation and recovery through one lock-protected registry, fixed bootstrap/webhook family replacement races, retained canonical retry evidence, and added deterministic recovery/clear regressions. Independent static review passed; 474 focused tests passed serially and 474 passed under four-way loadgroup at exact head 6b759e1ca46593b2d62bb20e91b92b444d56b3d5; check-secrets and diff checks pass.
+---
+author: oompah
+created: 2026-08-06 19:13
+---
+The combined-tree quality gate failed on `epic-OOMPAH-763--task-OOMPAH-856`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-qmnpvxfy/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-856. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
