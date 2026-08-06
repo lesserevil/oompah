@@ -10,11 +10,10 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-796
 - OOMPAH-779
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T04:21:35.563689Z'
+updated_at: '2026-08-06T04:22:03.746027Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -149,5 +148,15 @@ author: oompah
 created: 2026-08-06 04:14
 ---
 Implementation: added the shared redacted WorkDecision projection boundary and cache, attached it to state/running/retry/queue, board/detail responses, and a protected single-task endpoint. Global alerts now require explicit action_required plus warning severity; the dashboard renders the same reason/owner/prerequisite/action fields with escaped accessible markup. Added projection documentation and parity/redaction/alert/UI tests.
+---
+author: oompah
+created: 2026-08-06 04:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 211
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 30s
+- Log: OOMPAH-795__20260806T035642Z.jsonl
 ---
 <!-- COMMENTS:END -->
