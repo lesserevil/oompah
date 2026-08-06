@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T18:54:28.443797Z'
+updated_at: '2026-08-06T19:11:27.467127Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -42,16 +42,18 @@ oompah.duplicate_screening:
     with coordinator eligibility and clears resolved integrated-audit alerts; the
     omitted structural peers cover distinct validation, quiesce, isolation, and delivery
     concerns.'
-oompah.agent_run_id: 6ccfc901-da26-4a4b-a17c-3f08a21a1f87
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-856
   base_branch: epic-OOMPAH-763
   base_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
-  updated_at: '2026-08-06T16:53:59.317697+00:00'
+  head_sha: 6b759e1ca46593b2d62bb20e91b92b444d56b3d5
+  submitted_at: '2026-08-06T19:11:14.301052+00:00'
+  updated_at: '2026-08-06T19:11:14.301052+00:00'
 oompah.task_costs:
   total_input_tokens: 48330
   total_output_tokens: 378
@@ -165,5 +167,10 @@ author: oompah
 created: 2026-08-06 18:54
 ---
 Static race review is accepted after updating the Granian label-bootstrap test sink for the atomic alert-replacement API. Repair is committed at bae33f160050b571be8fe26f830909dd5b37df62; check-secrets and static checks pass. Focused serial/xdist validation is queued behind the active exact OOMPAH-858 gate.
+---
+author: oompah
+created: 2026-08-06 19:11
+---
+Serialized terminal alert reconciliation and recovery through one lock-protected registry, fixed bootstrap/webhook family replacement races, retained canonical retry evidence, and added deterministic recovery/clear regressions. Independent static review passed; 474 focused tests passed serially and 474 passed under four-way loadgroup at exact head 6b759e1ca46593b2d62bb20e91b92b444d56b3d5; check-secrets and diff checks pass.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: Open
+status: Needs Human
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-06T19:10:32.474177Z'
+updated_at: '2026-08-06T19:11:37.764960Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -25,13 +25,16 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8bbd84ae-12a2-4801-97d6-dfe57083f3ec
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T19:10:11.945003+00:00'
-  claim_expires_at: '2026-08-06T19:40:11.945003+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
+    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
+    OOMPAH-862, OOMPAH-863, OOMPAH-864.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-06T19:11:08.156537+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -45,6 +48,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   updated_at: '2026-08-06T19:10:25.577168+00:00'
+oompah.task_costs:
+  total_input_tokens: 45981
+  total_output_tokens: 237
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 45981
+      output_tokens: 237
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 45981
+    output_tokens: 237
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T19:11:08.155170+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-865__20260806T191048Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-865
+    source_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
+    completed_at: '2026-08-06T19:11:08.170498+00:00'
 ---
 ## Summary
 
@@ -67,5 +96,20 @@ author: oompah
 created: 2026-08-06 19:10
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 19:11
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.0K in / 237 out [46.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 48s
+- Log: OOMPAH-865__20260806T191048Z.jsonl
+---
+author: oompah
+created: 2026-08-06 19:11
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863, OOMPAH-864. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
