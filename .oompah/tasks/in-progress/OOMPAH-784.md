@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T04:47:01.756402Z'
+updated_at: '2026-08-06T04:47:16.742540Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -276,5 +276,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 34m 59s
 - Log: OOMPAH-784__20260806T041211Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:47
+---
+Direct-owner takeover after independent static review rejected checkpoint 8940760dc. The checkpoint adds only an unwired metrics module/tests: it is not consumed by ServiceConfig, UniversalTotalityLivenessController, orchestrator health/API/UI, or .env.example; it conflicts with workflow_reasons.LIVENESS_SLOS; status normalization and progress timestamps are wrong; incomplete scans can report healthy; cardinality caps are not enforced; and tests include a bare pass plus contradictory exact-boundary assertions. Preserved the clean checkpoint. Repair must derive bounded liveness projections from authoritative WorkDecision/controller facts, persist restart-safe ages/deadlines, wire project/global health with action_required-only warning semantics, and replace misleading tests before validation.
 ---
 <!-- COMMENTS:END -->
