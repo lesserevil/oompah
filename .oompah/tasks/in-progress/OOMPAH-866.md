@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T20:50:30.422082Z'
+updated_at: '2026-08-06T20:53:50.864510Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: 507e1570-42af-456d-8dab-4cc33e54ef1a
+oompah.agent_run_id: ee45e465-4c31-448f-9dd3-093b2aa6a27b
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
