@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T12:22:52.006719Z'
+updated_at: '2026-08-06T12:44:48.310430Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,5 +35,10 @@ author: oompah
 created: 2026-08-06 12:22
 ---
 Focused warning-as-error validation found and repaired one adjacent environment-dependent real spawn: test_exponential_backoff_capped_at_60s exercised real _launch after a crash. It now mocks _launch while preserving/asserting the actual restart delay/attempt path. On OOMPAH-837 head ef2120815, the affected submission-fencing, webhook, and epic-rebase suites passed 265 serial and 265 xdist tests with RuntimeWarning and PytestUnraisableExceptionWarning promoted to errors; independent static review accepted. The same test-only commit is cherry-picked cleanly onto task branch epic-OOMPAH-763--task-OOMPAH-860 at 34bf3aa8; branch-specific focused validation is intentionally waiting until the active OOMPAH-837 exact gate and audit release the serialized lane.
+---
+author: oompah
+created: 2026-08-06 12:44
+---
+Dedicated task branch epic-OOMPAH-763--task-OOMPAH-860 is clean and pushed at exact head 34bf3aa8a. This patch already passed 265 serial + 265 xdist warning-as-error tests in the shared OOMPAH-837 composition and that exact full gate has now passed. Branch-specific focused validation is deliberately queued behind the active independent OOMPAH-837 terminal audit; no submission until that exact-branch evidence completes.
 ---
 <!-- COMMENTS:END -->
