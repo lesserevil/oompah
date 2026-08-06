@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:30:27.139471Z'
+updated_at: '2026-08-06T09:31:27.370334Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9162ae12-e303-4e78-af51-0eeb40b04d8b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  updated_at: '2026-08-06T09:28:38.457695+00:00'
+  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  submitted_at: '2026-08-06T09:31:16.579601+00:00'
+  updated_at: '2026-08-06T09:31:16.579601+00:00'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -161,5 +163,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 48s
 - Log: OOMPAH-834__20260806T092846Z.jsonl
+---
+author: oompah
+created: 2026-08-06 09:31
+---
+Resubmitted the canonical already-composed head f89c477d after task-scoped nested-delivery recovery. This head contains OOMPAH-834's exact implementation commit, all validated parent composition, and matches the resolved combined candidate so the exact-head gate can acquire coherent owner evidence.
 ---
 <!-- COMMENTS:END -->
