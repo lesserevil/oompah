@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T00:21:09.811397Z'
+updated_at: '2026-08-06T00:21:15.334089Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -52,16 +52,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
   base_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
   head_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
-  submitted_at: '2026-08-05T20:22:51.265104+00:00'
-  updated_at: '2026-08-06T00:14:31.692224+00:00'
-  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
-    metadata does not match the exact resolved candidate head.'
+  submitted_at: '2026-08-06T00:21:05.310726+00:00'
+  updated_at: '2026-08-06T00:21:05.310726+00:00'
 oompah.task_costs:
   total_input_tokens: 46798
   total_output_tokens: 39745
