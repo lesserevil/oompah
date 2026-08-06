@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:10:36.738992Z'
+updated_at: '2026-08-06T08:21:53.257834Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -68,49 +68,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
-  head_sha: 680dbfb08a72eccc35517ceb58a310c35799e92e
-  submitted_at: '2026-08-06T07:44:11.095504+00:00'
-  updated_at: '2026-08-06T08:08:37.694837+00:00'
-  last_error: "Combined-tree quality gate failed: :67: PytestUnraisableExceptionWarning:\
-    \ Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f1c1f0b39c0>\n\
-    \  \n  Traceback (most recent call last):\n    File \"<frozen _collections_abc>\"\
-    , line 995, in setdefault\n    File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-i8dbtkfq/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py\"\
-    , line 302, in __getitem__\n      raise KeyError(key)\n  KeyError: 'Content-Length'\n\
-    \  \n  During handling of the above exception, another exception occurred:\n \
-    \ \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_webhooks.py::TestWebhookForwarderExtensionMissing::test_status_callback_invoked_when_unavailable\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-i8dbtkfq/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x779a1e74b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_project_pause.py::TestShouldDispatchProjectPauseGate::test_global_pause_takes_precedence\n\
-    = 1 failed, 16308 passed, 8 skipped, 1 xfailed, 50 warnings in 1094.27s (0:18:14)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
+  submitted_at: '2026-08-06T08:21:45.949279+00:00'
+  updated_at: '2026-08-06T08:21:45.949279+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -689,5 +654,15 @@ author: oompah
 created: 2026-08-06 08:10
 ---
 Latest exact gate completed normally with 16,308 passes and one failure in test_global_pause_takes_precedence. The contract is unchanged and structurally deterministic; this test constructs a real Orchestrator and its durable SQLite stores under the global 5-second timeout, matching the loaded-I/O failures already stabilized in OOMPAH-791. Added a scoped 20-second bound preserving the real integration coverage. Static compile/diff checks pass; exact/module reproduction waits for OOMPAH-857's currently running independent audit validation to release the shared lane.
+---
+author: oompah
+created: 2026-08-06 08:21
+---
+Final loaded-gate repair pushed at 6a84d9bcc. Verification under the shared lease: exact pause-precedence case 1 passed in 1.19s; changed long-tick + project-pause modules 51 passed; expanded 16-suite audit/lifecycle/fencing/recovery/tick/pause set 696 passed with 1 expected xfail and 5 pre-existing coroutine warnings. Targeted Ruff, pycompile, and diff check pass; branch is clean/up to date.
+---
+author: oompah
+created: 2026-08-06 08:21
+---
+Bound the final saturated-I/O pause regression; 696 affected tests pass at 6a84d9bcc.
 ---
 <!-- COMMENTS:END -->
