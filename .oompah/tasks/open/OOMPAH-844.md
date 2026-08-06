@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T03:48:38.870095Z'
+updated_at: '2026-08-06T03:50:15.786957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Bug: the exact combined-tree gate for OOMPAH-821 failed after 16,116 passing tes
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 03:50
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
