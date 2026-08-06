@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-826
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Gate changed heads before adopting an existing open review
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T04:32:20.973779Z'
+updated_at: '2026-08-06T04:32:31.094127Z'
 work_branch: OOMPAH-826
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/729
@@ -176,8 +176,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-812557c71067
-    applied: false
+    applied: true
     created_at: '2026-08-06T04:32:18.194335+00:00'
+    applied_at: '2026-08-06T04:32:28.049492+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -569,5 +570,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 38s
 - Log: OOMPAH-826__20260806T042344Z.jsonl
+---
+author: oompah
+created: 2026-08-06 04:32
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
