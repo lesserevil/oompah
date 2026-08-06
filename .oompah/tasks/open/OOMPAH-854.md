@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T05:46:04.066694Z'
+updated_at: '2026-08-06T05:46:16.059712Z'
 work_branch: null
 target_branch: null
 review_url: null
