@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T02:43:35.503280Z'
+updated_at: '2026-08-06T02:45:23.157021Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ created: 2026-08-06 02:43
 3. Modify `_resolve_run_command_timeout()` to accept target parameter
 4. Update auditor dispatch to pass target info
 5. Comprehensive test coverage
+---
+author: oompah
+created: 2026-08-06 02:45
+---
+Coordination: OOMPAH-831 has a completed, independently reviewed local patch at exact head 93b0295bc (not yet pushed/submitted) that changes oompah/auditor.py, api_agent.py, acp_tools.py, prompt.py, and adds search_files.py to align auditor inspection semantics. Keep OOMPAH-843 deadline/target work compatible with those contracts; do not reimplement or weaken OOMPAH-831's path/credential fatal checks, recoverable read-only classification, Python-regex search bounds, or git inspection fences. Report overlapping hunks so the later root-epic restack can preserve both patches.
 ---
 <!-- COMMENTS:END -->
