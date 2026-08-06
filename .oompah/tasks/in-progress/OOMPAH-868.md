@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-868
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:28:44.222057Z'
+updated_at: '2026-08-06T23:29:26.524037Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,20 +23,55 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 42efe2295fd180771895fffa53944c16b080d2c47cc84d5a38c627cd07c9e428
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T23:29:06.810890+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: d091cf4e-12de-4d2b-bebd-035918846f72
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T23:28:31.570693+00:00'
-  claim_expires_at: '2026-08-06T23:58:31.570693+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-846 is the closest active task, but it covers\
+    \ server-spawned worker command paths. OOMPAH-868 specifically addresses dedicated\
+    \ GitHub Actions workflow lease integration and bounded CI logging, so the scopes\
+    \ are complementary rather than duplicates.\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \n\nEvidence:\
+    \ OOMPAH-846 is the closest active task, but it covers server-spawned worker command\
+    \ paths. OOMPAH-868 specifically addresses dedicated GitHub Actions workflow lease\
+    \ integration and bounded CI logging, so the scopes are complementary rather than\
+    \ duplicates."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 1196b283-a90e-4dfc-bd55-42c7100b0e35
+oompah.task_costs:
+  total_input_tokens: 46810
+  total_output_tokens: 354
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46810
+      output_tokens: 354
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46810
+    output_tokens: 354
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T23:29:06.809459+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-868__20260806T232846Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-868
+    source_sha: f2b319c1182cd654112db622a0498171e508dead
+    completed_at: '2026-08-06T23:29:06.990841+00:00'
 ---
 ## Summary
 
@@ -61,5 +96,15 @@ author: oompah
 created: 2026-08-06 23:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 23:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.8K in / 354 out [47.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28s
+- Log: OOMPAH-868__20260806T232846Z.jsonl
 ---
 <!-- COMMENTS:END -->
