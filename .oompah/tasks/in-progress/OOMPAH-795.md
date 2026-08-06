@@ -10,10 +10,11 @@ blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-796
 - OOMPAH-779
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T04:14:33.561327Z'
+updated_at: '2026-08-06T04:21:35.563689Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
