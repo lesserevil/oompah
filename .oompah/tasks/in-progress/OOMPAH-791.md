@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T04:29:18.751911Z'
+updated_at: '2026-08-06T04:32:51.377398Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
