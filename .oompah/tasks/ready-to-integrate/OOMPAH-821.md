@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T03:57:47.590883Z'
+updated_at: '2026-08-06T04:58:02.541375Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -46,14 +46,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-821
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
   head_sha: 9d0c786358526c4e1c69230451eb820014724b2d
+  integrated_sha: 9d0c786358526c4e1c69230451eb820014724b2d
   submitted_at: '2026-08-06T03:57:43.105036+00:00'
-  updated_at: '2026-08-06T03:57:43.105036+00:00'
+  updated_at: '2026-08-06T04:57:55.937938+00:00'
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -92,6 +93,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-770--task-OOMPAH-821
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-05T05:39:01.682857+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f7b74c13a401
+    project_id: proj-14849f1b
+    task_id: OOMPAH-821
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 03ba806a252b78590b2ddd2a8b80daef66d02ea8d25a2fe6719273c51687e7fd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T04:58:01.184037+00:00'
+  attempt_history: []
 ---
 ## Summary
 
