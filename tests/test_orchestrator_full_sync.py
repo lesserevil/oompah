@@ -258,5 +258,7 @@ class TestFullSyncDueIntervalVariants:
     ])
     def test_parametrised(self, tmp_path, interval_ms, elapsed_s, expected):
         orch = _make_orchestrator(tmp_path, full_sync_interval_ms=interval_ms)
-        orch._last_full_sync = time.monotonic() - elapsed_s
-        assert orch._full_sync_due() is expected
+        now = 1_000.0
+        orch._last_full_sync = now - elapsed_s
+        with patch("oompah.orchestrator.time.monotonic", return_value=now):
+            assert orch._full_sync_due() is expected
