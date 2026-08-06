@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T11:50:03.837399Z'
+updated_at: '2026-08-06T12:08:18.514628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b8dd3d61-96ef-4a55-a3c3-e6fb40a48d7a
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46923
   total_output_tokens: 386
@@ -78,6 +78,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-845
     source_sha: fe6257b596f79296b11dd4870a62bdbc79159d27
     completed_at: '2026-08-06T03:54:28.308433+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-845
+  head_sha: 6a799a1483e213341e292d77e4dbf0ea970f6765
+  submitted_at: '2026-08-06T12:08:07.511864+00:00'
+  updated_at: '2026-08-06T12:08:07.511864+00:00'
 ---
 ## Summary
 
@@ -155,5 +163,10 @@ author: oompah
 created: 2026-08-06 11:50
 ---
 New exact-gate evidence at canonical OOMPAH-837 head c31b8d32a on 2026-08-06: 16,631 passed and one test was failed by a PytestUnraisableExceptionWarning attributed during tests/test_epic_rebase_state.py::TestEpicTargetResolution::test_wrong_target_helper_is_archived_without_recovery_ref_cleanup. The leaked object was an asyncio BaseSubprocessTransport finalized after its loop closed; the traceback also reported coroutine 'sleep' was never awaited and unittest.mock patch lookup for _terminate. The named epic test has no subprocess/async behavior and three earlier exact gates at the same head passed, so it is a cross-test teardown leak exposed by GC under full-gate saturation, squarely within OOMPAH-845's event-loop/task/timer/async-generator/default-executor cleanup scope. Before submission, focused validation must demonstrate the O845 cleanup does not leave this class of transport/coroutine warnings, then compose the validated cleanup into the shared OOMPAH-804 head before rerunning the exact gate.
+---
+author: oompah
+created: 2026-08-06 12:08
+---
+Closed every helper-owned pool/store, pending task, async generator, default executor, retry timer, and scheduled termination in the saturated restart tests. Focused validation: 98 serial and 98 xdist tests passed; the four-state restart recovery test passed 20/20 four-way xdist repetitions. Terminal mutation scan, secret scan, diff check, and independent review passed.
 ---
 <!-- COMMENTS:END -->
