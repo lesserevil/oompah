@@ -51,6 +51,40 @@ from oompah.terminal_transition_coordinator import TransitionResult
 # --------------------------------------------------------------------- helpers
 
 
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
+
+def _close_test_orchestrator(orch: Orchestrator) -> None:
+    """Drain resources owned by a helper-created orchestrator."""
+    for pool_name in ("_tick_pool", "_refresh_pool"):
+        pool = getattr(orch, pool_name, None)
+        if pool is None:
+            continue
+        pool.shutdown(wait=True, cancel_futures=False)
+        assert not any(thread.is_alive() for thread in pool._threads)
+
+    for store_name in (
+        "coordination_store",
+        "integration_queue",
+        "review_capacity_store",
+        "workflow_job_store",
+        "task_transition_journal",
+    ):
+        store = getattr(orch, store_name, None)
+        if store is not None:
+            store.close()
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_test_orchestrators():
+    """Keep helper-owned pools and stores from crossing test boundaries."""
+    yield
+    orchestrators = list(_TEST_ORCHESTRATORS)
+    _TEST_ORCHESTRATORS.clear()
+    for orch in orchestrators:
+        _close_test_orchestrator(orch)
+
+
 def _make_issue(
     identifier: str = "task-1",
     title: str = "test issue",
@@ -134,6 +168,7 @@ def _make_orch(tmp_path, projects=None):
             reason=None,
         )
     )
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
 
 
@@ -3097,6 +3132,7 @@ class TestOpenEpicMainPrs:
                 "_review_quality_gate_passes",
                 return_value=False,
             ) as quality_gate,
+            patch.object(orch, "_adopt_open_review_capacity") as adopt_capacity,
             patch.object(orch, "_ensure_epic_in_review_metadata") as sync_review,
         ):
             opened = orch._open_epic_main_prs([epic])
@@ -3107,6 +3143,13 @@ class TestOpenEpicMainPrs:
             epic,
             "epic-epic-1",
             "main",
+        )
+        adopt_capacity.assert_called_once_with(
+            project_id="proj-1",
+            task_id="epic-1",
+            source_branch="epic-epic-1",
+            target_branch="main",
+            review_id="254",
         )
         sync_review.assert_not_called()
         provider.create_review.assert_not_called()
