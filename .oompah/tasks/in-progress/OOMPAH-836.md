@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T09:39:30.682287Z'
+updated_at: '2026-08-06T09:56:49.133344Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,11 +21,14 @@ merged_at: null
 oompah.integration:
   version: 2
   state: ready
-  attempts: 0
+  attempts: 1
   task_branch: OOMPAH-836
+  base_branch: epic-OOMPAH-804
+  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
   head_sha: f89c477d4c03a8992a7278337182c0352da5de16
   submitted_at: '2026-08-06T09:39:23.200622+00:00'
-  updated_at: '2026-08-06T09:39:23.200622+00:00'
+  updated_at: '2026-08-06T09:56:46.587815+00:00'
+  last_error: Combined-tree quality gate interrupted by service shutdown
 ---
 ## Summary
 
