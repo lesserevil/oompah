@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T18:23:27.842263Z'
+updated_at: '2026-08-06T18:23:42.687451Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -114,5 +114,10 @@ author: oompah
 created: 2026-08-06 18:14
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862, OOMPAH-863. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 18:23
+---
+Owner reviewed the authoritative corpus and resolved the false inconclusive duplicate screen as no_duplicate. Direct owner claim is active and the task is In Progress because the deployed owner-resolution path leaves the duplicate-preflight integration record stuck in working; this task is the systemic repair for that exact deadlock. Implementation will proceed on the compressed critical path behind the currently reviewed reservation-race repair.
 ---
 <!-- COMMENTS:END -->
