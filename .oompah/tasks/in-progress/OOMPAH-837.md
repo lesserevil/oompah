@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T11:50:54.264373Z'
+updated_at: '2026-08-06T11:52:22.432396Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.integration:
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   updated_at: '2026-08-06T11:50:43.393900+00:00'
-oompah.agent_run_id: 84064217-9ea2-47fa-ac83-4ec4b70366c1
+oompah.agent_run_id: 33fb8313-be02-428f-96ba-9507ca37640c
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
   schema_version: 1
@@ -35,15 +35,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-837 is on
-    OOMPAH-837, not expected branch epic-OOMPAH-804--task-OOMPAH-837; refusing to
-    reset it
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 2cbe7762-ff8c-4c08-abcc-52b2c2ac8e00
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T11:52:04.103184+00:00'
+  claim_expires_at: '2026-08-06T12:22:04.103184+00:00'
   retry_count: 1
-  retry_after: '2026-08-06T11:51:48.558005+00:00'
+  retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -174,5 +172,10 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 18s
+---
+author: oompah
+created: 2026-08-06 11:52
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
