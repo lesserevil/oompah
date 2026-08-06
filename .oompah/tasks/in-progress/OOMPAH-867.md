@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:23:39.984565Z'
+updated_at: '2026-08-06T22:24:09.617609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 0e600d54-41a0-4b4a-88f3-c3371556fd6e
+oompah.agent_run_id: 554c1f0e-e780-453e-b715-8f0473048bc4
 oompah.task_costs:
   total_input_tokens: 46702
   total_output_tokens: 461
@@ -101,5 +101,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 36s
 - Log: OOMPAH-867__20260806T222306Z.jsonl
+---
+author: oompah
+created: 2026-08-06 22:24
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-06 22:24
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
