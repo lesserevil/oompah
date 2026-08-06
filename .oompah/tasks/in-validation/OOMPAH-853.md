@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:13:41.357454Z'
+updated_at: '2026-08-06T06:30:55.585031Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -72,14 +72,15 @@ oompah.agent_run_id: a110fd1b-58b8-4ce8-a373-d5fa8c1674fa
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-763--task-OOMPAH-853
   base_branch: epic-OOMPAH-763
   base_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
   head_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+  integrated_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
   submitted_at: '2026-08-06T06:13:04.648797+00:00'
-  updated_at: '2026-08-06T06:13:04.648797+00:00'
+  updated_at: '2026-08-06T06:30:46.678750+00:00'
 oompah.task_costs:
   total_input_tokens: 148
   total_output_tokens: 6449
@@ -112,6 +113,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-853
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T05:14:48.878530+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-188f40e0d2ae
+    project_id: proj-14849f1b
+    task_id: OOMPAH-853
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e3da588dfb09a1d4ab13c7227821cbf6c4ac20bb5c88b63bc7266d2f51741db2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T06:30:50.286402+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -259,5 +282,10 @@ author: oompah
 created: 2026-08-06 06:13
 ---
 Operator correction to the preceding repair comment: Git author identity was not the cause of the prior gate rejection. QualityGateOwner is an internal lease record keyed to the submitted/resolved candidate head; OOMPAH-811 is the filed durable fix for rebase-generation rearming. Commit 52cf744ab is patch-equivalent to the prior clean feature commit and sits directly on current OOMPAH-763 parent 930cd74b9, so this resubmission is the safe in-flight workaround: it should require no integration rebase and therefore no mixed-head window. Do not rewrite the feature commit again.
+---
+author: oompah
+created: 2026-08-06 06:30
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
