@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:52:42.638803Z'
+updated_at: '2026-08-06T22:07:44.571264Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -212,5 +212,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 34s
 - Log: OOMPAH-864__20260806T213248Z.jsonl
+---
+author: oompah
+created: 2026-08-06 22:07
+---
+Owner repair is now a single clean commit at 742075be6. The unsafe unconditional integration-metadata deletion was removed: because IntegrationRecord v2 has no duplicate-preflight claim/run provenance, owner resolution and restart preserve working/accepted evidence and emit an explicit fail-closed reassessment diagnostic. Fresh independent review ACCEPTED exact content diff 55febe478b; git diff --check and make check-secrets pass. Focused serial+parallel validation is durably queued behind the active OOMPAH-605 exact gate.
 ---
 <!-- COMMENTS:END -->
