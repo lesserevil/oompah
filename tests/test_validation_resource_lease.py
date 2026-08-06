@@ -87,12 +87,21 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("make", True),
         ("make -C . test-serial", True),
         ("make test-unit", True),
-        ("make check-secrets", False),
+        ("make check-secrets", True),
+        ("make help", True),
         ("make --help", False),
         ("pytest --help", False),
         ("pytest --version", False),
         ("python -m pytest --help", False),
         ("python -m unittest --help", False),
+        ("make --eval='$(shell make test)' help", True),
+        ("make --ev='$(shell make test)' help", True),
+        ("make -E'$(shell make test)' help", True),
+        ("make --eval=all: help", True),
+        ("make -E all: help", True),
+        ("make -f task.mk help", True),
+        ("make --directory=/task help", True),
+        ("make -j help", True),
         ("echo ready; make test", True),
         ("echo ready\nmake test", True),
         ("./ci/test.sh", True),
@@ -111,6 +120,7 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("bash -ce 'pytest'", True),
         ("sh -ec 'pytest tests/'", True),
         ("bash --noprofile -O extglob -c 'make test'", True),
+        ("bash -O extglob -c 'npm @(test)'", True),
         ("bash -o errexit -ce 'cargo test'", True),
         ("uv --directory . run pytest -q", True),
         ("uv --allow-insecure-host example.com run --group test pytest", True),
@@ -135,6 +145,14 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("pytest tests/test_one.py -k exact_case", True),
         ("pytest tests/test_one.py -n auto", True),
         ("pytest tests/test_one.py --numprocesses=4", True),
+        ("pytest -p=task_plugin tests/test_one.py", True),
+        ("pytest -ptask_plugin tests/test_one.py", True),
+        ("pytest --override-ini=addopts=-n4 tests/test_one.py", True),
+        ("pytest -oaddopts=-n4 tests/test_one.py", True),
+        ("pytest --config-file=task.ini tests/test_one.py", True),
+        ("pytest -ctask.ini tests/test_one.py", True),
+        ("pytest --rootdir=/task tests/test_one.py", True),
+        ("pytest --pdbcls=task:Debugger tests/test_one.py", True),
         ("pytest --collect-only", True),
         ("pytest --collect-only tests/test_one.py", True),
         (
@@ -142,24 +160,58 @@ def _reusable_gate_policy() -> dict[str, str]:
             True,
         ),
         ("npm test", True),
+        ("npm te*", True),
+        ("npm $CMD", True),
+        ('npm "$CMD"', True),
+        ("npm $'test'", True),
+        ("printf %s $'a\\'b'; npm $'test'", True),
+        ("echo $'a\\'b'; npm test; echo \\'", True),
+        ("npm te{st,}", True),
         ("npm --prefix web test -- --runInBand", True),
         ("npm --workspace web t", True),
         ("npm run test:unit", True),
-        ("npm run build", False),
+        ("npm run build", True),
+        ("npm run --silent test", True),
+        ("npm exec -- make test", True),
         ("pnpm test", True),
         ("pnpm --filter web test", True),
         ("pnpm run test:unit", True),
+        ("pnpm exec make test", True),
+        ("pnpm arbitrary-script", True),
         ("yarn test", True),
         ("yarn run test", True),
+        ("yarn dlx tool", True),
+        ("yarn arbitrary-script", True),
+        ("npm --script-shell=/task/sh run build", True),
         ("python -m unittest discover", True),
         ("python -I -m unittest discover -s tests", True),
         ("python -m unittest tests.test_one.TestCase.test_case", True),
         ("cargo test", True),
+        ("cargo te*", True),
+        ('cargo $"test"', True),
         ("cargo +nightly --color always test --workspace", True),
         ("cargo --config net.retry=2 test", True),
+        ("cargo --config build.rustc-wrapper=/task/wrapper build", True),
+        ("cargo build --config build.rustc-wrapper=/task/wrapper", True),
+        ("cargo -C /task/worktree build", True),
         ("cargo nextest run", True),
+        ("cargo task-alias", True),
         ("cargo build", False),
+        ("npm 'te*'", True),
+        ("printf %s \"a'b\"; npm 'build'", True),
+        ("echo \"$'literal'\"; npm 'build'", True),
+        ("echo \\$'literal'; npm 'build'", True),
+        ("npm '$CMD'", True),
+        ("npm \\$'test'", True),
+        ("npm 'te{st,}'", True),
+        ("cargo 'te*'", True),
+        ('cargo \\$"test"', True),
         ("rg pytest tests", False),
+        ("rg --hostname-bin=/task/hostname pytest tests", True),
+        ("rg --hostname-bin /task/hostname pytest tests", True),
+        ("rg --search-zip pytest tests", True),
+        ("rg -z pytest tests", True),
+        ("rg -nUz pytest tests", True),
         ("/usr/bin/rg pytest tests", False),
         ("./rg pytest tests", True),
         ("/workspace/bin/rg pytest tests", True),
@@ -173,6 +225,9 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("node --input-type=module -", True),
         ("perl -", True),
         ("ruby -", True),
+        ("ruby -v", False),
+        ("ruby -v -e 'system %q(make test)'", True),
+        ("ruby -v script.rb", True),
         ("python --version", False),
         ("bash --version", False),
         ("node --version", False),
@@ -187,12 +242,1156 @@ def _reusable_gate_policy() -> dict[str, str]:
         ("exec rg pytest tests", False),
         ("time git status --short", False),
         ("bash -ce 'echo pytest'", False),
+        ("bash -O extglob -c \"npm '@(test)'\"", False),
+        ("npm '@(test)'", False),
+        ("eval \"$VALIDATION_COMMAND\"", True),
+        ("$VALIDATION_COMMAND", True),
+        ("source ./validation-command.sh", True),
+        ("if true; then rg pytest tests; fi", True),
+        ("echo $(printf make); test", True),
+        ("echo `make test`", True),
+        ("echo '`make test`'", False),
+        ("unset BASH_ENV; rg pytest tests", True),
+        ("PATH+=:/workspace/bin; rg pytest tests", True),
+        ("unset OOMPAH_NATIVE_VALIDATION_BOUNDARY_GROUP", True),
+        ("env -uBASH_ENV rg pytest tests", True),
+        ("env --unset=BASH_ENV rg pytest tests", True),
+        ("env -i rg pytest tests", True),
+        ("env -iS 'rg pytest tests'", True),
+        ("env -a -bash bash -c 'printf trusted'", True),
+        ("env --argv0=-bash bash -c 'printf trusted'", True),
+        ("exec -a -bash bash -c 'printf trusted'", True),
+        ("exec -c rg pytest tests", True),
+        ("exec -cl rg pytest tests", True),
+        ("command -p rg pytest tests", True),
+        ("command -pv rg pytest tests", True),
+        ("typeset +x BASH_ENV; rg pytest tests", True),
+        ("HOME=/task/worktree bash -lc 'printf trusted'", True),
+        ("ZDOTDIR=/task/worktree zsh -c 'printf trusted'", True),
+        ("ENV=/task/worktree/profile sh -c 'printf trusted'", True),
+        ("LD_PRELOAD=/task/hook.so /usr/bin/printf trusted", True),
+        ("LD_AUDIT=/task/audit.so /usr/bin/printf trusted", True),
+        ("LD_LIBRARY_PATH=/task/lib /usr/bin/printf trusted", True),
+        ("DYLD_INSERT_LIBRARIES=/task/hook.dylib printf trusted", True),
+        ("LIBPATH=/task/lib printf trusted", True),
+        ("bash -lc 'printf trusted'", True),
+        ("bash -ic 'printf trusted'", True),
+        ("bash --noprofile -lc 'printf trusted'", False),
+        ("bash --norc -ic 'printf trusted'", False),
+        ("bash -lc 'printf trusted' --noprofile", True),
+        ("bash -ic 'printf trusted' --norc", True),
+        ("zsh -c 'printf trusted'", True),
+        ("zsh -fc 'printf trusted'", False),
+        ("zsh +fc 'printf trusted'", True),
+        (
+            "PYTEST_ADDOPTS='-n auto' "
+            "pytest tests/test_one.py::test_case",
+            True,
+        ),
+        ("GNUMAKEFLAGS='--eval=all:;make test' make help", True),
+        ("RUSTC=/task/rustc cargo build", True),
+        ("CARGO_BUILD_RUSTC=/task/rustc cargo build", True),
+        ("CARGO_HOME=/task/cargo cargo build", True),
+        ("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=/task/cc cargo build", True),
+        (
+            "env 'BASH_FUNC_printf%%=() { make test; }' "
+            "bash -c 'printf trusted'",
+            True,
+        ),
+        ("printf -v PATH /workspace/bin; rg pytest tests", True),
+        ("printf -v HOME %s /malicious-home; git status --short", True),
+        ("printf -v LOCAL_VALUE %s harmless; git status --short", True),
+        ('printf -v "$GUARD_NAME" value; rg pytest tests', True),
+        ("printf '%s' HOME; git status --short", False),
+        ("printf -- '-v %s' HOME; git status --short", False),
+        ('unset "$GUARD_NAME"; rg pytest tests', True),
+        ("PATH=/workspace/bin rg pytest tests", True),
+        ("env -u OOMPAH_NATIVE_VALIDATION_GUARD rg pytest tests", True),
+        ("ci-check", True),
+        ("find . -exec make test {} +", True),
+        ("git -c alias.verify='!make test' verify", True),
+        ("git -c credential.helper=/workspace/helper credential fill", True),
+        ("git --config-env=credential.helper=HELPER credential fill", True),
+        ("git credential fill", True),
+        ("git custom-inspector", True),
+        ("git diff --ext-diff", True),
+        ("git cat-file --filters HEAD:file", True),
+        ("git log --format=%G? -1", True),
+        ("git remote show origin", True),
+        ("git branch --edit-description", True),
+        ("git tag --list -v", True),
+        ("git -c core.askPass=/workspace/helper status", True),
+        ("git -c log.showSignature=true log -1", True),
+        ("git -c format.pretty=%G? log -1", True),
+        ("GIT_EXTERNAL_DIFF=/workspace/helper git diff", True),
+        ("GIT_CONFIG_PARAMETERS=opaque git status", True),
+        (
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor "
+            "GIT_CONFIG_VALUE_0=/workspace/helper git status",
+            True,
+        ),
+        ("git branch --show-current", False),
+        ("git tag --list 'v*'", False),
+        ("git grep validation", False),
+        ("git rev-list -1 HEAD", False),
+        ("git remote -v", False),
+        ("git remote get-url origin", False),
+        ("git reflog show -1", False),
+        ("git worktree list --porcelain", False),
+        ("git diff $OPTION", True),
+        ("git diff '$OPTION'", False),
+        ("git -c core.alternateRefsCommand=/workspace/helper rev-list --alternate-refs", True),
+        ("sed -e '1e make test' file", True),
+        ("sed -ne'1e make test' file", True),
+        ("sed 'e;' file", True),
+        ("sed '\\%foo%e make test' file", True),
+        ("sed '/foo/Ie touch marker' file", True),
+        ("sed '/foo/I!e touch marker' file", True),
+        ("sed '\\%foo%Me touch marker' file", True),
+        ("sed '\\%foo%iM ! e touch marker' file", True),
+        ("sed '\\|foo|e make test' file", True),
+        ("sed '\\xfooxe make test' file", True),
+        ("sed '1,\\#foo#!e make test' file", True),
+        ("sed '\\%foo%p' file", False),
+        ("sed '/foo/Ip' file", False),
+        ("sed '/foo/I!p' file", False),
+        ("sed '\\%foo%Mp' file", False),
+        ("sed 's/x/y/e' file", True),
+        ("sed -f script.sed file", True),
+        ("sed <commands.txt e", True),
+        ('sed "$SCRIPT" file', True),
+        ('sed -e "$SCRIPT" file', True),
+        ('sed --expression="$SCRIPT" file', True),
+        ("sed 'e'* file", True),
+        ("sed * file", True),
+        ("sed p *", True),
+        ("sed p -- *", False),
+        ("sed {e,} file", True),
+        ("sed 1{e,} file", True),
+        ("sed --e={e,} file", True),
+        ("sed --e='e make test' file", True),
+        ("sed --expr='e make test' file", True),
+        ("sed --fi=commands.sed file", True),
+        ("sed --fil=commands.sed file", True),
+        ('sed -ne"$SCRIPT" file', True),
+        ("sed 's/before/after/' file", False),
+        ("sed 's/>/after/' file", False),
+        ("sed 's/$/after/' file", False),
+        ("sed 's/.*/after/' *.txt", True),
+        ("sed 's/.*/after/' -- *.txt", False),
+        ("sed 's/{before,after}/value/' file{1,2}", True),
+        ("sed 's/{before,after}/value/' -- file{1,2}", False),
+        ("sed --e='s/before/after/' file", False),
+        ("sed --expr='s/before/after/' file", False),
+        ("sed -e 's/before/after/' file", False),
+        ("sed -n 's/before/after/p' file", False),
+        ("awk 'BEGIN { system(\"make test\") }'", True),
+        ("rg --pre 'make test' pattern .", True),
         ("echo make test", False),
         ("git status --short", False),
+        ("npm >out test", True),
+        ("npm '>' test", False),
+        ("cargo test>out", True),
+        ("cargo 'test>out'", True),
+        ("pytest tests/test_one.py -$OPT", True),
+        ("pytest tests/test_one.py '-$OPT'", False),
+        ("npm 'unterminated", True),
     ],
 )
 def test_classifier_is_heavy_first_and_inspection_only_checks_bypass(command, expected):
     assert is_heavyweight_validation_command(command) is expected
+
+
+def test_shell_line_continuation_is_removed_before_classification():
+    assert is_heavyweight_validation_command(
+        "cargo te\\" + "\n" + "st"
+    ) is True
+    assert is_heavyweight_validation_command(
+        'cargo "te\\' + "\n" + 'st"'
+    ) is True
+    assert is_heavyweight_validation_command(
+        "cargo 'te\\" + "\n" + "st'"
+    ) is True
+
+
+def test_sed_input_glob_cannot_inject_permuted_program_file(tmp_path):
+    (tmp_path / "-fcommands.sed").write_text(
+        "e touch marker\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "sed p *",
+        working_directory=tmp_path,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "sed p -- *",
+        working_directory=tmp_path,
+    ) is False
+
+
+def test_persisted_git_config_environment_fails_closed():
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment={
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+            "GIT_CONFIG_VALUE_0": "/workspace/helper",
+        },
+    ) is True
+
+
+def test_safe_complete_git_config_environment_preserves_inspection():
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment={
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "url.file:///blocked/.insteadOf",
+            "GIT_CONFIG_VALUE_0": "https://",
+        },
+    ) is False
+
+
+def test_inherited_bash_function_state_fails_closed_before_command_resolution():
+    assert is_heavyweight_validation_command(
+        "printf trusted",
+        command_environment={
+            "BASH_FUNC_printf%%": "() { make test; }",
+        },
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "_RLD_LIST",
+        "LDR_CNTRL",
+        "LDR_PRELOAD",
+        "LIBPATH",
+        "SHLIB_PATH",
+    ],
+)
+def test_inherited_dynamic_loader_environment_fails_closed(name):
+    assert is_heavyweight_validation_command(
+        "printf trusted",
+        command_environment={name: "/task/loader-hook"},
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("config_name", "config_contents"),
+    [
+        (
+            "config.toml",
+            '[build]\nrustc-wrapper = "/task/wrapper"\n',
+        ),
+        (
+            "config",
+            '[alias]\nproject-check = "run --bin task-helper"\n',
+        ),
+    ],
+)
+def test_effective_workspace_cargo_configuration_fails_closed(
+    tmp_path,
+    config_name,
+    config_contents,
+):
+    workspace = tmp_path / "workspace"
+    invocation_directory = workspace / "crate"
+    cargo_config = workspace / ".cargo"
+    invocation_directory.mkdir(parents=True)
+    cargo_config.mkdir()
+    (cargo_config / config_name).write_text(config_contents, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "cargo build",
+        command_environment={"HOME": str(tmp_path / "isolated-home")},
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("config_name", "config_contents"),
+    [
+        ("pyproject.toml", "[tool.pytest.ini_options]\naddopts = '-p task_plugin'\n"),
+        ("pytest.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        (".pytest.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        ("tox.ini", "[pytest]\naddopts = -p task_plugin\n"),
+        ("setup.cfg", "[tool:pytest]\naddopts = -p task_plugin\n"),
+        ("conftest.py", "pytest_plugins = ['task_plugin']\n"),
+    ],
+)
+def test_effective_pytest_configuration_fails_closed(
+    tmp_path,
+    config_name,
+    config_contents,
+):
+    workspace = tmp_path / "workspace"
+    invocation_directory = workspace / "tests" / "unit"
+    invocation_directory.mkdir(parents=True)
+    (workspace / config_name).write_text(config_contents, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "pytest test_one.py::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_focused_pytest_without_persisted_configuration_remains_light(tmp_path):
+    invocation_directory = tmp_path / "isolated" / "tests"
+    invocation_directory.mkdir(parents=True)
+
+    assert is_heavyweight_validation_command(
+        "pytest test_one.py::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is False
+    assert is_heavyweight_validation_command(
+        "pytest @payload.py",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "python -m pytest @payload.py",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_pytest_selector_ancestor_configuration_fails_closed(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    selector_directory = tmp_path / "project" / "tests"
+    invocation_directory.mkdir()
+    selector_directory.mkdir(parents=True)
+    (tmp_path / "project" / "conftest.py").write_text(
+        "pytest_plugins = ['task_plugin']\n",
+        encoding="utf-8",
+    )
+    selector = selector_directory / "test_one.py"
+
+    assert is_heavyweight_validation_command(
+        f"pytest {selector}::test_case",
+        command_environment={},
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment"),
+    [
+        (
+            "pytest tests/test_one.py::test_case",
+            {"PYTEST_ADDOPTS": "-n auto"},
+        ),
+        (
+            "python -m pytest tests/test_one.py::test_case",
+            {"PYTEST_PLUGINS": "task_plugin"},
+        ),
+        (
+            "pytest tests/test_one.py::test_case",
+            {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
+        ),
+        ("make help", {"MAKEFLAGS": "--eval=$(shell make test)"}),
+        ("make help", {"GNUMAKEFLAGS": "--eval=$(shell make test)"}),
+        ("npm run build", {"NODE_OPTIONS": "--require=/task/hook.js"}),
+        ("npm run build", {"npm_config_script_shell": "/task/sh"}),
+        ("npm run build", {"NPM_CONFIG_SCRIPT_SHELL": "/task/sh"}),
+        ("pnpm run build", {"PNPM_SCRIPT_SHELL": "/task/sh"}),
+        ("yarn run build", {"YARN_SCRIPT_SHELL": "/task/sh"}),
+        ("rg pytest tests", {"RIPGREP_CONFIG_PATH": "/task/ripgreprc"}),
+        ("ruby --version", {"RUBYOPT": "-r/task/hook.rb"}),
+        ("ruby --version", {"RUBYLIB": "/task/lib"}),
+        ("cargo build", {"RUSTC_WRAPPER": "/task/wrapper"}),
+        ("cargo build", {"RUSTC": "/task/rustc"}),
+        ("cargo build", {"CARGO_BUILD_RUSTC": "/task/rustc"}),
+        ("cargo build", {"CARGO_HOME": "/task/cargo"}),
+        (
+            "cargo build",
+            {"CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER": "/task/wrapper"},
+        ),
+        (
+            "cargo build",
+            {"CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER": "/task/cc"},
+        ),
+    ],
+)
+def test_inherited_runner_environment_fails_closed(command, environment):
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment_update"),
+    [
+        ("git diff --stat", {"GIT_EXTERNAL_DIFF": "/workspace/diff-helper"}),
+        ("git status --short", {"GIT_CONFIG_PARAMETERS": "'alias.x'='!true'"}),
+        ("git log -1", {"GIT_PAGER": "/workspace/pager-helper"}),
+        ("git log -1", {"PAGER": "/workspace/pager-helper"}),
+        ("git status --short", {"GIT_TRACE2_EVENT": "|/workspace/helper"}),
+    ],
+)
+def test_git_executable_environment_surfaces_fail_closed(
+    tmp_path,
+    command,
+    environment_update,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        **environment_update,
+    }
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_non_executable_git_trace_environment_preserves_safe_inspection(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_TRACE2_EVENT": str(tmp_path / "trace.json"),
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+
+@pytest.mark.parametrize(
+    "command_environment",
+    [
+        {"GIT_CONFIG_COUNT": "invalid"},
+        {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.fsmonitor"},
+        {
+            "GIT_CONFIG_COUNT": "0",
+            "GIT_CONFIG_KEY_0": "safe.key",
+            "GIT_CONFIG_VALUE_0": "safe-value",
+        },
+        {"GIT_CONFIG_KEY_0": "safe.key", "GIT_CONFIG_VALUE_0": "safe-value"},
+    ],
+)
+def test_malformed_git_config_environment_fails_closed(command_environment):
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=command_environment,
+    ) is True
+
+
+def test_persisted_repo_helper_config_fails_closed_but_safe_config_does_not(
+    tmp_path,
+):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        working_directory=tmp_path,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        working_directory=tmp_path,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "executable_config",
+    [
+        "[log]\n\tshowSignature = true\n",
+        "[format]\n\tpretty = %G?\n",
+        "[pretty \"verified\"]\n\tformat = %G?\n",
+    ],
+)
+def test_git_signature_config_surfaces_fail_closed(tmp_path, executable_config):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(executable_config, encoding="utf-8")
+
+    assert is_heavyweight_validation_command(
+        "git log -1",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=tmp_path,
+    ) is True
+
+
+def test_git_alternate_refs_command_config_fences_rev_list(tmp_path):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\talternateRefsCommand = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=tmp_path,
+    ) is True
+
+
+def _isolated_git_config_environment(tmp_path):
+    home = tmp_path / "home"
+    xdg_config = tmp_path / "xdg-config"
+    home.mkdir()
+    xdg_config.mkdir()
+    return {
+        "HOME": str(home),
+        "XDG_CONFIG_HOME": str(xdg_config),
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+
+def test_git_c_inspects_the_selected_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git -C ../alternate status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git -C ../alternate status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_env_chdir_inspects_the_selected_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "env --chdir=../alternate git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "env -C ../alternate git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_env_unset_removes_inherited_git_execution_and_config_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    inherited_home = tmp_path / "inherited-home"
+    invocation_directory.mkdir()
+    inherited_home.mkdir()
+    (inherited_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(inherited_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_EXTERNAL_DIFF": "/workspace/diff-helper",
+    }
+
+    assert is_heavyweight_validation_command(
+        "env -u HOME --unset=GIT_EXTERNAL_DIFF git diff --stat",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+
+def test_prior_cd_segment_updates_git_repository_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "cd ../alternate; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "cd ../alternate && git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_skipped_conditional_cd_does_not_change_later_git_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "false && cd ../alternate; git status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is False
+
+
+def test_conditional_chain_preserves_unknown_status_before_scope_mutation(
+    tmp_path,
+):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "test -e missing && true && cd ../alternate; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "test -e missing && false && cd ../alternate; git status --short",
+        "test -e missing || true || cd ../alternate; git status --short",
+    ],
+)
+def test_conditional_chain_truth_table_proves_scope_mutation_is_skipped(
+    tmp_path,
+    command,
+):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    git_dir = alternate_repository / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is False
+
+
+def test_assignment_only_segment_updates_exported_git_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    safe_home = tmp_path / "safe-home"
+    helper_home = tmp_path / "helper-home"
+    invocation_directory.mkdir()
+    safe_home.mkdir()
+    helper_home.mkdir()
+    (safe_home / ".gitconfig").write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    (helper_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(safe_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+
+    assert is_heavyweight_validation_command(
+        f"HOME={helper_home}; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_prior_export_and_unset_segments_update_git_environment_scope(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    safe_home = tmp_path / "safe-home"
+    helper_home = tmp_path / "helper-home"
+    invocation_directory.mkdir()
+    safe_home.mkdir()
+    helper_home.mkdir()
+    (safe_home / ".gitconfig").write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    (helper_home / ".gitconfig").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "HOME": str(safe_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_DIR": str(tmp_path / "missing-inherited-git-dir"),
+    }
+
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export HOME=" + str(safe_home) + "; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export HOME=" + str(helper_home) + "; git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+    assert is_heavyweight_validation_command(
+        "unset GIT_DIR; export GIT_EXTERNAL_DIFF=/workspace/helper; git diff",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_ambiguous_shell_scope_control_flow_fails_closed(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    alternate_repository = tmp_path / "alternate"
+    invocation_directory.mkdir()
+    alternate_repository.mkdir()
+
+    assert is_heavyweight_validation_command(
+        "cd ../alternate || git status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_git_dir_and_work_tree_inspect_diff_helper_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+    command = (
+        "git --git-dir=../alternate.git --work-tree=../work-tree diff --stat"
+    )
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "[diff \"external\"]\n\tcommand = /workspace/diff-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_explicit_work_tree_inspects_its_repository_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    invocation_directory.mkdir()
+    git_dir = work_tree / ".git"
+    git_dir.mkdir(parents=True)
+    (git_dir / "config").write_text(
+        "[filter \"generated\"]\n\tprocess = /workspace/filter-helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git --work-tree=../work-tree status --short",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_linked_worktree_common_and_worktree_configs_are_inspected(tmp_path):
+    work_tree = tmp_path / "work-tree"
+    common_git_dir = tmp_path / "common.git"
+    worktree_git_dir = common_git_dir / "worktrees" / "feature"
+    work_tree.mkdir()
+    worktree_git_dir.mkdir(parents=True)
+    (work_tree / ".git").write_text(
+        f"gitdir: {worktree_git_dir}\n",
+        encoding="utf-8",
+    )
+    (worktree_git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    (common_git_dir / "config").write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    worktree_config = worktree_git_dir / "config.worktree"
+    worktree_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=work_tree,
+    ) is False
+
+    worktree_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/worktree-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=work_tree,
+    ) is True
+
+
+def test_git_dir_environment_inspects_filter_helper_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    config = git_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_DIR": "../alternate.git",
+        "GIT_WORK_TREE": "../work-tree",
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "[filter \"generated\"]\n\tprocess = /workspace/filter-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_git_common_dir_environment_inspects_selected_common_config(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "worktree.git"
+    common_dir = tmp_path / "common.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    common_dir.mkdir()
+    config = common_dir / "config"
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        "GIT_DIR": "../worktree.git",
+        "GIT_COMMON_DIR": "../common.git",
+        "GIT_WORK_TREE": "../work-tree",
+    }
+
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    config.write_text(
+        "[core]\n\trepositoryFormatVersion = 0\n"
+        "\talternateRefsCommand = /workspace/helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git rev-list --alternate-refs",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_inline_git_scope_environment_selects_alternate_repository(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    work_tree = tmp_path / "work-tree"
+    git_dir = tmp_path / "alternate.git"
+    invocation_directory.mkdir()
+    work_tree.mkdir()
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[core]\n\tfsmonitor = /workspace/helper\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "GIT_DIR=../alternate.git GIT_WORK_TREE=../work-tree git status",
+        command_environment=_isolated_git_config_environment(tmp_path),
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_normal_home_and_xdg_git_configs_are_inspected(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = _isolated_git_config_environment(tmp_path)
+    home_config = Path(environment["HOME"]) / ".gitconfig"
+    xdg_config = Path(environment["XDG_CONFIG_HOME"]) / "git" / "config"
+    xdg_config.parent.mkdir()
+    home_config.write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    xdg_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    xdg_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/global-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_normal_system_git_config_is_inspected_without_invoking_git(
+    tmp_path,
+    monkeypatch,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = _isolated_git_config_environment(tmp_path)
+    environment.pop("GIT_CONFIG_NOSYSTEM")
+    system_config = tmp_path / "system-gitconfig"
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_GIT_SYSTEM_CONFIG_PATHS",
+        (system_config,),
+    )
+    system_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    system_config.write_text(
+        "[diff \"external\"]\n\tcommand = /workspace/system-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_selected_global_and_system_git_config_paths_are_inspected(tmp_path):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    global_config = tmp_path / "selected-global-config"
+    system_config = tmp_path / "selected-system-config"
+    global_config.write_text(
+        "[user]\n\tname = Safe Reader\n",
+        encoding="utf-8",
+    )
+    system_config.write_text(
+        "[core]\n\tquotePath = false\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "GIT_CONFIG_GLOBAL": str(global_config),
+        "GIT_CONFIG_SYSTEM": str(system_config),
+    }
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is False
+
+    global_config.write_text(
+        "[core]\n\tfsmonitor = /workspace/global-helper\n",
+        encoding="utf-8",
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_non_regular_or_oversized_git_config_fails_closed_without_reading(
+    tmp_path,
+):
+    repository = tmp_path / "repository"
+    git_dir = repository / ".git"
+    git_dir.mkdir(parents=True)
+    config = git_dir / "config"
+    os.mkfifo(config)
+    environment = _isolated_git_config_environment(tmp_path)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=repository,
+    ) is True
+
+    config.unlink()
+    config.write_bytes(
+        b"[core]\n" + (b"x" * (validation_lease_module._GIT_CONFIG_MAX_BYTES + 1))
+    )
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        command_environment=environment,
+        working_directory=repository,
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("command", "environment_update"),
+    [
+        ("git -C ../missing status", {}),
+        ("git --git-dir=$UNKNOWN_REPOSITORY status", {}),
+        ("git --work-tree=../missing status", {}),
+        ("git status", {"GIT_DIR": "../missing"}),
+        ("git status", {"HOME": "relative-home"}),
+    ],
+)
+def test_unresolvable_git_configuration_scope_fails_closed(
+    tmp_path,
+    command,
+    environment_update,
+):
+    invocation_directory = tmp_path / "invocation"
+    invocation_directory.mkdir()
+    environment = {
+        **_isolated_git_config_environment(tmp_path),
+        **environment_update,
+    }
+
+    assert is_heavyweight_validation_command(
+        command,
+        command_environment=environment,
+        working_directory=invocation_directory,
+    ) is True
+
+
+def test_task_controlled_path_lookalike_is_heavy(tmp_path):
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_git = task_bin / "git"
+    fake_git.write_text("#!/bin/sh\nexec make test\n", encoding="utf-8")
+    fake_git.chmod(0o700)
+
+    assert is_heavyweight_validation_command(
+        "git status --short",
+        executable_search_path=str(task_bin),
+        untrusted_executable_roots=(tmp_path,),
+    ) is True
 
 
 @pytest.mark.parametrize(
@@ -505,7 +1704,10 @@ def test_expired_detached_descendant_is_not_killed_via_stale_group_id(tmp_path):
         assert lease.status().owner_count == 1
 
 
-def test_expired_stale_child_identity_never_calls_killpg(tmp_path, monkeypatch):
+def test_expired_stale_child_identity_never_signals_reused_pid(
+    tmp_path,
+    monkeypatch,
+):
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     handle = lease.acquire(_gate_owner("p1", "stale-child"))
     child = subprocess.Popen(["true"], start_new_session=True)
@@ -514,11 +1716,77 @@ def test_expired_stale_child_identity_never_calls_killpg(tmp_path, monkeypatch):
     time.sleep(0.06)
 
     monkeypatch.setattr(
-        "oompah.validation_resource_lease.os.killpg",
-        lambda *_args: pytest.fail("stale process group was signaled"),
+        validation_lease_module,
+        "_pidfd_send_signal",
+        lambda *_args: pytest.fail("stale process identity was signaled"),
     )
     assert lease.status().owner_count == 1
     handle.release()
+
+
+def test_group_empty_proof_rejects_member_forked_after_proc_snapshot(
+    monkeypatch,
+):
+    observations: list[str] = []
+
+    def empty_proc_snapshot(_pid):
+        observations.append("proc-scan-complete")
+        return ()
+
+    def group_exists_after_fork(_pid):
+        observations.append("kernel-group-probe")
+        assert observations == ["proc-scan-complete", "kernel-group-probe"]
+        return True
+
+    monkeypatch.setattr(validation_lease_module, "_process_stat", lambda _pid: None)
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_process_group_members",
+        empty_proc_snapshot,
+    )
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_process_group_exists",
+        group_exists_after_fork,
+    )
+
+    gone, members = validation_lease_module._original_process_group_snapshot(
+        123,
+        456,
+    )
+
+    assert gone is False
+    assert members == ()
+    assert observations == ["proc-scan-complete", "kernel-group-probe"]
+
+
+def test_live_numeric_pid_with_stale_start_ticks_is_never_signaled(monkeypatch):
+    previous = subprocess.Popen(["true"], start_new_session=True)
+    previous_ticks = validation_lease_module._process_start_ticks(previous.pid)
+    assert previous_ticks is not None
+    assert previous.wait(timeout=2) == 0
+    time.sleep(0.05)
+    replacement = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    replacement_ticks = validation_lease_module._process_start_ticks(replacement.pid)
+    assert replacement_ticks is not None
+    assert replacement_ticks != previous_ticks
+    assert os.getpgid(replacement.pid) == replacement.pid
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        validation_lease_module,
+        "_pidfd_send_signal",
+        lambda descriptor, signum: signals.append((descriptor, signum)),
+    )
+    try:
+        assert validation_lease_module._terminate_exact_process_group(
+            replacement.pid,
+            previous_ticks,
+        ) is True
+        assert replacement.poll() is None
+        assert signals == []
+    finally:
+        replacement.terminate()
+        replacement.wait(timeout=2)
 
 
 def test_cancel_owner_terminates_only_matching_attached_process_group(tmp_path):

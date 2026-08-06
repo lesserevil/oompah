@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import array
+import contextlib
 import json
 import os
+import shlex
+import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -11,8 +16,16 @@ from pathlib import Path
 
 import pytest
 
-from oompah.native_validation_guard import install_native_validation_guard, main
+from oompah import native_validation_guard as guard_module
+from oompah.native_validation_guard import (
+    cleanup_retired_native_validation_guards,
+    consume_native_validation_boundary,
+    install_native_validation_guard,
+    main,
+    retire_native_validation_guard,
+)
 from oompah.validation_resource_lease import (
+    ValidationLeaseCancelled,
     ValidationLeaseHandle,
     ValidationLeaseOwner,
     ValidationResourceLease,
@@ -26,6 +39,933 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
             return
         time.sleep(0.01)
     raise AssertionError("condition did not become true")
+
+
+def _guard_pass_fds(environment: dict[str, str]) -> tuple[int, ...]:
+    raw = environment.get("OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD", "")
+    return (int(raw),) if raw else ()
+
+
+def test_broker_descriptor_reply_rejects_extra_descriptors(tmp_path: Path) -> None:
+    sender, receiver = socket.socketpair(
+        socket.AF_UNIX,
+        guard_module._BROKER_SOCKET_TYPE,
+    )
+    first = os.open(tmp_path / "first", os.O_CREAT | os.O_RDWR, 0o600)
+    second = os.open(tmp_path / "second", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        sender.sendmsg(
+            [b"LEASE\n"],
+            [
+                (
+                    socket.SOL_SOCKET,
+                    socket.SCM_RIGHTS,
+                    array.array("i", [first, second]),
+                )
+            ],
+        )
+        with pytest.raises(RuntimeError, match="descriptor reply is invalid"):
+            guard_module._receive_single_descriptor(
+                receiver,
+                expected_payload=b"LEASE\n",
+            )
+    finally:
+        sender.close()
+        receiver.close()
+        os.close(first)
+        os.close(second)
+
+
+def test_broker_descriptor_reply_rejects_truncated_payload(tmp_path: Path) -> None:
+    sender, receiver = socket.socketpair(
+        socket.AF_UNIX,
+        guard_module._BROKER_SOCKET_TYPE,
+    )
+    descriptor = os.open(tmp_path / "lease", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        sender.sendmsg(
+            [b"LEASE\n" + (b"x" * 256)],
+            [
+                (
+                    socket.SOL_SOCKET,
+                    socket.SCM_RIGHTS,
+                    array.array("i", [descriptor]),
+                )
+            ],
+        )
+        with pytest.raises(RuntimeError, match="descriptor reply is invalid"):
+            guard_module._receive_single_descriptor(
+                receiver,
+                expected_payload=b"LEASE\n",
+            )
+    finally:
+        sender.close()
+        receiver.close()
+        os.close(descriptor)
+
+
+def test_broker_packet_rejects_unexpected_descriptor(tmp_path: Path) -> None:
+    sender, receiver = socket.socketpair(
+        socket.AF_UNIX,
+        guard_module._BROKER_SOCKET_TYPE,
+    )
+    descriptor = os.open(tmp_path / "unexpected", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        sender.sendmsg(
+            [b"LEASE\n"],
+            [
+                (
+                    socket.SOL_SOCKET,
+                    socket.SCM_RIGHTS,
+                    array.array("i", [descriptor]),
+                )
+            ],
+        )
+        with pytest.raises(RuntimeError, match="packet is malformed"):
+            guard_module._recv_packet(receiver, 32)
+    finally:
+        sender.close()
+        receiver.close()
+        os.close(descriptor)
+
+
+def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    completed = subprocess.run(
+        ["make", "help"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0
+    assert lease.status().owner_count == 0
+
+
+def test_absolute_bash_heavy_command_waits_for_validation_capacity(
+    tmp_path: Path,
+) -> None:
+    """SDK-owned /bin/bash -c cannot bypass PATH-based validation shims."""
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "absolute-command-started"
+    absolute_tools = tmp_path / "absolute-tools"
+    absolute_tools.mkdir()
+    absolute_python = absolute_tools / "python"
+    absolute_python.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    absolute_python.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+
+    process = subprocess.Popen(
+        [
+            "/bin/bash",
+            "-lc",
+            (
+                f"{shlex.quote(str(absolute_python))} -m pytest "
+                "tests/test_one.py tests/test_two.py"
+            ),
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        status = lease.status()
+        assert status.owner_count == 1
+        assert status.owners[0]["task_id"] == "GATE-1"
+        assert status.waiters[0]["task_id"] == "TASK-1"
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
+    assert lease.status().owner_count == 0
+
+
+def test_absolute_login_shell_cannot_run_task_home_profile_before_guard(
+    tmp_path: Path,
+) -> None:
+    """The provider's absolute Bash cannot execute a task-controlled profile."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    task_home = tmp_path / "task-home"
+    task_home.mkdir()
+    profile_marker = tmp_path / "profile-ran"
+    heavy_marker = tmp_path / "profile-heavy-command-ran"
+    resolution_marker = tmp_path / "profile-command-resolution"
+    task_bin = tmp_path / "task-bin"
+    task_bin.mkdir()
+    task_probe = task_bin / "validation-profile-probe"
+    task_probe.write_text("#!/bin/sh\nprintf task-profile\n", encoding="utf-8")
+    task_probe.chmod(0o700)
+    task_make = task_bin / "make"
+    task_make.write_text(
+        f'#!/bin/sh\n: > "{heavy_marker}"\n',
+        encoding="utf-8",
+    )
+    task_make.chmod(0o700)
+    (task_home / ".bash_profile").write_text(
+        (
+            f': > "{profile_marker}"\n'
+            f'export PATH="{task_bin}:$PATH"\n'
+            f'command -v validation-profile-probe > "{resolution_marker}"\n'
+            "make test\n"
+        ),
+        encoding="utf-8",
+    )
+    guarded, root = install_native_validation_guard(
+        {
+            "HOME": str(task_home),
+            "PATH": os.environ.get("PATH", os.defpath),
+        },
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    completed = subprocess.run(
+        ["/bin/bash", "-lc", "printf trusted"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0
+    assert completed.stdout == "trusted"
+    assert guarded["HOME"] == str(root / guard_module._NATIVE_HOME_NAME)
+    assert guarded["HOME"] != str(task_home)
+    assert list(Path(guarded["HOME"]).iterdir()) == []
+    assert profile_marker.exists() is False
+    assert heavy_marker.exists() is False
+    assert resolution_marker.exists() is False
+    assert lease.status().owner_count == 0
+
+
+def test_native_guard_preserves_only_service_trusted_codex_home(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    trusted_codex_home = tmp_path / "trusted-codex-home"
+    task_codex_home = tmp_path / "task-codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(trusted_codex_home))
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+
+    guarded, root = install_native_validation_guard(
+        {
+            "CODEX_HOME": str(task_codex_home),
+            "HOME": str(tmp_path / "task-home"),
+            "PATH": os.environ.get("PATH", os.defpath),
+        },
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    assert guarded["CODEX_HOME"] == str(trusted_codex_home)
+    assert guarded["CODEX_HOME"] != str(task_codex_home)
+    assert guarded["HOME"] == str(root / guard_module._NATIVE_HOME_NAME)
+
+
+def test_nested_home_login_shell_waits_before_task_profile_startup(
+    tmp_path: Path,
+) -> None:
+    """Inline HOME cannot move nested login startup ahead of the lease."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    task_home = tmp_path / "nested-task-home"
+    task_home.mkdir()
+    profile_marker = tmp_path / "nested-profile-ran"
+    heavy_marker = tmp_path / "nested-profile-heavy-command-ran"
+    task_bin = tmp_path / "nested-task-bin"
+    task_bin.mkdir()
+    task_make = task_bin / "make"
+    task_make.write_text(
+        f'#!/bin/sh\n: > "{heavy_marker}"\n',
+        encoding="utf-8",
+    )
+    task_make.chmod(0o700)
+    (task_home / ".bash_profile").write_text(
+        (
+            f': > "{profile_marker}"\n'
+            f'export PATH="{task_bin}:$PATH"\n'
+            "make test\n"
+        ),
+        encoding="utf-8",
+    )
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    command = (
+        f"HOME={shlex.quote(str(task_home))} "
+        "bash -lc 'printf trusted'"
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", command],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert profile_marker.exists() is False
+        assert heavy_marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.communicate(timeout=5)[0] == "trusted"
+    assert process.returncode == 0
+    assert profile_marker.exists() is True
+    assert heavy_marker.exists() is True
+    assert lease.status().owner_count == 0
+
+
+def test_absolute_bash_light_command_restores_guard_for_descendants(
+    tmp_path: Path,
+) -> None:
+    """The one-shot Bash hook leaves every later absolute Bash guarded."""
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    observed_bash_env = tmp_path / "observed-bash-env"
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_BASH_ENV_MARKER"] = str(observed_bash_env)
+
+    command = (
+        "/bin/bash -c "
+        "'printf \"%s\" \"$BASH_ENV\" > "
+        "\"$OOMPAH_TEST_BASH_ENV_MARKER\"'"
+    )
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            command,
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0
+    assert observed_bash_env.read_text(encoding="utf-8") == guarded["BASH_ENV"]
+    assert not guarded["BASH_ENV"].endswith("validation-guard-bash-reentry")
+    assert consume_native_validation_boundary(root, command, "item-1") is True
+    assert consume_native_validation_boundary(root, command, "item-1") is False
+    assert lease.status().owner_count == 0
+
+
+def test_parallel_native_command_boundaries_are_consumed_independently(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    first = subprocess.Popen(
+        ["/bin/bash", "-c", "printf first"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    second = subprocess.Popen(
+        ["/bin/bash", "-c", "printf second"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+
+    assert first.communicate(timeout=5)[0] == "first"
+    assert second.communicate(timeout=5)[0] == "second"
+    assert first.returncode == 0
+    assert second.returncode == 0
+    assert consume_native_validation_boundary(root, "printf first", "item-1") is True
+    assert consume_native_validation_boundary(root, "printf second", "item-2") is True
+    assert consume_native_validation_boundary(root, "printf first", "item-3") is False
+
+
+def test_late_background_boundary_cannot_spoof_later_item(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    command = "bash -c \"sleep 0.2; bash -c 'printf nested >/dev/null'\" &"
+    outer = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            command,
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+
+    assert outer.returncode == 0
+    assert consume_native_validation_boundary(root, command, "item-1") is True
+    time.sleep(0.4)
+    assert consume_native_validation_boundary(root, command, "item-2") is False
+    assert consume_native_validation_boundary(
+        root,
+        "printf nested >/dev/null",
+        "item-3",
+    ) is False
+
+
+def test_cross_session_capability_cannot_forge_boundary(tmp_path: Path) -> None:
+    first_lease = ValidationResourceLease(
+        tmp_path / "first.sqlite3", poll_seconds=0.01
+    )
+    second_lease = ValidationResourceLease(
+        tmp_path / "second.sqlite3", poll_seconds=0.01
+    )
+    first, _first_root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "first-guard",
+        validation_lease=first_lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="first",
+        ),
+        timeout_seconds=10,
+    )
+    second, second_root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "second-guard",
+        validation_lease=second_lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-2",
+            authority_generation="second",
+        ),
+        timeout_seconds=10,
+    )
+    forged = dict(second)
+    forged["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"] = first[
+        "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"
+    ]
+
+    completed = subprocess.run(
+        ["/bin/bash", "-c", "printf forged"],
+        env={**os.environ, **forged},
+        pass_fds=_guard_pass_fds(forged),
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode != 0
+    assert consume_native_validation_boundary(
+        second_root,
+        "printf forged",
+        "forged-item",
+    ) is False
+
+
+def test_absolute_bash_reentry_preserves_exact_flags_and_argv(tmp_path: Path) -> None:
+    """The BASH_ENV boundary replays the kernel argv without string joining."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    output = tmp_path / "bash-argv"
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_BASH_ARGV"] = str(output)
+
+    completed = subprocess.run(
+        [
+            "/bin/bash",
+            "-eu",
+            "-O",
+            "nullglob",
+            "-c",
+            'printf "%s|%s|%s" "$0" "$1" "$(shopt -q nullglob; printf %s $?)" '
+            '> "$OOMPAH_TEST_BASH_ARGV"',
+            "chosen-argv-zero",
+            "one argument",
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0
+    assert output.read_text(encoding="utf-8") == "chosen-argv-zero|one argument|0"
+    assert lease.status().owner_count == 0
+
+
+def test_absolute_bash_reentry_preserves_process_argv_zero(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    output = tmp_path / "bash-argv-zero"
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_BASH_ARGV"] = str(output)
+
+    completed = subprocess.run(
+        [
+            "custom-native-bash",
+            "-c",
+            'printf "%s" "$0" > "$OOMPAH_TEST_BASH_ARGV"',
+        ],
+        executable="/bin/bash",
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+
+    assert completed.returncode == 0
+    assert output.read_text(encoding="utf-8") == "custom-native-bash"
+
+
+def test_absolute_non_bash_descendant_is_classified_before_spawn(
+    tmp_path: Path,
+) -> None:
+    """An absolute /bin/sh child cannot escape the guarded outer Bash."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "non-bash-descendant"
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    command = '/bin/sh -c \'/usr/bin/touch "$OOMPAH_TEST_NATIVE_MARKER"\''
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", command],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
+
+
+def test_guard_environment_mutation_fails_closed_to_capacity(tmp_path: Path) -> None:
+    """A command cannot drop BASH_ENV before capacity classification."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "mutated-guard"
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    process = subprocess.Popen(
+        [
+            "/bin/bash",
+            "-c",
+            'unset BASH_ENV; : > "$OOMPAH_TEST_NATIVE_MARKER"',
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
+
+
+def test_inherited_dynamic_loader_controls_are_removed_before_native_provider(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    guarded, _ = install_native_validation_guard(
+        {
+            "PATH": os.environ.get("PATH", os.defpath),
+            "LD_PRELOAD": "/task/hook.so",
+            "LD_AUDIT": "/task/audit.so",
+            "LD_LIBRARY_PATH": "/task/lib",
+            "DYLD_INSERT_LIBRARIES": "/task/hook.dylib",
+            "_RLD_LIST": "/task/tru64-hook.so",
+            "LDR_CNTRL": "LOADPUBLIC@PREREAD_SHLIB",
+            "LDR_PRELOAD": "/task/aix-hook.so",
+            "LIBPATH": "/task/aix-lib",
+            "SHLIB_PATH": "/task/hpux-lib",
+        },
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+
+    assert all(
+        name not in guarded
+        for name in (
+            "LD_PRELOAD",
+            "LD_AUDIT",
+            "LD_LIBRARY_PATH",
+            "DYLD_INSERT_LIBRARIES",
+            "_RLD_LIST",
+            "LDR_CNTRL",
+            "LDR_PRELOAD",
+            "LIBPATH",
+            "SHLIB_PATH",
+        )
+    )
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="ELF loader test")
+def test_inline_ld_preload_constructor_waits_for_validation_capacity(
+    tmp_path: Path,
+) -> None:
+    """A loader constructor cannot run before the shell command owns capacity."""
+
+    compiler = shutil.which("cc")
+    if compiler is None:
+        pytest.skip("C compiler is unavailable")
+    source = tmp_path / "loader-hook.c"
+    library = tmp_path / "loader-hook.so"
+    marker = tmp_path / "loader-constructor-ran"
+    source.write_text(
+        """
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+__attribute__((constructor)) static void oompah_test_mark(void) {
+    const char *path = getenv("OOMPAH_TEST_LOADER_MARKER");
+    if (path == NULL) return;
+    int fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0600);
+    if (fd < 0) return;
+    (void)write(fd, "x", 1);
+    (void)close(fd);
+}
+""",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [compiler, "-shared", "-fPIC", "-o", str(library), str(source)],
+        check=True,
+        timeout=10,
+    )
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_LOADER_MARKER"] = str(marker)
+    command = f"LD_PRELOAD={shlex.quote(str(library))} /usr/bin/printf trusted"
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", command],
+        env=guarded,
+        pass_fds=_guard_pass_fds(guarded),
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.communicate(timeout=5)[0] == "trusted"
+    assert process.returncode == 0
+    assert marker.exists() is True
+
+
+def test_bare_task_path_wrapper_fails_closed_to_capacity(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    marker = tmp_path / "bare-path-wrapper"
+    task_bin = tmp_path / "task-bin"
+    task_bin.mkdir()
+    wrapper = task_bin / "ci-check"
+    wrapper.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": f"{task_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "ci-check"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
+
+
+def test_task_path_inspection_lookalike_waits_before_spawn(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    task_bin = tmp_path / "task-bin"
+    task_bin.mkdir()
+    marker = tmp_path / "fake-git-started"
+    fake_git = task_bin / "git"
+    fake_git.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": f"{task_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+        provider_untrusted_roots=(task_bin,),
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "git status --short"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    try:
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        assert marker.exists() is False
+    finally:
+        gate.release()
+
+    assert process.wait(timeout=5) == 0
+    assert marker.exists() is True
+
+
+def test_retired_guard_blocks_delayed_background_descendant(tmp_path: Path) -> None:
+    """Session cleanup retains a referenced fail-closed cancellation hook."""
+
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    marker = tmp_path / "delayed-descendant"
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    outer = subprocess.Popen(
+        [
+            "/bin/bash",
+            "-c",
+            "(sleep 0.25; /bin/bash -c "
+            "': > \"$OOMPAH_TEST_NATIVE_MARKER\"') &",
+        ],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    assert outer.wait(timeout=5) == 0
+
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is False
+    time.sleep(0.5)
+
+    assert marker.exists() is False
+    assert retire_native_validation_guard(root) is True
+    assert root.exists() is False
 
 
 def test_guard_install_skips_missing_path_directories(tmp_path: Path) -> None:
@@ -56,16 +996,15 @@ def test_guard_install_skips_missing_path_directories(tmp_path: Path) -> None:
     )
 
 
-def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) -> None:
+def test_creator_death_cleanup_fences_and_removes_orphaned_guard(
+    tmp_path: Path,
+) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
-    real_bin = tmp_path / "real-bin"
-    real_bin.mkdir()
-    real_make = real_bin / "make"
-    real_make.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    real_make.chmod(0o700)
-    guarded, _ = install_native_validation_guard(
-        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
-        runtime_root=tmp_path / "guard",
+    parent = tmp_path / "guards"
+    root = parent / "oompah-codex-validation-orphan"
+    _guarded, _ = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=root,
         validation_lease=lease,
         owner=ValidationLeaseOwner.worker(
             project_id="project",
@@ -74,16 +1013,128 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
         ),
         timeout_seconds=10,
     )
+    config_path = root / "validation-guard.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["creator"]["start_ticks"] += 1
+    config_path.chmod(0o600)
+    config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
+    config_path.chmod(0o400)
+
+    assert cleanup_retired_native_validation_guards(parent) == 1
+    assert root.exists() is False
+
+
+def test_cleanup_preserves_guard_owned_by_active_creator(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    parent = tmp_path / "guards"
+    root = parent / "oompah-codex-validation-active"
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=root,
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+
+    assert cleanup_retired_native_validation_guards(parent) == 0
+    assert root.is_dir()
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
+
+
+def test_retirement_retries_durable_owner_cancellation_after_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    parent = tmp_path / "guards"
+    root = parent / "oompah-codex-validation-retry"
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=root,
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    monkeypatch.setattr(
+        lease,
+        "cancel_owner",
+        lambda _owner: (_ for _ in ()).throw(RuntimeError("temporary database error")),
+    )
+
+    with pytest.raises(RuntimeError, match="temporary database error"):
+        retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        )
+
+    assert (root / "cancelled").exists()
+    assert cleanup_retired_native_validation_guards(parent) == 1
+    assert root.exists() is False
+
+
+def test_heavy_shim_uses_operator_broker_not_configured_database(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "brokered"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    config_path = root / "validation-guard.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["state_path"] = "/proc/oompah-unwritable/validation.sqlite3"
+    config_path.chmod(0o600)
+    config_path.write_text(json.dumps(config, sort_keys=True), encoding="utf-8")
+    config_path.chmod(0o400)
+    guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
 
     completed = subprocess.run(
-        ["make", "help"],
+        ["make", "test"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         check=False,
         timeout=5,
     )
 
     assert completed.returncode == 0
-    assert lease.status().owner_count == 0
+    assert marker.exists()
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
 
 
 def _native_node_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -103,6 +1154,145 @@ def _native_node_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     trusted_entrypoint = tmp_path / "trusted-codex.js"
     trusted_entrypoint.write_text("// trusted provider entrypoint\n", encoding="utf-8")
     return real_bin, marker, trusted_entrypoint
+
+
+def test_direct_provider_install_requires_pinned_entrypoint_fd(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    provider = tmp_path / "direct-provider"
+    provider.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    provider.chmod(0o700)
+    provider_stat = provider.stat()
+
+    with pytest.raises(RuntimeError, match="requires a pinned entrypoint"):
+        install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=ValidationLeaseOwner.worker(
+                project_id="project",
+                task_id="TASK-1",
+                authority_generation="generation",
+            ),
+            timeout_seconds=10,
+            provider_bootstrap_entrypoint=provider,
+            provider_bootstrap_entrypoint_identity=(
+                int(provider_stat.st_dev),
+                int(provider_stat.st_ino),
+            ),
+        )
+
+
+def test_direct_provider_launcher_registers_session_capability(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    provider = tmp_path / "direct-provider"
+    provider.write_text(
+        "#!/bin/sh\n/bin/bash -c 'printf direct'\n",
+        encoding="utf-8",
+    )
+    provider.chmod(0o700)
+    provider_stat = provider.stat()
+    provider_fd = os.open(provider, os.O_RDONLY | os.O_CLOEXEC)
+    try:
+        guarded, root = install_native_validation_guard(
+            {"PATH": os.environ.get("PATH", os.defpath)},
+            runtime_root=tmp_path / "guard",
+            validation_lease=lease,
+            owner=owner,
+            timeout_seconds=10,
+            provider_bootstrap_entrypoint=provider,
+            provider_bootstrap_entrypoint_identity=(
+                int(provider_stat.st_dev),
+                int(provider_stat.st_ino),
+            ),
+            provider_bootstrap_entrypoint_fd=provider_fd,
+        )
+
+        completed = subprocess.run(
+            [guard_module.native_validation_provider_launcher(root), "exec"],
+            env={**os.environ, **guarded},
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert completed.returncode == 0
+        assert completed.stdout == "direct"
+        assert consume_native_validation_boundary(
+            root,
+            "printf direct",
+            "direct-item",
+        ) is True
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+    finally:
+        os.close(provider_fd)
+
+
+def test_guard_path_in_spoofed_provider_argv_does_not_grant_trust(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": os.environ.get("PATH", os.defpath)},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    spoofed_argv0 = root / "validation-guard-bin" / "make"
+    process = subprocess.Popen(
+        [str(spoofed_argv0), "-c", "import time; time.sleep(30)"],
+        executable=sys.executable,
+        env={
+            **os.environ,
+            "OOMPAH_NATIVE_VALIDATION_GUARD": str(spoofed_argv0.parent),
+        },
+    )
+    try:
+        assert guard_module._peer_is_guard_launcher(process.pid, root) is False
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
+
+
+def test_supervisor_termination_delegates_with_exact_start_ticks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[int, int, float]] = []
+
+    def terminate_exact(pid: int, start_ticks: int, *, grace_seconds: float) -> bool:
+        calls.append((pid, start_ticks, grace_seconds))
+        return True
+
+    monkeypatch.setattr(
+        guard_module,
+        "_terminate_exact_process_group",
+        terminate_exact,
+    )
+
+    assert guard_module._terminate_supervised_process_group(123, 456) is True
+    assert calls == [(123, 456, 0.5)]
 
 
 def test_trusted_provider_node_bootstrap_does_not_lease_entire_session(
@@ -135,6 +1325,7 @@ def test_trusted_provider_node_bootstrap_does_not_lease_entire_session(
     completed = subprocess.run(
         ["node", str(trusted_entrypoint), "exec"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         check=False,
         timeout=5,
     )
@@ -184,6 +1375,7 @@ def test_trusted_bootstrap_retains_guard_for_heavy_descendant(tmp_path: Path) ->
     process = subprocess.Popen(
         ["node", str(trusted_entrypoint), "exec"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
     )
     try:
         _wait_until(lambda: lease.status().waiter_count == 1)
@@ -236,6 +1428,7 @@ def test_trusted_bootstrap_ignores_task_path_node_lookalike(tmp_path: Path) -> N
     completed = subprocess.run(
         ["node", str(trusted_entrypoint), "exec"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         check=False,
         timeout=5,
     )
@@ -336,12 +1529,14 @@ def test_task_controlled_provider_bootstrap_shape_cannot_bypass_validation(
         process = subprocess.Popen(
             ["node", str(lookalike), "exec"],
             env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
         )
     elif attack == "wrong-parent":
         guarded["OOMPAH_TEST_ENTRYPOINT"] = str(trusted_entrypoint)
         process = subprocess.Popen(
             ["/bin/sh", "-c", 'node "$OOMPAH_TEST_ENTRYPOINT" exec'],
             env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
         )
     else:
         if attack == "replaced-entrypoint":
@@ -361,6 +1556,7 @@ def test_task_controlled_provider_bootstrap_shape_cannot_bypass_validation(
         process = subprocess.Popen(
             ["node", str(trusted_entrypoint), "exec"],
             env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
         )
     try:
         _wait_until(lambda: lease.status().waiter_count == 1)
@@ -373,12 +1569,30 @@ def test_task_controlled_provider_bootstrap_shape_cannot_bypass_validation(
     assert lease.status().owner_count == 0
 
 
-@pytest.mark.parametrize("command", ["pnpm", "yarn"])
-def test_native_node_test_runner_waits_for_validation_capacity(
+@pytest.mark.parametrize(
+    ("command", "arguments", "environment_update"),
+    [
+        ("make", ["--eval=$(shell make test)", "help"], {}),
+        ("pytest", ["-p=task_plugin", "test_one.py"], {}),
+        ("pytest", ["@payload.py"], {}),
+        ("npm", ["run", "--silent", "test"], {}),
+        ("pnpm", ["exec", "make", "test"], {}),
+        ("yarn", ["arbitrary-script"], {}),
+        ("rg", ["--hostname-bin=/task/hostname", "pattern", "."], {}),
+        ("rg", ["--search-zip", "pattern", "."], {}),
+        ("ruby", ["-v", "-e", "system('make test')"], {}),
+        ("ruby", ["--version"], {"RUBYOPT": "-r/task/hook.rb"}),
+    ],
+)
+def test_native_runner_execution_surface_waits_for_validation_capacity(
     tmp_path: Path,
     command: str,
+    arguments: list[str],
+    environment_update: dict[str, str],
 ) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    execution_directory = tmp_path / "execution"
+    execution_directory.mkdir()
     gate = lease.acquire(
         ValidationLeaseOwner.exact_gate(
             project_id="project",
@@ -407,9 +1621,12 @@ def test_native_node_test_runner_waits_for_validation_capacity(
         timeout_seconds=10,
     )
     guarded["OOMPAH_TEST_NATIVE_MARKER"] = str(marker)
+    guarded.update(environment_update)
     process = subprocess.Popen(
-        [command, "test"],
+        [command, *arguments],
+        cwd=execution_directory,
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
     )
     try:
         _wait_until(lambda: lease.status().waiter_count == 1)
@@ -457,6 +1674,7 @@ def test_native_heavy_child_retains_lane_after_launcher_crash(tmp_path: Path) ->
     launcher = subprocess.run(
         [sys.executable, "-c", launcher_code],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         check=False,
         timeout=5,
     )
@@ -492,6 +1710,214 @@ def test_native_heavy_child_retains_lane_after_launcher_crash(tmp_path: Path) ->
     assert lease.status().owner_count == 0
 
 
+def test_detached_heavy_descendant_retains_native_capacity_until_exit(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    descendant_pid_path = tmp_path / "detached.pid"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        "#!/bin/bash\n"
+        "setsid bash -c 'trap \"\" TERM; sleep 30' &\n"
+        "printf '%s' \"$!\" > \"$OOMPAH_TEST_DESCENDANT_PID\"\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    guarded, _ = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=10,
+    )
+    guarded["OOMPAH_TEST_DESCENDANT_PID"] = str(descendant_pid_path)
+
+    completed = subprocess.run(
+        ["make", "test"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        timeout=5,
+    )
+    assert completed.returncode == 0
+    _wait_until(descendant_pid_path.exists)
+    descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+
+    try:
+        with pytest.raises(ValidationLeaseCancelled, match="timed out"):
+            lease.acquire(
+                ValidationLeaseOwner.exact_gate(
+                    project_id="project",
+                    task_id="GATE-1",
+                    authority_generation="gate-generation",
+                ),
+                wait_timeout_seconds=0.2,
+            )
+        assert Path(f"/proc/{descendant_pid}").exists()
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(descendant_pid, signal.SIGKILL)
+    _wait_until(lambda: not Path(f"/proc/{descendant_pid}").exists())
+    with lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        ),
+        wait_timeout_seconds=2,
+    ):
+        assert lease.status().owner_count == 1
+
+
+@pytest.mark.parametrize("withdrawal", ["expired", "cancelled"])
+def test_withdrawn_owner_remains_fenced_by_detached_descendant(
+    tmp_path: Path,
+    withdrawal: str,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    descendant_pid_path = tmp_path / "detached.pid"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        "#!/bin/bash\n"
+        "setsid bash -c 'trap \"\" TERM; sleep 30' &\n"
+        "printf '%s' \"$!\" > \"$OOMPAH_TEST_DESCENDANT_PID\"\n"
+        "sleep 30\n",
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=ValidationLeaseOwner.worker(
+            project_id="project",
+            task_id="TASK-1",
+            authority_generation="generation",
+        ),
+        timeout_seconds=1,
+    )
+    guarded["OOMPAH_TEST_DESCENDANT_PID"] = str(descendant_pid_path)
+    process = subprocess.Popen(
+        ["make", "test"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    _wait_until(descendant_pid_path.exists)
+    descendant_pid = int(descendant_pid_path.read_text(encoding="utf-8"))
+    if withdrawal == "cancelled":
+        (root / "cancelled").touch()
+
+    try:
+        assert process.wait(timeout=3) != 0
+        with pytest.raises(ValidationLeaseCancelled, match="timed out"):
+            lease.acquire(
+                ValidationLeaseOwner.exact_gate(
+                    project_id="project",
+                    task_id="GATE-1",
+                    authority_generation="gate-generation",
+                ),
+                wait_timeout_seconds=0.2,
+            )
+        assert Path(f"/proc/{descendant_pid}").exists()
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(descendant_pid, signal.SIGKILL)
+    _wait_until(lambda: not Path(f"/proc/{descendant_pid}").exists())
+    with lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        ),
+        wait_timeout_seconds=2,
+    ):
+        assert lease.status().owner_count == 1
+
+
+def test_term_ignoring_same_group_child_is_gone_before_capacity_reuse(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    owner = ValidationLeaseOwner.worker(
+        project_id="project",
+        task_id="TASK-1",
+        authority_generation="generation",
+    )
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    child_pid_path = tmp_path / "same-group-child.pid"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        "#!/bin/bash\n"
+        "bash -c 'trap \"\" TERM; while :; do sleep 1; done' &\n"
+        "printf '%s' \"$!\" > \"$OOMPAH_TEST_CHILD_PID\"\n"
+        "wait \"$!\"\n",
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=1,
+    )
+    guarded["OOMPAH_TEST_CHILD_PID"] = str(child_pid_path)
+    process = subprocess.Popen(
+        ["make", "test"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    _wait_until(child_pid_path.exists)
+    child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+    assert os.getpgid(child_pid) == process.pid
+    child_existed_at_reuse: list[bool] = []
+    errors: list[BaseException] = []
+
+    def wait_for_capacity() -> None:
+        try:
+            with lease.acquire(
+                ValidationLeaseOwner.exact_gate(
+                    project_id="project",
+                    task_id="GATE-1",
+                    authority_generation="gate-generation",
+                ),
+                wait_timeout_seconds=5,
+            ):
+                child_existed_at_reuse.append(Path(f"/proc/{child_pid}").exists())
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+
+    waiter = threading.Thread(target=wait_for_capacity)
+    waiter.start()
+    try:
+        assert process.wait(timeout=5) != 0
+        waiter.join(timeout=5)
+        assert waiter.is_alive() is False
+        assert errors == []
+        assert child_existed_at_reuse == [False]
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(child_pid, signal.SIGKILL)
+    assert retire_native_validation_guard(
+        root,
+        validation_lease=lease,
+        owner=owner,
+    ) is True
+
+
 def test_native_command_timeout_begins_after_capacity_acquisition(tmp_path: Path) -> None:
     lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
     gate = lease.acquire(
@@ -520,6 +1946,7 @@ def test_native_command_timeout_begins_after_capacity_acquisition(tmp_path: Path
     process = subprocess.Popen(
         ["make", "test"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         start_new_session=True,
     )
     _wait_until(lambda: lease.status().waiter_count == 1)
@@ -564,6 +1991,7 @@ def test_native_launcher_ignores_candidate_pythonpath_poisoning(tmp_path: Path) 
     completed = subprocess.run(
         ["make", "help"],
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
         check=False,
         timeout=5,
     )
@@ -603,6 +2031,7 @@ def test_native_shell_entrypoint_fences_path_reassignment_and_local_wrapper(
         [guarded["SHELL"], "-lc", "PATH=/usr/bin:/bin; ./ci/test.sh"],
         cwd=tmp_path,
         env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
     )
     try:
         _wait_until(lambda: lease.status().waiter_count == 1)
@@ -639,7 +2068,11 @@ def test_native_capacity_wait_observes_session_cancellation(tmp_path: Path) -> N
         ),
         timeout_seconds=10,
     )
-    process = subprocess.Popen(["make", "test"], env={**os.environ, **guarded})
+    process = subprocess.Popen(
+        ["make", "test"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
     _wait_until(lambda: lease.status().waiter_count == 1)
 
     (root / "cancelled").touch()
@@ -680,12 +2113,24 @@ def test_native_post_attach_cancellation_exits_without_self_stopping(
     monkeypatch.setattr(ValidationLeaseHandle, "attach_process", attach_then_cancel)
     monkeypatch.setattr("oompah.native_validation_guard.os.getpgrp", os.getpid)
     monkeypatch.setattr(
+        "oompah.native_validation_guard._peer_is_guard_launcher",
+        lambda *_args: True,
+    )
+    monkeypatch.setattr(
+        "oompah.native_validation_guard._process_group_id",
+        lambda _pid: os.getpid(),
+    )
+    monkeypatch.setattr(
         "oompah.native_validation_guard.os.execve",
         lambda *_args: pytest.fail("cancelled native command reached execve"),
     )
+    monkeypatch.setenv(
+        "OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD",
+        guarded["OOMPAH_NATIVE_VALIDATION_CAPABILITY_FD"],
+    )
     monkeypatch.setattr(sys, "argv", [str(guard_make), "test"])
 
-    with pytest.raises(RuntimeError, match="withdrawn before exec"):
+    with pytest.raises(RuntimeError, match="broker denied execution"):
         main()
 
     assert lease.status().owner_count == 0
@@ -719,6 +2164,7 @@ def test_native_stdin_shell_waits_for_validation_capacity(tmp_path: Path) -> Non
             ["bash", "-s"],
             stdin=stdin,
             env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
         )
         try:
             _wait_until(lambda: lease.status().waiter_count == 1)

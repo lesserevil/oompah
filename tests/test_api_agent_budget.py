@@ -1427,6 +1427,220 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
 # ---------------------------------------------------------------------------
 
 class TestRunCommandEnvOverrides:
+    def test_env_argv0_cannot_turn_nested_bash_into_unleased_login_shell(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "service-home"
+        home.mkdir()
+        startup_marker = tmp_path / "argv0-profile-ran"
+        heavy_marker = tmp_path / "argv0-profile-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        (home / ".bash_profile").write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "env --argv0=-bash bash -c 'printf trusted'"},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_pytest_addopts_requires_capacity_for_focused_node(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "pytest tests/test_one.py::test_case"},
+            env_overrides={"PYTEST_ADDOPTS": "-n auto"},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+
+    @pytest.mark.parametrize(
+        ("profile_name", "command"),
+        [
+            (".bash_profile", "bash -lc 'printf trusted'"),
+            (".bashrc", "bash -ic 'printf trusted'"),
+            (".zshenv", "zsh -c 'printf trusted'"),
+        ],
+    )
+    def test_inherited_home_nested_shell_startup_requires_capacity(
+        self,
+        tmp_path,
+        monkeypatch,
+        profile_name,
+        command,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "service-home"
+        home.mkdir()
+        startup_marker = tmp_path / "nested-shell-startup-ran"
+        heavy_marker = tmp_path / "nested-shell-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        (home / profile_name).write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": command},
+            require_validation_lease=True,
+        )
+
+        assert "ownership metadata is incomplete" in result
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_bash_env_cannot_run_before_api_command(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+
+        startup_marker = tmp_path / "bash-env-ran"
+        heavy_marker = tmp_path / "bash-env-heavy-command-ran"
+        startup = tmp_path / "task-bash-env"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        startup.write_text(
+            f': > "{startup_marker}"\n"{fake_make}" test\n',
+            encoding="utf-8",
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "printf trusted"},
+            env_overrides={"BASH_ENV": str(startup)},
+        )
+
+        assert result == "trusted"
+        assert startup_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_inherited_dynamic_loader_controls_are_removed_before_api_shell(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        result = _exec_run_command(
+            tmp_path,
+            {
+                "command": (
+                    "printf '%s|%s|%s|%s' "
+                    '"${LD_PRELOAD-unset}" "${LD_AUDIT-unset}" '
+                    '"${LD_LIBRARY_PATH-unset}" '
+                    '"${DYLD_INSERT_LIBRARIES-unset}"'
+                )
+            },
+            env_overrides={
+                "LD_PRELOAD": "/task/hook.so",
+                "LD_AUDIT": "/task/audit.so",
+                "LD_LIBRARY_PATH": "/task/lib",
+                "DYLD_INSERT_LIBRARIES": "/task/hook.dylib",
+            },
+        )
+
+        assert result == "unset|unset|unset|unset"
+
+    def test_imported_bash_function_cannot_replace_api_command(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+
+        function_marker = tmp_path / "imported-function-ran"
+        heavy_marker = tmp_path / "imported-function-heavy-command-ran"
+        fake_make = tmp_path / "make"
+        fake_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        fake_make.chmod(0o700)
+        imported_function = (
+            f'() {{ : > "{function_marker}"; '
+            f'"{fake_make}" test; builtin printf task-function; }}'
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "printf trusted"},
+            env_overrides={"BASH_FUNC_printf%%": imported_function},
+        )
+
+        assert result == "trusted"
+        assert function_marker.exists() is False
+        assert heavy_marker.exists() is False
+
+    def test_login_profile_cannot_run_or_replace_command_after_classification(
+        self,
+        tmp_path,
+    ):
+        from oompah.api_agent import _exec_run_command
+
+        home = tmp_path / "task-home"
+        home.mkdir()
+        marker = tmp_path / "profile-ran"
+        heavy_marker = tmp_path / "profile-heavy-command-ran"
+        trusted_bin = tmp_path / "trusted-bin"
+        task_bin = tmp_path / "task-bin"
+        trusted_bin.mkdir()
+        task_bin.mkdir()
+        trusted_probe = trusted_bin / "validation-profile-probe"
+        trusted_probe.write_text("#!/bin/sh\nprintf trusted\n", encoding="utf-8")
+        trusted_probe.chmod(0o700)
+        task_probe = task_bin / "validation-profile-probe"
+        task_probe.write_text("#!/bin/sh\nprintf task-profile\n", encoding="utf-8")
+        task_probe.chmod(0o700)
+        task_make = task_bin / "make"
+        task_make.write_text(
+            f'#!/bin/sh\n: > "{heavy_marker}"\n',
+            encoding="utf-8",
+        )
+        task_make.chmod(0o700)
+        (home / ".bash_profile").write_text(
+            f': > "{marker}"\nexport PATH="{task_bin}:$PATH"\nmake test\n',
+            encoding="utf-8",
+        )
+
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "validation-profile-probe"},
+            env_overrides={
+                "HOME": str(home),
+                "PATH": f"{trusted_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}",
+            },
+        )
+
+        assert result == "trusted"
+        assert marker.exists() is False
+        assert heavy_marker.exists() is False
+
     def test_client_auth_values_are_not_inherited_by_agent_command(self, tmp_path, monkeypatch):
         from oompah.api_agent import _exec_run_command
 
