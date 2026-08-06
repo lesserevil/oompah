@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:39:28.238694Z'
+updated_at: '2026-08-06T06:39:54.389992Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -40,18 +40,16 @@ oompah.duplicate_screening:
     OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, and OOMPAH-853 found
     related validation-lane work but no task duplicating the terminal-auditor admission
     race during quiesce.
-oompah.agent_run_id: 60c20ae6-beb4-4e75-b2df-5c4e02f96780
+oompah.agent_run_id: ac2f08ce-3aa7-45d3-8b02-f7d3752d3dd6
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-854
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-854
   base_branch: epic-OOMPAH-763
-  base_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
-  head_sha: 96b70ce36ec28438ff74f7f7180601b5e9d01c50
-  submitted_at: '2026-08-06T06:36:43.773280+00:00'
-  updated_at: '2026-08-06T06:36:43.773280+00:00'
+  base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
+  updated_at: '2026-08-06T06:39:51.555442+00:00'
 oompah.task_costs:
   total_input_tokens: 47148
   total_output_tokens: 22261
@@ -269,5 +267,10 @@ author: oompah
 created: 2026-08-06 06:38
 ---
 Correction to the preceding shell-mangled review comment: independent static review rejected the submitted patch. The new dispatch-blocked check still has a check-then-act window because quiesce can begin after the check and before worker-task creation. It therefore does not atomically fence provider admission. Cleanup also leaves a persisted In Progress audit to later abandonment recovery rather than proving immediate queued/retryable convergence. The tests quiesce before entering dispatch and do not deterministically exercise the real boundary race; several only test existing helpers in isolation. Rework with one synchronization domain shared by quiesce and final provider admission plus RunningEntry publication. Quiesce must return only after the fence excludes new providers. Restore an aborted audit immediately without consuming an attempt. Add a barrier-controlled race regression plus paused/quiesced startup and retry coverage. Remove trailing whitespace and rebase onto the current epic head before resubmission. Do not run tests until the operator clears the shared validation lane.
+---
+author: oompah
+created: 2026-08-06 06:39
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
