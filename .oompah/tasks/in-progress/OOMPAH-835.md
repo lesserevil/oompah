@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:05:35.442001Z'
+updated_at: '2026-08-06T00:06:02.649513Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-06 00:05
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 00:06
+---
+Understanding: Implementing production ReviewWorkflow backends for 10 actions with fresh provider-backed review facts, TaskTransitionService intents, and comprehensive isolation. Key files: review_workflow.py, workflow_runtime.py. Tests needed: provider availability, event ordering, CI/conflict/closed/head changes, merge idempotency, capacity release, multi-project routing. Starting codebase exploration.
 ---
 <!-- COMMENTS:END -->
