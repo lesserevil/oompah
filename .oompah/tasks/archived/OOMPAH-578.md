@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-08-06T05:19:04.082864Z'
+updated_at: '2026-08-06T05:19:38.485741Z'
 work_branch: OOMPAH-578
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/589
@@ -37,13 +37,17 @@ oompah.review_number: '589'
 oompah.work_branch: OOMPAH-578
 oompah.target_branch: main
 oompah.task_costs:
-  total_input_tokens: 470
-  total_output_tokens: 155
+  total_input_tokens: 511
+  total_output_tokens: 6728
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 470
       output_tokens: 155
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 41
+      output_tokens: 6573
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +56,12 @@ oompah.task_costs:
     output_tokens: 155
     cost_usd: 0.0
     recorded_at: '2026-07-30T03:45:20.313058+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 6573
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T05:19:32.773670+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -205,5 +215,15 @@ Safe evidence:
 - cleanup_addition_location: oompah/projects.py:5114-5131 (legacy_epic_task guard + shared removal branch with is_epic)
 - files_changed: oompah/projects.py (+11), tests/test_projects.py (+132)
 - aged_days_since_merge: ~7 days (merged 2026-07-29, audit 2026-08-06)
+---
+author: oompah
+created: 2026-08-06 05:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 46, Tool calls: 35
+- Tokens: 41 in / 6.6K out [6.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 28s
+- Log: OOMPAH-578__20260806T045217Z.jsonl
 ---
 <!-- COMMENTS:END -->
