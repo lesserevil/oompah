@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:16:07.298879Z'
+updated_at: '2026-08-06T13:27:05.990082Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-06 13:16
 ---
 DISCOVERY: Found the root cause. In orchestrator.py _integration_dependency_map (line 11519), effective_dependencies is called without filtering, inheriting parent finish-order dependencies. When a parent task has finish dependencies on its children (for rollup), the child inherits these, creating implicit circular edges. Key insight: need to distinguish: (1) implicit parent->child rollup edges (exclude), (2) external finish-order prerequisites (include), (3) sibling explicit dependencies (include). Affected functions: effective_dependencies, _integration_dependency_map, _integration_satisfied_dependencies, claim_next queue logic, and container cycle analysis. Plan: Create filtered integration-dependency projection in dependency_graph.py, update all callers.
+---
+author: oompah
+created: 2026-08-06 13:27
+---
+IMPLEMENTATION: Created new integration_dependencies() function in dependency_graph.py that filters out implicit parent->child rollup edges while preserving explicit external/sibling dependencies. Updated _integration_dependency_map in orchestrator.py to use the new function. Created comprehensive regression tests covering: nested parent->children rollup, excluded self/sibling rollup edges, retained explicit child->sibling and external ancestor dependencies, and multiple nesting levels. All 341 existing integration tests pass.
 ---
 <!-- COMMENTS:END -->

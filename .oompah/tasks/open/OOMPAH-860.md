@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:26:10.170067Z'
+updated_at: '2026-08-06T13:27:03.360028Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
