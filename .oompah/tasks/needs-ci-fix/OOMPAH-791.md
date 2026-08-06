@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T02:15:37.131314Z'
+updated_at: '2026-08-06T02:24:49.404078Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -475,5 +475,10 @@ author: oompah
 created: 2026-08-06 02:15
 ---
 Repaired the second late-suite load-sensitive timeout pair at exact head d0447990c; 20 concurrent focused runs and 320 affected-module tests pass.
+---
+author: oompah
+created: 2026-08-06 02:24
+---
+Independent review of d0447990c found the repo-heal test still exercised unrelated full-corpus release-addendum lease recovery inside _tick; increasing only its timeout would mask that test coupling. Cancelling the active exact gate before landing d044, then isolating the asserted maintenance-failure path with the same _recover_release_addendum_leases stub used by sibling tick tests. The candidate-fetch timeout remains a bounded cold-construction allowance.
 ---
 <!-- COMMENTS:END -->
