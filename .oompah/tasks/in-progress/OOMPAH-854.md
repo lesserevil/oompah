@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:37:06.736251Z'
+updated_at: '2026-08-06T06:38:17.121856Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -243,5 +243,10 @@ Added an atomic re-check of _dispatch_is_blocked() in orchestrator._dispatch() i
 **Verification:**
 Branch: epic-OOMPAH-763--task-OOMPAH-854
 Submitted for orchestrator integration.
+---
+author: oompah
+created: 2026-08-06 06:38
+---
+Independent static review rejected the submitted patch before integration. The new  check still has a check-then-act window: quiesce can begin after the check and before , so it does not atomically fence provider admission. Cleanup also leaves a persisted IN_PROGRESS audit to later abandonment recovery rather than proving immediate queued/retryable convergence. The new tests quiesce before entering  and therefore do not deterministically exercise the real boundary race; several only test existing helpers in isolation. Rework with one synchronization domain shared by quiesce and final provider admission/RunningEntry publication, ensure quiesce returns only after the admission fence excludes new providers, restore an aborted audit immediately without consuming an attempt, and add a barrier-controlled race test plus paused/quiesced startup/retry coverage. Also remove trailing whitespace and rebase onto the current epic head before resubmission. Do not run tests until the operator clears the shared validation lane.
 ---
 <!-- COMMENTS:END -->
