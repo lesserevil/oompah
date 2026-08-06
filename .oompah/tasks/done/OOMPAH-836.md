@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T11:59:05.224208Z'
+updated_at: '2026-08-06T11:59:56.044125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,13 +147,13 @@ oompah.terminal_audit:
     branch_key: OOMPAH-836
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 69
-  total_output_tokens: 3838
+  total_input_tokens: 72
+  total_output_tokens: 3932
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 69
-      output_tokens: 3838
+      input_tokens: 72
+      output_tokens: 3932
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -162,6 +162,12 @@ oompah.task_costs:
     output_tokens: 3838
     cost_usd: 0.0
     recorded_at: '2026-08-06T11:32:53.404409+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 94
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T11:59:50.404599+00:00'
 ---
 ## Summary
 
@@ -250,5 +256,15 @@ Safe evidence:
 - handler_class: IntegrationActionHandler
 - backend_class: OrchestratorIntegrationActionBackend
 - enforce_mode_authority: workflow job gate generation, not queue lease
+---
+author: oompah
+created: 2026-08-06 11:59
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 88, Tool calls: 56
+- Tokens: 3 in / 94 out [97 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 26m 27s
+- Log: OOMPAH-836__20260806T113337Z.jsonl
 ---
 <!-- COMMENTS:END -->
