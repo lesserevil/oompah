@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-844
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Isolate orchestrator maintenance unit tests from full-corpus recovery scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:14:05.052844Z'
+updated_at: '2026-08-06T04:14:22.422595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,7 +70,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: acba9266-ce37-4207-95f1-d938fa812c4a
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1971
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-844
     source_sha: fe6257b596f79296b11dd4870a62bdbc79159d27
     completed_at: '2026-08-06T03:54:06.870136+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-844
+  head_sha: d58976219e939c349498f69ce2fdbcb6ff650e96
+  submitted_at: '2026-08-06T04:14:10.074408+00:00'
+  updated_at: '2026-08-06T04:14:10.074408+00:00'
 ---
 ## Summary
 
@@ -184,5 +192,10 @@ author: oompah
 created: 2026-08-06 04:14
 ---
 Completion: Delivered and pushed d58976219 (OOMPAH-844). Focused xdist and concurrent regression checks passed (320 affected-module tests in 86.54s). The required make test was invoked at this exact head but could not start pytest because the managed validation guard attempted chmod on its shared lock directory under /home/shedwards/src/oompah, which is read-only in this worktree (OSError 30). No source or timeout-policy failure was observed; integration should run the canonical gate in its writable validation environment.
+---
+author: oompah
+created: 2026-08-06 04:14
+---
+Isolated maintenance unit tests from full-corpus scans; focused concurrency checks passed
 ---
 <!-- COMMENTS:END -->
