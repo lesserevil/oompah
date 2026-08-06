@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,20 +11,21 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:24:05.321763Z'
+updated_at: '2026-08-06T21:24:16.723117Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
 review_number: '595'
 merged_at: null
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-612
-  head_sha: 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22
-  submitted_at: '2026-07-30T19:43:50.264292+00:00'
-  updated_at: '2026-07-30T19:43:50.264292+00:00'
+  base_branch: main
+  head_sha: f2b319c1182cd654112db622a0498171e508dead
+  submitted_at: '2026-08-06T21:24:11.834576+00:00'
+  updated_at: '2026-08-06T21:24:11.834576+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/595
 oompah.review_number: '595'
 oompah.work_branch: OOMPAH-612
@@ -523,5 +524,10 @@ author: oompah
 created: 2026-08-06 21:24
 ---
 Completion: Branch OOMPAH-612 pushed to origin at f2b319c1182cd654112db622a0498171e508dead (identical to origin/main). Fix already merged via PR #595 (fix commit 8ce6fa0ad, merge commit c048ba706). Both Claude and OpenCode async submit_audit_result tools offload the synchronous coordinator bridge via asyncio.to_thread; API/ACP coordinator handlers preserve target/attempt validation and bounded 60s timeout. Regression coverage in tests/test_acp_auditor_result_bridge.py (same-loop success, idempotency, coordinator rejection) all green. Focused suites (639 tests) all pass.
+---
+author: oompah
+created: 2026-08-06 21:24
+---
+ACP auditor result bridge already fixed on origin/main (PR #595, fix commit 8ce6fa0ad, merge c048ba706): Claude and OpenCode async submit_audit_result tools offload the synchronous coordinator bridge via asyncio.to_thread, keeping the dispatch loop free while target/attempt validation and the bounded 60s coordinator handler in oompah/orchestrator.py are preserved. Focused regressions in tests/test_acp_auditor_result_bridge.py (same-loop success, idempotency, coordinator rejection) plus 639-test focused suite all pass.
 ---
 <!-- COMMENTS:END -->

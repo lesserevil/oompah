@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:23:43.980623Z'
+updated_at: '2026-08-06T21:24:22.801210Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,8 +48,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: cfcbbbbf-8508-468c-aaca-4083c6af28c8
 oompah.task_costs:
-  total_input_tokens: 46934
-  total_output_tokens: 592
+  total_input_tokens: 46994
+  total_output_tokens: 17458
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,8 +57,8 @@ oompah.task_costs:
       output_tokens: 386
       cost_usd: 0.0
     sonnet:
-      input_tokens: 11
-      output_tokens: 206
+      input_tokens: 71
+      output_tokens: 17072
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +79,12 @@ oompah.task_costs:
     output_tokens: 206
     cost_usd: 0.0
     recorded_at: '2026-08-06T20:50:56.700431+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 60
+    output_tokens: 16866
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T21:24:19.947869+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-845__20260806T035234Z
@@ -345,5 +351,15 @@ author: oompah
 created: 2026-08-06 21:23
 ---
 Fixed unawaited-coroutine leak in TestProjectLogWatcherManager (test_error_watcher.py) that caused RuntimeWarning/PytestUnraisableExceptionWarning cross-test pollution under full-gate saturation. Added _close_coro_side_effect() helper to close watcher.start() coroutines inside ensure_future mock. Combined with prior commits (orchestrator shutdown draining, saturated-gate test resource cleanup), all 215 focused tests pass with zero warnings under -n4. Restart-recovery fencing semantics are unchanged.
+---
+author: oompah
+created: 2026-08-06 21:24
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 59
+- Tokens: 60 in / 16.9K out [16.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 33s
+- Log: OOMPAH-845__20260806T210555Z.jsonl
 ---
 <!-- COMMENTS:END -->
