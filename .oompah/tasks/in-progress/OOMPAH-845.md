@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T20:41:56.068811Z'
+updated_at: '2026-08-06T20:45:13.254580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 819843fc-e77f-4a19-92cc-e9f4e2d89abe
 oompah.task_costs:
   total_input_tokens: 46923
   total_output_tokens: 386
