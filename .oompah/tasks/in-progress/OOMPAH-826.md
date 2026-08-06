@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T12:59:13.179121Z'
-updated_at: '2026-08-06T00:00:36.333043Z'
+updated_at: '2026-08-06T00:17:22.527313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-08-06 00:00
 ---
 Discovery: Read the actual GitHub Actions failure for PR #721 run 31005918588/job 92305629229. Exact head 74c4b71c failed on Python 3.13 because tests/test_close_gate.py::test_open_pr_allows_close timed out in an unmocked subprocess; repaired head 11c75e6c later passed all matrix checks. The preserved OOMPAH-826 patch adds gating at webhook adoption, standalone open/merged recovery, and cached/live _ensure_review_exists paths, but currently carries an unrelated uv.lock refresh and only one updated mock assertion. Focused tests and durable exact-head/cache/CAS regressions are still needed before this patch is valid.
+---
+author: oompah
+created: 2026-08-06 00:17
+---
+Implementation: Gated all existing-review adoption paths before In Review/merge eligibility: webhook adoption now gates then revalidates the forge generation; standalone open and merged recovery now performs a submit-serialized pre-gate authority CAS, exact-head gate, and existing owned post-gate CAS; cached/live integration-entry reviews gate before status mutation and return failure when blocked. Gate failures preserve the existing review and use the normal Needs CI Fix route. Added changed-head, gate-failure, merged-review, webhook/submit race, restart, cached/live review, and metadata-order regressions; removed unrelated uv.lock drift.
 ---
 <!-- COMMENTS:END -->

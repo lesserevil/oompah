@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T00:16:45.117880Z'
+updated_at: '2026-08-06T00:17:27.212932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,13 +42,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9e6523b3-f527-4866-af63-c61f5f4eede7
 oompah.task_costs:
-  total_input_tokens: 47532
-  total_output_tokens: 584
+  total_input_tokens: 48038
+  total_output_tokens: 700
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 47532
-      output_tokens: 584
+      input_tokens: 48038
+      output_tokens: 700
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +63,12 @@ oompah.task_costs:
     output_tokens: 296
     cost_usd: 0.0
     recorded_at: '2026-08-05T19:42:27.258735+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 506
+    output_tokens: 116
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T00:17:21.832415+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-827__20260805T182053Z
@@ -231,5 +237,15 @@ Implemented authoritative work-kind classifier for agent observability surfaces
 - All 15679 tests pass; no regressions
 
 Fixes: /api/v1/state and /api/v1/agents/:identifier/activity now report consistent work_kind for the same run, and audit identity is safely exposed without exposing sensitive data.
+---
+author: oompah
+created: 2026-08-06 00:17
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 28
+- Tokens: 506 in / 116 out [622 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 23s
+- Log: OOMPAH-827__20260805T235911Z.jsonl
 ---
 <!-- COMMENTS:END -->
