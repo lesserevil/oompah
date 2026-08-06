@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:07:24.662874Z'
+updated_at: '2026-08-06T21:22:08.439059Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -325,5 +325,10 @@ author: oompah
 created: 2026-08-06 21:07
 ---
 Discovery: Branch OOMPAH-845 is at confirmed accepted head 6a799a1483e, which is clean and up to date with origin. The two OOMPAH-845 commits changed tests/test_event_driven_loop.py, tests/test_retry_authority_generation.py, and oompah/orchestrator.py. The 'changed_paths: test_error_watcher.py' in recovery context refers to the rolled-back false-ci-fixer snapshot, not the accepted head. Running focused tests now for the directly affected modules.
+---
+author: oompah
+created: 2026-08-06 21:22
+---
+Implementation: Fixed unawaited LogFileWatcher.start coroutine leak in tests/test_error_watcher.py. Root cause: TestProjectLogWatcherManager tests patched asyncio.ensure_future but the expression watcher.start() was still evaluated first, creating real coroutines that were never awaited. Under full-gate saturation, GC finalized these during unrelated later tests (TestTrackerLabel, TestAutoFiledTaskMetadata) and emitted RuntimeWarning/PytestUnraisableExceptionWarning — the exact cross-test leak class OOMPAH-845 targets. Fix: Added _close_coro_side_effect() static helper to the test class that closes the coroutine via coro.close() before returning the mock task. Applied to all 4 affected test methods. Committed as 7bb2362fc, pushed to origin/OOMPAH-845.
 ---
 <!-- COMMENTS:END -->
