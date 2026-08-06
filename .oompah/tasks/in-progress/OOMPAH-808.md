@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T04:26:34.664121Z'
+updated_at: '2026-08-06T04:26:53.742033Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -236,5 +236,10 @@ author: oompah
 created: 2026-08-06 04:26
 ---
 Additional P0: _preflight_nested_epic_dispatch resolves a declared immediate parent with fail_closed=False; missing/unreadable parent returns None and is interpreted as no fence, so dispatch proceeds. Existing unresolved-parent test resolves the immediate nested parent and only breaks the root target, so it misses this. Repair must fail closed on a declared immediate parent lookup error and prove zero claim/worktree/provider launch for missing and tracker-error cases.
+---
+author: oompah
+created: 2026-08-06 04:26
+---
+Additional fail-open edge: _nested_hard_start_heads silently omits an effective inherited hard-start blocker when fresh fetch is nonterminal/unknown or raises. A stale regular dependency decision can then authorize dispatch without exact blocker-head ancestry. Every effective hard-start ID must yield fresh terminal state plus exact landing evidence or remain explicitly missing/fenced; add inherited-edge tracker-error and stale-cache regressions.
 ---
 <!-- COMMENTS:END -->
