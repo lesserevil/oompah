@@ -1287,3 +1287,24 @@ def test_successful_heavy_command_reports_auditor_evidence(tmp_path):
     assert "exit_code: 0" in success
     assert "exit_code: 2" in failure
     assert observed == [("make test", tmp_path)]
+
+
+def test_successful_heavy_command_reports_duration_to_auditor_observer(tmp_path):
+    (tmp_path / "Makefile").write_text("test:\n\t@sleep 0.01\n", encoding="utf-8")
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    observed: list[tuple[str, Path, float]] = []
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "make test"},
+        timeout=5,
+        validation_lease=lease,
+        validation_owner=_audit_owner("p", "duration"),
+        successful_validation_handler=lambda command, workspace, *, duration_seconds: observed.append(
+            (command, workspace, duration_seconds)
+        ),
+    )
+
+    assert "exit_code: 0" in result
+    assert observed[0][:2] == ("make test", tmp_path)
+    assert observed[0][2] > 0

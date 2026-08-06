@@ -34,6 +34,13 @@ COUNTER_NAMES = (
     "no_independent_candidate",
 )
 
+VALIDATION_COUNTER_NAMES = (
+    "authoritative_gate_reused",
+    "full_gate_required",
+    "focused_supplemental_commands",
+    "auditor_full_suite_runs",
+)
+
 
 def utc_now() -> datetime:
     """Return an aware UTC clock value; callers may inject a deterministic clock."""
@@ -177,6 +184,9 @@ class TerminalAuditMetrics:
         self._load_state = load_state
         self._save_state = save_state
         self._counters = {name: 0 for name in COUNTER_NAMES}
+        self._validation_counters = {
+            name: 0 for name in VALIDATION_COUNTER_NAMES
+        }
         self._queued_total = 0
         self._project_counters: dict[str, dict[str, int]] = {}
         self._queued: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -191,6 +201,8 @@ class TerminalAuditMetrics:
         }
         self._no_candidate: dict[tuple[str, str, str], str] = {}
         self._last_successful_audit_at: str | None = None
+        self._last_validation_decision: dict[str, Any] | None = None
+        self._last_validation_command: dict[str, Any] | None = None
         self.persistence_corrupt = False
         self.persistence_error: str | None = None
         self._restore()
@@ -228,7 +240,14 @@ class TerminalAuditMetrics:
             for project_id, values in raw_projects.items():
                 if not isinstance(project_id, str) or not isinstance(values, Mapping):
                     raise ValueError("invalid terminal-audit project counter")
-                project = {name: 0 for name in (*COUNTER_NAMES, "queued_total")}
+                project = {
+                    name: 0
+                    for name in (
+                        *COUNTER_NAMES,
+                        *VALIDATION_COUNTER_NAMES,
+                        "queued_total",
+                    )
+                }
                 for name, value in values.items():
                     if (
                         name not in project
@@ -264,6 +283,34 @@ class TerminalAuditMetrics:
                 if not isinstance(last_success, str) or _parse_timestamp(last_success) is None:
                     raise ValueError("invalid terminal-audit last successful timestamp")
                 self._last_successful_audit_at = last_success
+            validation = raw.get("validation", {})
+            if validation is not None:
+                if not isinstance(validation, Mapping):
+                    raise ValueError("invalid terminal-audit validation metrics")
+                validation_counters = validation.get("counters", {})
+                if not isinstance(validation_counters, Mapping):
+                    raise ValueError("invalid terminal-audit validation counters")
+                for name in VALIDATION_COUNTER_NAMES:
+                    value = validation_counters.get(name, 0)
+                    if (
+                        isinstance(value, bool)
+                        or not isinstance(value, int)
+                        or value < 0
+                    ):
+                        raise ValueError(
+                            f"invalid terminal-audit validation counter: {name}"
+                        )
+                    self._validation_counters[name] = value
+                for field_name, destination in (
+                    ("last_decision", "_last_validation_decision"),
+                    ("last_command", "_last_validation_command"),
+                ):
+                    value = validation.get(field_name)
+                    if value is not None and not isinstance(value, Mapping):
+                        raise ValueError(
+                            f"invalid terminal-audit validation {field_name}"
+                        )
+                    setattr(self, destination, dict(value) if value is not None else None)
         except Exception as exc:  # fail closed; never overwrite an unknown state document
             self.persistence_corrupt = True
             self.persistence_error = f"{type(exc).__name__}: {exc}"
@@ -306,6 +353,11 @@ class TerminalAuditMetrics:
                 for key, reason in self._no_candidate.items()
             ],
             "last_successful_audit_at": self._last_successful_audit_at,
+            "validation": {
+                "counters": dict(self._validation_counters),
+                "last_decision": copy.deepcopy(self._last_validation_decision),
+                "last_command": copy.deepcopy(self._last_validation_command),
+            },
         }
         try:
             self._save_state({METRICS_STATE_KEY: payload})
@@ -326,12 +378,90 @@ class TerminalAuditMetrics:
 
     def _project(self, project_id: str) -> dict[str, int]:
         return self._project_counters.setdefault(
-            project_id, {name: 0 for name in (*COUNTER_NAMES, "queued_total")}
+            project_id,
+            {
+                name: 0
+                for name in (
+                    *COUNTER_NAMES,
+                    *VALIDATION_COUNTER_NAMES,
+                    "queued_total",
+                )
+            },
         )
 
     def _increment(self, name: str, key: tuple[str, str, str]) -> None:
         self._counters[name] += 1
         self._project(key[0])[name] += 1
+
+    def _increment_validation(self, name: str, project_id: str) -> None:
+        self._validation_counters[name] += 1
+        project = self._project(project_id)
+        project[name] = project.get(name, 0) + 1
+
+    @_synchronized
+    def record_quality_gate_decision(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        decision: str,
+        result: str,
+        head_sha: str = "",
+        command: str = "",
+        duration_seconds: float | None = None,
+    ) -> None:
+        """Persist the dispatch decision made from exact-head gate evidence."""
+
+        key = _identity(project_id, task_id, audit_id)
+        decision = str(decision or "").strip()
+        if decision == "reuse_authoritative_gate":
+            self._increment_validation("authoritative_gate_reused", key[0])
+        elif decision == "full_gate_required":
+            self._increment_validation("full_gate_required", key[0])
+        self._last_validation_decision = {
+            **_identity_dict(key),
+            "decision": decision,
+            "result": str(result or "").strip(),
+            "head_sha": str(head_sha or "").strip().lower(),
+            "command": str(command or "").strip(),
+            "duration_seconds": duration_seconds,
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._persist()
+
+    @_synchronized
+    def record_auditor_validation_command(
+        self,
+        project_id: str,
+        task_id: str,
+        audit_id: str,
+        *,
+        command: str,
+        configured_command: str,
+        duration_seconds: float = 0.0,
+        succeeded: bool = True,
+    ) -> None:
+        """Persist whether an auditor used full-suite or focused validation."""
+
+        key = _identity(project_id, task_id, audit_id)
+        command = str(command or "").strip()
+        configured = str(configured_command or "").strip()
+        category = (
+            "auditor_full_suite_runs"
+            if configured and command == configured
+            else "focused_supplemental_commands"
+        )
+        self._increment_validation(category, key[0])
+        self._last_validation_command = {
+            **_identity_dict(key),
+            "category": category,
+            "command": command,
+            "succeeded": bool(succeeded),
+            "duration_seconds": max(float(duration_seconds or 0), 0.0),
+            "recorded_at": _timestamp(self.clock()),
+        }
+        self._persist()
 
     @_synchronized
     def record_queued(
@@ -509,7 +639,14 @@ class TerminalAuditMetrics:
         for project_id, task_id, audit_id in set(self._queued) | set(self._running):
             project = projects.setdefault(
                 project_id,
-                {name: 0 for name in (*COUNTER_NAMES, "queued_total")},
+                {
+                    name: 0
+                    for name in (
+                        *COUNTER_NAMES,
+                        *VALIDATION_COUNTER_NAMES,
+                        "queued_total",
+                    )
+                },
             )
             project.setdefault("queued", 0)
             project.setdefault("running", 0)
@@ -531,12 +668,23 @@ class TerminalAuditMetrics:
             "last_successful_audit_at": self._last_successful_audit_at,
             "last_successful_audit_time": self._last_successful_audit_at,
             "last_successful_audit": self._last_successful_audit_at,
+            **self._validation_counters,
+            "validation": {
+                "counters": dict(self._validation_counters),
+                "last_decision": copy.deepcopy(self._last_validation_decision),
+                "last_command": copy.deepcopy(self._last_validation_command),
+            },
             "persistence_corrupt": self.persistence_corrupt,
             "persistence_error": self.persistence_error,
             "projects": projects,
             "by_project": projects,
         }
-        for name in ("queued", "running", *COUNTER_NAMES):
+        for name in (
+            "queued",
+            "running",
+            *COUNTER_NAMES,
+            *VALIDATION_COUNTER_NAMES,
+        ):
             result[f"{name}_count"] = result[name]
         return copy.deepcopy(result)
 
@@ -617,6 +765,7 @@ __all__ = [
     "AuditAlertCondition",
     "AuditMetrics",
     "COUNTER_NAMES",
+    "VALIDATION_COUNTER_NAMES",
     "METRICS_STATE_KEY",
     "METRICS_STATE_VERSION",
     "TerminalAuditAlertRegistry",

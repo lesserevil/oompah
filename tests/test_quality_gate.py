@@ -14,6 +14,7 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -105,6 +106,85 @@ def test_exact_gate_reuses_compatible_successful_auditor_evidence(tmp_path):
     assert result.status == "passed"
     assert result.cached is True
     assert marker.exists() is False
+
+
+def test_quality_gate_lookup_returns_persisted_exact_head_duration(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    gate = _gate(tmp_path / "quality.json", repo)
+    proof = AuditorQualityEvidenceProof(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        workspace_head_sha=head,
+        command="make test",
+        configured_command="make test",
+        evidence_fingerprint="fingerprint",
+        expected_evidence_fingerprint="fingerprint",
+        detached_workspace=True,
+    )
+
+    assert gate.record_compatible_auditor_pass(proof, duration_seconds=12.5)
+    evidence = gate.lookup(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        command="make test",
+    )
+
+    assert evidence is not None
+    assert evidence.passed is True
+    assert evidence.cached is True
+    assert evidence.head_sha == head
+    assert evidence.duration_seconds == pytest.approx(12.5)
+    assert gate.lookup(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha="a" * 40,
+        command="make test",
+    ) is None
+
+
+def test_quality_gate_lookup_exposes_failed_exact_head_without_reuse(tmp_path):
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    gate = _gate(tmp_path / "quality.json", repo)
+
+    result = gate.run(
+        repo_path=str(repo),
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        command="false",
+        expected_head_sha=head,
+    )
+    evidence = gate.lookup(
+        repo_identity="repo",
+        target_branch="main",
+        work_branch="work",
+        head_sha=head,
+        command="false",
+    )
+
+    assert result.status == "failed"
+    assert evidence is not None
+    assert evidence.status == "failed"
+    assert evidence.passed is False
 
 
 def test_waiting_exact_gate_does_not_deadlock_successful_auditor_evidence(
@@ -293,6 +373,62 @@ def test_orchestrator_records_only_clean_exact_detached_auditor_workspace(tmp_pa
         workspace_path=audit_workspace,
         command="make test",
     ) is False
+
+
+@pytest.mark.parametrize(
+    ("gate_result", "expected_decision"),
+    [
+        (QualityGateResult("passed", "a" * 40, "make test", 10.0), "reuse_authoritative_gate"),
+        (QualityGateResult("failed", "a" * 40, "make test", 10.0), "full_gate_required"),
+        (None, "full_gate_required"),
+    ],
+)
+def test_terminal_audit_quality_gate_bundle_is_fail_closed_for_nonpassing_evidence(
+    gate_result,
+    expected_decision,
+):
+    project = Project(
+        id="project",
+        name="project",
+        repo_url="repo",
+        repo_path="",
+        default_branch="main",
+        test_command_full="make test",
+    )
+    issue = Issue(
+        id="task",
+        identifier="TASK-1",
+        title="Task",
+        project_id="project",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch="work",
+            base_branch="main",
+            head_sha="a" * 40,
+        ),
+    )
+    metrics = MagicMock()
+    orchestrator = object.__new__(Orchestrator)
+    orchestrator._branch_quality_gate = MagicMock()
+    orchestrator._branch_quality_gate.lookup.return_value = gate_result
+    orchestrator._terminal_audit_metrics = metrics
+
+    bundle = orchestrator._terminal_audit_quality_gate_evidence(
+        issue,
+        project,
+        SimpleNamespace(
+            project_id="project",
+            task_id="TASK-1",
+            audit_id="audit-1",
+        ),
+    )
+
+    assert bundle["decision"] == expected_decision
+    assert bundle["command"] == "make test"
+    assert bundle["accepted_head_sha"] == "a" * 40
+    if gate_result is not None:
+        assert bundle["duration_seconds"] == 10.0
+    metrics.record_quality_gate_decision.assert_called_once()
 
 
 def _git_repo(tmp_path):
