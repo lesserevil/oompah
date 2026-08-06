@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:24:53.451264Z'
+updated_at: '2026-08-06T18:25:19.356139Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
     task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
     itself, not this integration bug.
-oompah.agent_run_id: c133a774-c415-49a5-9869-4f2884dfefe4
+oompah.agent_run_id: 55e9f95c-af4d-471f-9d6d-05eef63f3822
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
