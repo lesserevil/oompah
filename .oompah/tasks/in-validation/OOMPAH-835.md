@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-835
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bind review and CI actions to fresh project-scoped workflow handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T10:05:56.399786Z'
+updated_at: '2026-08-06T10:38:20.014588Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -74,14 +74,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-835
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-835
   base_branch: epic-OOMPAH-804
-  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  integrated_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   submitted_at: '2026-08-06T10:05:48.853355+00:00'
-  updated_at: '2026-08-06T10:05:48.853355+00:00'
+  updated_at: '2026-08-06T10:38:13.860628+00:00'
 oompah.task_costs:
   total_input_tokens: 1672
   total_output_tokens: 2227
@@ -114,6 +115,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-804--task-OOMPAH-835
     source_sha: 0baeb01f1a1ca4d2b75fd46807d2889ef83a9adf
     completed_at: '2026-08-06T00:03:48.252494+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5bf7c2444b03
+    project_id: proj-14849f1b
+    task_id: OOMPAH-835
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4336b86ba4cafd3ded72ecfdfb7fad2479970508209b560129dbf4f95aad5a1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T10:38:15.979621+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -201,5 +224,10 @@ author: oompah
 created: 2026-08-06 10:05
 ---
 Shared exact-gate regression repair propagated to canonical head c31b8d32a; 81 formerly failing module tests pass and independent review accepted.
+---
+author: oompah
+created: 2026-08-06 10:38
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
