@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T19:55:54.194424Z'
+updated_at: '2026-08-06T20:02:14.467778Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -83,6 +83,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T16:31:59.765992+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7bc861abc2fb: '2026-08-06T20:02:08.146900+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-856
+    target_state: Done
+    evidence_fingerprint: aa3b302c47f245d619d2d1c6e80db65f5adff72891afd6f293d9c41cf6d4589f
+    audit_ids:
+    - audit-2dce7b47c8b6
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T20:02:08.146911+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-856
+    audit_id: audit-2dce7b47c8b6
+    attempt_id: attempt-7bc861abc2fb
+    target_state: Done
+    evidence_fingerprint: aa3b302c47f245d619d2d1c6e80db65f5adff72891afd6f293d9c41cf6d4589f
+    status: Done
+    audit_ids:
+    - audit-2dce7b47c8b6
+    applied: false
+    created_at: '2026-08-06T20:02:08.146929+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -90,7 +114,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-856
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -99,7 +123,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7bc861abc2fb
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -109,13 +133,16 @@ oompah.terminal_audit:
       model: haiku
       started_at: '2026-08-06T19:55:46.002112+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-856
+      verdict: pass
+      completed_at: '2026-08-06T20:02:08.146745+00:00'
+      ended_at: '2026-08-06T20:02:08.146745+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T19:54:14.743712+00:00'
-    updated_at: '2026-08-06T19:55:46.002112+00:00'
+    updated_at: '2026-08-06T20:02:08.146745+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7bc861abc2fb
