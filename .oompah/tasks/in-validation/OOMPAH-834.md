@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T10:05:28.714904Z'
+updated_at: '2026-08-06T10:21:47.831296Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -47,14 +47,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
-  base_branch: epic-OOMPAH-768--task-OOMPAH-804
-  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  base_branch: epic-OOMPAH-804
+  base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  integrated_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
   submitted_at: '2026-08-06T10:05:16.305589+00:00'
-  updated_at: '2026-08-06T10:05:16.305589+00:00'
+  updated_at: '2026-08-06T10:21:38.793076+00:00'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -81,6 +82,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-804--task-OOMPAH-834
     source_sha: 2a09b085bfb71b742c07d8ed91bc1c76add5d029
     completed_at: '2026-08-06T09:18:57.028464+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4d9024357f09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-834
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 83510c636bc0a8061416767f2f97c97c7dea13dfb5290d9317360ae1fafaffa2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T10:21:41.419591+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -256,5 +279,10 @@ author: oompah
 created: 2026-08-06 10:05
 ---
 Exact-gate regressions repaired and verified: 81 focused tests pass; independent review accepted; shared canonical head c31b8d32a pushed.
+---
+author: oompah
+created: 2026-08-06 10:21
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
