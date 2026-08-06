@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-791
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut epic and nested-epic rollup over to LandingFact-driven jobs
 parent: OOMPAH-768
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:17.853130Z'
-updated_at: '2026-08-06T03:36:04.533039Z'
+updated_at: '2026-08-06T03:42:35.188071Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-791
 target_branch: null
 review_url: null
@@ -56,49 +56,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-791
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-791
   base_branch: epic-OOMPAH-768
   base_sha: 16d83ea3eaf409338cc22449e1447be088bea7df
-  head_sha: c402ffe9b648ae1999274af49717fd738680e5df
-  submitted_at: '2026-08-06T02:26:06.086782+00:00'
-  updated_at: '2026-08-06T03:35:57.324761+00:00'
-  last_error: "Combined-tree quality gate failed: python-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/selector_events.py\"\
-    , line 282, in _add_reader\n      key = self._selector.get_key(fd)\n         \
-    \   ^^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/selectors.py\"\
-    , line 192, in get_key\n      raise KeyError(\"{!r} is not registered\".format(fileobj))\
-    \ from None\n  KeyError: '266 is not registered'\n  \n  During handling of the\
-    \ above exception, another exception occurred:\n  \n  Traceback (most recent call\
-    \ last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_missing_repo_slug_skips_subprocess\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-kdcbw_2_/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7deca264b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_event_driven_loop.py::TestGracefulRestartShutdownEvent::test_restart_recovery_preserves_superseding_state[In\
-    \ Validation]\n= 1 failed, 16193 passed, 8 skipped, 1 xfailed, 49 warnings in\
-    \ 1072.56s (0:17:52) =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 0b5b039a1e21643973001852987b5d8e39352bc7
+  submitted_at: '2026-08-06T03:42:28.180033+00:00'
+  updated_at: '2026-08-06T03:42:28.180033+00:00'
 oompah.task_costs:
   total_input_tokens: 13
   total_output_tokens: 607
@@ -591,5 +556,15 @@ FAILED tests/test_event_driven_loop.py::TestGracefulRestartShutdownEvent::test_r
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 03:42
+---
+Third loaded-gate failure repaired at exact head 0b5b039a1e21643973001852987b5d8e39352bc7. Independent diagnosis proved production restart recovery is correct: all four superseding states take the same preserve branch, actual recovery is ~1.5 ms, and cold storage-backed Orchestrator construction/to_thread scheduling consumes up to 3.37s before full-gate saturation. Added only a bounded 20-second marker to the parametrized real-path test; no tracker, lock, to_thread, or production recovery behavior is stubbed. Verification: prior exact In Validation node passed 20/20 four-way reproductions; independent all-state/cold runs passed; complete event-driven-loop module passes 60/60 with -n 4; diff clean. Filed systemic regression OOMPAH-845.
+---
+author: oompah
+created: 2026-08-06 03:42
+---
+Bound the real storage-backed restart-recovery superseding-state test under saturated xdist without stubbing production fencing; focused stress and the 60-test event-loop module pass at 0b5b039a1.
 ---
 <!-- COMMENTS:END -->
