@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T09:41:13.402042Z'
+updated_at: '2026-08-06T09:48:24.767684Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -347,5 +347,10 @@ author: oompah
 created: 2026-08-06 09:41
 ---
 Repair round complete and handed to a fresh independent static reviewer. The branch now adds durable zero-budget pre-admission recovery for status-response-loss/rollback failure, shielded cancellation-safe compensation and cleanup retry, versioned primary+sidecar deferred-audit journals with restart selection, valid quiesce-fence fixtures, and production-shaped API/ACP/CLI wiring tests. It remains uncommitted and untested until independent review accepts the semantics.
+---
+author: oompah
+created: 2026-08-06 09:48
+---
+Fresh independent review rejected the repair for four remaining durability/cancellation gaps: pre-admission recovery can remain process-only after retry-journal failure; pause deletes unresolved recovery owners; concurrent retry journal writes can stale-reorder; and audit cancellation can escape before compensation with an unshielded lane fallback. Repair is active with primary-journal/restart, pause/resume, write-order, and pre-compensation repeated-cancellation regressions; no validation or submission until a new independent review accepts it.
 ---
 <!-- COMMENTS:END -->
