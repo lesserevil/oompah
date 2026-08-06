@@ -375,6 +375,7 @@ class EpicFactCollector:
                 clock=self.clock,
             )
             return base.collect(task_id)
+        requested_epic_revision = _exact_head(epic_revision) or _revision(root)
         requests = [
             LandingRequest(
                 str(child["landing_source"]),
@@ -390,6 +391,7 @@ class EpicFactCollector:
                 ),
                 prefer_live_source=bool(child.get("prefer_live_source")),
                 authoritative_target=True,
+                trusted_target_revision=requested_epic_revision,
             )
             for child in graph.children
             if child.get("requires_landing")
@@ -397,7 +399,6 @@ class EpicFactCollector:
         # The epic's own landing is deliberately included as a separate fact.
         # Rollup readiness only consumes child facts; auto-close/terminal
         # validation can consume this exact immediate-target fact later.
-        requested_epic_revision = _exact_head(epic_revision) or _revision(root)
         requests.append(
             LandingRequest(
                 graph.epic_branch,
