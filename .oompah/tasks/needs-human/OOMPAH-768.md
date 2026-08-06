@@ -15,14 +15,16 @@ children:
 - OOMPAH-812
 - OOMPAH-813
 - OOMPAH-819
-blocked_by: []
+blocked_by:
+- OOMPAH-866
+- OOMPAH-867
 start_blocked_by: &id001
 - OOMPAH-766
 labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-06T22:16:23.939578Z'
+updated_at: '2026-08-06T22:27:40.103250Z'
 work_branch: null
 target_branch: null
 review_url: null
