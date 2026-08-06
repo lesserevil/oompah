@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T04:57:26.772576Z'
+updated_at: '2026-08-06T04:59:03.780964Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -149,5 +149,15 @@ author: oompah
 created: 2026-08-06 04:57
 ---
 Understanding: focused pytest/py.test/unittest and configured validation targets must acquire ValidationResourceLease before process creation; help/version and static inspection remain outside the lane. I will trace classifiers and launch guards, add regression coverage for lease ordering/cancellation/telemetry, implement the smallest focused fix, and run affected Makefile checks.
+---
+author: oompah
+created: 2026-08-06 04:58
+---
+Discovery:  is shared by  (API/Claude/OpenCode/Codex tool catalogs) and  (native Codex commands).  returns false for one explicit file/node and  returns false for one selected test; those are the production bypass. Lease acquisition already starts liveness before waiting, attaches before Popen/exec, and supports cancellation. Existing tests encode the old focused bypass and need to be inverted/expanded.
+---
+author: oompah
+created: 2026-08-06 04:59
+---
+Discovery: the shared validation classifier is used by the API/Claude/OpenCode/Codex tool catalogs and the native Codex guard. The pytest classifier returns false for one explicit file/node and the unittest classifier returns false for one selected test; those are the production bypass. Lease acquisition already starts liveness before waiting, attaches before process creation, and supports cancellation. Existing tests encode the old focused bypass and will be inverted and expanded.
 ---
 <!-- COMMENTS:END -->
