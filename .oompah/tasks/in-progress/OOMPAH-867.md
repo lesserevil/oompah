@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:25:28.039844Z'
+updated_at: '2026-08-06T22:40:47.323161Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,43 @@ Relevant code sections:
 - orchestrator.py lines 17561-17680 (_create_workspace_for_auditor has no epic branch logic)
 
 Next: Create unified revision candidate resolver with ordered precedence.
+---
+author: oompah
+created: 2026-08-06 22:40
+---
+## Implementation
+
+Unified revision candidate resolver for terminal-audit workspace resolution (OOMPAH-867).
+
+**Changes:**
+
+1. **New classes in terminal_audit.py:**
+   - RevisionCandidate: Represents one candidate revision (SHA or branch) with optional resolved_sha
+   - RevisionCandidateList: Ordered list of candidates with immutable_shas_available flag
+
+2. **New function build_revision_candidate_list():**
+   - Implements unified, ordered precedence for all revision candidates:
+     * Phase 1: Immutable SHAs (source_sha, integrated_sha, head_sha, target_sha)
+     * Phase 2: Explicit branches (source_branch, work_branch, integration.task_branch, branch_name)
+     * Phase 3: Canonical epic branches (for epics without explicit branches)
+     * Phase 4: Default branch fallback (only if audit policy allows)
+   - When immutable SHAs exist, branches are skipped in workspace iteration to prevent divergence
+
+3. **Updated compute_issue_evidence_fingerprint():**
+   - Now uses build_revision_candidate_list() to get the first candidate
+   - Removes duplicate epic branch resolution logic
+   - Ensures fingerprinting uses the same candidate selection as workspace creation
+
+4. **Updated orchestrator._create_workspace_for_auditor():**
+   - Now uses build_revision_candidate_list() to build revision candidates
+   - Respects immutable SHA precedence by checking immutable_shas_available flag
+   - Maintains default branch fallback logic for legacy records
+
+5. **Comprehensive test coverage:**
+   - 10 new tests in TestRevisionCandidateList covering all candidate resolution scenarios
+   - All existing tests pass (48 in test_terminal_audit.py, 34 in test_parallel_epic_children.py)
+
+**Result:**
+Fingerprinting and workspace creation now use the same unified resolver, eliminating divergence where epic-OOMPAH-768 was resolved by fingerprinting but not by workspace creation. This fixes the release-blocking regression where terminal-audit infrastructure exhaustion moved completed epics to Needs Human status.
 ---
 <!-- COMMENTS:END -->
