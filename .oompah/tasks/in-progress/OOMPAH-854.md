@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T08:19:10.869576Z'
+updated_at: '2026-08-06T08:35:11.942889Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -322,5 +322,10 @@ author: oompah
 created: 2026-08-06 08:19
 ---
 Third review repair is continuing: restart and worker/provider task creation must publish an actual task atomically or roll back the exact fence/claim/audit; cancellation before provider first turn must use the unadmitted rollback path; and the two-audit restart test must exercise durable metadata through a genuinely fresh scheduler twice, not manual dispatch. No tests have run.
+---
+author: oompah
+created: 2026-08-06 08:35
+---
+Fourth repair revision is under independent review. Restart drain task/owner publication and create_task rollback are now atomic; final worker/provider task-creation failure and any pre-first-turn auditor cancellation release the exact claim/runtime/branch/audit/metrics/retry budget; the restart regression now uses shared durable metadata, a fresh orchestrator, two real scans, and one provider start per audit. Diff check passes; no tests/commit/push yet.
 ---
 <!-- COMMENTS:END -->

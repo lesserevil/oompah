@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T08:10:53.615928Z'
+updated_at: '2026-08-06T08:35:14.152305Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-06 08:10
 ---
 Second independent review REJECTED the latest repair. Remaining blockers: controller/scan-limit truncation is ignored when cache availability reports complete/ready, leaving later tasks without a truthful decision; reload/publication ignore _save_state() == False and can announce a cut that was not durably persisted; Done coverage still handcrafts separate API/UI decisions instead of driving one real controller-produced Done decision end-to-end. Accepted alert actionability, project identity, full-sync send locking, and successful reload cutover remain. No tests were run.
+---
+author: oompah
+created: 2026-08-06 08:35
+---
+Latest repair is under third independent review. Bounded/reconciliation-truncated scans now publish explicit incomplete project/task availability with fair shadow cursor rotation; failed durable publication/reload preserves the prior public+durable cut and suppresses notification; availability propagates through board/detail/API/UI and invalidates stale projections; and one real controller-produced Done issue is covered end-to-end. Diff check passes; no tests/compile/commit/push yet.
 ---
 <!-- COMMENTS:END -->
