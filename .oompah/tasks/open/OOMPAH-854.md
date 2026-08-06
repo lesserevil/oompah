@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:10:54.590952Z'
+updated_at: '2026-08-06T06:18:59.172232Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -22,21 +22,24 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: b55033ee11bfb470f03a931536f978a7e592379c31932410e3bbc9123a91e375
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T06:18:55.826933+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853.'
+  evidence: Project-owner review of authoritative structural peers OOMPAH-847, OOMPAH-848,
+    OOMPAH-850, OOMPAH-851, OOMPAH-852, and OOMPAH-853 found related validation-lane
+    work but no task duplicating the terminal-auditor admission race during quiesce.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T06:10:36.800829+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T06:18:55.826933+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Project-owner review of authoritative structural peers
+    OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, and OOMPAH-853 found
+    related validation-lane work but no task duplicating the terminal-auditor admission
+    race during quiesce.
 oompah.agent_run_id: 01428d09-dbb0-4958-bc63-f1183ad4b011
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-854
 oompah.integration:
