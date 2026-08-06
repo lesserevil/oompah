@@ -9,11 +9,10 @@ children: []
 blocked_by:
 - OOMPAH-781
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T00:57:11.458952Z'
+updated_at: '2026-08-06T00:57:29.987060Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -83,13 +82,13 @@ oompah.integration:
   base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
   updated_at: '2026-08-06T00:05:29.240933+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1808
+  total_input_tokens: 1672
+  total_output_tokens: 2227
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1808
+      input_tokens: 1672
+      output_tokens: 2227
       cost_usd: 0.0
   runs:
   - profile: default
@@ -98,6 +97,12 @@ oompah.task_costs:
     output_tokens: 1808
     cost_usd: 0.0
     recorded_at: '2026-08-06T00:03:48.227202+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1662
+    output_tokens: 419
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T00:57:23.501900+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-835__20260806T000303Z
@@ -165,5 +170,15 @@ author: oompah
 created: 2026-08-06 00:11
 ---
 Discovery: Found workflow architecture. Review actions should implement WorkflowActionHandler interface (revalidate, inspect, apply, verify, build_transition). Pattern: IntegrationWorkflowHandler (GIT domain) shows model. Need to create ReviewWorkflowController + 10 handlers for actions (monitor/refresh/landing_refresh/ci_repair/conflict_repair/closed_repair/head_reconciliation/terminal_stage/merge/capacity_recheck). Handlers must emit TaskTransitionService intents, use fresh provider facts, isolate per project/task/review/head. Key files: review_workflow.py (new), workflow_runtime.py (register handlers), workflow_facts.py (REVIEW_CI domain already exists). Tests needed per-action + multi-project routing + provider unavailable.
+---
+author: oompah
+created: 2026-08-06 00:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 99
+- Tokens: 1.7K in / 419 out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 52m 0s
+- Log: OOMPAH-835__20260806T000537Z.jsonl
 ---
 <!-- COMMENTS:END -->
