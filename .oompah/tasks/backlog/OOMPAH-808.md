@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-808
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Fence nested-epic dispatch until prerequisite code is reachable
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-768
 labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-06T04:26:53.742033Z'
+updated_at: '2026-08-06T18:05:05.791458Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -104,6 +105,7 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-808
     source_sha: f1e7925b7263f980517f943291102c8c83335ed2
     completed_at: '2026-08-04T22:07:57.768504+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -241,5 +243,10 @@ author: oompah
 created: 2026-08-06 04:26
 ---
 Additional fail-open edge: _nested_hard_start_heads silently omits an effective inherited hard-start blocker when fresh fetch is nonterminal/unknown or raises. A stale regular dependency decision can then authorize dispatch without exact blocker-head ancestry. Every effective hard-start ID must yield fresh terminal state plus exact landing evidence or remain explicitly missing/fenced; add inherited-edge tracker-error and stale-cache regressions.
+---
+author: oompah
+created: 2026-08-06 18:05
+---
+Stuck-state re-evaluation: this task had remained In Progress with no runtime and no owner since the 04:18 recovery checkpoint. The checkpoint is intact at bf7244786, but independent review found fail-open parent/hard-start lookup, stale-private-branch overwrite, non-atomic generation, and missing recovery semantics. Those paths overlap the production durable-domain stack that is still present only on the OOMPAH-804/OOMPAH-768 lineage. Added a hard-start dependency on OOMPAH-768 and returned the task to Backlog so the board truthfully represents an intentional lineage wait instead of phantom active work. Resume by replaying/reimplementing the narrow lineage fence after OOMPAH-768 is assembled; do not submit bf7244786 as-is. The erroneous stranded In Progress state is the old deployed liveness/reconciliation gap already covered by OOMPAH-796 and the systemic OOMPAH-770 program, so no duplicate bug was filed.
 ---
 <!-- COMMENTS:END -->
