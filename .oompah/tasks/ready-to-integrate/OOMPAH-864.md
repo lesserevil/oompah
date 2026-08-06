@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:11:36.508156Z'
+updated_at: '2026-08-06T21:11:49.080676Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -45,12 +45,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-864
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
-  updated_at: '2026-08-06T18:14:01.699875+00:00'
+  head_sha: a5d1973d043ff2375d56d89d0ea8bd5326e24f63
+  submitted_at: '2026-08-06T21:11:33.960837+00:00'
+  updated_at: '2026-08-06T21:11:33.960837+00:00'
 oompah.task_costs:
   total_input_tokens: 46277
   total_output_tokens: 287
@@ -124,5 +126,10 @@ author: oompah
 created: 2026-08-06 18:56
 ---
 Independent static race review ACCEPTED the owner-resolution rearm implementation. Committed exact repair at e8913be35; check-secrets and static checks pass. Focused duplicate-preflight validation will run after the active OOMPAH-858 exact gate and the resulting epic rebase.
+---
+author: oompah
+created: 2026-08-06 21:11
+---
+Implemented owner-resolution rearm with an exact Duplicate Candidate exclusion and preserved retry dispatch for other non-Open lanes. Independent race review accepted the final change; 62 focused tests passed both serially and in parallel; check-secrets and diff checks passed at a5d1973d043ff2375d56d89d0ea8bd5326e24f63, now pushed to both the task and shared epic branches.
 ---
 <!-- COMMENTS:END -->
