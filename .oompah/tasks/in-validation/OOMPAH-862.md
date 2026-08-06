@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-862
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Prevent terminal auditors from redundantly rerunning authoritative full gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T16:11:25.189853Z'
+updated_at: '2026-08-06T16:11:32.043231Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-06 15:53
 ---
 Prevented redundant terminal-audit full gates with fail-closed live authority checks, tool enforcement, structured distinct-mode escape, and durable API/ACP telemetry; 548 serial plus 548 xdist tests passed at 6b6784640.
+---
+author: oompah
+created: 2026-08-06 16:11
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

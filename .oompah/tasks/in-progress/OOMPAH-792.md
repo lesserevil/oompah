@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:11:03.498433Z'
+updated_at: '2026-08-06T16:11:40.721177Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -78,7 +78,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cf7204f9-9c9f-4d0a-8f37-982239ab4967
+oompah.agent_run_id: 59d51c65-69ee-405e-b275-034dd94d5ea4
 oompah.work_branch: epic-OOMPAH-767--task-OOMPAH-792
 oompah.integration:
   version: 2
