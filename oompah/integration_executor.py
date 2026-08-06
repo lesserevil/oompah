@@ -58,6 +58,15 @@ class IntegrationExecutionResult:
         return self.status == "integrated"
 
 
+@dataclass(frozen=True)
+class IntegrationCandidateAuthority:
+    """Gate authority rebound to the exact post-rebase candidate head."""
+
+    generation: str | None
+    owner: QualityGateOwner | None
+    is_current: Callable[[], bool] | None
+
+
 def _make_git_env() -> dict[str, str]:
     """Return a subprocess environment with noninteractive overrides applied.
 
@@ -187,6 +196,10 @@ def execute_integration(
     commit_allowed: Callable[[], bool] | None = None,
     gate_generation: str | None = None,
     gate_owner: QualityGateOwner | None = None,
+    canonicalize_candidate: Callable[
+        [str, str], IntegrationCandidateAuthority
+    ]
+    | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -378,6 +391,9 @@ def execute_integration(
                     message="could not resolve rebased task head",
                     expected_epic_sha=expected_epic_sha,
                 )
+            authority_failure = _authority_failure("before task branch update")
+            if authority_failure is not None:
+                return authority_failure
             pushed_task = _git(
                 task_worktree,
                 "push",
@@ -406,6 +422,34 @@ def execute_integration(
             expected_epic_sha=expected_epic_sha,
             rebased_task_sha=rebased_sha,
         )
+
+    if rebased_sha is None or expected_epic_sha is None:
+        return IntegrationExecutionResult(
+            status="error",
+            message="integration candidate was not resolved",
+            expected_epic_sha=expected_epic_sha,
+            rebased_task_sha=rebased_sha,
+        )
+
+    if canonicalize_candidate is not None:
+        try:
+            candidate_authority = canonicalize_candidate(
+                rebased_sha,
+                expected_epic_sha,
+            )
+        except Exception as exc:  # fail closed before launching the gate
+            return IntegrationExecutionResult(
+                status="authority_unavailable",
+                message=f"could not canonicalize integration candidate: {exc}",
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+            )
+        gate_generation = candidate_authority.generation
+        gate_owner = candidate_authority.owner
+        commit_allowed = candidate_authority.is_current
+        authority_failure = _authority_failure("before quality gate")
+        if authority_failure is not None:
+            return authority_failure
 
     quality = quality_gate.run(
         repo_path=task_worktree,
