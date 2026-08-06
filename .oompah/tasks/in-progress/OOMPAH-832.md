@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T18:28:56.796060Z'
+updated_at: '2026-08-06T18:31:46.235404Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-06 18:28
 ---
 UNDERSTANDING: This task requires porting the reviewed OOMPAH-831 terminal-auditor inspection contract changes onto main as a standalone bootstrap. OOMPAH-831 was already reviewed and submitted at commit 0e0056375918977c9b0b2d59524ce8ae68ceee40 (passing 716+ tests), then integrated into OOMPAH-763. I need to: (1) Identify what OOMPAH-831 changed, (2) Apply only those reviewed changes to main, (3) Run the complete test matrix including OOMPAH-542 and OOMPAH-815 traces, (4) Verify fatal boundaries remain (python -c, mutation, credential/path escape), (5) Merge to main with no unrelated systemic-epic work.
+---
+author: oompah
+created: 2026-08-06 18:31
+---
+DISCOVERY: OOMPAH-831 consists of 2 commits (81b8be698 and 0e0056375) on origin/epic-OOMPAH-763--task-OOMPAH-831 branch. These add: (1) new search_files.py for bounded regex search, (2) updated auditor.py with safe git inspection (ls-tree, ls-remote, for-each-ref, wc -l), (3) safe read-only inspection command validation, (4) critical ordering fix ensuring escape denials remain fatal before contract mismatch checks, (5) 206 new tests in test_auditor_contract.py. None of these are currently on main. Starting to apply these changes now.
 ---
 <!-- COMMENTS:END -->
