@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:23:23.392965Z'
+updated_at: '2026-08-06T21:23:43.980623Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,9 +94,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-845
-  head_sha: 6a799a1483e213341e292d77e4dbf0ea970f6765
-  submitted_at: '2026-08-06T12:08:07.511864+00:00'
-  updated_at: '2026-08-06T12:08:07.511864+00:00'
+  head_sha: 7bb2362fca5099d2456c10d64a4b4026d32e1f5f
+  submitted_at: '2026-08-06T21:23:34.286175+00:00'
+  updated_at: '2026-08-06T21:23:34.286175+00:00'
 ---
 ## Summary
 
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-06 21:23
 ---
 Completion: OOMPAH-845 delivers two commits: (1) 7d0481101 — drain scheduled terminations before shutdown (oompah/orchestrator.py); (2) 6a799a148 — close saturated-gate test resources (tests/test_event_driven_loop.py, tests/test_retry_authority_generation.py); (3) 7bb2362fc — close unawaited LogFileWatcher.start coroutines in manager tests (tests/test_error_watcher.py). All three commits together eliminate the coroutine/transport/task leak class that causes PytestUnraisableExceptionWarning under full-gate saturation. The restart-recovery fencing remains semantically strict; the exact test passes deterministically under -n4.
+---
+author: oompah
+created: 2026-08-06 21:23
+---
+Fixed unawaited-coroutine leak in TestProjectLogWatcherManager (test_error_watcher.py) that caused RuntimeWarning/PytestUnraisableExceptionWarning cross-test pollution under full-gate saturation. Added _close_coro_side_effect() helper to close watcher.start() coroutines inside ensure_future mock. Combined with prior commits (orchestrator shutdown draining, saturated-gate test resource cleanup), all 215 focused tests pass with zero warnings under -n4. Restart-recovery fencing semantics are unchanged.
 ---
 <!-- COMMENTS:END -->
