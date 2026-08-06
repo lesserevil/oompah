@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T09:09:50.854337Z'
+updated_at: '2026-08-06T09:37:15.372220Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ author: oompah
 created: 2026-08-06 09:09
 ---
 Latest independent static review REJECTED five remaining blockers: a cross-thread shadow/reload lock inversion; size-bounded diagnostics can drop the authoritative decision and starve rotating coverage; full-DB backup rollback can fail or erase concurrent writes and split multi-store cuts; dashboard cache misses manufacture false available/pending answers; and old-config tracker construction can repopulate the post-reload cache. Repairs and production-path concurrency regressions are underway before testing or commit.
+---
+author: oompah
+created: 2026-08-06 09:37
+---
+Fresh independent static review rejected the latest repair for three remaining races: project-scoped config changes do not atomically fence in-flight decision publication and migration invalidation can cache old config under a new generation; the new SQLite publication transaction spans slow fact collection and can block heartbeats until a pre-lock renewal timestamp is already expired; and tracker read-stats iteration is unlocked while reload clears the dict. Repair is active with real config-migration, blocked-facts/lease, and reload/snapshot concurrency coverage; no validation or submission until another independent review accepts it.
 ---
 <!-- COMMENTS:END -->
