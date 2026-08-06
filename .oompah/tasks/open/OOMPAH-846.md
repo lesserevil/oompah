@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:13:45.256902Z'
+updated_at: '2026-08-06T04:16:54.443566Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -67,5 +67,10 @@ author: oompah
 created: 2026-08-06 04:13
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 04:16
+---
+Second live reproduction at 04:14-04:17 UTC: OOMPAH-808 provider-native command spawned PYTHONPATH=. ... python -m pytest over tests/test_integration_record.py, tests/test_parallel_epic_children.py, and tests/test_epic_strategy.py while OOMPAH-791 exact gate was the sole recorded validation owner. No worker waiter/owner existed for OOMPAH-808. The exact sandbox process tree confirmed concurrent pytest. Operator terminated only the stray sandbox PID 2783035 after coordination; OOMPAH-808 edits and agent session remain intact. This three-file shape must classify heavyweight and must be blocked before spawn.
 ---
 <!-- COMMENTS:END -->
