@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T04:55:37.329169Z'
+updated_at: '2026-08-06T04:56:02.992685Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,13 +47,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: b8dd3d61-96ef-4a55-a3c3-e6fb40a48d7a
 oompah.task_costs:
-  total_input_tokens: 46333
-  total_output_tokens: 260
+  total_input_tokens: 46923
+  total_output_tokens: 386
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46333
-      output_tokens: 260
+      input_tokens: 46923
+      output_tokens: 386
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +62,12 @@ oompah.task_costs:
     output_tokens: 260
     cost_usd: 0.0
     recorded_at: '2026-08-06T03:54:28.304523+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 590
+    output_tokens: 126
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T04:55:57.153428+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-845__20260806T035234Z
@@ -130,5 +135,15 @@ author: oompah
 created: 2026-08-06 04:41
 ---
 **Discovery**: Found the issue - in _recover_restart_issues() (oompah/orchestrator.py:5175), asyncio.to_thread calls to tracker.fetch_issue_states_by_ids() and tracker.update_issue() have no explicit timeout. Under saturated test conditions with thread pool contention, these calls can be delayed significantly, hitting the 5-second pytest timeout. The test passes quickly when run alone (1.2s) but fails under -n 4 saturation due to thread scheduling delays, not actual timeout logic. Solution: Add explicit asyncio.wait_for() timeout wrapper around the asyncio.to_thread() calls to fail fast under saturation.
+---
+author: oompah
+created: 2026-08-06 04:55
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 31
+- Tokens: 590 in / 126 out [716 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 0m 36s
+- Log: OOMPAH-845__20260806T035528Z.jsonl
 ---
 <!-- COMMENTS:END -->
