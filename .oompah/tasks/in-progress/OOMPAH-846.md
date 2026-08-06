@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T16:49:22.762296Z'
+updated_at: '2026-08-06T17:42:32.225105Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-06 16:49
 ---
 Second composition review found four remaining fail-closed gaps: context-aware heavyweight commands could be reclassified focused; API/native authority was not rechecked after waiting for the lease; native distinct-mode justification accepted shell expansions; and subscription execution lacked lifecycle outcome telemetry. Repair is adding shared contextual classification, post-acquire pre-launch authority checks, literal-only structured fields, and actual native-path lifecycle regressions.
+---
+author: oompah
+created: 2026-08-06 17:42
+---
+Fresh live reproduction at 2026-08-06 17:10-17:27 UTC: OOMPAH-856 provider-native Codex launched scripts/run-tests.sh parallel with four pytest workers while OOMPAH-858 owned the sole exact-gate lease, contributing to five late gate failures. After the operator stopped only that sandbox, the same worker immediately relaunched a 16-worker full suite while guarded OOMPAH-851 held the lease. Neither run appeared as owner/waiter. Operator revoked the worker via a direct owner claim, preserved clean checkpoint 59535f4e7, and stopped no implementation edits. This confirms universal pre-spawn enforcement and final authority fencing remain release-blocking.
 ---
 <!-- COMMENTS:END -->
