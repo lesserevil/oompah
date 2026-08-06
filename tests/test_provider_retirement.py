@@ -415,7 +415,7 @@ def test_repeated_auditor_shell_denials_force_bounded_independent_retry(
     )
 
 
-def test_read_only_awk_and_sed_validation_does_not_rotate_auditor(
+def test_recoverable_read_only_inspection_validation_does_not_rotate_auditor(
     tmp_path,
 ) -> None:
     orch = _orchestrator(tmp_path)
@@ -425,6 +425,12 @@ def test_read_only_awk_and_sed_validation_does_not_rotate_auditor(
     commands = (
         "awk 'NR>=7790 && NR<=7900' oompah/orchestrator.py",
         "sed -n '7790,7900p' oompah/orchestrator.py",
+        "git ls-tree -r --name-only HEAD",
+        "git ls-tree HEAD -- oompah/auditor.py",
+        "git ls-tree --full-tree -r HEAD oompah",
+        "git ls-remote origin refs/heads/main refs/heads/task-branch",
+        "git for-each-ref --format='%(refname:short)' refs/remotes/origin/",
+        "wc -l oompah/projects.py",
     )
 
     for command in commands:
