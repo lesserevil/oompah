@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:58:56.420601Z'
+updated_at: '2026-08-06T13:59:14.310791Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -41,16 +41,18 @@ oompah.duplicate_screening:
     the completed predecessor whose accepted-branch invariant regressed; OOMPAH-861
     records the new exact OOMPAH-860 post-accept repair reproduction and is not duplicate
     active work.'
-oompah.agent_run_id: b5c802c4-eb21-4153-96d5-bf6f387f474e
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-861
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-861
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  updated_at: '2026-08-06T13:46:35.090051+00:00'
+  head_sha: adb951eac873e0b3d93dc993fc2e90ee345bbd45
+  submitted_at: '2026-08-06T13:59:00.000481+00:00'
+  updated_at: '2026-08-06T13:59:00.000481+00:00'
 oompah.task_costs:
   total_input_tokens: 3
   total_output_tokens: 2446
@@ -154,5 +156,20 @@ author: oompah
 created: 2026-08-06 13:58
 ---
 Completion: pushed adb951eac (OOMPAH-861: preserve accepted repair branch). Accepted branch/head authority now survives state-only repair dispatch snapshots and retry persistence, preventing hierarchy recomputation after a gate failure.
+---
+author: oompah
+created: 2026-08-06 13:59
+---
+Preserved accepted branch authority across CI repair dispatch and restart
+---
+author: oompah
+created: 2026-08-06 13:59
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 111
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 45s
+- Log: OOMPAH-861__20260806T134643Z.jsonl
 ---
 <!-- COMMENTS:END -->
