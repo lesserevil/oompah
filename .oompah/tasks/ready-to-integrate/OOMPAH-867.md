@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:45:55.060413Z'
+updated_at: '2026-08-06T22:46:13.548453Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -249,5 +249,54 @@ author: oompah
 created: 2026-08-06 22:45
 ---
 Unified revision candidate resolver for terminal-audit workspace resolution. Fixed release-blocking regression where epic-OOMPAH-768 was resolved by fingerprinting but not by workspace creation, causing infrastructure exhaustion and Needs Human status for completed epics. Implemented ordered precedence resolver: immutable SHA → explicit branches → epic branches → default branch fallback. Ensures fingerprint/workspace parity by using the same unified logic in both paths.
+---
+author: oompah
+created: 2026-08-06 22:46
+---
+## Completion Summary
+
+**Delivered:**
+
+Unified revision candidate resolver that eliminates terminal-audit fingerprint/workspace divergence, fixing the release-blocking regression on OOMPAH-768.
+
+**Key Changes:**
+
+1. **terminal_audit.py (440+ lines):**
+   - RevisionCandidate dataclass: represents a single candidate (SHA or branch) with resolved_sha tracking
+   - RevisionCandidateList dataclass: ordered candidates with immutable_shas_available flag
+   - build_revision_candidate_list(): unified resolver implementing strict precedence
+   - _is_valid_sha(): helper to validate SHA-1/SHA-256 hashes
+   - Updated compute_issue_evidence_fingerprint() to use the resolver
+   - Updated __all__ exports
+
+2. **orchestrator.py:**
+   - Updated _create_workspace_for_auditor() to use build_revision_candidate_list()
+   - Maintains immutable SHA precedence enforcement
+   - Preserves default branch fallback for legacy records
+   - Updated imports
+
+3. **tests/test_terminal_audit.py:**
+   - 10 new tests in TestRevisionCandidateList
+   - Coverage: standalone epics, nested epics, immutable SHAs, explicit branches, epic branches, non-epic tasks, default branch policy, fingerprinting, integration records
+
+**Precedence Order (from build_revision_candidate_list):**
+
+1. Immutable SHAs: source_sha, integrated_sha, head_sha, target_sha
+   - Never fall back when immutable SHA is present
+2. Explicit branches: source_branch, work_branch, task_branch, branch_name
+3. Canonical epic branches: epic-EPIC-ID or epic-PARENT-ID (for nested)
+4. Default branch: only if Merged/Archived audit policy allows
+
+**Test Results:**
+- ✓ All 48 terminal_audit tests pass
+- ✓ All 34 epic/nested-epic tests pass  
+- ✓ 1374 total related tests pass
+
+**Files Modified:**
+- oompah/terminal_audit.py (added 200+ lines of new classes/functions, updated 30+ lines in compute_issue_evidence_fingerprint)
+- oompah/orchestrator.py (refactored _create_workspace_for_auditor to use unified resolver, updated imports)
+- tests/test_terminal_audit.py (added 10 new test cases with comprehensive coverage)
+
+Branch: OOMPAH-867, committed and pushed.
 ---
 <!-- COMMENTS:END -->
