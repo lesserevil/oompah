@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-844
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Isolate orchestrator maintenance unit tests from full-corpus recovery scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:41:13.208467Z'
+updated_at: '2026-08-06T04:41:21.379330Z'
 work_branch: OOMPAH-844
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/730
