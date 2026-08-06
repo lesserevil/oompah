@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-831
 type: task
-status: Needs CI Fix
+status: Ready to Integrate
 priority: null
 title: Make terminal-auditor search and safe inspection fallbacks match their advertised
   contract
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T03:39:45.086223Z'
+updated_at: '2026-08-06T03:43:35.540906Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -142,5 +142,15 @@ author: oompah
 created: 2026-08-06 03:39
 ---
 Withdrawing the just-started exact gate before the scheduled graceful cutover's remaining drain budget expires. This is deployment coordination, not a code/test failure: exact head 93b0295bcf533d129eb8568ede120e2ad3944066 remains clean, pushed, focused-green, and independently accepted. Resubmit unchanged after the current-main restart is healthy.
+---
+author: oompah
+created: 2026-08-06 03:43
+---
+Current-main restart is healthy at fe6257b and the deployment-coordination withdrawal is complete. Resubmitting the unchanged, clean, pushed exact head 93b0295bcf533d129eb8568ede120e2ad3944066 with its existing 435 focused-test and independent-review evidence.
+---
+author: oompah
+created: 2026-08-06 03:43
+---
+Resubmit unchanged accepted auditor inspection/security head 93b0295bc after the scheduled cutover; 435 focused tests and independent review remain green.
 ---
 <!-- COMMENTS:END -->
