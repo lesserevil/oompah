@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T22:35:13.378314Z'
+updated_at: '2026-08-06T22:35:29.360733Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 31m 37s
 - Log: OOMPAH-866__20260806T220343Z.jsonl
+---
+author: oompah
+created: 2026-08-06 22:35
+---
+Owner takeover cancelled the redundant validation waiter started by the old-server CI fixer. Preserve exact accepted head ee05a0ad8 unchanged. Its previous 16,307-pass gate failed only the OOMPAH-845 leaked-coroutine prerequisite, which is a recorded finish dependency. Do not rerun or modify this task until OOMPAH-845 is integrated and the target is refreshed.
 ---
 <!-- COMMENTS:END -->
