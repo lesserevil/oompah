@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T04:59:12.794744Z'
+updated_at: '2026-08-06T05:42:30.087935Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -95,6 +95,30 @@ oompah.work_contributors:
     completed_at: '2026-08-05T05:39:01.682857+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-ab25717b580f: '2026-08-06T05:42:26.512014+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-821
+    target_state: Done
+    evidence_fingerprint: 03ba806a252b78590b2ddd2a8b80daef66d02ea8d25a2fe6719273c51687e7fd
+    audit_ids:
+    - audit-f7b74c13a401
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T05:42:26.512025+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-821
+    audit_id: audit-f7b74c13a401
+    attempt_id: attempt-ab25717b580f
+    target_state: Done
+    evidence_fingerprint: 03ba806a252b78590b2ddd2a8b80daef66d02ea8d25a2fe6719273c51687e7fd
+    status: Done
+    audit_ids:
+    - audit-f7b74c13a401
+    applied: false
+    created_at: '2026-08-06T05:42:26.512041+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -102,7 +126,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-821
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -111,7 +135,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ab25717b580f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -121,13 +145,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T04:58:58.231497+00:00'
       branch_key: epic-OOMPAH-770--task-OOMPAH-821
+      verdict: pass
+      completed_at: '2026-08-06T05:42:26.511875+00:00'
+      ended_at: '2026-08-06T05:42:26.511875+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T04:58:01.184037+00:00'
-    updated_at: '2026-08-06T04:58:58.231497+00:00'
+    updated_at: '2026-08-06T05:42:26.511875+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ab25717b580f
