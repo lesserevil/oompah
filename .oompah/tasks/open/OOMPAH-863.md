@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-863
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Clear stale standalone Ready capacity alerts after a concurrent slot winner
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T17:58:24.963566Z'
-updated_at: '2026-08-06T18:01:25.541440Z'
+updated_at: '2026-08-06T18:07:03.564523Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-863
 target_branch: null
 review_url: null
@@ -22,22 +22,31 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 7752a9d697051b42829f41131d2549044bd68bcdf9b08358058a2e1bdc27616b
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T18:06:59.995365+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862.'
+  evidence: Project-owner review of the active task corpus found no equivalent task.
+    OOMPAH-863 specifically fixes stale same-task standalone capacity alerts after
+    a concurrent delivery sweep has already won the durable review slot. OOMPAH-752
+    covers FIFO selection, OOMPAH-735 alert actionability, and historical capacity
+    tasks cover reservation, but none bind alert publication to the exact concurrent
+    winner generation. The inconclusive result is the deployed pre-OOMPAH-853 corpus
+    budget bug.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T18:01:08.532080+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T18:06:59.995365+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Project-owner review of the active task corpus found no
+    equivalent task. OOMPAH-863 specifically fixes stale same-task standalone capacity
+    alerts after a concurrent delivery sweep has already won the durable review slot.
+    OOMPAH-752 covers FIFO selection, OOMPAH-735 alert actionability, and historical
+    capacity tasks cover reservation, but none bind alert publication to the exact
+    concurrent winner generation. The inconclusive result is the deployed pre-OOMPAH-853
+    corpus budget bug.
 oompah.agent_run_id: 4990960f-8eab-446d-879b-fddea35c4e02
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-863
 oompah.integration:
