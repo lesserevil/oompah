@@ -31,6 +31,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -166,12 +168,15 @@ class TestLongTickRegressionScenario:
         # Patch _handle_dispatch_needed to record when dispatch was attempted
         orig_dispatch_needed = orch._handle_dispatch_needed
 
-        async def _spy_dispatch_needed():
+        async def _spy_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed_start")
             # The real implementation uses _timed/_fetch_all_candidates via executor
             # so we patch the inner methods instead
-            await orig_dispatch_needed()
+            timings = await orig_dispatch_needed()
             call_order.append("dispatch_needed_end")
+            return dict(timings)
+
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=_spy_dispatch_needed)
 
         # Mock _fetch_all_candidates to return Project B's eligible task
         orch._fetch_all_candidates = MagicMock(return_value=[eligible])
@@ -541,8 +546,9 @@ class TestLongTickRegressionScenario:
         async def _fake_review_check():
             call_order.append("review_check")
 
-        async def _fake_dispatch_needed():
+        async def _fake_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed")
+            return {}
 
         async def _fake_yolo_review():
             call_order.append("yolo_review")
@@ -553,7 +559,7 @@ class TestLongTickRegressionScenario:
 
         orch._handle_reconcile = _fake_reconcile
         orch._handle_review_check = _fake_review_check
-        orch._handle_dispatch_needed = _fake_dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=_fake_dispatch_needed)
         orch._handle_yolo_review = _fake_yolo_review
         orch._handle_auto_update = _fake_auto_update
         orch._notify_observers = MagicMock()
@@ -738,7 +744,7 @@ class TestOperatorDiagnostics:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -805,7 +811,7 @@ class TestSyntheticSlowJobs:
             call_order.append("dispatch_needed")
             return {}
 
-        orch._handle_dispatch_needed = dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=dispatch_needed)
         orch._handle_yolo_review = AsyncMock(
             side_effect=lambda: (call_order.append("yolo_review") or (0.0, 0.0, 0.0))
         )

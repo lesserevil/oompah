@@ -18,6 +18,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import DispatchLane, DispatchEvent, DispatchEventType, Orchestrator
@@ -487,7 +489,7 @@ class TestTickEventCoalescing:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -512,7 +514,7 @@ class TestTickEventCoalescing:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -555,7 +557,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._notify_observers = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -623,7 +625,7 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(side_effect=spy_after_dispatch)
         orch._notify_observers = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -668,7 +670,7 @@ class TestDispatchLockOwnershipRules:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -728,7 +730,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -752,7 +754,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
@@ -782,7 +784,7 @@ class TestLaneContractSnapshot:
         orch._invalidate_tracker_read_caches = MagicMock()
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()

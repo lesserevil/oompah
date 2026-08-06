@@ -25,6 +25,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
@@ -1302,7 +1304,7 @@ class TestRunStep5cEpicMaintenance:
         # timings returned by this handler.  Keep the mock faithful to that
         # mapping contract so host load cannot turn the slow-tick diagnostic
         # path into a coroutine/mock formatting failure.
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -1347,7 +1349,7 @@ class TestRunStep5cEpicMaintenance:
         # mapping contract so host load cannot turn the slow-tick diagnostic
         # path (`for k, v in dispatch_timings.items()`) into a coroutine
         # iteration failure that propagates out of `_tick`.
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -1408,7 +1410,7 @@ class TestRunStep5cEpicMaintenance:
         # _tick() consumes a timing Mapping from this handler on the slow path.
         # Keep the mock faithful so host load cannot turn the unit test into a
         # formatting/type failure unrelated to the maintenance-future guard.
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -2567,7 +2569,7 @@ class TestMaintenanceLaneNonBlocking:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -2637,7 +2639,7 @@ class TestMaintenanceLaneNonBlocking:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -2665,7 +2667,7 @@ class TestMaintenanceLaneNonBlocking:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -2729,7 +2731,7 @@ class TestMaintenanceLaneNonBlocking:
         orch._handle_review_check = AsyncMock()
         # Slow-tick telemetry formats this return value as a mapping.  Make
         # that path valid even if host contention crosses its threshold.
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -3192,7 +3194,7 @@ class TestRepoHealErrorReporting:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -3302,7 +3304,7 @@ class TestTickDelegation:
         async def fake_review_check():
             call_order.append("review_check")
 
-        async def fake_dispatch_needed():
+        async def fake_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed")
             return {}
 
@@ -3315,7 +3317,7 @@ class TestTickDelegation:
 
         orch._handle_reconcile = fake_reconcile
         orch._handle_review_check = fake_review_check
-        orch._handle_dispatch_needed = fake_dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=fake_dispatch_needed)
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
@@ -3355,7 +3357,7 @@ class TestTickDelegation:
         async def fake_review_check():
             call_order.append("review_check")
 
-        async def fake_dispatch_needed():
+        async def fake_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed")
             return {}
 
@@ -3368,7 +3370,7 @@ class TestTickDelegation:
 
         orch._handle_reconcile = fake_reconcile
         orch._handle_review_check = fake_review_check
-        orch._handle_dispatch_needed = fake_dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=fake_dispatch_needed)
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
@@ -3404,8 +3406,9 @@ class TestTickDelegation:
         async def fake_review_check():
             call_order.append("review_check")
 
-        async def fake_dispatch_needed():
+        async def fake_dispatch_needed() -> dict[str, float]:
             call_order.append("dispatch_needed")
+            return {}
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
@@ -3416,7 +3419,7 @@ class TestTickDelegation:
 
         orch._handle_reconcile = fake_reconcile
         orch._handle_review_check = fake_review_check
-        orch._handle_dispatch_needed = fake_dispatch_needed
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=fake_dispatch_needed)
         orch._handle_yolo_review = fake_yolo_review
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
@@ -3457,7 +3460,7 @@ class TestTickDelegation:
         orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -3481,7 +3484,7 @@ class TestTickDelegation:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -3509,7 +3512,7 @@ class TestTickDelegation:
         orch._monotonic_clock = lambda: next(tick_times)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
@@ -3535,7 +3538,7 @@ class TestTickDelegation:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()

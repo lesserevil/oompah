@@ -9,6 +9,8 @@ import logging
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile
@@ -196,7 +198,7 @@ class TestStoreOrchestratorIntegration:
             return 0.0
         orch._handle_reconcile = _no_op
         orch._handle_review_check = _no_op
-        orch._handle_dispatch_needed = _no_op
+        orch._handle_dispatch_needed = tick_dispatch_mock()
         orch._handle_yolo_review = _no_op2
         orch._handle_auto_update = _no_op
         orch._maybe_run_watchdog = lambda: None

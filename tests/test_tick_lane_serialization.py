@@ -35,6 +35,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.tick_test_support import tick_dispatch_mock
+
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import (
@@ -51,8 +53,8 @@ from oompah.orchestrator import (
 
 def _make_config(**overrides) -> ServiceConfig:
     cfg = ServiceConfig()
-    for k, v in overrides.items():
-        setattr(cfg, k, v)
+    for key, value in overrides.items():
+        setattr(cfg, key, value)
     return cfg
 
 
@@ -128,7 +130,7 @@ def _stub_full_tick(orch: Orchestrator) -> Orchestrator:
     orch._invalidate_tracker_read_caches = MagicMock()
     orch._handle_reconcile = AsyncMock()
     orch._handle_review_check = AsyncMock()
-    orch._handle_dispatch_needed = AsyncMock(return_value={})
+    orch._handle_dispatch_needed = tick_dispatch_mock()
     orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
     orch._maybe_run_watchdog = MagicMock()
     orch._maybe_heal_repos = MagicMock()
@@ -529,7 +531,7 @@ class TestDispatchBeforeMaintenanceInTick:
         def tracking_watchdog() -> None:
             call_order.append("watchdog")
 
-        orch._handle_dispatch_needed = tracking_dispatch
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=tracking_dispatch)
         orch._maybe_run_watchdog = tracking_watchdog
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
@@ -555,7 +557,7 @@ class TestDispatchBeforeMaintenanceInTick:
         def tracking_heal() -> None:
             call_order.append("heal")
 
-        orch._handle_dispatch_needed = tracking_dispatch
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=tracking_dispatch)
         orch._maybe_heal_repos = tracking_heal
 
         async def run_tick_and_drain_maintenance() -> None:
@@ -596,7 +598,7 @@ class TestDispatchBeforeMaintenanceInTick:
             time.sleep(0.02)
             timeline.append("maintenance:done")
 
-        orch._handle_dispatch_needed = fast_dispatch
+        orch._handle_dispatch_needed = tick_dispatch_mock(on_call=fast_dispatch)
         orch._maybe_run_watchdog = slow_watchdog
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
@@ -670,7 +672,9 @@ class TestDispatchBeforeMaintenanceInTick:
             # A watchdog that blocks for 50ms — typical for tracker CLI calls.
             time.sleep(0.05)
 
-        orch._handle_dispatch_needed = dispatch_that_records_issue
+        orch._handle_dispatch_needed = tick_dispatch_mock(
+            on_call=dispatch_that_records_issue
+        )
         orch._maybe_run_watchdog = slow_watchdog
 
         t_start = time.monotonic()
