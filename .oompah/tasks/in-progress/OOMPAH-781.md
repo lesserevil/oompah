@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-05T19:28:32.611458Z'
+updated_at: '2026-08-06T03:49:17.185008Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -451,5 +451,10 @@ author: oompah
 created: 2026-08-05 19:28
 ---
 Fresh independent post-repair review is not test-ready and found six remaining liveness/authority blockers: generic workers can claim terminal-audit actions they do not handle; selected and prerequisite audit rows are not fenced to the containing project/task; consumed owner-rearm proofs are reapplied and wedge later exhaustion; corrupt FINALIZING payloads remain permanently RUNNING and block siblings; LIMIT-before-skip lets preserved finalizers starve generic recovery; and completed-result recurrence lacks the normal cache-invalidated live refresh. Review also flagged project-scoped active-attempt identity and bounded filtered-list/transport retry risks. No tests were run. Repairs and deterministic cross-project/crash/restart regressions are required before the next independent review.
+---
+author: oompah
+created: 2026-08-06 03:49
+---
+Prepared the direct-owner stack on OOMPAH-791's repaired exact head 0b5b039a1. New local exact OOMPAH-781 head is add49a76ca7129f330c5f7005181d8784162031c (1ca8d5817 -> 736208ecc -> add49a76c). Range-diff marks all three commits '=', binary patch hashes are identical, and diff check is clean. Holding push/submission until OOMPAH-791 integrates into epic-OOMPAH-768.
 ---
 <!-- COMMENTS:END -->
