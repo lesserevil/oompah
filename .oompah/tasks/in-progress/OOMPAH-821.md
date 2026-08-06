@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T03:00:02.152923Z'
+updated_at: '2026-08-06T03:01:38.827233Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -470,5 +470,10 @@ ERROR tests/test_orchestrator_handlers.py::TestRepoHealErrorReporting::test_heal
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 03:01
+---
+Direct owner repair in progress after the exact b8d6645 gate failed at the repo-heal unit test. Root cause is test coupling: _tick() invoked the unrelated full-corpus release-addendum recovery scan under xdist saturation, exceeded the global timeout, and left the intentionally failed maintenance future visible to teardown. The branch now stubs that unrelated scan and adds bounded per-test timeout coverage to this test and the cold tracker-kind constructor regression; the two exact tests pass. I will run repeated/affected coverage after the active serial audit gate drains, then push and resubmit.
 ---
 <!-- COMMENTS:END -->
