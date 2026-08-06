@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T17:01:00.157176Z'
+updated_at: '2026-08-06T17:01:06.341063Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -106,8 +106,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-cedf0c7c11b7
-    applied: false
+    applied: true
     created_at: '2026-08-06T17:00:56.766098+00:00'
+    applied_at: '2026-08-06T17:01:04.846841+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -250,5 +251,25 @@ author: oompah
 created: 2026-08-06 16:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 17:01
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
+- diff_files: tests/test_dispatch_lane_contract.py, tests/test_epic_strategy.py
+- diff_stats: +272 -22 across 2 files (test-only)
+- target_nodes_isolated: 2 passed in 3.48s
+- target_nodes_xdist_loadscope: 2 passed in 3.83s (-n 4 --dist=loadscope)
+- full_modules_serial: 273 passed in 212.86s
+- full_modules_xdist_loadscope: 273 passed in 107.90s (-n 4 --dist=loadscope)
+- origin_branch_head: origin/epic-OOMPAH-763--task-OOMPAH-847 at 5703f6f72
+- contract_assertions: AsyncMock await_count==2, lock_states==[True,True], outer lock released, background futures remain None, adopt_capacity.assert_called_once_with correct kwargs
+- scoped_timeout: asyncio.wait_for(orch._handle_dispatch_needed(), timeout=1.0) — global timeout unchanged
+- cleanup_scope: autouse fixture drains pools, background futures, and stores; fails on leaked resources
 ---
 <!-- COMMENTS:END -->
