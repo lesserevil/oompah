@@ -4960,7 +4960,8 @@ function terminalAuditRecords(audit) {
 function terminalAuditCurrentRecord(audit) {
   const source = terminalAuditFor(audit);
   if (!source) return null;
-  const explicit = source.current || source.current_audit || source.active_audit;
+  const explicit = source.current_stage || source.current || source.current_audit ||
+    source.active_stage || source.active_audit;
   if (explicit && typeof explicit === 'object') return explicit;
   const records = terminalAuditRecords(source);
   const active = records.filter(record => {
@@ -5029,10 +5030,27 @@ function terminalAuditIdentity(value, fallback = 'Unknown') {
 
 function terminalAuditTarget(audit, record) {
   return terminalAuditText(
-    (audit && (audit.requested_target || audit.requested_terminal_target || audit.requestedTarget)) ||
+    (audit && (audit.current_target_state || audit.target_state)) ||
     (record && (record.target_state || record.target)) ||
+    (audit && (audit.current_target || audit.target)),
+    'Unknown target'
+  );
+}
+
+function terminalAuditFinalTarget(audit, record) {
+  return terminalAuditText(
+    (audit && (audit.final_requested_target || audit.final_target_state ||
+      audit.requested_target || audit.requested_terminal_target || audit.requestedTarget)) ||
+    (record && (record.final_target_state || record.target_state || record.target)) ||
     (audit && (audit.target_state || audit.target)),
     'Unknown target'
+  );
+}
+
+function terminalAuditNextTarget(audit) {
+  return terminalAuditText(
+    audit && (audit.next_target_state || (audit.next_stage && audit.next_stage.target_state)),
+    'None'
   );
 }
 
@@ -5232,7 +5250,9 @@ function renderTerminalAuditDetail(summary) {
   const resultSummary = terminalAuditResultSummary(result);
   const instructions = terminalAuditInstructions(result, audit);
   const target = terminalAuditTarget(audit, record);
-  const override = renderTerminalAuditOverride(detail, audit, record, target);
+  const finalTarget = terminalAuditFinalTarget(audit, record);
+  const nextTarget = terminalAuditNextTarget(audit);
+  const override = renderTerminalAuditOverride(detail, audit, record, finalTarget);
   const token = terminalAuditDomToken(identifier);
   const failed = ['fail', 'failed', 'error', 'needs_human'].includes(verdict.toLowerCase());
   return `
@@ -5249,6 +5269,10 @@ function renderTerminalAuditDetail(summary) {
           <div class="terminal-audit-value">${esc(terminalAuditPhase(audit, record, attempt))}</div>
           <div class="terminal-audit-key">Target state</div>
           <div class="terminal-audit-value">${esc(target)}</div>
+          <div class="terminal-audit-key">Next target</div>
+          <div class="terminal-audit-value">${esc(nextTarget)}</div>
+          <div class="terminal-audit-key">Final requested target</div>
+          <div class="terminal-audit-value">${esc(finalTarget)}</div>
           <div class="terminal-audit-key">Attempts</div>
           <div class="terminal-audit-value">${esc(terminalAuditText(attempt && (attempt.attempt_id || attempt.id || attempt.number), 'Unknown'))}</div>
           <div class="terminal-audit-key">Fingerprint</div>
@@ -5297,7 +5321,9 @@ function renderTerminalAuditSummary(summary) {
   const resultSummary = terminalAuditResultSummary(result);
   const instructions = terminalAuditInstructions(result, audit);
   const target = terminalAuditTarget(audit, record);
-  const override = renderTerminalAuditOverride(detail, audit, record, target);
+  const finalTarget = terminalAuditFinalTarget(audit, record);
+  const nextTarget = terminalAuditNextTarget(audit);
+  const override = renderTerminalAuditOverride(detail, audit, record, finalTarget);
   const token = terminalAuditDomToken(identifier);
   const failed = ['fail', 'failed', 'error', 'needs_human'].includes(verdict.toLowerCase());
   return `
@@ -5312,6 +5338,10 @@ function renderTerminalAuditSummary(summary) {
         <div class="terminal-audit-grid">
           <div class="terminal-audit-key">Requested target</div>
           <div class="terminal-audit-value">${esc(target)}</div>
+          <div class="terminal-audit-key">Next target</div>
+          <div class="terminal-audit-value">${esc(nextTarget)}</div>
+          <div class="terminal-audit-key">Final requested target</div>
+          <div class="terminal-audit-value">${esc(finalTarget)}</div>
           <div class="terminal-audit-key">Attempt</div>
           <div class="terminal-audit-value">${esc(terminalAuditText(attempt && (attempt.attempt_id || attempt.id || attempt.number), 'Unknown'))}</div>
           <div class="terminal-audit-key">Evidence revision</div>
@@ -5337,7 +5367,11 @@ function renderCardTerminalAuditSummary(audit) {
   const attempt = terminalAuditLatestAttempt(source, record);
   const phase = terminalAuditPhase(source, record, attempt);
   const target = terminalAuditTarget(source, record);
-  return `<div class="terminal-audit-card-summary" role="status" aria-label="Terminal audit: ${esc(phase)} for ${esc(target)}"><strong>Audit</strong><span>${esc(phase)} · ${esc(target)}</span></div>`;
+  const nextTarget = terminalAuditNextTarget(source);
+  const finalTarget = terminalAuditFinalTarget(source, record);
+  const progression = nextTarget !== 'None' ? ` · next ${esc(nextTarget)}` : '';
+  const final = finalTarget !== target ? ` · final ${esc(finalTarget)}` : '';
+  return `<div class="terminal-audit-card-summary" role="status" aria-label="Terminal audit: ${esc(phase)} for ${esc(target)}"><strong>Audit</strong><span>${esc(phase)} · ${esc(target)}${progression}${final}</span></div>`;
 }
 
 function renderIntegrationSummary(record, queue) {
