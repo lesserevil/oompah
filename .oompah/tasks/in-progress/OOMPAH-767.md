@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-767
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Prove safety and eventual progress with model-based fault testing
 parent: OOMPAH-763
@@ -16,7 +16,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:55:58.011307Z'
-updated_at: '2026-08-06T16:09:56.065559Z'
+updated_at: '2026-08-06T16:12:15.823998Z'
 work_branch: null
 target_branch: null
 review_url: null
