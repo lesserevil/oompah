@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T18:29:58.683513Z'
+updated_at: '2026-08-06T18:30:06.409924Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -129,8 +129,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-4ef1edb19c89
-    applied: false
+    applied: true
     created_at: '2026-08-06T18:29:54.716447+00:00'
+    applied_at: '2026-08-06T18:30:05.108258+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -338,5 +339,24 @@ author: oompah
 created: 2026-08-06 18:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 18:30
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
+- pushed_head_matches_origin: true
+- budget_snapshot_line: oompah/orchestrator.py:42448
+- get_snapshot_routes_projection: oompah/orchestrator.py:42702
+- focused_module_serial: 41 passed in 49.48s
+- focused_module_xdist_n4: 41 passed in 16.22s
+- named_regression_isolated: 1 passed in 2.11s
+- non_invocation_test: test_budget_projection_does_not_require_unrelated_live_state PASSED
+- public_routing_test: test_public_snapshot_routes_the_budget_projection PASSED
+- orchestrator_commits_atop_epic_763: 67fc9d8d3 (recovery checkpoint w/ orchestrator+tests) + 54c8abf8f (tests isolation)
 ---
 <!-- COMMENTS:END -->
