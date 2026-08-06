@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T03:46:07.654726Z'
+updated_at: '2026-08-06T03:46:13.827834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-08-06 03:19
 ---
 Promoted from Backlog to Open after hard-start prerequisite OOMPAH-796 reached Done. Project is temporarily paused for the graceful cutover; dispatch normally on resume.
+---
+author: oompah
+created: 2026-08-06 03:46
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
