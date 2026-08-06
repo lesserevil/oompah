@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:30:21.713206Z'
+updated_at: '2026-08-06T13:37:38.278350Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -21,13 +21,15 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-860
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  updated_at: '2026-08-06T13:27:46.478960+00:00'
-oompah.agent_run_id: e1235b3f-6584-45c1-97c5-34df9d9cde97
+  head_sha: d5edb84f121e08b04d3bd4a7d1e937f3233d5b4c
+  submitted_at: '2026-08-06T13:37:28.746669+00:00'
+  updated_at: '2026-08-06T13:37:28.746669+00:00'
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-860
 oompah.duplicate_screening:
   schema_version: 1
@@ -210,5 +212,10 @@ author: oompah
 created: 2026-08-06 13:29
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-849, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-861. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 13:37
+---
+Resubmitting exact hierarchical head d5edb84f1 after the full gate lost xdist worker gw1 in a known loaded-tick fixture. Composed the already-audited OOMPAH-791 stabilization patch exactly: contract-faithful dispatch timing mapping and release-recovery isolation for the crash item, plus its paired free-tier snapshot isolation. Verification: 53 serial + 53 xdist tests passed with warning errors; the exact crash node passed 20/20 separate four-worker xdist runs; original O860 256 serial + 256 xdist warning-as-error suite remains green; check-secrets/diff clean; independent exact-head review ACCEPT.
 ---
 <!-- COMMENTS:END -->
