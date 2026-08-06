@@ -101,7 +101,9 @@ from oompah.acp_backends.base import (
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
 from oompah.native_validation_guard import (
+    NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION,
     cleanup_retired_native_validation_guards,
+    complete_native_validation_command,
     consume_native_validation_boundary,
     install_native_validation_guard,
     native_validation_provider_launcher,
@@ -954,6 +956,65 @@ class CodexAcpBackendSession(AcpBackendSession):
                 logger.error(self._last_error)
                 self._status = "errored"
                 return
+            validation_reuse_policy_handler = None
+            validation_command_handler = None
+            validation_reuse_recorder = getattr(
+                coordination_service,
+                "record_auditor_validation_reuse_policy",
+                None,
+            )
+            if (
+                self._options.validation_reuse_policy is not None
+                and self._options.audit_target is not None
+                and callable(validation_reuse_recorder)
+            ):
+
+                def validation_reuse_policy_handler(
+                    *,
+                    command: str,
+                    decision: str,
+                    justification: str,
+                    invocation_id: str,
+                ) -> None:
+                    validation_reuse_recorder(
+                        audit_target=self._options.audit_target,
+                        command=command,
+                        decision=decision,
+                        justification=justification,
+                        invocation_id=invocation_id,
+                    )
+
+            validation_command_recorder = getattr(
+                coordination_service,
+                "record_auditor_validation_command",
+                None,
+            )
+            if (
+                self._options.audit_target is not None
+                and callable(validation_command_recorder)
+            ):
+
+                def validation_command_handler(
+                    *,
+                    command: str,
+                    phase: str,
+                    succeeded: bool,
+                    outcome: str,
+                    duration_seconds: float,
+                    invocation_id: str,
+                    validation_scope: str,
+                ) -> None:
+                    validation_command_recorder(
+                        audit_target=self._options.audit_target,
+                        command=command,
+                        phase=phase,
+                        succeeded=succeeded,
+                        outcome=outcome,
+                        duration_seconds=duration_seconds,
+                        invocation_id=invocation_id,
+                        validation_scope=validation_scope,
+                    )
+
             try:
                 runtime_root = _create_native_validation_runtime_root(
                     untrusted_roots=untrusted_roots,
@@ -1012,6 +1073,14 @@ class CodexAcpBackendSession(AcpBackendSession):
                         executable_fd if not node_bootstrap else None
                     ),
                     provider_untrusted_roots=untrusted_roots,
+                    validation_reuse_policy=self._options.validation_reuse_policy,
+                    validation_reuse_authority_check=(
+                        self._options.validation_reuse_authority_check
+                    ),
+                    validation_reuse_policy_handler=(
+                        validation_reuse_policy_handler
+                    ),
+                    validation_command_handler=validation_command_handler,
                 )
                 if not node_bootstrap:
                     codex_launch_path = native_validation_provider_launcher(
@@ -1080,8 +1149,14 @@ class CodexAcpBackendSession(AcpBackendSession):
                 return
             transport_permit = True
             try:
+                native_prompt = self._options.prompt
+                if self._options.validation_reuse_policy is not None:
+                    native_prompt = (
+                        f"{native_prompt}\n\n"
+                        f"{NATIVE_VALIDATION_DISTINCT_MODE_INSTRUCTION}"
+                    )
                 streamed = await thread.run_streamed(
-                    self._options.prompt,
+                    native_prompt,
                     TurnOptions(signal=self._cli_abort),
                 )
                 mark_transport_contacted(self._options)
@@ -1174,15 +1249,27 @@ class CodexAcpBackendSession(AcpBackendSession):
         validation_authority_retired = self._validation_guard_dir is None
         if self._validation_guard_dir:
             try:
+                cleanup_outcome = (
+                    "authority_withdrawn"
+                    if self._stop_requested or self._status == "interrupted"
+                    else "timed_out"
+                    if self._status == "stalled"
+                    else "session_error"
+                    if self._status == "failed"
+                    else "transport_error"
+                    if self._status in {"errored", "pending"}
+                    else "stream_error"
+                )
                 removed = retire_native_validation_guard(
                     self._validation_guard_dir,
                     validation_lease=self._native_validation_lease,
                     owner=self._native_validation_owner,
+                    terminal_outcome=cleanup_outcome,
                 )
                 logger.debug(
-                    "%s native validation guard directory after authority "
-                    "withdrawal: %s",
+                    "%s native validation guard directory after %s: %s",
                     "Removed" if removed else "Retained referenced",
+                    cleanup_outcome,
                     self._validation_guard_dir,
                 )
                 validation_authority_retired = True
@@ -1347,12 +1434,25 @@ class CodexAcpBackendSession(AcpBackendSession):
                     },
                 )
             elif ev_type == "item.completed":
+                exit_code = int(getattr(item, "exit_code", 0) or 0)
+                if self._validation_guard_dir:
+                    complete_native_validation_command(
+                        self._validation_guard_dir,
+                        str(getattr(item, "command", "") or ""),
+                        str(getattr(item, "id", "") or ""),
+                        succeeded=exit_code == 0,
+                        outcome=(
+                            "passed"
+                            if exit_code == 0
+                            else "failed"
+                        ),
+                    )
                 self._counters.last_event = "tool_result"
                 yield self._emit(
                     "acp_tool_result",
                     payload={
                         "tool_use_id": getattr(item, "id", None),
-                        "is_error": bool(getattr(item, "exit_code", 0) or 0),
+                        "is_error": bool(exit_code),
                         "content": _truncate(
                             getattr(item, "aggregated_output", "")
                         ),

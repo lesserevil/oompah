@@ -109,6 +109,7 @@ def _auditor_validation_success_handler(
         phase: str = "completed",
         outcome: str = "",
         invocation_id: str = "",
+        validation_scope: str = "",
     ) -> object:
         if callable(command_recorder):
             try:
@@ -120,6 +121,7 @@ def _auditor_validation_success_handler(
                     phase=phase,
                     outcome=outcome,
                     invocation_id=invocation_id,
+                    validation_scope=validation_scope,
                 )
             except Exception:  # telemetry must not block evidence recording
                 logger.debug("Auditor validation telemetry failed", exc_info=True)

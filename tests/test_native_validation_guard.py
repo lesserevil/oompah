@@ -46,6 +46,10 @@ def _guard_pass_fds(environment: dict[str, str]) -> tuple[int, ...]:
     return (int(raw),) if raw else ()
 
 
+def _open_fd_snapshot() -> set[str]:
+    return set(os.listdir("/proc/self/fd"))
+
+
 def _test_native_broker(
     tmp_path: Path,
     *,
@@ -528,6 +532,1014 @@ def test_light_native_command_does_not_hold_validation_capacity(tmp_path: Path) 
 
     assert completed.returncode == 0
     assert lease.status().owner_count == 0
+
+
+def test_native_reuse_policy_denies_exact_and_allows_structured_distinct_mode(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    real_pytest = real_bin / "pytest"
+    real_pytest.write_text(
+        '#!/bin/sh\nprintf "pytest %s\\n" "$*" >> '
+        '"$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_pytest.chmod(0o700)
+    authority = {"state": "reuse_authoritative_gate"}
+    telemetry: list[dict[str, str]] = []
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-REUSE",
+        authority_generation="attempt-1",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=lambda: authority["state"],
+        validation_reuse_policy_handler=lambda **values: telemetry.append(values),
+    )
+    environment = {
+        **os.environ,
+        **guarded,
+        "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+    }
+
+    try:
+        exact = subprocess.run(
+            ["/bin/bash", "-c", "make test"],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        focused = subprocess.run(
+            ["/bin/bash", "-c", "pytest tests/test_one.py -q"],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        distinct = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                "OOMPAH_VALIDATION_MODE=task_required_distinct "
+                "OOMPAH_VALIDATION_JUSTIFICATION='serial race coverage' "
+                "make test-serial",
+            ],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        disguised_exact = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                "OOMPAH_VALIDATION_MODE=task_required_distinct "
+                "OOMPAH_VALIDATION_JUSTIFICATION='still exact' make test",
+            ],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        authority["state"] = "full_gate_required"
+        required_again = subprocess.run(
+            ["/bin/bash", "-c", "make test"],
+            env=environment,
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert exact.returncode != 0
+        assert focused.returncode == 0
+        assert distinct.returncode == 0
+        assert disguised_exact.returncode != 0
+        assert required_again.returncode == 0
+        assert marker.read_text(encoding="utf-8").splitlines() == [
+            "pytest tests/test_one.py -q",
+            "test-serial",
+            "test",
+        ]
+        assert [entry["decision"] for entry in telemetry] == [
+            "denied_reused_gate",
+            "allowed_distinct_mode",
+            "denied_reused_gate",
+            "allowed_gate_now_required",
+        ]
+        assert telemetry[1]["justification"] == "serial race coverage"
+        assert all(entry["invocation_id"] for entry in telemetry)
+    finally:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+@pytest.mark.parametrize(
+    "policy_assignments",
+    [
+        (
+            "OOMPAH_VALIDATION_MODE=$MODE "
+            "OOMPAH_VALIDATION_JUSTIFICATION='literal reason'"
+        ),
+        (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='$WHY'"
+        ),
+        (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='$(make test)'"
+        ),
+        (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='$((1 + 1))'"
+        ),
+        (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='`make test`'"
+        ),
+        (
+            "OOMPAH_VALIDATION_MODE=task_required_distinct "
+            "OOMPAH_VALIDATION_JUSTIFICATION='reason*'"
+        ),
+    ],
+)
+def test_native_distinct_policy_rejects_nonliteral_structured_fields(
+    tmp_path: Path,
+    policy_assignments: str,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-LITERAL",
+        authority_generation="attempt-1",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+    )
+    try:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", f"{policy_assignments} make test-serial"],
+            env={
+                **os.environ,
+                **guarded,
+                "MODE": "task_required_distinct",
+                "WHY": "expanded reason",
+                "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+            },
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert completed.returncode != 0
+        assert marker.exists() is False
+        assert lease.status().owner_count == 0
+    finally:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+@pytest.mark.parametrize("prep_surface", ["lifecycle", "supervisor"])
+def test_native_rechecks_reuse_authority_after_blocking_launch_prep(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prep_surface: str,
+) -> None:
+    lease = ValidationResourceLease(
+        tmp_path / "lease.sqlite3",
+        capacity=1,
+        poll_seconds=0.01,
+    )
+    gate = lease.acquire(
+        ValidationLeaseOwner.exact_gate(
+            project_id="project",
+            task_id="GATE-1",
+            authority_generation="gate-generation",
+        )
+    )
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    authority = {"state": "reuse_authoritative_gate"}
+    telemetry: list[dict[str, str]] = []
+    lifecycle: list[dict[str, object]] = []
+    prep_started = threading.Event()
+    release_prep = threading.Event()
+
+    def record_lifecycle(**values) -> None:
+        lifecycle.append(values)
+        if values["phase"] == "started" and prep_surface == "lifecycle":
+            prep_started.set()
+            assert release_prep.wait(timeout=5)
+
+    if prep_surface == "supervisor":
+        real_start_supervisor = guard_module._start_validation_lease_supervisor
+
+        def blocking_start_supervisor(*args, **kwargs):
+            prep_started.set()
+            assert release_prep.wait(timeout=5)
+            return real_start_supervisor(*args, **kwargs)
+
+        monkeypatch.setattr(
+            guard_module,
+            "_start_validation_lease_supervisor",
+            blocking_start_supervisor,
+        )
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-QUEUED",
+        authority_generation="attempt-1",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=lambda: authority["state"],
+        validation_reuse_policy_handler=lambda **values: telemetry.append(values),
+        validation_command_handler=record_lifecycle,
+    )
+    environment = {
+        **os.environ,
+        **guarded,
+        "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+    }
+    completed: list[subprocess.CompletedProcess[str]] = []
+    command = (
+        "OOMPAH_VALIDATION_MODE=task_required_distinct "
+        "OOMPAH_VALIDATION_JUSTIFICATION='serial race coverage' "
+        "make test-serial"
+    )
+    worker = threading.Thread(
+        target=lambda: completed.append(
+            subprocess.run(
+                ["/bin/bash", "-c", command],
+                env=environment,
+                pass_fds=_guard_pass_fds(guarded),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        ),
+    )
+    try:
+        worker.start()
+        _wait_until(lambda: lease.status().waiter_count == 1)
+        gate.release()
+        assert prep_started.wait(timeout=5)
+        authority["state"] = "stale_authority"
+        release_prep.set()
+        worker.join(timeout=5)
+
+        assert worker.is_alive() is False
+        assert completed and completed[0].returncode != 0
+        assert marker.exists() is False
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert [entry["decision"] for entry in telemetry] == [
+            "denied_stale_authority",
+        ]
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "authority_withdrawn"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+    finally:
+        release_prep.set()
+        gate.release()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_native_terminal_publication_before_transfer_prevents_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-TERMINAL-WINS",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    prep_started = threading.Event()
+    publish_terminal = threading.Event()
+
+    def terminal_before_transfer(*_args, terminal_handler, **_kwargs):
+        prep_started.set()
+        assert publish_terminal.wait(timeout=5)
+        terminal_handler("transport_error")
+        observer = threading.Thread(target=lambda: None, daemon=True)
+        observer.start()
+        return observer
+
+    monkeypatch.setattr(
+        guard_module,
+        "_start_validation_lease_supervisor",
+        terminal_before_transfer,
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=lambda **values: lifecycle.append(values),
+    )
+    completed: list[subprocess.CompletedProcess[str]] = []
+    worker = threading.Thread(
+        target=lambda: completed.append(
+            subprocess.run(
+                ["/bin/bash", "-c", "make test-serial"],
+                env={
+                    **os.environ,
+                    **guarded,
+                    "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+                },
+                pass_fds=_guard_pass_fds(guarded),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        )
+    )
+    try:
+        worker.start()
+        assert prep_started.wait(timeout=5)
+        publish_terminal.set()
+        worker.join(timeout=5)
+
+        assert worker.is_alive() is False
+        assert completed and completed[0].returncode != 0
+        assert marker.exists() is False
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "transport_error"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+    finally:
+        publish_terminal.set()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_native_supervisor_timeout_records_actual_terminal_reason(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-TIMEOUT",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=1,
+        validation_command_handler=lambda **values: lifecycle.append(values),
+    )
+    retired = False
+    try:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "make test-serial"],
+            env={**os.environ, **guarded},
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert completed.returncode != 0
+        _wait_until(lambda: len(lifecycle) == 2)
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "timed_out"
+        assert lifecycle[1]["succeeded"] is False
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        observed = list(lifecycle)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+        retired = True
+        assert lifecycle == observed
+    finally:
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+def test_native_explicit_withdrawal_records_terminal_reason(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-WITHDRAWN",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=lambda **values: lifecycle.append(values),
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    retired = False
+    try:
+        _wait_until(
+            lambda: lifecycle and lifecycle[0].get("phase") == "started"
+        )
+        (root / guard_module._CANCELLATION_NAME).touch(mode=0o600)
+
+        assert process.wait(timeout=5) != 0
+        _wait_until(lambda: len(lifecycle) == 2)
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "authority_withdrawn"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        observed = list(lifecycle)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+        retired = True
+        assert lifecycle == observed
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=1)
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+def test_native_transport_failure_records_terminal_reason(tmp_path: Path) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-TRANSPORT",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    started_callback = threading.Event()
+    release_callback = threading.Event()
+
+    def record_lifecycle(**values) -> None:
+        lifecycle.append(values)
+        if values["phase"] == "started":
+            started_callback.set()
+            assert release_callback.wait(timeout=5)
+
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=record_lifecycle,
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={
+            **os.environ,
+            **guarded,
+            "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+        },
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    retired = False
+    try:
+        assert started_callback.wait(timeout=5)
+        process.kill()
+        process.wait(timeout=5)
+        release_callback.set()
+
+        _wait_until(lambda: len(lifecycle) == 2)
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert marker.exists() is False
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "transport_error"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        observed = list(lifecycle)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+        retired = True
+        assert lifecycle == observed
+    finally:
+        release_callback.set()
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=1)
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+def test_native_post_transfer_cleanup_preserves_transport_reason(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\nsleep 10\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-POST-TRANSFER",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=lambda **values: lifecycle.append(values),
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={
+            **os.environ,
+            **guarded,
+            "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+        },
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    retired = False
+    try:
+        _wait_until(marker.exists)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+            terminal_outcome="transport_error",
+        ) is True
+        retired = True
+
+        assert process.wait(timeout=5) != 0
+        _wait_until(lambda: lease.status().owner_count == 0)
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "transport_error"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=1)
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+                terminal_outcome="transport_error",
+            )
+
+
+def test_native_natural_exit_awaiting_item_records_stream_error_on_cleanup(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-EXITED-AWAITING-ITEM",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=lambda **values: lifecycle.append(values),
+    )
+    completed = subprocess.run(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    retired = False
+    try:
+        assert completed.returncode == 0
+        with guard_module._BROKER_REGISTRY_LOCK:
+            broker = guard_module._BROKER_REGISTRY[root.resolve()]
+
+        def supervisor_observed_exit() -> bool:
+            with broker._boundary_lock:
+                runs = tuple(broker._validation_runs.values())
+            return bool(runs) and all(
+                run.supervisor_outcome == "exited" for run in runs
+            )
+
+        _wait_until(supervisor_observed_exit)
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+        retired = True
+
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "stream_error"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        assert lease.status().owner_count == 0
+    finally:
+        if not retired:
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+@pytest.mark.parametrize("failure_surface", ["second_pipe", "observer_start"])
+def test_native_supervisor_setup_failure_restores_fd_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_surface: str,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id=f"AUDIT-FD-{failure_surface}",
+        authority_generation="attempt-1",
+    )
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+    )
+    baseline = _open_fd_snapshot()
+    if failure_surface == "second_pipe":
+        real_pipe2 = guard_module.os.pipe2
+        calls = 0
+
+        def fail_second_pipe(flags: int) -> tuple[int, int]:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("injected second pipe failure")
+            return real_pipe2(flags)
+
+        monkeypatch.setattr(guard_module.os, "pipe2", fail_second_pipe)
+    else:
+        real_thread_start = guard_module.threading.Thread.start
+
+        def fail_observer_start(thread: threading.Thread) -> None:
+            if thread.name.startswith("native-validation-supervisor-status-"):
+                raise RuntimeError("injected observer start failure")
+            real_thread_start(thread)
+
+        monkeypatch.setattr(
+            guard_module.threading.Thread,
+            "start",
+            fail_observer_start,
+        )
+    try:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "make test-serial"],
+            env={
+                **os.environ,
+                **guarded,
+                "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+            },
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert completed.returncode != 0
+        assert marker.exists() is False
+        _wait_until(lambda: lease.status().owner_count == 0)
+        _wait_until(lambda: _open_fd_snapshot() == baseline)
+    finally:
+        monkeypatch.undo()
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
+
+
+def test_native_blocked_started_callback_serializes_retirement(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    real_make = real_bin / "make"
+    real_make.write_text("#!/bin/sh\nsleep 10\n", encoding="utf-8")
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-RETIRE-RACE",
+        authority_generation="attempt-1",
+    )
+    lifecycle: list[dict[str, object]] = []
+    started_callback = threading.Event()
+    release_callback = threading.Event()
+
+    def record_lifecycle(**values) -> None:
+        lifecycle.append(values)
+        if values["phase"] == "started":
+            started_callback.set()
+            assert release_callback.wait(timeout=5)
+
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_command_handler=record_lifecycle,
+    )
+    process = subprocess.Popen(
+        ["/bin/bash", "-c", "make test-serial"],
+        env={**os.environ, **guarded},
+        pass_fds=_guard_pass_fds(guarded),
+    )
+    retirement_started = threading.Event()
+    retirement_result: list[bool] = []
+
+    def retire() -> None:
+        retirement_started.set()
+        retirement_result.append(
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+        )
+
+    retirement = threading.Thread(target=retire)
+    try:
+        assert started_callback.wait(timeout=5)
+        retirement.start()
+        assert retirement_started.wait(timeout=5)
+        assert len(lifecycle) == 1
+        release_callback.set()
+        retirement.join(timeout=5)
+
+        assert retirement.is_alive() is False
+        assert process.wait(timeout=5) != 0
+        assert [entry["phase"] for entry in lifecycle] == [
+            "started",
+            "completed",
+        ]
+        assert lifecycle[1]["outcome"] == "authority_withdrawn"
+        assert lifecycle[0]["invocation_id"] == lifecycle[1]["invocation_id"]
+        assert len(retirement_result) == 1
+        _wait_until(lambda: lease.status().owner_count == 0)
+    finally:
+        release_callback.set()
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=1)
+        if retirement.is_alive():
+            retirement.join(timeout=5)
+        if root.exists():
+            retire_native_validation_guard(
+                root,
+                validation_lease=lease,
+                owner=owner,
+            )
+
+
+def test_native_reuse_policy_fails_closed_when_live_authority_raises(
+    tmp_path: Path,
+) -> None:
+    lease = ValidationResourceLease(tmp_path / "lease.sqlite3", poll_seconds=0.01)
+    real_bin = tmp_path / "real-bin"
+    real_bin.mkdir()
+    marker = tmp_path / "make-ran"
+    real_make = real_bin / "make"
+    real_make.write_text(
+        '#!/bin/sh\n: > "$OOMPAH_TEST_NATIVE_MARKER"\n',
+        encoding="utf-8",
+    )
+    real_make.chmod(0o700)
+    owner = ValidationLeaseOwner.auditor(
+        project_id="project",
+        task_id="AUDIT-STALE",
+        authority_generation="attempt-1",
+    )
+
+    def unavailable_authority() -> str:
+        raise RuntimeError("tracker unavailable")
+
+    guarded, root = install_native_validation_guard(
+        {"PATH": f"{real_bin}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
+        runtime_root=tmp_path / "guard",
+        validation_lease=lease,
+        owner=owner,
+        timeout_seconds=10,
+        validation_reuse_policy={
+            "decision": "reuse_authoritative_gate",
+            "command": "make test",
+            "attempt_id": "attempt-1",
+        },
+        validation_reuse_authority_check=unavailable_authority,
+    )
+    try:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", "make test"],
+            env={
+                **os.environ,
+                **guarded,
+                "OOMPAH_TEST_NATIVE_MARKER": str(marker),
+            },
+            pass_fds=_guard_pass_fds(guarded),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        assert completed.returncode != 0
+        assert marker.exists() is False
+        assert lease.status().owner_count == 0
+    finally:
+        assert retire_native_validation_guard(
+            root,
+            validation_lease=lease,
+            owner=owner,
+        ) is True
 
 
 def test_absolute_bash_env_unset_heavy_command_waits_for_validation_capacity(

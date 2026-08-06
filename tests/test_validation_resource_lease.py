@@ -23,6 +23,7 @@ from oompah.api_agent import (
     _validation_reuse_policy_decision,
 )
 from oompah.auditor import check_auditor_command
+from oompah.terminal_audit_observability import TerminalAuditMetrics
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.validation_resource_lease import (
     AUDITOR_PRIORITY,
@@ -33,6 +34,9 @@ from oompah.validation_resource_lease import (
     ValidationLeaseCancelled,
     ValidationLeaseOwner,
     ValidationResourceLease,
+    classify_validation_command,
+    contains_configured_validation_command,
+    is_focused_validation_command,
     is_full_suite_validation_command,
     is_heavyweight_validation_command,
     managed_agent_validation_owner,
@@ -1407,6 +1411,12 @@ def test_task_controlled_path_lookalike_is_heavy(tmp_path):
         ("python -m unittest discover", True),
         ("python -m unittest discover -s tests -p 'test_*.py'", True),
         ("env -S 'make test'", True),
+        ("echo ready && pytest", True),
+        ("pytest $OOMPAH_TEST_SCOPE", True),
+        ("npm test", True),
+        ("cargo nextest run", True),
+        ("npm run build", False),
+        ("cargo build", False),
         ("pytest tests/test_one.py", False),
         ("pytest tests/test_one.py::test_case", False),
         ("python -m pytest -q tests/test_one.py", False),
@@ -1416,6 +1426,48 @@ def test_task_controlled_path_lookalike_is_heavy(tmp_path):
 def test_full_suite_classifier_distinguishes_pytest_scope(command, expected):
     assert (
         is_full_suite_validation_command(
+            command,
+            configured_command="make test",
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pytest tests/test_one.py -q", True),
+        ("bash -lc 'pytest tests/test_one.py -q'", True),
+        ("echo ready && pytest tests/test_one.py -q", True),
+        ("env -S 'pytest tests/test_one.py -q'", True),
+        ("pytest $OOMPAH_TEST_SCOPE", False),
+        ("pytest tests/test_one.py; npm test", False),
+    ],
+)
+def test_focused_classifier_preserves_wrappers_and_syntax_provenance(
+    command,
+    expected,
+):
+    assert is_focused_validation_command(command) is expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("make test", True),
+        ("timeout 30 bash -lc 'make test'", True),
+        ("env -S 'make test'", True),
+        ("echo ready && make test", True),
+        ("$OOMPAH_RUNNER test", False),
+        ("make $OOMPAH_TARGET", False),
+    ],
+)
+def test_configured_command_match_preserves_wrappers_and_syntax_provenance(
+    command,
+    expected,
+):
+    assert (
+        contains_configured_validation_command(
             command,
             configured_command="make test",
         )
@@ -2786,6 +2838,10 @@ def test_validation_reuse_policy_decision_matrix(
         args,
         _reusable_gate_policy(),
         lambda: authority,
+        classification=classify_validation_command(
+            args["command"],
+            configured_command="make test",
+        ),
     )
 
     assert decision == expected_decision
@@ -2811,10 +2867,46 @@ def test_validation_reuse_policy_fails_closed_without_fresh_authority(
         {"command": "pytest tests/test_one.py"},
         _reusable_gate_policy(),
         authority_check,
+        classification=classify_validation_command(
+            "pytest tests/test_one.py",
+            configured_command="make test",
+        ),
     )
 
     assert decision == "denied_stale_authority"
     assert denial is not None
+
+
+def test_context_aware_classification_never_labels_runner_env_focused() -> None:
+    classification = classify_validation_command(
+        "pytest tests/test_one.py::test_case",
+        command_environment={"PYTEST_ADDOPTS": "tests"},
+    )
+
+    assert classification.heavyweight is True
+    assert classification.scope == "opaque"
+    assert classification.focused is False
+
+
+def test_context_aware_classification_never_labels_task_path_runner_focused(
+    tmp_path: Path,
+) -> None:
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_pytest = task_bin / "pytest"
+    fake_pytest.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_pytest.chmod(0o700)
+
+    classification = classify_validation_command(
+        "pytest tests/test_one.py::test_case",
+        executable_search_path=f"{task_bin}{os.pathsep}/usr/bin:/bin",
+        untrusted_executable_roots=(tmp_path,),
+        working_directory=tmp_path,
+    )
+
+    assert classification.heavyweight is True
+    assert classification.scope == "opaque"
+    assert classification.focused is False
 
 
 def test_exec_denies_reused_exact_gate_before_process_launch(tmp_path, monkeypatch):
@@ -2839,6 +2931,114 @@ def test_exec_denies_reused_exact_gate_before_process_launch(tmp_path, monkeypat
     telemetry.assert_called_once()
     assert telemetry.call_args.kwargs["decision"] == "denied_reused_gate"
     assert telemetry.call_args.kwargs["invocation_id"]
+
+
+def test_exec_reuse_policy_uses_context_aware_path_classification(
+    tmp_path,
+    monkeypatch,
+):
+    task_bin = tmp_path / "bin"
+    task_bin.mkdir()
+    fake_git = task_bin / "git"
+    fake_git.write_text("#!/bin/sh\nexec make test\n", encoding="utf-8")
+    fake_git.chmod(0o700)
+    popen = MagicMock(side_effect=AssertionError("must not launch"))
+    telemetry = MagicMock()
+    monkeypatch.setattr("oompah.api_agent.subprocess.Popen", popen)
+
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git status --short"},
+        env_overrides={"PATH": f"{task_bin}{os.pathsep}/usr/bin:/bin"},
+        validation_reuse_policy=_reusable_gate_policy(),
+        validation_reuse_authority_check=lambda: "reuse_authoritative_gate",
+        validation_reuse_policy_handler=telemetry,
+    )
+
+    assert "requires validation_mode" in result
+    popen.assert_not_called()
+    assert telemetry.call_args.kwargs["decision"] == (
+        "denied_distinct_mode_required"
+    )
+
+
+def test_exec_rechecks_reuse_authority_after_capacity_queue(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    (tmp_path / "Makefile").write_text(
+        f"test-serial:\n\t@touch {shlex.quote(str(marker))}\n",
+        encoding="utf-8",
+    )
+    lease = ValidationResourceLease(
+        tmp_path / "validation.sqlite3",
+        capacity=1,
+        poll_seconds=0.01,
+    )
+    exact_gate = lease.acquire(_gate_owner("p", "gate"))
+    authority = {"state": "reuse_authoritative_gate"}
+    authority_calls = 0
+    final_sample_started = threading.Event()
+    release_final_sample = threading.Event()
+    metrics = TerminalAuditMetrics()
+    result: list[str] = []
+
+    def read_authority() -> str:
+        nonlocal authority_calls
+        authority_calls += 1
+        if authority_calls == 3:
+            final_sample_started.set()
+            assert release_final_sample.wait(timeout=5)
+        return authority["state"]
+
+    def record_policy(**values) -> None:
+        metrics.record_validation_reuse_policy(
+            "p",
+            "queued-auditor",
+            "audit-1",
+            attempt_id="attempt-1",
+            **values,
+        )
+
+    worker = threading.Thread(
+        target=lambda: result.append(
+            _exec_run_command(
+                tmp_path,
+                {
+                    "command": "make test-serial",
+                    "validation_mode": "task_required_distinct",
+                    "validation_justification": "serial race coverage",
+                },
+                timeout=5,
+                validation_lease=lease,
+                validation_owner=_audit_owner("p", "queued-auditor"),
+                validation_reuse_policy=_reusable_gate_policy(),
+                validation_reuse_authority_check=read_authority,
+                validation_reuse_policy_handler=record_policy,
+            )
+        ),
+    )
+    worker.start()
+    _wait_for(lambda: lease.status().waiter_count == 1)
+    exact_gate.release()
+    assert final_sample_started.wait(timeout=5)
+    authority["state"] = "stale_authority"
+    release_final_sample.set()
+    worker.join(timeout=5)
+
+    assert worker.is_alive() is False
+    assert result and "authority is stale" in result[0]
+    assert marker.exists() is False
+    assert lease.status().owner_count == 0
+    snapshot = metrics.snapshot()
+    invocations = snapshot["validation"]["reuse_policy_invocations"]
+    assert len(invocations) == 1
+    assert next(iter(invocations.values()))["decision"] == (
+        "denied_stale_authority"
+    )
+    assert snapshot["validation"]["last_reuse_policy"]["decision"] == (
+        "denied_stale_authority"
+    )
+    assert snapshot["reused_gate_validation_denied"] == 1
+    assert snapshot["reused_gate_distinct_mode_allowed"] == 0
 
 
 def test_exec_allows_exact_gate_when_reusable_proof_disappears(tmp_path):

@@ -24033,6 +24033,7 @@ class Orchestrator:
         phase: str = "completed",
         outcome: str = "",
         invocation_id: str = "",
+        validation_scope: str = "",
     ) -> None:
         """Record whether an auditor ran the full or focused validation lane."""
 
@@ -24054,6 +24055,7 @@ class Orchestrator:
                 phase=phase,
                 outcome=outcome,
                 invocation_id=invocation_id,
+                validation_scope=validation_scope,
             )
         except Exception:  # telemetry must not block an auditor command
             logger.debug("Unable to record auditor validation command", exc_info=True)
