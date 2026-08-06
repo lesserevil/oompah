@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T19:05:41.731811Z'
+updated_at: '2026-08-06T19:06:47.158908Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -120,6 +120,31 @@ oompah.work_contributors:
     completed_at: '2026-08-06T18:39:13.276371+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-606c3a2d184d-0: '2026-08-06T19:06:36.218509+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-858
+    target_state: Done
+    evidence_fingerprint: ff5aa2677f9873135fbebaa0d16d3848a5ea467dc7f92f0ff5658b7962c6edc3
+    audit_ids:
+    - audit-606c3a2d184d
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T19:06:36.218516+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-858
+    audit_id: audit-606c3a2d184d
+    attempt_id: no-auditor-audit-606c3a2d184d-0
+    target_state: Done
+    evidence_fingerprint: ff5aa2677f9873135fbebaa0d16d3848a5ea467dc7f92f0ff5658b7962c6edc3
+    status: Needs Human
+    audit_ids:
+    - audit-606c3a2d184d
+    applied: true
+    created_at: '2026-08-06T19:06:36.218527+00:00'
+    applied_at: '2026-08-06T19:06:44.262912+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -127,18 +152,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-858
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ff5aa2677f9873135fbebaa0d16d3848a5ea467dc7f92f0ff5658b7962c6edc3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-606c3a2d184d-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ff5aa2677f9873135fbebaa0d16d3848a5ea467dc7f92f0ff5658b7962c6edc3
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-06T19:06:36.218411+00:00'
+      completed_at: '2026-08-06T19:06:36.218411+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T19:05:36.522366+00:00'
+    updated_at: '2026-08-06T19:06:36.218411+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -517,5 +555,12 @@ author: oompah
 created: 2026-08-06 19:05
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 19:06
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
