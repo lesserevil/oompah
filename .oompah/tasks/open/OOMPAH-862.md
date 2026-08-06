@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:21:14.587651Z'
-work_branch: null
+updated_at: '2026-08-06T14:21:51.904587Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ea3892ed7b4cfc880dc90345a4c9b957196bea269515ae7e63fb268c0e15c60f
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: aaa98e68-86f5-4827-bd69-3fd42d5a6730
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T14:21:34.385268+00:00'
+  claim_expires_at: '2026-08-06T14:51:34.385268+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 31ffd653-fabf-4646-bbab-1de449aec7c9
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-862
 ---
 ## Summary
 
@@ -29,3 +48,11 @@ Live OOMPAH-860 regression on 2026-08-06: the exact accepted head completed the 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 14:21
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
