@@ -11,13 +11,32 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T11:42:33.128386Z'
-updated_at: '2026-08-06T11:43:01.150187Z'
-work_branch: null
+updated_at: '2026-08-06T11:43:33.567993Z'
+work_branch: epic-OOMPAH-795--task-OOMPAH-859
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 7a3ca9a3914926508c6ca850586959ccb6e11cdd495f9c7dec17ab80beb207e3
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 7edc7484-6e66-4c93-912a-a2d6a2f4a2fb
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T11:43:17.041581+00:00'
+  claim_expires_at: '2026-08-06T12:13:17.041581+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: cba93aa8-ac6a-4a74-a2fc-5ea814afed75
+oompah.work_branch: epic-OOMPAH-795--task-OOMPAH-859
 ---
 ## Summary
 
@@ -29,3 +48,11 @@ Live regression observed 2026-08-06 while OOMPAH-835/OOMPAH-836 auditors were qu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 11:43
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
