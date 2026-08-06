@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T00:15:48.918029Z'
+updated_at: '2026-08-06T00:16:45.117880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,6 +73,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-827
     source_sha: b53bdbc77c7a50d332a97096ebc85d7923280854
     completed_at: '2026-08-05T18:25:59.499540+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-827
+  head_sha: ea12235df8e8274189adca0ac844f245e643007b
+  submitted_at: '2026-08-06T00:16:37.995338+00:00'
+  updated_at: '2026-08-06T00:16:37.995338+00:00'
 ---
 ## Summary
 
@@ -209,5 +217,19 @@ created: 2026-08-06 00:15
 5. Full test suite passes: 15679 passed, 7 skipped, 1 xfailed
 
 Ready for submission.
+---
+author: oompah
+created: 2026-08-06 00:16
+---
+Implemented authoritative work-kind classifier for agent observability surfaces
+
+- Added RunningEntry.classify_work_kind() method with correct precedence: audit > duplicate_screening > implementation
+- Updated /api/v1/state snapshots to use centralized classifier and include audit identity fields
+- Updated /api/v1/agents/:identifier/activity to use centralized classifier and include safe audit identity fields
+- Updated AGENT_DISPATCHED WebSocket events to use correct work-kind precedence
+- Added 19 comprehensive tests covering all scenarios, precedence rules, and cross-surface consistency
+- All 15679 tests pass; no regressions
+
+Fixes: /api/v1/state and /api/v1/agents/:identifier/activity now report consistent work_kind for the same run, and audit identity is safely exposed without exposing sensitive data.
 ---
 <!-- COMMENTS:END -->
