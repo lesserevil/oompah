@@ -43897,6 +43897,36 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
         return facts
 
+    def _budget_snapshot(self) -> dict[str, Any]:
+        """Return the budget projection from local orchestrator state.
+
+        Budget status is derived entirely from the in-memory service state and
+        configuration. Keep this projection separate from ``get_snapshot`` so
+        callers that only need budget information do not have to collect
+        unrelated live state such as tracker, audit, or validation-lease
+        telemetry.
+        """
+        totals = self.state.agent_totals
+        return {
+            "limit": self.config.budget_limit,
+            "spent": totals.estimated_cost,
+            "exceeded": self.state.budget_exceeded,
+            "window": self.config.budget_window,
+            "window_seconds": self._budget_window_seconds(),
+            "window_start": self.state.budget_window_start,
+            # Seconds from "now" until the next calendar boundary
+            # (top-of-hour / local midnight / Sunday 00:00).
+            "window_remaining_seconds": self._budget_window_remaining_seconds(),
+            "window_timezone": str(self._budget_tz().key),
+            "free_tier_active": (
+                self.state.budget_exceeded
+                and self.state.free_tier_dispatches_this_window > 0
+            ),
+            "free_tier_dispatches_this_window": (
+                self.state.free_tier_dispatches_this_window
+            ),
+        }
+
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
@@ -44115,32 +44145,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "estimated_cost": totals.estimated_cost,
             },
             "cost_by_profile": dict(self.state.cost_by_profile),
-            "budget": {
-                "limit": self.config.budget_limit,
-                "spent": totals.estimated_cost,
-                "exceeded": self.state.budget_exceeded,
-                "window": self.config.budget_window,
-                "window_seconds": self._budget_window_seconds(),
-                "window_start": self.state.budget_window_start,
-                # Seconds from "now" until the NEXT calendar boundary
-                # (top-of-hour / local midnight / Sunday 00:00). This is
-                # what dashboards should countdown against — not
-                # window_start + nominal_seconds, which can drift on DST
-                # transition days.
-                "window_remaining_seconds": self._budget_window_remaining_seconds(),
-                "window_timezone": str(self._budget_tz().key),
-                # True when the budget is exceeded but free-tier dispatches
-                # are still happening in the current window. Lets the
-                # dashboard show "exceeded but still working" instead of
-                # appearing dead.
-                "free_tier_active": (
-                    self.state.budget_exceeded
-                    and self.state.free_tier_dispatches_this_window > 0
-                ),
-                "free_tier_dispatches_this_window": (
-                    self.state.free_tier_dispatches_this_window
-                ),
-            },
+            "budget": self._budget_snapshot(),
             "agent_profiles": [
                 {
                     "name": p.name,
