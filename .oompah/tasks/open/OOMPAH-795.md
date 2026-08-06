@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:19:45.630593Z'
+updated_at: '2026-08-06T03:19:50.650530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Make API, dashboard board/detail, queue rows, agent panels, and alerts consume W
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 03:19
+---
+Promoted from Backlog to Open after hard-start prerequisite OOMPAH-796 reached Done. Project is temporarily paused for the graceful cutover; dispatch normally on resume.
+---
+<!-- COMMENTS:END -->
