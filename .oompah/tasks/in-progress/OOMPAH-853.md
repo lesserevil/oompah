@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T06:09:52.220621Z'
+updated_at: '2026-08-06T06:11:14.300629Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -221,5 +221,10 @@ author: oompah
 created: 2026-08-06 06:09
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 06:11
+---
+Operator correction: do NOT amend or rewrite the Git author/committer. The canonical attribution trailer is already correct. 'Quality gate owner metadata does not match the exact resolved candidate head' refers to the server's QualityGateOwner lease metadata after integration rebased the submitted candidate, not commit authorship. Preserve clean pushed HEAD 0c0aabc4241948f9c0fae3c120562fe3dcefa059 (the OOMPAH-853 patch on OOMPAH-852). Inspect the owner/head infrastructure path only; do not add out-of-scope infrastructure changes to this feature. The server owns the full exact-head gate. If focused regressions and branch state remain green, resubmit the unchanged exact head.
 ---
 <!-- COMMENTS:END -->
