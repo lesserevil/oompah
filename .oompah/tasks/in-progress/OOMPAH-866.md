@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-866
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Honor canonical child mappings after direct epic conflict rebases
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T22:01:21.055966Z'
+updated_at: '2026-08-06T22:03:30.245168Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     canonical evidence is persisted on helper records but not mapped to affected child
     landing validation, reproducing d3cc87e to 0321c898 and a false descendant OOMPAH-745
     block.'
-oompah.agent_run_id: null
+oompah.agent_run_id: 8faf180a-3696-4a18-befb-e80330d8f551
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-866
 oompah.integration:
   version: 2
@@ -318,5 +318,10 @@ author: oompah
 created: 2026-08-06 22:01
 ---
 Gate triage: exact OOMPAH-866 gate reached 16,307 passes and failed only the same unrelated event-loop test as OOMPAH-863, alongside the same LogFileWatcher.start leak warnings. OOMPAH-845 commit 7bb2362fc fixes that cross-test leak and is now a recorded finish dependency. Preserve exact OOMPAH-866 head ee05a0ad8; do not mutate canonical-child landing logic or duplicate OOMPAH-845. Re-run only after OOMPAH-845 is integrated/rebased into the target.
+---
+author: oompah
+created: 2026-08-06 22:03
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
