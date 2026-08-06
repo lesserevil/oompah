@@ -99,6 +99,7 @@ from oompah.integration import (
     assigned_work_branch,
     classify_conflict_repair_failure,
     is_direct_epic_maintenance_issue,
+    parse_integration_record,
 )
 from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
@@ -21145,6 +21146,74 @@ class Orchestrator:
                 continue
         return issues
 
+    @staticmethod
+    def _owner_resolution_integration_reassessment_reason(
+        tracker: Any,
+        issue: Issue,
+    ) -> str | None:
+        """Return the fail-closed reason to preserve integration evidence.
+
+        Duplicate preflight is qualification-only.  Its records do not carry
+        a correlation to an integration dispatch run, so a persisted
+        ``working`` integration record cannot safely be attributed to a
+        superseded duplicate investigator.  It may instead name a replacement
+        implementation runtime that began after the owner decision.  Likewise,
+        every non-working record is accepted submission evidence and must never
+        be erased by duplicate resolution.
+
+        Callers deliberately receive a diagnostic instead of a mutation.  A
+        future cleanup needs an exact dispatch-generation / preflight-claim
+        compare-and-swap protocol before it can make this distinction.
+        """
+
+        try:
+            metadata = tracker.get_metadata(issue.identifier)
+        except Exception as exc:  # noqa: BLE001 - metadata is diagnostic-only
+            return (
+                "integration metadata could not be read for reassessment "
+                f"({type(exc).__name__})"
+            )
+        if not isinstance(metadata, Mapping):
+            return None
+        raw = metadata.get("oompah.integration")
+        if raw is None:
+            return None
+        integration = parse_integration_record(raw)
+        if integration is None:
+            return (
+                "malformed integration metadata is preserved for manual "
+                "reassessment"
+            )
+        if integration.state == "working":
+            return (
+                "working integration metadata lacks duplicate-preflight "
+                "claim/run provenance; preserving it to avoid erasing a "
+                "replacement implementation generation"
+            )
+        return (
+            f"accepted integration state {integration.state!r} is immutable "
+            "submission evidence and is preserved"
+        )
+
+    def _log_owner_resolution_integration_reassessment(
+        self,
+        tracker: Any,
+        issue: Issue,
+    ) -> None:
+        """Surface why duplicate resolution intentionally did not clear metadata."""
+
+        reason = self._owner_resolution_integration_reassessment_reason(
+            tracker,
+            issue,
+        )
+        if reason:
+            logger.warning(
+                "Owner duplicate resolution for %s requires integration "
+                "reassessment: %s",
+                issue.identifier,
+                reason,
+            )
+
     def _reconcile_owner_duplicate_resolution_boundaries(
         self,
         issues: Iterable[Issue] | None = None,
@@ -21236,6 +21305,10 @@ class Orchestrator:
                 observed.state = target_status
                 observed.duplicate_screening = record.to_dict()
                 if record.verdict == ScreeningVerdict.NO_DUPLICATE:
+                    self._log_owner_resolution_integration_reassessment(
+                        tracker,
+                        fresh,
+                    )
                     with self._retry_authority_lock:
                         self.state.completed.discard(fresh.id)
                         self.state.stall_counts.pop(fresh.identifier, None)
@@ -21419,6 +21492,8 @@ class Orchestrator:
             issue.duplicate_screening = persisted.to_dict()
             if status_updated:
                 issue.state = target_status
+            if verdict == ScreeningVerdict.NO_DUPLICATE and status_updated:
+                self._log_owner_resolution_integration_reassessment(tracker, fresh)
 
         if runtime_to_retire is not None:
             self._schedule_running_termination(
