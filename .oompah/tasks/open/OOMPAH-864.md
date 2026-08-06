@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T18:12:15.562453Z'
+updated_at: '2026-08-06T18:13:55.867664Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 1adcfa5d277fcb50a57de91e98d6e3b03c5c589b5269106064b265e244db4997
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 178e8855-2d33-446a-9c3b-9e26d663e1fa
+  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
+  claimed_at: '2026-08-06T18:13:43.126395+00:00'
+  claim_expires_at: '2026-08-06T18:43:43.126395+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: f04326f4-28e6-4257-80aa-02f798222dde
 ---
 ## Summary
 
@@ -29,3 +47,11 @@ Live reproduction on OOMPAH-863 (and latent on OOMPAH-855) after an inconclusive
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 18:13
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
