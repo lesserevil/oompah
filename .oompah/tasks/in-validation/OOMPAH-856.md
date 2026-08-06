@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T19:36:21.201634Z'
+updated_at: '2026-08-06T19:54:21.058045Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -46,14 +46,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-856
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-856
   base_branch: epic-OOMPAH-763
   base_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
   head_sha: 6552636e5edc4a181e6fe11ce40f86c0156166a2
+  integrated_sha: 6552636e5edc4a181e6fe11ce40f86c0156166a2
   submitted_at: '2026-08-06T19:36:15.264539+00:00'
-  updated_at: '2026-08-06T19:36:15.264539+00:00'
+  updated_at: '2026-08-06T19:54:12.032822+00:00'
 oompah.task_costs:
   total_input_tokens: 48330
   total_output_tokens: 378
@@ -80,6 +81,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-856
     source_sha: 6b67846406858b585ce47939f70bec76eb706fe8
     completed_at: '2026-08-06T16:31:59.765992+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2dce7b47c8b6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-856
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: aa3b302c47f245d619d2d1c6e80db65f5adff72891afd6f293d9c41cf6d4589f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T19:54:14.743712+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -253,5 +276,10 @@ author: oompah
 created: 2026-08-06 19:36
 ---
 Full gate reached 16,275 passes and exposed one stale object.__new__ test fixture missing the new alert RLock. Initialized the lock in both repository-hygiene helper instances; the exact failing test now passes, and the complete 8-test file passes serially and under four-way loadgroup. Resubmitting exact head 6552636e5edc4a181e6fe11ce40f86c0156166a2.
+---
+author: oompah
+created: 2026-08-06 19:54
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
