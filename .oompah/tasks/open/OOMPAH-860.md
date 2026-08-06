@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:27:49.523770Z'
+updated_at: '2026-08-06T13:27:58.780540Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -156,5 +156,15 @@ author: oompah
 created: 2026-08-06 13:27
 ---
 Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 13:27
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 13:27
+---
+Gate result is an xdist worker-process disappearance after 7,520 passing tests, not a failed assertion in the O860 patch; no kernel OOM/kill/segfault evidence was logged. Repair dispatch then reproduced OOMPAH-815 branch-identity split: submit had required/accepted OOMPAH-860, but repair recomputed epic-OOMPAH-763--task-OOMPAH-860. Filed OOMPAH-861 for the regression. In-flight workaround: clean worktree switched to the hierarchical branch at the identical accepted head 34bf3aa8 so the scheduled repair agent can start without reset or code loss.
 ---
 <!-- COMMENTS:END -->
