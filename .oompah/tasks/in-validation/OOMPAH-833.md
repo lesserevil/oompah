@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T02:06:13.146945Z'
+updated_at: '2026-08-06T02:06:31.560967Z'
 work_branch: OOMPAH-833
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/727
@@ -121,13 +121,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1489
+  total_input_tokens: 34
+  total_output_tokens: 7262
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1489
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 24
+      output_tokens: 5773
       cost_usd: 0.0
   runs:
   - profile: default
@@ -136,6 +140,12 @@ oompah.task_costs:
     output_tokens: 1489
     cost_usd: 0.0
     recorded_at: '2026-08-06T00:01:41.007106+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 24
+    output_tokens: 5773
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T02:06:27.697715+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-833__20260806T000009Z
@@ -431,5 +441,15 @@ Safe evidence:
 - branch_gate_result: passed (make test, 660.3s at c8e6efcd2)
 - ancestor_of_origin_main: true
 - author: oompah <lesserevil@users.noreply.github.com>
+---
+author: oompah
+created: 2026-08-06 02:06
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 27, Tool calls: 18
+- Tokens: 24 in / 5.8K out [5.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 26s
+- Log: OOMPAH-833__20260806T020219Z.jsonl
 ---
 <!-- COMMENTS:END -->
