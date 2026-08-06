@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:38:29.998788Z'
+updated_at: '2026-08-06T04:40:04.017642Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 2b726a5ec2c196022230a244f15350ffc8de6ac84acf9ae25312ca06f007ff39
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 872590ea-9381-4f68-b15c-c5956fb8dd17
+  claim_owner: 11468835-7c49-48df-a46d-b143af3a940a
+  claimed_at: '2026-08-06T04:39:52.426319+00:00'
+  claim_expires_at: '2026-08-06T05:09:52.426319+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 59d7e31e-c94e-4d3f-a00d-1475abe0cf6f
 ---
 ## Summary
 
@@ -29,3 +47,11 @@ Regression evidence: the authoritative OOMPAH-791 exact-head gate at 0b5b039a re
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 04:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+<!-- COMMENTS:END -->
