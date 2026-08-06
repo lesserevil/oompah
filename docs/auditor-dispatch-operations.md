@@ -344,8 +344,12 @@ coordinator contract. `audit_retry` is used for infrastructure, policy, or
 `no_auditor` exhaustion; `audit_retry_evidence_addendum` is reserved for
 matching `missing_evidence` records; all other completed records prescribe
 `audit_override`. A successful retry or override clears the task-level alert
-immediately, and the durable terminal status prevents it from returning after
-restart.
+only after the tracker accepts its exact status. If retry metadata commits but
+`In Validation` cannot be restored, the API reports the divergence, leaves the
+alert actionable, and restart recovery replays the durable status intent. A
+concurrent PASS or override has newer authority and prevents that retry intent
+or the integrated-delivery replay from regressing `Done` or recreating the
+warning after restart.
 
 ## Explicit Owner Override
 
