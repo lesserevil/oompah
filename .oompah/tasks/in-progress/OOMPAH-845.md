@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T03:54:41.149425Z'
+updated_at: '2026-08-06T03:55:27.122726Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 72c3a8a5-9bdd-40d5-a089-1c4f4c12bebd
+oompah.agent_run_id: b8dd3d61-96ef-4a55-a3c3-e6fb40a48d7a
 oompah.task_costs:
   total_input_tokens: 46333
   total_output_tokens: 260
@@ -109,5 +109,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 18s
 - Log: OOMPAH-845__20260806T035234Z.jsonl
+---
+author: oompah
+created: 2026-08-06 03:55
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-06 03:55
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
