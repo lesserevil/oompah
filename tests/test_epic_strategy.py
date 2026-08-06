@@ -54,14 +54,47 @@ from oompah.terminal_transition_coordinator import TransitionResult
 _TEST_ORCHESTRATORS: list[Orchestrator] = []
 
 
-def _close_test_orchestrator(orch: Orchestrator) -> None:
-    """Drain resources owned by a helper-created orchestrator."""
+def _close_test_orchestrator(orch: Orchestrator) -> list[str]:
+    """Drain resources and return work that escaped the owning test."""
+    cleanup_errors: list[str] = []
     for pool_name in ("_tick_pool", "_refresh_pool"):
         pool = getattr(orch, pool_name, None)
         if pool is None:
             continue
-        pool.shutdown(wait=True, cancel_futures=False)
-        assert not any(thread.is_alive() for thread in pool._threads)
+        try:
+            pool.shutdown(wait=True, cancel_futures=False)
+        except Exception as exc:  # noqa: BLE001 - report all teardown failures
+            cleanup_errors.append(f"{pool_name} shutdown failed: {exc!r}")
+        live_threads = [
+            thread.name
+            for thread in getattr(pool, "_threads", ())
+            if thread.is_alive()
+        ]
+        if live_threads:
+            cleanup_errors.append(
+                f"{pool_name} retained live threads: {', '.join(live_threads)}"
+            )
+
+    for future_name in (
+        "_maintenance_future",
+        "_epic_maintenance_future",
+        "_integration_future",
+        "_standalone_delivery_future",
+        "_terminal_lifecycle_future",
+        "_workflow_shadow_future",
+    ):
+        future = getattr(orch, future_name, None)
+        if future is None:
+            continue
+        if not future.done():
+            cleanup_errors.append(f"{future_name} remained pending after pool shutdown")
+            continue
+        if future.cancelled():
+            continue
+        try:
+            future.result()
+        except Exception as exc:  # noqa: BLE001 - background errors fail the test
+            cleanup_errors.append(f"{future_name} failed: {exc!r}")
 
     for store_name in (
         "coordination_store",
@@ -72,17 +105,33 @@ def _close_test_orchestrator(orch: Orchestrator) -> None:
     ):
         store = getattr(orch, store_name, None)
         if store is not None:
-            store.close()
+            try:
+                store.close()
+            except Exception as exc:  # noqa: BLE001 - close every owned store
+                cleanup_errors.append(f"{store_name} close failed: {exc!r}")
+
+    return cleanup_errors
 
 
 @pytest.fixture(autouse=True)
 def _cleanup_test_orchestrators():
     """Keep helper-owned pools and stores from crossing test boundaries."""
-    yield
-    orchestrators = list(_TEST_ORCHESTRATORS)
-    _TEST_ORCHESTRATORS.clear()
-    for orch in orchestrators:
-        _close_test_orchestrator(orch)
+    first_owned = len(_TEST_ORCHESTRATORS)
+    try:
+        yield
+    finally:
+        orchestrators = _TEST_ORCHESTRATORS[first_owned:]
+        del _TEST_ORCHESTRATORS[first_owned:]
+        cleanup_errors: list[str] = []
+        for index, orch in enumerate(reversed(orchestrators), start=1):
+            cleanup_errors.extend(
+                f"orchestrator {index}: {error}"
+                for error in _close_test_orchestrator(orch)
+            )
+        if cleanup_errors:
+            pytest.fail(
+                "helper-owned resource leakage: " + "; ".join(cleanup_errors)
+            )
 
 
 def _make_issue(
@@ -168,6 +217,17 @@ def _make_orch(tmp_path, projects=None):
             reason=None,
         )
     )
+    # Epic-strategy tests call explicit lifecycle methods.  They never need the
+    # scheduler's unrelated fire-and-forget producers to run as a side effect
+    # of a helper-created orchestrator.
+    orch._run_step5b_maintenance = MagicMock()
+    orch._run_step5c_epic_maintenance = MagicMock()
+    orch._maybe_run_watchdog = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+    orch._run_workflow_shadow_sweep = MagicMock()
+    orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
+    orch._process_integration_queues = AsyncMock()
     _TEST_ORCHESTRATORS.append(orch)
     return orch
 
