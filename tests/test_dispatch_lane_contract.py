@@ -28,6 +28,40 @@ from oompah.orchestrator import DispatchLane, DispatchEvent, DispatchEventType, 
 # ---------------------------------------------------------------------------
 
 
+_TEST_ORCHESTRATORS: list[Orchestrator] = []
+
+
+def _close_test_orchestrator(orch: Orchestrator) -> None:
+    """Drain resources owned by a helper-created orchestrator."""
+    for pool_name in ("_tick_pool", "_refresh_pool"):
+        pool = getattr(orch, pool_name, None)
+        if pool is None:
+            continue
+        pool.shutdown(wait=True, cancel_futures=False)
+        assert not any(thread.is_alive() for thread in pool._threads)
+
+    for store_name in (
+        "coordination_store",
+        "integration_queue",
+        "review_capacity_store",
+        "workflow_job_store",
+        "task_transition_journal",
+    ):
+        store = getattr(orch, store_name, None)
+        if store is not None:
+            store.close()
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_test_orchestrators():
+    """Keep helper-owned pools and stores from crossing test boundaries."""
+    yield
+    orchestrators = list(_TEST_ORCHESTRATORS)
+    _TEST_ORCHESTRATORS.clear()
+    for orch in orchestrators:
+        _close_test_orchestrator(orch)
+
+
 def _make_config() -> ServiceConfig:
     return ServiceConfig()
 
@@ -71,8 +105,13 @@ def _make_orchestrator(tmp_path):
     # _tick() submits epic maintenance as fire-and-forget executor work. These
     # lane-contract tests only exercise dispatch serialization, so keep real
     # tracker/git maintenance out of the background between tests.
+    orch._run_step5b_maintenance = MagicMock()
     orch._run_step5c_epic_maintenance = MagicMock()
+    orch._maybe_run_watchdog = MagicMock()
+    orch._recover_release_addendum_leases = MagicMock(return_value=0)
+    orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
     orch._process_epic_proposals = MagicMock(return_value=[])
+    _TEST_ORCHESTRATORS.append(orch)
     return orch
 
 
@@ -714,18 +753,13 @@ class TestDispatchLockExceptionSafety:
         """If the first dispatch call raises, the second call can still acquire the lock."""
         orch = _make_orchestrator(tmp_path)
 
-        call_count = [0]
-
-        def maybe_raise():
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise RuntimeError("first call fails")
-            return []
-
-        orch._fetch_all_candidates = maybe_raise
-        orch._pre_resolve_blockers = MagicMock()
-        orch._reset_orphaned_in_progress = MagicMock()
-        orch._plan_open_epics = MagicMock(return_value=[])
+        # This contract belongs to the outer lock wrapper.  Keep the inner
+        # dispatch traversal out of the test so auditor, tracker, duplicate
+        # preflight, and executor work cannot affect lock-safety timing.
+        locked_dispatch = AsyncMock(
+            side_effect=[RuntimeError("first call fails"), {"dispatch_ms": 0.0}]
+        )
+        orch._handle_dispatch_needed_locked = locked_dispatch  # type: ignore[method-assign]
 
         async def run_both():
             # First call raises.
@@ -737,4 +771,5 @@ class TestDispatchLockExceptionSafety:
 
         result = asyncio.run(run_both())
         assert isinstance(result, dict)
+        assert locked_dispatch.await_count == 2
         assert not orch._dispatch_lane_lock.locked()
