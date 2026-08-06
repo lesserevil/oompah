@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:31:57.576846Z'
+updated_at: '2026-08-06T05:32:09.359580Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -72,12 +72,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-853
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
-  updated_at: '2026-08-06T05:15:19.353933+00:00'
+  head_sha: 92e8d38fc22262d7212ee5468f9e4a60ea6a0d71
+  submitted_at: '2026-08-06T05:31:56.048103+00:00'
+  updated_at: '2026-08-06T05:31:56.048103+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1996
@@ -176,5 +178,20 @@ author: oompah
 created: 2026-08-06 05:31
 ---
 Completion: delivered and pushed 92e8d38fc. Healthy duplicate corpus pressure now retains every present structural peer through deterministic compact summaries within task/byte bounds, preserves relationship/project/terminal handling, and completes durable conclusive verdicts without Needs Human. Unavailable/corrupt tracker reads remain on bounded retry and actionable owner-resolution flow. Focused suites: 265 passed; py_compile and diff checks passed. The equivalent full 16,075-test parallel run started with passes but was host-terminated (SIGTERM) during early global tests; make setup/test wrapper was separately blocked by the host read-only validation-lease path.
+---
+author: oompah
+created: 2026-08-06 05:32
+---
+Retain structural duplicate peers in compact bounded corpus records and keep healthy budget pressure conclusive; corrupt tracker reads remain actionable.
+---
+author: oompah
+created: 2026-08-06 05:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 100
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 56s
+- Log: OOMPAH-853__20260806T051526Z.jsonl
 ---
 <!-- COMMENTS:END -->
