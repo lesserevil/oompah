@@ -92,15 +92,13 @@ def attach_webhook_forwarder_alerts(
     from oompah.webhooks import build_webhook_forwarder_alerts
 
     def _on_forwarder_status(status: dict[str, Any]) -> None:
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not (
+        orchestrator._replace_alerts_matching(
+            lambda alert: (
                 str(alert.get("source", "")) == "webhook_forwarder"
                 or str(alert.get("source", "")).startswith("webhook_forwarder:")
-            )
-        ]
-        orchestrator._alerts.extend(build_webhook_forwarder_alerts(status))
+            ),
+            build_webhook_forwarder_alerts(status),
+        )
 
     webhook_forwarder._status_callback = _on_forwarder_status
 
@@ -124,15 +122,13 @@ def attach_gitlab_hook_alerts(
     from oompah.webhooks import build_gitlab_hook_alerts
 
     def _on_hook_status(status: dict[str, Any]) -> None:
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not (
+        orchestrator._replace_alerts_matching(
+            lambda alert: (
                 str(alert.get("source", "")) == "gitlab_hook_manager"
                 or str(alert.get("source", "")).startswith("gitlab_hook_manager:")
-            )
-        ]
-        orchestrator._alerts.extend(build_gitlab_hook_alerts(status))
+            ),
+            build_gitlab_hook_alerts(status),
+        )
 
     gitlab_hook_manager._status_callback = _on_hook_status
 
@@ -419,13 +415,11 @@ async def setup_services(
     if label_bootstrap_results:
         from oompah.label_bootstrap import build_label_bootstrap_alerts
 
-        orchestrator._alerts = [
-            alert
-            for alert in orchestrator._alerts
-            if not str(alert.get("source", "")).startswith("label_bootstrap:")
-        ]
-        orchestrator._alerts.extend(
-            build_label_bootstrap_alerts(label_bootstrap_results)
+        orchestrator._replace_alerts_matching(
+            lambda alert: str(alert.get("source", "")).startswith(
+                "label_bootstrap:"
+            ),
+            build_label_bootstrap_alerts(label_bootstrap_results),
         )
 
     # Apply --paused flag

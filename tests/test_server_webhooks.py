@@ -3045,13 +3045,28 @@ class TestGitLabWebhookStatusEndpoint:
 class TestAttachGitlabHookAlerts:
     """Tests for attach_gitlab_hook_alerts() in oompah.bootstrap."""
 
-    def test_callback_updates_orchestrator_alerts(self):
+    @staticmethod
+    def _orchestrator_alert_sink():
+        """Return a minimal locked-alert-helper stand-in for callbacks."""
         from unittest.mock import MagicMock
-        from oompah.bootstrap import attach_gitlab_hook_alerts
-        from oompah.webhooks import GitLabHookManager
 
         orch = MagicMock()
         orch._alerts = []
+
+        def replace_matching(predicate, replacements=()):
+            orch._alerts = [
+                alert for alert in orch._alerts if not predicate(alert)
+            ]
+            orch._alerts.extend(dict(alert) for alert in replacements)
+
+        orch._replace_alerts_matching.side_effect = replace_matching
+        return orch
+
+    def test_callback_updates_orchestrator_alerts(self):
+        from oompah.bootstrap import attach_gitlab_hook_alerts
+        from oompah.webhooks import GitLabHookManager
+
+        orch = self._orchestrator_alert_sink()
         manager = GitLabHookManager()
         attach_gitlab_hook_alerts(orch, manager)
 
@@ -3068,12 +3083,10 @@ class TestAttachGitlabHookAlerts:
         assert orch._alerts[0]["source"] == "gitlab_hook_manager:p1"
 
     def test_callback_clears_stale_alerts_on_recovery(self):
-        from unittest.mock import MagicMock
         from oompah.bootstrap import attach_gitlab_hook_alerts
         from oompah.webhooks import GitLabHookManager
 
-        orch = MagicMock()
-        orch._alerts = []
+        orch = self._orchestrator_alert_sink()
         manager = GitLabHookManager()
         attach_gitlab_hook_alerts(orch, manager)
 
