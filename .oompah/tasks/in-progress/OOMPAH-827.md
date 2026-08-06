@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-05T23:59:06.424553Z'
+updated_at: '2026-08-06T00:15:48.918029Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,32 @@ author: oompah
 created: 2026-08-05 23:59
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 00:15
+---
+**Verification:** Completed implementation verified:
+
+1. RunningEntry.classify_work_kind() method added with precedence: audit > duplicate_screening > implementation
+
+2. Centralized classifier used in all observability surfaces:
+   - orchestrator.py:39712 (get_snapshot for /api/v1/state)
+   - server.py:13580 (api_agent_activity for /api/v1/agents/:identifier/activity)
+   - orchestrator.py:31988 (AGENT_DISPATCHED event uses correct precedence logic)
+
+3. Safe audit identity fields added:
+   - is_auditor, audit_id, audit_attempt_id, retiring fields included in activity and state responses
+   - Only exposed when actually auditing, no exposure for ordinary work
+
+4. Comprehensive test coverage (19 tests, all passing):
+   - Direct classifier tests covering all work kinds and precedence
+   - State snapshot consistency tests
+   - Activity endpoint tests
+   - Cross-surface consistency tests
+   - Verification that profile name alone never determines work_kind
+
+5. Full test suite passes: 15679 passed, 7 skipped, 1 xfailed
+
+Ready for submission.
 ---
 <!-- COMMENTS:END -->

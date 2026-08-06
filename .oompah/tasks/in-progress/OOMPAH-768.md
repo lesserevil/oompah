@@ -22,7 +22,7 @@ labels:
 - rebase-requested
 assignee: null
 created_at: '2026-08-04T13:55:59.817364Z'
-updated_at: '2026-08-05T16:32:12.223471Z'
+updated_at: '2026-08-06T00:15:44.733654Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-08-05 16:32
 ---
 Integration checkpoint advanced: OOMPAH-807 passed the combined-tree gate and integrated at b1c089614. The refreshed OOMPAH-768 composition is based on that exact root and contains only the accepted durable integration/implementation/review plus OOMPAH-813 authority fixes; two conflict-repair corrections normalize project identity and preserve OOMPAH-815 recovery scope. Static checks are clean. Focused composition tests are intentionally waiting for the single shared validation lane, currently occupied by OOMPAH-523's legitimate make test; no duplicate test load is being introduced.
+---
+author: oompah
+created: 2026-08-06 00:15
+---
+Critical-path parent rebase completed while dispatch was paused. epic-OOMPAH-768 was rebased from ce2526a8b7e67426c3919cf890a9b3b1cdca20ad onto exact epic-OOMPAH-763 head 58ffd477b19f370c7ed53a191e1a05580b016c85 and pushed at 16d83ea3eaf409338cc22449e1447be088bea7df. Upstream-equivalent OOMPAH-805/819 patches dropped naturally; OOMPAH-813 conflicts were combined with the newer root recovery fences, including exact scoped project identity. Verification: 489 focused workflow, submission, review, integration, long-tick, and terminal-transition tests passed; pycompile, diff check, and make check-secrets passed. OOMPAH-807 code is now reachable on this parent.
 ---
 <!-- COMMENTS:END -->
