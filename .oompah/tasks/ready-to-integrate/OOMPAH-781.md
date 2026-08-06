@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T07:37:55.205109Z'
+updated_at: '2026-08-06T07:44:15.870242Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -73,9 +73,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
-  head_sha: 6d6b641eb02560f86d7bfe8d1c90c3fda9951fd4
-  submitted_at: '2026-08-06T07:37:47.530480+00:00'
-  updated_at: '2026-08-06T07:37:47.530480+00:00'
+  head_sha: 680dbfb08a72eccc35517ceb58a310c35799e92e
+  submitted_at: '2026-08-06T07:44:11.095504+00:00'
+  updated_at: '2026-08-06T07:44:11.095504+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -572,5 +572,15 @@ author: oompah
 created: 2026-08-06 07:37
 ---
 Isolated the loaded tick diagnostic that crashed xdist; 659 affected tests pass at 6d6b641eb.
+---
+author: oompah
+created: 2026-08-06 07:44
+---
+Final loaded-test hardening amended at head 680dbfb08: the dispatch mock now returns the timing Mapping consumed by _tick's slow-log path, preventing saturated-host timing from exposing an unrelated bare-AsyncMock formatting failure. This matches the accepted OOMPAH-851 systemic mock contract. Static compile/diff checks pass; prior exact/module/659-test evidence covers the same tick flow, and the authoritative gate will validate this exact head.
+---
+author: oompah
+created: 2026-08-06 07:44
+---
+Finalized hermetic loaded tick diagnostics at 680dbfb08; exact and 659-test affected verification passed before the faithful mock-return amendment.
 ---
 <!-- COMMENTS:END -->
