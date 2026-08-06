@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T18:26:52.933449Z'
+updated_at: '2026-08-06T18:28:21.464641Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -127,6 +127,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-06T17:47:00.310817+00:00'
     branch_key: epic-OOMPAH-763--task-OOMPAH-831
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 157
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 157
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 157
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T18:28:15.650122+00:00'
 ---
 ## Summary
 
@@ -360,5 +376,15 @@ Safe evidence:
 - dispatch_lane_full_suite: 34 passed
 - commits_in_scope: 81b8be698 (align terminal auditor inspection tools) and 0e0056375 (keep auditor escape denials fatal)
 - search_worker_subprocess: oompah/search_files.py subprocess-isolated for regex catastrophic-backtracking containment
+---
+author: oompah
+created: 2026-08-06 18:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 91, Tool calls: 68
+- Tokens: 6 in / 157 out [163 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 41m 12s
+- Log: OOMPAH-831__20260806T174723Z.jsonl
 ---
 <!-- COMMENTS:END -->
