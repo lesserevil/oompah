@@ -647,7 +647,7 @@ def test_unfinished_finish_dependency_stays_deferred_after_restart(
 
 
 def test_terminal_audit_satisfied_dependency_releases_one_gate(harness):
-    """A terminal dependency resumes the submitted head through normal delivery."""
+    """A terminal dependency resumes delivery without a false capacity wait."""
 
     orch, project, tracker, provider, _detect, gate = harness
     task = _issue("TASK-RELEASE")
@@ -664,8 +664,7 @@ def test_terminal_audit_satisfied_dependency_releases_one_gate(harness):
     gate.assert_called_once_with(project, task, "TASK-RELEASE", "trunk")
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
-    assert _delivery_alerts(orch)[0]["level"] == "info"
-    assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
+    assert not _delivery_alerts(orch)
 
 
 def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
@@ -993,7 +992,7 @@ def test_later_sweep_stale_cache_cannot_create_second_review(harness):
     assert "waiting for review capacity" in _delivery_alerts(orch)[0]["message"]
 
 
-def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
+def test_concurrent_ready_sweeps_share_one_durable_slot(harness, tmp_path, monkeypatch):
     orch, project, tracker, provider, _detect, gate = harness
     project.max_in_flight_prs = 1
     tracker.fetch_issues_by_states.return_value = [
@@ -1006,27 +1005,42 @@ def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
         "TASK-CONCURRENT-1",
         review_id="602",
     )
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-two.json")),
+        state_name="service-state-two.json",
+    )
     gate_barrier = threading.Barrier(2)
+    gate_two = mock.MagicMock()
 
     def synchronized_gate(*_args, **_kwargs):
         gate_barrier.wait(timeout=5)
         return True
 
     gate.side_effect = synchronized_gate
+    gate_two.side_effect = synchronized_gate
+    monkeypatch.setattr(orch_two, "_review_quality_gate_passes", gate_two)
 
     workers = [
         threading.Thread(
-            target=orch._reconcile_standalone_ready_to_integrate_tasks,
+            target=reconciler._reconcile_standalone_ready_to_integrate_tasks,
         )
-        for _ in range(2)
+        for reconciler in (orch, orch_two)
     ]
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join()
+    try:
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
 
-    assert provider.create_review.call_count == 1
-    assert not _delivery_alerts(orch)
+        assert all(not worker.is_alive() for worker in workers)
+        assert provider.create_review.call_count == 1
+        assert not _delivery_alerts(orch)
+        assert not _delivery_alerts(orch_two)
+    finally:
+        _close_orchestrator(orch_two)
 
 
 def test_concurrent_loser_does_not_arm_after_winner_reserves_capacity(harness):
@@ -1066,7 +1080,10 @@ def test_concurrent_loser_does_not_arm_after_winner_reserves_capacity(harness):
     assert not _delivery_alerts(orch)
 
 
-def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harness):
+def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(
+    harness,
+    tmp_path,
+):
     """A stale loser sees the winner's exact existing-review adoption."""
 
     orch, project, tracker, provider, _detect, _gate = harness
@@ -1079,7 +1096,14 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harnes
     loser_capacity_decided = threading.Event()
     release_adoption = threading.Event()
     original_adopt = orch._adopt_open_review_capacity
-    original_capacity_reservation = orch._standalone_review_capacity_reservation
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-two.json")),
+        state_name="service-state-two.json",
+    )
+    original_capacity_reservation = orch_two._standalone_review_capacity_reservation
 
     def record_adoption(*args, **kwargs):
         original_adopt(*args, **kwargs)
@@ -1104,7 +1128,7 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harnes
     provider.find_pr_for_branch.side_effect = find_review_for_sweep
     provider.list_open_reviews.return_value = []
     orch._adopt_open_review_capacity = record_adoption
-    orch._standalone_review_capacity_reservation = record_capacity_reservation
+    orch_two._standalone_review_capacity_reservation = record_capacity_reservation
 
     winner = threading.Thread(
         name="adoption-winner",
@@ -1112,7 +1136,7 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harnes
     )
     loser = threading.Thread(
         name="stale-lookup-loser",
-        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+        target=orch_two._reconcile_standalone_ready_to_integrate_tasks,
     )
     winner.start()
     try:
@@ -1123,11 +1147,13 @@ def test_concurrent_stale_lookup_recognizes_exact_adopted_review_capacity(harnes
         release_adoption.set()
         winner.join(timeout=5)
         loser.join(timeout=5)
+        _close_orchestrator(orch_two)
 
     assert not winner.is_alive()
     assert not loser.is_alive()
     assert provider.create_review.call_count == 0
     assert not _delivery_alerts(orch)
+    assert not _delivery_alerts(orch_two)
     [reservation] = orch.review_capacity_store.active(project.id)
     authority = orch._standalone_delivery_authorities[(project.id, task.identifier)]
     assert reservation.review_id == "604"

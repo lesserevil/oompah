@@ -1492,6 +1492,12 @@ class Orchestrator:
         # side effect and let the terminal coordinator revoke under the same
         # lock so the winner is unambiguous.
         self._standalone_delivery_authority_lock = threading.RLock()
+        # A maintenance tick can overlap another same-process tick while the
+        # winner is blocked in a quality gate or forge request.  Do not let a
+        # losing sweep wait behind the authority lock used to fence terminal
+        # transitions; the durable review-capacity store still coordinates
+        # delivery attempts across processes.
+        self._standalone_ready_reconciliation_lock = threading.Lock()
         self._standalone_delivery_authorities: dict[
             tuple[str, str], StandaloneDeliveryAuthority
         ] = {}
@@ -9756,6 +9762,19 @@ class Orchestrator:
         submission reached the tracker but whose worker exited before review
         creation completed.
         """
+        if not self._standalone_ready_reconciliation_lock.acquire(blocking=False):
+            logger.debug(
+                "Skipped overlapping standalone Ready reconciliation in this process"
+            )
+            return
+        try:
+            self._reconcile_standalone_ready_to_integrate_tasks_locked()
+        finally:
+            self._standalone_ready_reconciliation_lock.release()
+
+    def _reconcile_standalone_ready_to_integrate_tasks_locked(self) -> None:
+        """Run one exclusive same-process standalone Ready reconciliation."""
+
         for project in self.project_store.list_all():
             project_id = str(project.id)
             tracker = self._tracker_for_project(project_id)
