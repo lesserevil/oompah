@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T03:55:09.711813Z'
+updated_at: '2026-08-06T03:57:08.155859Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -202,5 +202,33 @@ author: oompah
 created: 2026-08-06 03:55
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 03:57
+---
+## Understanding
+
+This task requires adding workflow liveness SLO (Service Level Objective) metrics to track time-to-owner/explanation for tasks in Open, Ready, In Validation, In Review states, plus recovery and post-restart handling.
+
+### Key requirements:
+1. **Instrument time-to-owner**: Track decision age, reassessment lateness, lease/retry deadlines, recoveries, escalations, unexplained divergences with bounded cardinality
+2. **Configuration**: Add OOMPAH_* env variables for health thresholds
+3. **Health exposure**: Project/global summaries via API health endpoints
+4. **Testing**: fake-clock boundaries, progress resets, no false overdue during active jobs, restart timestamps, cardinality bounds, health/alert integration
+5. **Acceptance criteria**: SLO violations are measurable and attributable; healthy means every nonterminal task satisfies liveness invariant
+
+### Planned approach:
+1. Create new `workflow_liveness_metrics.py` module for SLO instrumentation
+2. Extend models to track time-to-owner and decision age per task status
+3. Add OOMPAH_SLO_* configuration for thresholds (via .env.example)
+4. Integrate with existing health endpoints (provider_health.py pattern)
+5. Write comprehensive test suite with fake clock and state transitions
+6. Expose metrics via API health endpoints alongside existing terminal_audit_health
+
+### My focus:
+As Oompah Tests Auth Specialist, I'll ensure:
+- Clean API boundaries and proper health endpoint integration
+- Robust test coverage with edge cases (fake clock, restarts, transitions)
+- Proper instrumentation that doesn't expose internal state
 ---
 <!-- COMMENTS:END -->
