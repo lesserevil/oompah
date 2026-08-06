@@ -1,23 +1,25 @@
 ---
 id: OOMPAH-855
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Preserve auditor candidate eligibility across operator pause retirement
 parent: OOMPAH-763
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-854
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-06T06:52:17.206143Z'
+updated_at: '2026-08-06T16:30:39.849128Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -29,3 +31,11 @@ Live regression on OOMPAH-853 on 2026-08-06. A Done auditor using the second eli
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 16:30
+---
+Promoted for the systemic completion program with an explicit hard-start on OOMPAH-854. The pause-retirement eligibility repair depends on OOMPAH-854 durable pre-provider audit fencing and must dispatch from that accepted lineage, avoiding a second overlapping quiesce/restart implementation.
+---
+<!-- COMMENTS:END -->

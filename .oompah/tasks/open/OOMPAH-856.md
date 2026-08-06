@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T06:57:39.271491Z'
+updated_at: '2026-08-06T16:30:47.754056Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live regression on OOMPAH-745 on 2026-08-06. The integration recovery alert repo
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-06 16:30
+---
+Promoted to Open for managed server implementation in parallel. It has no start dependency and can repair accepted recovery actions and stale-alert clearing while the operator-owned audit/runtime branches validate.
+---
+<!-- COMMENTS:END -->
