@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import logging
 import math
@@ -772,7 +773,7 @@ def _exec_run_command(
     validation_owner: ValidationLeaseOwner | None = None,
     lease_cancelled: Callable[[], bool] | None = None,
     require_validation_lease: bool = False,
-    successful_validation_handler: Callable[[str, Path], object] | None = None,
+    successful_validation_handler: Callable[..., object] | None = None,
     result_delivery_required: bool = False,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
@@ -944,6 +945,7 @@ def _exec_run_command(
             popen_kwargs["pass_fds"] = validation_handle.pass_fds
         if _authority_cancelled():
             return "Error: validation authority withdrawn before command launch"
+        command_started = time.monotonic()
         process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
         if validation_handle is not None:
             try:
@@ -990,7 +992,28 @@ def _exec_run_command(
             and not _authority_cancelled()
         ):
             try:
-                successful_validation_handler(command, workspace)
+                try:
+                    signature = inspect.signature(successful_validation_handler)
+                    accepts_duration = (
+                        "duration_seconds" in signature.parameters
+                        or any(
+                            parameter.kind
+                            == inspect.Parameter.VAR_KEYWORD
+                            for parameter in signature.parameters.values()
+                        )
+                    )
+                except (TypeError, ValueError):
+                    accepts_duration = False
+                if accepts_duration:
+                    successful_validation_handler(
+                        command,
+                        workspace,
+                        duration_seconds=max(time.monotonic() - command_started, 0.0),
+                    )
+                else:
+                    # Keep the callback source-compatible with older tool
+                    # catalogs and tests that only accepted command/workspace.
+                    successful_validation_handler(command, workspace)
             except Exception as exc:  # noqa: BLE001 - evidence is an optimization
                 logger.warning(
                     "Unable to record auditor validation evidence: %s",

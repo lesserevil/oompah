@@ -149,6 +149,47 @@ def test_queue_age_and_project_isolation_survive_restart() -> None:
     assert snapshot["retried"] == 1
 
 
+def test_quality_gate_decision_and_validation_lane_telemetry_survive_restart() -> None:
+    persisted: dict = {}
+    first = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    first.record_quality_gate_decision(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        decision="reuse_authoritative_gate",
+        result="passed",
+        head_sha="a" * 40,
+        command="make test",
+        duration_seconds=42.0,
+    )
+    first.record_auditor_validation_command(
+        "project-a",
+        "TASK-1",
+        "audit-1",
+        command="pytest tests/test_warning.py -q",
+        configured_command="make test",
+        duration_seconds=1.5,
+    )
+
+    restarted = TerminalAuditMetrics(
+        load_state=lambda: persisted,
+        save_state=lambda update: persisted.update(update),
+    )
+    snapshot = restarted.snapshot()
+
+    assert snapshot["authoritative_gate_reused"] == 1
+    assert snapshot["focused_supplemental_commands"] == 1
+    assert snapshot["validation"]["last_decision"]["decision"] == (
+        "reuse_authoritative_gate"
+    )
+    assert snapshot["validation"]["last_command"]["category"] == (
+        "focused_supplemental_commands"
+    )
+
+
 def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() -> None:
     now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
     metrics = TerminalAuditMetrics(clock=_Clock(now))
