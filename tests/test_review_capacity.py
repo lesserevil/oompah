@@ -2,7 +2,39 @@
 
 from __future__ import annotations
 
+import multiprocessing
+import sqlite3
+
 from oompah.review_capacity import ReviewCapacityStore
+
+
+class _BarrierReviewCapacityStore(ReviewCapacityStore):
+    """Hold spawned contenders at the exact migration boundary."""
+
+    def __init__(self, path, migration_barrier):
+        self._migration_barrier = migration_barrier
+        super().__init__(path)
+
+    def _migrate_schema(self):
+        self._migration_barrier.wait(timeout=10)
+        super()._migrate_schema()
+
+
+def _open_capacity_store_concurrently(path, migration_barrier, results):
+    """Open one store after every migration contender is ready."""
+
+    try:
+        store = _BarrierReviewCapacityStore(path, migration_barrier)
+        columns = {
+            row[1]
+            for row in store._conn.execute(  # noqa: SLF001 - migration assertion
+                "PRAGMA table_info(review_capacity_reservations)"
+            )
+        }
+        store.close()
+        results.put(("ok", columns))
+    except BaseException as exc:  # pragma: no cover - reported in parent
+        results.put(("error", f"{type(exc).__name__}: {exc}"))
 
 
 def _acquire(store: ReviewCapacityStore, *, project: str, task: str, rid: str):
@@ -102,3 +134,148 @@ def test_uncommitted_lease_expires_without_stranding_capacity(tmp_path, monkeypa
 
     clock[0] = 111.0
     assert _acquire(store, project="proj-1", task="TASK-2", rid="res-2")
+
+
+def test_exact_delivery_authority_survives_restart(tmp_path):
+    path = str(tmp_path / "review-capacity.sqlite3")
+    store = ReviewCapacityStore(path)
+    reservation = store.acquire(
+        project_id="proj-1",
+        task_id="TASK-1",
+        source_branch="branch-TASK-1",
+        target_branch="main",
+        limit=1,
+        open_review_ids=[],
+        reservation_id="res-exact",
+        authority_generation="delivery-generation",
+        head_sha="ABC123",
+    )
+    assert reservation is not None
+    store.close()
+
+    restarted = ReviewCapacityStore(path)
+    assert restarted.active("proj-1") == [
+        reservation.__class__(
+            reservation_id="res-exact",
+            project_id="proj-1",
+            task_id="TASK-1",
+            source_branch="branch-TASK-1",
+            target_branch="main",
+            review_id=None,
+            acquired_at=reservation.acquired_at,
+            lease_expires_at=reservation.lease_expires_at,
+            authority_generation="delivery-generation",
+            head_sha="abc123",
+        )
+    ]
+
+
+def test_schema_one_database_migrates_exact_authority_columns(tmp_path):
+    path = tmp_path / "review-capacity.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO schema_meta(key, value) VALUES('version', '1');
+        CREATE TABLE review_capacity_reservations (
+            reservation_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            source_branch TEXT NOT NULL,
+            target_branch TEXT NOT NULL,
+            review_id TEXT,
+            acquired_at REAL NOT NULL,
+            lease_expires_at REAL,
+            released_at REAL
+        );
+        INSERT INTO review_capacity_reservations VALUES(
+            'legacy', 'proj-1', 'TASK-1', 'branch-TASK-1', 'main',
+            NULL, 100.0, 99999999999.0, NULL
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = ReviewCapacityStore(str(path))
+    [reservation] = store.active("proj-1")
+    assert reservation.reservation_id == "legacy"
+    assert reservation.authority_generation is None
+    assert reservation.head_sha is None
+    with sqlite3.connect(path) as migrated:
+        columns = {
+            row[1]
+            for row in migrated.execute(
+                "PRAGMA table_info(review_capacity_reservations)"
+            )
+        }
+        version = migrated.execute(
+            "SELECT value FROM schema_meta WHERE key = 'version'"
+        ).fetchone()[0]
+    assert {"authority_generation", "head_sha"} <= columns
+    assert version == "2"
+
+
+def test_schema_one_concurrent_process_initialization_is_serialized(tmp_path):
+    path = tmp_path / "review-capacity.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO schema_meta(key, value) VALUES('version', '1');
+        CREATE TABLE review_capacity_reservations (
+            reservation_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            source_branch TEXT NOT NULL,
+            target_branch TEXT NOT NULL,
+            review_id TEXT,
+            acquired_at REAL NOT NULL,
+            lease_expires_at REAL,
+            released_at REAL
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    context = multiprocessing.get_context("spawn")
+    # Two children plus the parent rendezvous after each spawned interpreter
+    # has completed imports/schema setup and immediately before BEGIN
+    # IMMEDIATE.  Neither contender can finish migration before the other is
+    # actually ready to contend.
+    migration_barrier = context.Barrier(3)
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_open_capacity_store_concurrently,
+            args=(str(path), migration_barrier, results),
+        )
+        for _ in range(2)
+    ]
+    observed = []
+    try:
+        for process in processes:
+            process.start()
+        migration_barrier.wait(timeout=15)
+        observed = [results.get(timeout=15) for _ in processes]
+        for process in processes:
+            process.join(timeout=15)
+            assert process.exitcode == 0
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+        for process in processes:
+            process.join(timeout=5)
+        results.close()
+        results.join_thread()
+
+    assert [status for status, _payload in observed] == ["ok", "ok"]
+    for _status, columns in observed:
+        assert {"authority_generation", "head_sha"} <= set(columns)
+    with sqlite3.connect(path) as migrated:
+        version = migrated.execute(
+            "SELECT value FROM schema_meta WHERE key = 'version'"
+        ).fetchone()[0]
+    assert version == "2"

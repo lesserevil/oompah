@@ -1138,6 +1138,13 @@ def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
         "TASK-CONCURRENT-1",
         review_id="602",
     )
+    gate_barrier = threading.Barrier(2)
+
+    def synchronized_gate(*_args, **_kwargs):
+        gate_barrier.wait(timeout=5)
+        return True
+
+    gate.side_effect = synchronized_gate
 
     workers = [
         threading.Thread(
@@ -1152,6 +1159,118 @@ def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
 
     assert provider.create_review.call_count == 1
     assert not _delivery_alerts(orch)
+
+
+def test_concurrent_loser_does_not_arm_after_winner_reserves_capacity(harness):
+    orch, project, tracker, provider, _detect, _gate = harness
+    project.max_in_flight_prs = 1
+    tracker.fetch_issues_by_states.return_value = [
+        _issue("TASK-CONCURRENT-RESERVATION"),
+    ]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    create_started = threading.Event()
+    release_create = threading.Event()
+
+    def blocked_create(*_args, **_kwargs):
+        create_started.set()
+        assert release_create.wait(timeout=5)
+        return _review("TASK-CONCURRENT-RESERVATION", review_id="603")
+
+    provider.create_review.side_effect = blocked_create
+    winner = threading.Thread(
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    loser = threading.Thread(
+        target=orch._reconcile_standalone_ready_to_integrate_tasks,
+    )
+    winner.start()
+    assert create_started.wait(timeout=5)
+    loser.start()
+    loser.join(timeout=5)
+    assert not loser.is_alive()
+    assert not _delivery_alerts(orch)
+    release_create.set()
+    winner.join(timeout=5)
+    assert not winner.is_alive()
+
+    assert provider.create_review.call_count == 1
+    assert not _delivery_alerts(orch)
+
+
+def test_restart_recognizes_exact_uncommitted_reservation_without_false_wait(
+    tmp_path,
+    monkeypatch,
+):
+    project = Project(
+        id="proj-reservation-restart",
+        name="Reservation Restart",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+        max_in_flight_prs=1,
+    )
+    task = _issue("TASK-RESERVATION-RESTART")
+    tracker = mock.MagicMock()
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.fetch_all_issues.return_value = [task]
+    tracker.fetch_issue_detail.return_value = task
+    provider_store_path = tmp_path / "providers.json"
+    orch_one = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(provider_store_path)),
+    )
+    reservation = orch_one.review_capacity_store.acquire(
+        project_id=project.id,
+        task_id=task.identifier,
+        source_branch=task.work_branch or task.identifier,
+        target_branch=project.default_branch,
+        limit=1,
+        open_review_ids=[],
+        reservation_id="old-process-generation",
+        authority_generation="old-process-generation",
+        head_sha="abc123",
+    )
+    assert reservation is not None and reservation.acquired_new
+    _close_orchestrator(orch_one)
+
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = "abc123"
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(task.identifier, review_id="604")
+    monkeypatch.setattr(
+        "oompah.orchestrator.detect_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(provider_store_path)),
+    )
+    source = f"standalone_ready_delivery:{project.id}:{task.identifier}"
+    orch_two._alerts.append(
+        {
+            "level": "info",
+            "source": source,
+            "message": "stale capacity wait",
+        }
+    )
+    try:
+        with mock.patch.object(
+            orch_two,
+            "_review_quality_gate_passes",
+            return_value=True,
+        ) as gate:
+            orch_two._reconcile_standalone_ready_to_integrate_tasks()
+        gate.assert_not_called()
+        provider.create_review.assert_not_called()
+        assert not _delivery_alerts(orch_two)
+    finally:
+        _close_orchestrator(orch_two)
 
 
 def test_service_restart_rediscovers_existing_review_without_duplicate(
