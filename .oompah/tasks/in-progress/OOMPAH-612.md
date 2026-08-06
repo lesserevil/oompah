@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T20:59:18.045888Z'
+updated_at: '2026-08-06T20:59:51.536213Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -473,5 +473,10 @@ author: oompah
 created: 2026-08-06 20:59
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 20:59
+---
+Understanding: ACP's synchronous audit-result callback can block the dispatch event loop while waiting on coordinator work scheduled on that same loop. I will inspect the ACP and API-agent bridges, preserve validation and idempotency behavior, add/adjust same-loop and failure-path regressions, run focused suites plus make test, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
