@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T06:52:17.206143Z'
-updated_at: '2026-08-06T16:32:56.120489Z'
+updated_at: '2026-08-06T16:33:01.783868Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-855
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 32s
 - Log: OOMPAH-855__20260806T163128Z.jsonl
+---
+author: oompah
+created: 2026-08-06 16:33
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861, OOMPAH-862. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
