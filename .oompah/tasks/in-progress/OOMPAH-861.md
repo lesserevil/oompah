@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:57:10.131441Z'
+updated_at: '2026-08-06T13:58:56.420601Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -144,5 +144,15 @@ author: oompah
 created: 2026-08-06 13:57
 ---
 Implementation: preserved accepted IntegrationRecord authority across the state snapshots used during retry dispatch, while allowing a newer accepted generation to win. Retry persistence now derives its branch through assigned_work_branch. Added OOMPAH-860 regressions for stale state refresh and restart rearm on the accepted plain branch.
+---
+author: oompah
+created: 2026-08-06 13:58
+---
+Verification: 9 targeted tests passed (retry authority, accepted submission projection, and parallel repair/workspace cases), including new stale-refresh and restart regressions. py_compile and git diff --check passed. make test-setup/check-secrets could not start because the environment validation guard cannot create its external read-only lock; an ancillary accepted-worktree test hit the same hook-only environment failure.
+---
+author: oompah
+created: 2026-08-06 13:58
+---
+Completion: pushed adb951eac (OOMPAH-861: preserve accepted repair branch). Accepted branch/head authority now survives state-only repair dispatch snapshots and retry persistence, preventing hierarchy recomputation after a gate failure.
 ---
 <!-- COMMENTS:END -->
