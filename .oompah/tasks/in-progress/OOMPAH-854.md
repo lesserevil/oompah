@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T16:13:39.741217Z'
+updated_at: '2026-08-06T16:40:22.315665Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -357,5 +357,10 @@ author: oompah
 created: 2026-08-06 16:13
 ---
 Fresh readiness review found one remaining P0 restart fence: a pre-provider auditor fence is only recorded in memory until worker-exit cleanup, so a drain timeout or process exit can leave an abandoned In Progress audit and consume an attempt; dual rollback-journal failure also logs without closing admission. Owner repair is now making the rollback durable before cleanup, failing admission closed when persistence is unavailable, and replacing the masked restart test with restart-without-manual-worker-exit plus dual-journal-failure regressions. No validation will run until fresh static acceptance.
+---
+author: oompah
+created: 2026-08-06 16:40
+---
+Latest independent P0 review rejected the restart repair on four exact races: cancellation can detach secure rollback then reopen admission; forced termination still destroys the worker before securing pre-provider audit authority; ambiguous metadata CAS is treated as successful cleanup and clears durable recovery; and implementation-retry dual-journal failure leaves an unpause admission window. Repair is adding shielded retirement, pre-cleanup securing, tri-state rollback outcomes, and atomic fail-closed unpause recovery with deterministic regressions.
 ---
 <!-- COMMENTS:END -->
