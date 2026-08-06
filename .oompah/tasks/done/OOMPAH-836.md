@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-836
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-06T11:33:32.971275Z'
+updated_at: '2026-08-06T11:58:59.047437Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,30 @@ oompah.integration:
   updated_at: '2026-08-06T11:27:26.787746+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7baf168299fa: '2026-08-06T11:58:54.487504+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-836
+    target_state: Done
+    evidence_fingerprint: dfbe5d34de3178568e4cf0c1f7a94e06865a86adb1924692024bbf08ab54303a
+    audit_ids:
+    - audit-7d503699759f
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T11:58:54.487516+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-836
+    audit_id: audit-7d503699759f
+    attempt_id: attempt-7baf168299fa
+    target_state: Done
+    evidence_fingerprint: dfbe5d34de3178568e4cf0c1f7a94e06865a86adb1924692024bbf08ab54303a
+    status: Done
+    audit_ids:
+    - audit-7d503699759f
+    applied: false
+    created_at: '2026-08-06T11:58:54.487535+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -38,7 +62,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-836
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,7 +90,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7baf168299fa
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -77,13 +101,16 @@ oompah.terminal_audit:
       started_at: '2026-08-06T11:33:21.069364+00:00'
       branch_key: OOMPAH-836
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-06T11:58:54.487296+00:00'
+      ended_at: '2026-08-06T11:58:54.487296+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T11:27:29.266985+00:00'
-    updated_at: '2026-08-06T11:33:21.069364+00:00'
+    updated_at: '2026-08-06T11:58:54.487296+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d249fe24dc07
