@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -23,7 +23,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T08:43:40.511513Z'
+updated_at: '2026-08-06T08:43:59.065666Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -41,9 +41,9 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-740
   base_branch: main
-  head_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
-  submitted_at: '2026-08-06T07:16:27.932401+00:00'
-  updated_at: '2026-08-06T07:16:27.932401+00:00'
+  head_sha: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
+  submitted_at: '2026-08-06T08:43:52.961748+00:00'
+  updated_at: '2026-08-06T08:43:52.961748+00:00'
 ---
 ## Summary
 
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-08-06 08:43
 ---
 Completion: rebase pass on epic-OOMPAH-740 verified idempotent. Local and remote branch heads match at 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0, a direct descendant of origin/main f2b319c11. No conflict resolution, no rewrite, no force-push was needed — the previous rebase already reconciled OOMPAH-741 quality-gate/normalize_alerts with main's validation-resource additions. 9 epic commits and 20 dashboard/alert/docs/test files preserved. Focused verification: 171 tests passed.
+---
+author: oompah
+created: 2026-08-06 08:43
+---
+Rebase pass verified idempotent: epic-OOMPAH-740 HEAD 03087ebf2 is already a linear descendant of origin/main f2b319c11 with 9 epic commits and 20 files preserved. No conflicts, no force-push required. Focused suites (dashboard alert center/contract/experience/safety/credential/full-sync/scroll, alert_safety, auth_health, integration retry recovery, terminal_audit_health, makefile_setup) pass: 171 tests in 13.72s.
 ---
 <!-- COMMENTS:END -->
