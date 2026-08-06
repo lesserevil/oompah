@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T09:19:24.501811Z'
+updated_at: '2026-08-06T09:28:08.005933Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -48,14 +48,16 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
-  base_branch: epic-OOMPAH-768--task-OOMPAH-804
-  base_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
-  head_sha: 2a09b085bfb71b742c07d8ed91bc1c76add5d029
+  base_branch: epic-OOMPAH-804
+  base_sha: f89c477d4c03a8992a7278337182c0352da5de16
+  head_sha: f89c477d4c03a8992a7278337182c0352da5de16
   submitted_at: '2026-08-06T09:19:13.616511+00:00'
-  updated_at: '2026-08-06T09:19:13.616511+00:00'
+  updated_at: '2026-08-06T09:28:00.936832+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Quality gate owner
+    metadata does not match the exact resolved candidate head.'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -119,5 +121,15 @@ author: oompah
 created: 2026-08-06 09:19
 ---
 Implementation lifecycle handlers are complete at exact head 2a09b085bfb71b742c07d8ed91bc1c76add5d029 and composed into the validated OOMPAH-804 parent head. Parent-level affected workflow validation passed 2397 tests; terminal mutation scan passed 8/8; secrets and critical Ruff checks passed.
+---
+author: oompah
+created: 2026-08-06 09:28
+---
+The combined-tree quality gate failed on `epic-OOMPAH-804--task-OOMPAH-834`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
+```
 ---
 <!-- COMMENTS:END -->
