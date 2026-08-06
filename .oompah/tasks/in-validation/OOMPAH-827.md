@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-827
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: Use one authoritative work-kind classifier across agent observability surfaces
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T02:22:14.798929Z'
+updated_at: '2026-08-06T02:35:54.401331Z'
 work_branch: OOMPAH-827
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/728
@@ -103,6 +103,45 @@ oompah.review_number: '728'
 oompah.work_branch: OOMPAH-827
 oompah.target_branch: main
 oompah.review_head: 3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-31dd47a60bec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-827
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b1a8254d2559d7d62fb51b86b9ccdef17bfe64e857fb33bc3e92b6f73f6c0bd0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-06T02:35:41.208827+00:00'
+  - version: 1
+    audit_id: audit-a4191da2118c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-827
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b1a8254d2559d7d62fb51b86b9ccdef17bfe64e857fb33bc3e92b6f73f6c0bd0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-06T02:35:41.208827+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -411,5 +450,15 @@ author: oompah
 created: 2026-08-06 02:21
 ---
 Branch quality gate passed for `3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97` using `make test` in 659.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-06 02:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 02:35
+---
+YOLO: merged PR #728.
 ---
 <!-- COMMENTS:END -->
