@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T17:18:05.203845Z'
+updated_at: '2026-08-06T17:18:25.428425Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
     task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
     itself, not this integration bug.
-oompah.agent_run_id: null
+oompah.agent_run_id: c133a774-c415-49a5-9869-4f2884dfefe4
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
@@ -370,5 +370,10 @@ FAILED tests/test_task_handoff.py::TestTaskHandoffEndpoint::test_api_submission_
 make: *** [Makefile:401: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-06 17:18
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
