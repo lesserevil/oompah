@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-06T07:45:44.467572Z'
+updated_at: '2026-08-06T08:22:25.802462Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -295,5 +295,10 @@ author: oompah
 created: 2026-08-06 07:45
 ---
 Final restack follows amended OOMPAH-781 head 680dbfb08. OOMPAH-804 is now a836319fa; all 10 commits remain range-diff equivalent, diff check passes, and the branch is clean/up to date. No tests run during the active OOMPAH-857 exact gate.
+---
+author: oompah
+created: 2026-08-06 08:22
+---
+Restacked onto OOMPAH-781 exact head 6a84d9bcc. OOMPAH-804 head is now f9ee70d17; all 10 commits are again range-diff equivalent, diff check passes, and branch is clean/up to date. Focused tests await OOMPAH-781 integration.
 ---
 <!-- COMMENTS:END -->
