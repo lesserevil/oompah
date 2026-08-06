@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T10:05:03.393868Z'
+updated_at: '2026-08-06T10:05:28.714904Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -43,16 +43,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8f54bf2b-0dd9-4d1b-ab20-53c638d78db8
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-834
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-804--task-OOMPAH-834
   base_branch: epic-OOMPAH-768--task-OOMPAH-804
   base_sha: f89c477d4c03a8992a7278337182c0352da5de16
-  updated_at: '2026-08-06T09:48:57.419244+00:00'
+  head_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  submitted_at: '2026-08-06T10:05:16.305589+00:00'
+  updated_at: '2026-08-06T10:05:16.305589+00:00'
 oompah.task_costs:
   total_input_tokens: 49361
   total_output_tokens: 271
@@ -249,5 +251,10 @@ author: oompah
 created: 2026-08-06 10:05
 ---
 Exact full-gate regression repair is pushed at c31b8d32a. The five canonical submission expectations now preserve one-time queue-mode repair, six dispatch fixtures model concrete unpaused projects, and the close-race fixture carries exact task/project retry authority. All three formerly failing modules pass 81/81; independent static review accepted the repair; make check-secrets and diff checks pass. Propagating this exact head to all OOMPAH-804 child branches for fresh exact gates.
+---
+author: oompah
+created: 2026-08-06 10:05
+---
+Exact-gate regressions repaired and verified: 81 focused tests pass; independent review accepted; shared canonical head c31b8d32a pushed.
 ---
 <!-- COMMENTS:END -->
