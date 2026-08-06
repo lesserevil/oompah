@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-854
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence terminal-auditor admission during quiesce and restart drain
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:18:59.172232Z'
+updated_at: '2026-08-06T06:25:35.931356Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
     OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, and OOMPAH-853 found
     related validation-lane work but no task duplicating the terminal-auditor admission
     race during quiesce.
-oompah.agent_run_id: 01428d09-dbb0-4958-bc63-f1183ad4b011
+oompah.agent_run_id: 60c20ae6-beb4-4e75-b2df-5c4e02f96780
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-854
 oompah.integration:
   version: 2
@@ -49,7 +49,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-763--task-OOMPAH-854
   base_branch: epic-OOMPAH-763
   base_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
-  updated_at: '2026-08-06T06:10:09.285412+00:00'
+  updated_at: '2026-08-06T06:25:33.216289+00:00'
 oompah.task_costs:
   total_input_tokens: 46364
   total_output_tokens: 347
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-06 06:10
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 06:25
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
