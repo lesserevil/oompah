@@ -3169,6 +3169,7 @@ class TestRunMaintenanceJobGate:
 class TestRepoHealErrorReporting:
     """Self-heal errors are logged and tracked without affecting dispatch."""
 
+    @pytest.mark.timeout(20)
     def test_heal_failure_does_not_raise_from_tick(self, tmp_path):
         """If _maybe_heal_repos fails, _tick() must not surface the exception."""
         orch = _make_orchestrator(tmp_path)
