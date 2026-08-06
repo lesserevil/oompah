@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: Backlog
+status: Open
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-06T19:09:44.116383Z'
+updated_at: '2026-08-06T19:09:56.458549Z'
 work_branch: null
 target_branch: null
 review_url: null
