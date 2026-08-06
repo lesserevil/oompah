@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-843
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make auditor validation targets and command deadlines mutually feasible
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T02:39:33.484875Z'
-updated_at: '2026-08-06T03:39:58.080570Z'
+updated_at: '2026-08-06T03:44:01.450545Z'
 work_branch: null
 target_branch: null
 review_url: null
