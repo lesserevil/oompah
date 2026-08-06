@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:43:36.880820Z'
+updated_at: '2026-08-06T23:44:09.985666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 9e85c4da-a523-4bd0-8e88-7d981dbd64e7
 oompah.task_costs:
-  total_input_tokens: 46810
-  total_output_tokens: 354
+  total_input_tokens: 47444
+  total_output_tokens: 23519
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 46810
-      output_tokens: 354
+      input_tokens: 47444
+      output_tokens: 23519
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 354
     cost_usd: 0.0
     recorded_at: '2026-08-06T23:29:06.809459+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 634
+    output_tokens: 23165
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T23:43:58.022138+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-868__20260806T232846Z
@@ -72,14 +78,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-868
     source_sha: f2b319c1182cd654112db622a0498171e508dead
     completed_at: '2026-08-06T23:29:06.990841+00:00'
+  - run_id: OOMPAH-868__20260806T232941Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: oompah_tests
+    source_branch: OOMPAH-868
+    source_sha: db7588a7d11fbda140b12cbe3d78497c32f855c8
+    completed_at: '2026-08-06T23:43:58.025329+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-868
+  base_branch: main
+  base_sha: f2b319c1182cd654112db622a0498171e508dead
   head_sha: db7588a7d11fbda140b12cbe3d78497c32f855c8
   submitted_at: '2026-08-06T23:43:31.328890+00:00'
-  updated_at: '2026-08-06T23:43:31.328890+00:00'
+  updated_at: '2026-08-06T23:44:07.785697+00:00'
 ---
 ## Summary
 
@@ -217,5 +233,20 @@ author: oompah
 created: 2026-08-06 23:43
 ---
 Implemented validation-resource lease brokering for dedicated CI with bounded output and JUnit XML diagnostics. Routes dedicated pytest runs through capacity=1 broker to prevent concurrent heavyweight processes. Reduced verbose console output replaces per-test amplification. All 7 new tests pass; workflow integration requires operator action with workflow scope.
+---
+author: oompah
+created: 2026-08-06 23:43
+---
+Agent completed successfully in 865s (23799 tokens)
+---
+author: oompah
+created: 2026-08-06 23:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 160, Tool calls: 78
+- Tokens: 634 in / 23.2K out [23.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 25s
+- Log: OOMPAH-868__20260806T232941Z.jsonl
 ---
 <!-- COMMENTS:END -->
