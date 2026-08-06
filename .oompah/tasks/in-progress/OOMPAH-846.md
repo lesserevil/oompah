@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T04:32:05.213462Z'
+updated_at: '2026-08-06T04:38:58.303071Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ As Oompah Tests Auth Specialist: examine ACP backend command execution paths, to
 2. Identify which paths currently lack validation-resource lease guards
 3. Implement consistent guard installation
 4. Verify with comprehensive tests
+---
+author: oompah
+created: 2026-08-06 04:38
+---
+Additional live evidence at 2026-08-06T04:29Z: OOMPAH-847 spawned provider-native command sandboxes 2957672 and 2961523 running absolute-venv pytest for tests/test_epic_strategy.py and tests/test_dispatch_lane_contract.py while exact gate OOMPAH-844 was starting. Both bypassed the validation-resource lease and were terminated at the sandbox roots only; the scheduler then preserved checkpoint 40fc05b01. Direct ownership now fences OOMPAH-847. OOMPAH-845 and OOMPAH-784, by contrast, correctly project waiting_for_capacity. Acceptance must cover this absolute-path command_execution route.
 ---
 <!-- COMMENTS:END -->
