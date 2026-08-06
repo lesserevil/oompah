@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-833
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Bootstrap durable ACP command-result delivery onto main
 parent: null
@@ -12,12 +12,12 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T01:52:28.463327Z'
+updated_at: '2026-08-06T01:52:43.621658Z'
 work_branch: OOMPAH-833
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/727
 review_number: '727'
-review_head: null
+review_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
 merged_at: null
 oompah.start_blocked_by: *id001
 oompah.duplicate_screening:
@@ -158,6 +158,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/727
 oompah.review_number: '727'
 oompah.work_branch: OOMPAH-833
 oompah.target_branch: main
+oompah.review_head: c8e6efcd265bb3cb18ae46213b0adbcbb3e088c1
 ---
 ## Summary
 
