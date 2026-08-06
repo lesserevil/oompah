@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:44:03.691619Z'
+updated_at: '2026-08-06T05:45:43.085555Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
