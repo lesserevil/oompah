@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T13:24:59.709776Z'
-work_branch: null
+updated_at: '2026-08-06T13:26:10.170067Z'
+work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
 review_number: null
@@ -20,49 +20,14 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
-  task_branch: OOMPAH-860
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-763--task-OOMPAH-860
   base_branch: epic-OOMPAH-763
   base_sha: 52cf744ab676b50bdb999e9b0feb39bc092418c1
-  head_sha: 34bf3aa8a471ef7fdc11d500423f3d06d06ca782
-  submitted_at: '2026-08-06T13:15:02.657192+00:00'
-  updated_at: '2026-08-06T13:24:52.268437+00:00'
-  last_error: "Combined-tree quality gate failed: runtestloop(session=session)\nINTERNALERROR>\
-    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_hooks.py\"\
-    , line 512, in __call__\nINTERNALERROR>     return self._hookexec(self.name, self._hookimpls.copy(),\
-    \ kwargs, firstresult)\nINTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-    INTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_manager.py\"\
-    , line 120, in _hookexec\nINTERNALERROR>     return self._inner_hookexec(hook_name,\
-    \ methods, kwargs, firstresult)\nINTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-    INTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
-    , line 167, in _multicall\nINTERNALERROR>     raise exception\nINTERNALERROR>\
-    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
-    , line 139, in _multicall\nINTERNALERROR>     teardown.throw(exception)\nINTERNALERROR>\
-    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/_pytest/logging.py\"\
-    , line 801, in pytest_runtestloop\nINTERNALERROR>     return (yield)  # Run all\
-    \ the tests.\nINTERNALERROR>             ^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
-    , line 139, in _multicall\nINTERNALERROR>     teardown.throw(exception)\nINTERNALERROR>\
-    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/_pytest/terminal.py\"\
-    , line 707, in pytest_runtestloop\nINTERNALERROR>     result = yield\nINTERNALERROR>\
-    \              ^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py\"\
-    , line 121, in _multicall\nINTERNALERROR>     res = hook_impl.function(*args)\n\
-    INTERNALERROR>           ^^^^^^^^^^^^^^^^^^^^^^^^^\nINTERNALERROR>   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
-    , line 138, in pytest_runtestloop\nINTERNALERROR>     self.loop_once()\nINTERNALERROR>\
-    \   File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
-    , line 163, in loop_once\nINTERNALERROR>     call(**kwargs)\nINTERNALERROR>  \
-    \ File \"/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
-    , line 217, in worker_workerfinished\nINTERNALERROR>     assert not crashitem,\
-    \ (crashitem, node)\nINTERNALERROR> AssertionError: ('tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_skips_new_epic_maintenance_when_previous_still_running',\
-    \ <WorkerController gw1>)\nINTERNALERROR> assert not 'tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_skips_new_epic_maintenance_when_previous_still_running'\n\
-    \n===== 7520 passed, 7 skipped, 1 xfailed, 42 warnings in 511.83s (0:08:31) ======\n\
-    \n/home/shedwards/.oompah/tmp/oompah-quality-gate-un518ycf/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function WeakKeyDictionary.__init__.<locals>.remove\
-    \ at 0x76ef073fa520>\n\nTraceback (most recent call last):\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/weakref.py\"\
-    , line 369, in remove\n    def remove(k, selfref=ref(self)):\n    \nKeyboardInterrupt\n\
-    \nEnable tracemalloc to get traceback where the object was allocated.\nSee https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n  warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    make: *** [Makefile:401: test] Error 3\n"
+  updated_at: '2026-08-06T13:26:04.598726+00:00'
+oompah.agent_run_id: 9dcc8533-b043-4427-8f3b-5d0a0abd11c3
+oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-860
 ---
 ## Summary
 
@@ -150,5 +115,24 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make: *** [Makefile:401: test] Error 3
 
 ```
+---
+author: oompah
+created: 2026-08-06 13:26
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-06 13:26
+---
+Agent failed: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-860 is on OOMPAH-860, not expected branch epic-OOMPAH-763--task-OOMPAH-860; refusing to reset it. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-06 13:26
+---
+Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
 ---
 <!-- COMMENTS:END -->
