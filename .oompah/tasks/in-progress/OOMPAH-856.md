@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:54:03.025980Z'
+updated_at: '2026-08-06T16:54:30.770851Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-08-06 16:54
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 16:54
+---
+Understanding: integrated-audit recovery alerts must offer an action accepted for the completed record classification, and terminal overrides/status resolution must clear alerts durably. I’ll trace alert arm/clear, retry/override validation, and status snapshot persistence, then add focused regression tests.
 ---
 <!-- COMMENTS:END -->
