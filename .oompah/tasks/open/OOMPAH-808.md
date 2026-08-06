@@ -8,11 +8,10 @@ parent: OOMPAH-763
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-08-04T21:45:34.568898Z'
-updated_at: '2026-08-04T22:13:47.201484Z'
+updated_at: '2026-08-06T03:18:57.807707Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-808
 target_branch: null
 review_url: null
@@ -187,5 +186,10 @@ author: oompah
 created: 2026-08-04 22:13
 ---
 Collision/topology fence: this implementation was dispatched from f1e7925b7 just as OOMPAH-806/807/796 were legitimately modifying projects.py/orchestrator.py/workflow_contract.py. No OOMPAH-808 edits existed, so the stale run was revoked cleanly. A direct hard-start edge to nested OOMPAH-796 was correctly rejected because it would create container reachability cycle OOMPAH-763 -> OOMPAH-770 -> OOMPAH-763. The temporary human-only label is therefore the explicit dispatch fence; remove it after OOMPAH-796 lands, then redispatch from the updated common root lineage. This is the exact topology bug OOMPAH-808 will fix.
+---
+author: oompah
+created: 2026-08-06 03:18
+---
+Removed the temporary human-only dispatch fence now that OOMPAH-796 is terminal and its common-root lineage is canonically prepared. Keep the task Open for normal server dispatch after the currently quiesced/paused restart completes; re-check actual immediate-parent reachability before creating the private task branch as required by acceptance.
 ---
 <!-- COMMENTS:END -->
