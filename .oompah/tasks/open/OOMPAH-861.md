@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:27:20.466495Z'
+updated_at: '2026-08-06T13:27:29.506459Z'
 work_branch: null
 target_branch: null
 review_url: null
