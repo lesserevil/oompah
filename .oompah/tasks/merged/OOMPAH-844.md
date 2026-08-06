@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T05:04:22.681301Z'
+updated_at: '2026-08-06T05:04:32.381494Z'
 work_branch: OOMPAH-844
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/730
@@ -166,8 +166,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-4d23077d474f
-    applied: false
+    applied: true
     created_at: '2026-08-06T05:04:18.885302+00:00'
+    applied_at: '2026-08-06T05:04:29.615842+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -432,5 +433,28 @@ author: oompah
 created: 2026-08-06 05:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 05:04
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: d58976219e939c349498f69ce2fdbcb6ff650e96
+- merge_commit: f2b319c1182cd654112db622a0498171e508dead
+- merged_pr: 730
+- merge_on_main: true
+- files_changed: tests/test_orchestrator_github_lifecycle.py, tests/test_orchestrator_handlers.py
+- insertions: 14
+- production_code_changed: none
+- branch_quality_gate: make test passed in 662.7s at d58976219 (per prior tracker comment)
+- global_pytest_timeout: 5s unchanged in pyproject.toml (line 127)
+- global_timeout_method: signal unchanged in pyproject.toml (line 139)
+- scoped_timeout_lifecycle_line: 293 (@pytest.mark.timeout(20))
+- scoped_timeout_handlers_line: 3161 (@pytest.mark.timeout(20))
+- recover_leases_stub_repo_heal_line: 3174
+- recover_leases_stub_tick_lines: 1297, 1337, 1390
 ---
 <!-- COMMENTS:END -->
