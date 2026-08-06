@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T18:27:26.161601Z'
+updated_at: '2026-08-06T18:28:56.796060Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-06 18:27
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 18:28
+---
+UNDERSTANDING: This task requires porting the reviewed OOMPAH-831 terminal-auditor inspection contract changes onto main as a standalone bootstrap. OOMPAH-831 was already reviewed and submitted at commit 0e0056375918977c9b0b2d59524ce8ae68ceee40 (passing 716+ tests), then integrated into OOMPAH-763. I need to: (1) Identify what OOMPAH-831 changed, (2) Apply only those reviewed changes to main, (3) Run the complete test matrix including OOMPAH-542 and OOMPAH-815 traces, (4) Verify fatal boundaries remain (python -c, mutation, credential/path escape), (5) Merge to main with no unrelated systemic-epic work.
 ---
 <!-- COMMENTS:END -->
