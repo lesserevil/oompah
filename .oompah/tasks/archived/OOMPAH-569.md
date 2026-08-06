@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-08-06T00:56:24.707487Z'
+updated_at: '2026-08-06T00:56:32.799997Z'
 work_branch: OOMPAH-569
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/585
@@ -53,8 +53,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-fbb0069d7349
-    applied: false
+    applied: true
     created_at: '2026-08-06T00:56:21.172399+00:00'
+    applied_at: '2026-08-06T00:56:31.432938+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,5 +143,25 @@ author: oompah
 created: 2026-08-06 00:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 00:56
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 8483db2e3e718c1f5f6476018d954574ce5d42f9
+- task_commit: 52619c962f88860534bdc858e79728e6f12db606
+- pr: #585
+- quality_gate_import: from oompah.client_auth import agent_environment (oompah/quality_gate.py:17)
+- quality_gate_popen: env=agent_environment() (oompah/quality_gate.py:215)
+- client_auth_stripped_vars: OOMPAH_SERVER_USERNAME, OOMPAH_SERVER_PASSWORD, OOMPAH_SERVER_PASSWORD_FILE
+- regression_test: tests/test_quality_gate.py::test_gate_subprocess_strips_client_credentials_only
+- evidence_version_test: tests/test_quality_gate.py::test_pre_sanitization_evidence_is_invalidated
+- focused_test_results: test_quality_gate.py 9 passed; test_client_auth.py 60 passed
+- ancestry: merge commit 8483db2e3 is an ancestor of main and origin/main
+- aging_basis: closed 2026-07-29; today 2026-08-06 (>=7 days)
 ---
 <!-- COMMENTS:END -->
