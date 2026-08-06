@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: In Progress
+status: Backlog
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -15,10 +15,11 @@ start_blocked_by: &id001
 - OOMPAH-793
 - OOMPAH-791
 - OOMPAH-804
+- OOMPAH-768
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:37:33.119798Z'
+updated_at: '2026-08-06T17:14:45.727433Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
@@ -198,5 +199,10 @@ author: oompah
 created: 2026-08-06 16:37
 ---
 Owner review rejected submitted head 040741ecb before exact integration and returned the task to In Progress. Blockers: conclusion-level facts and a fake handler replace causal full-stack boundaries; OOMPAH-749 still orders historical replay before live integration without asserting cursor/batch behavior; OOMPAH-748 never applies/asserts Done-to-Merged; UI/executor agreement copies expected data; restart/duplicate coverage manually mutates the queue and drains unboundedly; and terminal.preserve_verified_merged accepts unrelated LANDED facts without exact source/target/revision binding. Direct owner repair will replace these false positives with production-composed, bounded negative/positive regressions before resubmission.
+---
+author: oompah
+created: 2026-08-06 17:14
+---
+Owner review found the production IntegrationActionHandler and OrchestratorIntegrationActionBackend required by these full-stack scenarios live on the OOMPAH-836/OOMPAH-804 stack, which has not yet rolled from OOMPAH-768 into the shared OOMPAH-763 parent. Added an explicit hard-start on OOMPAH-768 and returned this task to Backlog. Resume only after OOMPAH-768 is terminal and OOMPAH-767 is refreshed from the shared parent; do not duplicate the production handlers or merge a sibling child branch directly.
 ---
 <!-- COMMENTS:END -->
