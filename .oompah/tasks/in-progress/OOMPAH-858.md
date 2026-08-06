@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T17:48:33.341314Z'
+updated_at: '2026-08-06T18:24:53.451264Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -56,13 +56,17 @@ oompah.integration:
   updated_at: '2026-08-06T17:18:31.032349+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
-  total_input_tokens: 444
-  total_output_tokens: 21064
+  total_input_tokens: 555
+  total_output_tokens: 25918
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 444
       output_tokens: 21064
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 111
+      output_tokens: 4854
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +81,12 @@ oompah.task_costs:
     output_tokens: 19082
     cost_usd: 0.0
     recorded_at: '2026-08-06T13:33:22.921797+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 111
+    output_tokens: 4854
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T18:24:44.928091+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-858__20260806T093605Z
@@ -346,5 +356,20 @@ author: oompah
 created: 2026-08-06 17:48
 ---
 DISCOVERY: Analyzing 5 gate failures from combined-tree QA. Root causes: (1) test_project_locks.py - two tests mock _create_epic_worktree_locked without branch_name kwarg added in OOMPAH-858 commit; (2) test_task_handoff.py test_api_submission_marks_queue_enqueue_as_explicit_retry and _does_not_rearm - SimpleNamespace records missing base_branch field added to _enqueue_worker_submission; (3) test_task_handoff.py test_direct_acp_epic_rebase_omits_rewritten_base_from_verifier - _submission_record else branch uses issue.target_branch but direct maintenance issues have target_branch=None, should fall back to existing.base_branch. Code fix: add 'or existing.base_branch' fallback to preserve backwards compat for tasks without target_branch.
+---
+author: oompah
+created: 2026-08-06 18:24
+---
+Agent stalled 1 time(s) (3981s (4965 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-06 18:24
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 105, Tool calls: 72
+- Tokens: 111 in / 4.9K out [5.0K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 6m 21s
+- Log: OOMPAH-858__20260806T171841Z.jsonl
 ---
 <!-- COMMENTS:END -->
