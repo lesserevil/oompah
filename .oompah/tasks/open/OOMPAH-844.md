@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-844
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Isolate orchestrator maintenance unit tests from full-corpus recovery scans
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T03:00:58.832102Z'
+updated_at: '2026-08-06T03:02:41.759247Z'
 work_branch: null
 target_branch: null
 review_url: null
