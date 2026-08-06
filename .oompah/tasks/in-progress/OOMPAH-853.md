@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-853
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Keep duplicate screening decisive when structural peers exceed the corpus budget
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:38:59.412925Z'
+updated_at: '2026-08-06T05:43:47.470740Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: ae6ff780-a8a3-4e01-a346-1e7020ddbdc4
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-853
 oompah.integration:
   version: 2
@@ -205,5 +205,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-06 05:43
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
