@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-847
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Isolate dispatch-lock and epic-review unit tests from unrelated loaded-gate
   work
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T04:18:35.172497Z'
+updated_at: '2026-08-06T04:24:40.003760Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3ff29d92-79da-4d83-a732-8b1b63a9ac0a
+oompah.agent_run_id: 85d81f56-1c65-4b1c-a680-90960e0e662a
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-847
 oompah.integration:
   version: 2
