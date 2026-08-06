@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-821
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Align terminal-audit recovery alerts with retryable mixed-attempt histories
 parent: OOMPAH-770
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T04:58:02.541375Z'
+updated_at: '2026-08-06T04:58:08.382613Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -481,5 +481,10 @@ author: oompah
 created: 2026-08-06 03:57
 ---
 Resubmit OOMPAH-821 at 9d0c78635 with the proven OOMPAH-845 loaded restart-test stabilization carried before gate; prior 320-test and independent-review evidence remains green.
+---
+author: oompah
+created: 2026-08-06 04:58
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
