@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-862
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Prevent terminal auditors from redundantly rerunning authoritative full gates
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:20:47.304513Z'
+updated_at: '2026-08-06T14:21:14.587651Z'
 work_branch: null
 target_branch: null
 review_url: null
