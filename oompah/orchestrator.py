@@ -34568,6 +34568,11 @@ class Orchestrator:
                         exc,
                     )
                     locked_state = []
+                if locked_state:
+                    self._preserve_accepted_submission_authority(
+                        issue,
+                        locked_state[0],
+                    )
                 if locked_state and (
                     issue.id in self.state.completed
                     or _state_key(locked_state[0].state)
@@ -34769,6 +34774,7 @@ class Orchestrator:
             running_issue = post_update[0]
             if not running_issue.project_id:
                 running_issue.project_id = issue.project_id
+            self._preserve_accepted_submission_authority(issue, running_issue)
             for attr in (
                 "work_branch",
                 "branch_name",
@@ -40976,6 +40982,30 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 return head
         return None
 
+    @staticmethod
+    def _preserve_accepted_submission_authority(
+        source: Issue,
+        snapshot: Issue,
+    ) -> None:
+        """Retain immutable accepted evidence across state-only refreshes.
+
+        The dispatch transition deliberately re-reads tracker state immediately
+        before and after writing ``In Progress``.  Some tracker/state-cache
+        implementations return only mutable fields in that fast path.  Losing
+        an accepted ``IntegrationRecord`` there would make branch resolution
+        fall back to ``work_branch`` or hierarchy after a gate failure.
+
+        A newer accepted generation on *snapshot* always wins.  Otherwise the
+        prior accepted record is immutable authority and is copied forward;
+        this keeps retry fencing and workspace creation on the exact branch
+        and head that submit validation accepted.
+        """
+
+        if accepted_submission_branch(snapshot):
+            return
+        if accepted_submission_branch(source):
+            snapshot.integration = source.integration
+
     def _retry_authority_generation(
         self,
         issue: Issue,
@@ -41822,7 +41852,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             or getattr(context_retry, "assignment_id", None)
         )
         work_branch = (
-            getattr(failed_issue, "work_branch", None)
+            assigned_work_branch(failed_issue)
+            or getattr(failed_issue, "work_branch", None)
             or getattr(failed_issue, "branch_name", None)
             or getattr(context_retry, "work_branch", None)
         )
