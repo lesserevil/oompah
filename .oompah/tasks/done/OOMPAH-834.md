@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-834
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Bind implementation lifecycle events to durable task-scoped handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:27.595461Z'
-updated_at: '2026-08-06T10:22:20.705562Z'
+updated_at: '2026-08-06T11:15:00.462308Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-834
 target_branch: null
 review_url: null
@@ -84,6 +84,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T09:18:57.028464+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fef4d2b4f4e4: '2026-08-06T11:14:55.026816+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-834
+    target_state: Done
+    evidence_fingerprint: 83510c636bc0a8061416767f2f97c97c7dea13dfb5290d9317360ae1fafaffa2
+    audit_ids:
+    - audit-4d9024357f09
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T11:14:55.026822+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-834
+    audit_id: audit-4d9024357f09
+    attempt_id: attempt-fef4d2b4f4e4
+    target_state: Done
+    evidence_fingerprint: 83510c636bc0a8061416767f2f97c97c7dea13dfb5290d9317360ae1fafaffa2
+    status: Done
+    audit_ids:
+    - audit-4d9024357f09
+    applied: false
+    created_at: '2026-08-06T11:14:55.026831+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -91,7 +115,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-834
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +124,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fef4d2b4f4e4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -110,13 +134,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T10:22:12.844497+00:00'
       branch_key: epic-OOMPAH-804--task-OOMPAH-834
+      verdict: pass
+      completed_at: '2026-08-06T11:14:55.026679+00:00'
+      ended_at: '2026-08-06T11:14:55.026679+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T10:21:41.419591+00:00'
-    updated_at: '2026-08-06T10:22:12.844497+00:00'
+    updated_at: '2026-08-06T11:14:55.026679+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fef4d2b4f4e4
