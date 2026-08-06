@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-830
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Project the active terminal-audit stage in multi-target chains
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T13:41:41.865936Z'
-updated_at: '2026-08-06T01:34:44.091436Z'
+updated_at: '2026-08-06T01:34:57.723389Z'
 work_branch: OOMPAH-830
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/726
@@ -234,5 +234,15 @@ author: oompah
 created: 2026-08-06 01:22
 ---
 Branch quality gate passed for `d101c5712fe359efdbfbc295b41ed0a9680faa83` using `make test` in 637.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-06 01:34
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-06 01:34
+---
+YOLO: merged PR #726.
 ---
 <!-- COMMENTS:END -->
