@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:32:48.285107Z'
+updated_at: '2026-08-06T13:32:56.257056Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-08-06 13:32
 ---
 Implemented nested-container rollup edge filtering in integration dependencies. Created integration_dependencies() to exclude implicit parent->child rollup edges while preserving explicit external/sibling dependencies. Updated _integration_dependency_map to use the new function. Added 12 comprehensive regression tests covering exact OOMPAH-804/834 deadlock scenario. All 459 integration/container/dependency tests pass. Deadlock prevention: every eligible nested child can now acquire a queue lease without waiting on itself or implicit parent rollup siblings, while real finish-order constraints remain enforced.
+---
+author: oompah
+created: 2026-08-06 13:32
+---
+COMPLETION: Task submitted successfully. Delivered: (1) integration_dependencies() function to filter container rollup edges, (2) updated _integration_dependency_map in orchestrator.py, (3) 12 comprehensive regression tests, (4) all 459 existing tests still pass. Root cause fixed: nested children no longer inherit parent's rollup dependencies that would create self-wait and sibling wait conditions. External prerequisites and explicit sibling dependencies preserved as required.
 ---
 <!-- COMMENTS:END -->
