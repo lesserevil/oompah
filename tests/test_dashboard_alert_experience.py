@@ -26,10 +26,16 @@ _RESULT_ATTRIBUTE = "data-dashboard-alert-test-result"
 _RAW_TRANSCRIPT_MARKER = "RAW-TRANSCRIPT-MUST-REMAIN-DISCLOSED"
 
 
-pytestmark = pytest.mark.skipif(
-    _CHROME is None,
-    reason="headless Chrome is required for dashboard browser regression coverage",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        _CHROME is None,
+        reason="headless Chrome is required for dashboard browser regression coverage",
+    ),
+    # A fresh hosted runner can spend well over the repository-wide five-second
+    # unit-test budget starting Chrome.  Keep this integration-only allowance
+    # bounded above the subprocess deadline so pytest can still reap the child.
+    pytest.mark.timeout(65),
+]
 
 
 def _issue(identifier: str = "OOMPAH-100") -> dict[str, object]:
@@ -191,7 +197,7 @@ def _run_dashboard(
         ],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=60,
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
@@ -234,7 +240,6 @@ def _mixed_alerts() -> list[dict[str, object]]:
 class TestDashboardAlertExperience:
     """Production-shaped alert flows through the browser's real DOM and CSS."""
 
-    @pytest.mark.timeout(35)
     def test_mixed_payload_is_compact_truthful_and_keeps_a_task_reachable(
         self, tmp_path: Path
     ) -> None:

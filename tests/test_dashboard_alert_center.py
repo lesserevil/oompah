@@ -12,6 +12,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 def _dashboard_html() -> str:
     return (
@@ -186,6 +188,7 @@ def test_diagnostics_are_an_overlay_for_non_actionable_facts() -> None:
     assert "overflow-y: auto" in panel_rule
 
 
+@pytest.mark.timeout(25)
 def test_alert_center_runtime_handles_empty_mixed_and_dynamic_alert_sets() -> None:
     """Exercise the disclosure state without a browser or a UI framework."""
     html = _dashboard_html()
@@ -302,5 +305,6 @@ assert.equal(board.focused, true);
         check=False,
         capture_output=True,
         text=True,
+        timeout=20,
     )
     assert result.returncode == 0, result.stderr
