@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:46:30.914436Z'
+updated_at: '2026-08-06T03:47:30.395895Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,5 +56,15 @@ author: oompah
 created: 2026-08-06 03:19
 ---
 Promoted from Backlog to Open after hard-start prerequisite OOMPAH-796 reached Done. Project is temporarily paused for the graceful cutover; dispatch normally on resume.
+---
+author: oompah
+created: 2026-08-06 03:47
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 03:47
+---
+Fresh live acceptance evidence after fe6257b restart: the global alert list warns 'Terminal-audit backlog is stale' with oldest age 4186s while explicitly reporting 0 pending audits, plus an operator-auth warning for one recent failed probe that will age out without operator action. Both exemplify normal/stale conditions that must be task-local/informational rather than global warning banners unless an action_required recovery exists.
 ---
 <!-- COMMENTS:END -->
