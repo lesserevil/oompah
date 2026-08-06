@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-792
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Run all historical systemic incidents as full-stack workflow scenarios
 parent: OOMPAH-767
@@ -18,7 +18,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:19.563806Z'
-updated_at: '2026-08-06T16:28:24.027078Z'
+updated_at: '2026-08-06T16:37:10.898823Z'
 work_branch: epic-OOMPAH-767--task-OOMPAH-792
 target_branch: null
 review_url: null
