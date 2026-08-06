@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:40:40.631980Z'
-updated_at: '2026-08-06T05:12:58.453610Z'
+updated_at: '2026-08-06T05:42:14.193223Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-851
 target_branch: null
 review_url: null
@@ -109,5 +109,10 @@ author: oompah
 created: 2026-08-06 04:43
 ---
 Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-848, OOMPAH-849, OOMPAH-850. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
+---
+author: oompah
+created: 2026-08-06 05:42
+---
+Prepared timing-mock contract repair is independently static-reviewed, clean, and pushed at 288946416. All direct _handle_dispatch_needed AsyncMocks return real mappings, the originally failing maintenance test deterministically forces slow diagnostics, and an AST regression prevents bare mocks. Checkpoint only; focused tests and O763 restack are pending.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T04:53:55.608066Z'
+updated_at: '2026-08-06T05:42:10.607751Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 14s
 - Log: OOMPAH-848__20260806T044358Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:42
+---
+Prepared free-tier regression repair is independently static-reviewed, clean, and pushed at 01c21a3d9 on top of checkpoint e655fdbf9. Pure budget projection tests use a storage-free minimal object, full orchestrators close both pools and five stores, and a real public get_snapshot budget-routing contract remains. Checkpoint only; focused tests and O763 restack are pending.
 ---
 <!-- COMMENTS:END -->

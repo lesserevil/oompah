@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T04:31:53.386656Z'
+updated_at: '2026-08-06T05:42:07.126793Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 52s
 - Log: OOMPAH-847__20260806T042508Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:42
+---
+Prepared test-isolation repair is independently static-reviewed, clean, and pushed at c44f574ad. All unrelated tick producers are stubbed, loop-owned futures drain before asyncio.run closes, teardown aggregates all resource failures, and the target lock/capacity assertions remain strict. This is a checkpoint pending serialized focused tests and O763 restack.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T04:56:02.992685Z'
+updated_at: '2026-08-06T05:42:04.909231Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1h 0m 36s
 - Log: OOMPAH-845__20260806T035528Z.jsonl
+---
+author: oompah
+created: 2026-08-06 05:42
+---
+Prepared repair is independently static-reviewed, clean, and pushed at 530f0e1dc. It removes the unsafe production shutdown deadlines, tracks/drains scheduled retirement tasks, fences foreign callbacks before shutdown, handles owner-loop close races, and adds deterministic cross-thread stop regressions. This is a checkpoint, not submission; focused tests await the serialized lane and O763 restack.
 ---
 <!-- COMMENTS:END -->
