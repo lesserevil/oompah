@@ -759,8 +759,8 @@ def test_duplicate_corpus_budget_evicts_unrelated_tasks_deterministically(monkey
     assert not (set(first_ids) & {task.identifier for task in unrelated})
 
 
-def test_duplicate_corpus_reports_required_peers_that_cannot_fit(monkeypatch):
-    """Budget failure is explicit and actionable, not silent truncation."""
+def test_duplicate_corpus_compacts_required_peers_under_task_budget(monkeypatch):
+    """A one-row budget still represents every structural peer."""
     monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 1)
     issue = _issue("EXOCOMP-216", title="Current screening task")
     issue.parent_id = "EXOCOMP-200"
@@ -776,22 +776,63 @@ def test_duplicate_corpus_reports_required_peers_that_cannot_fit(monkeypatch):
         )
     )
 
-    assert corpus["availability"] == "insufficient"
+    assert corpus["availability"] == "authoritative"
+    assert len(corpus["tasks"]) <= 1
+    compact_peer_ids = {
+        row["identifier"] for row in corpus["structural_peers"]
+    }
+    assert sibling.identifier in compact_peer_ids
     selection = corpus["selection"]
-    assert selection["omitted_required_peer_count"] == 1
-    assert sibling.identifier in selection["omitted_required_peer_identifiers"]
-    assert "Increase the duplicate corpus" in selection["diagnostic"]
+    assert selection["omitted_required_peer_count"] == 0
+    assert selection["required_peers_compacted"] == 1
+    assert selection["required_peers_included"] == 1
+    assert selection["omitted_required_peer_identifiers"] == []
+    assert "Required structural peers could not fit" not in json.dumps(corpus)
 
 
-def test_insufficient_corpus_diagnostic_skips_remaining_model_retries(monkeypatch):
-    """An authoritative budget failure escalates with an actionable reason."""
+def test_duplicate_corpus_compacts_many_huge_multibyte_peers_within_both_budgets(
+    monkeypatch,
+):
+    """OOMPAH-851's three required peers survive task and byte pressure."""
     monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 1)
-    issue = _issue("EXOCOMP-216", title="Current screening task")
-    issue.parent_id = "EXOCOMP-200"
-    sibling = _issue("EXOCOMP-217", title="Required sibling")
-    sibling.parent_id = issue.parent_id
-    tracker = _Tracker([issue, sibling])
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_BYTES", 3_500)
+    issue = _issue("OOMPAH-851", title="Screen the structural peer corpus")
+    issue.parent_id = "OOMPAH-848"
+    issue.description = "当前任务 " + ("需求证据 " * 2_000)
+    parent = _issue("OOMPAH-848", title="Parent " + ("父任务 " * 500))
+    parent.description = "父级证据 " * 5_000
+    sibling = _issue("OOMPAH-849", title="Sibling " + ("兄弟 " * 500))
+    sibling.parent_id = parent.identifier
+    sibling.description = "兄弟证据 " * 5_000
+    dependency = _issue("OOMPAH-850", title="Dependency " + ("依赖 " * 500))
+    dependency.description = "依赖证据 " * 5_000
+    issue.blocked_by = [
+        BlockerRef(id=dependency.identifier, identifier=dependency.identifier)
+    ]
+    tracker = _Tracker([issue, parent, sibling, dependency])
     orch = _orch(tracker)
+
+    raw = orch._duplicate_preflight_task_corpus(
+        tracker,
+        tracker.fetch_issue_detail(issue.identifier),
+    )
+    corpus = json.loads(raw)
+    assert len(raw.encode("utf-8")) <= 3_500
+    assert corpus["availability"] == "authoritative"
+    represented = {
+        row["identifier"] for row in corpus["tasks"]
+    } | {
+        row["identifier"] for row in corpus["structural_peers"]
+    }
+    assert {
+        issue.identifier,
+        parent.identifier,
+        sibling.identifier,
+        dependency.identifier,
+    } <= represented
+    assert corpus["selection"]["omitted_required_peer_count"] == 0
+    assert corpus["selection"]["required_peers_compacted"] == 3
+
     claim = orch._claim_duplicate_preflight(issue)
     assert claim is not None
     entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
@@ -799,12 +840,76 @@ def test_insufficient_corpus_diagnostic_skips_remaining_model_retries(monkeypatc
         AgentActivity(
             turn=1,
             kind="message",
-            summary="insufficient corpus",
+            summary="conclusive no-duplicate verdict",
+            detail=(
+                "Focus handoff: duplicate_detector\n"
+                "Duplicate preflight verdict: no_duplicate\n"
+                "Matches: none\n"
+                "Evidence: reviewed the compact structural peer summaries."
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+    result = orch._finish_duplicate_preflight_sync(entry, "normal", None)
+    assert result["outcome"] == "checked"
+    assert tracker.fetch_issue_detail(issue.identifier).state == OPEN
+    assert tracker.fetch_comments(issue.identifier) == []
+
+
+def test_duplicate_corpus_budget_does_not_hide_terminal_or_missing_peers(monkeypatch):
+    """Historical peers remain context and absent references do not corrupt reads."""
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 1)
+    issue = _issue("TASK-1", title="Current task")
+    issue.blocked_by = [
+        BlockerRef(id="MISSING-1", identifier="MISSING-1"),
+        BlockerRef(id="DONE-1", identifier="DONE-1"),
+    ]
+    terminal = _issue(
+        "DONE-1", title="Archived structural evidence", state="Archived"
+    )
+    tracker = _Tracker([issue, terminal])
+    orch = _orch(tracker)
+
+    corpus = json.loads(
+        orch._duplicate_preflight_task_corpus(
+            tracker,
+            tracker.fetch_issue_detail(issue.identifier),
+        )
+    )
+    represented = {
+        row["identifier"] for row in corpus["tasks"]
+    } | {
+        row["identifier"] for row in corpus["structural_peers"]
+    }
+    assert corpus["availability"] == "authoritative"
+    assert terminal.identifier in represented
+    assert "MISSING-1" not in represented
+    assert corpus["selection"]["omitted_required_peer_count"] == 0
+
+
+def test_corrupt_corpus_read_remains_actionable_after_retry_budget():
+    """A genuine tracker read failure still follows the human-action path."""
+    issue = _issue("EXOCOMP-216", title="Current screening task")
+
+    class _CorruptTracker(_Tracker):
+        def fetch_all_issues(self):
+            raise ValueError("corrupt state branch")
+
+    tracker = _CorruptTracker([issue])
+    orch = _orch(tracker)
+    claim = new_claim_record(issue, owner="scheduler", retry_count=2)
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, claim.to_dict())
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="unavailable corpus",
             detail=(
                 "Focus handoff: duplicate_detector\n"
                 "Duplicate preflight verdict: inconclusive\n"
                 "Matches: none\n"
-                "Evidence: the supplied corpus selection diagnostic is actionable."
+                "Evidence: the tracker corpus could not be read."
             ),
             timestamp=datetime.now(timezone.utc).timestamp(),
         )
@@ -812,15 +917,11 @@ def test_insufficient_corpus_diagnostic_skips_remaining_model_retries(monkeypatc
 
     result = orch._finish_duplicate_preflight_sync(entry, "normal", None)
 
-    assert result == {
-        "outcome": "needs_human",
-        "terminal": True,
-        "diagnostic": "corpus_insufficient",
-    }
+    assert result["outcome"] == "needs_human"
+    assert result["terminal"] is True
     comment = tracker.fetch_comments(issue.identifier)[-1]["text"]
-    assert "Required structural peers could not fit" in comment
-    assert sibling.identifier in comment
-    assert "Increase the duplicate corpus" in comment
+    assert "Human action required" in comment
+    assert "owner-resolution" in comment
 
 
 def test_checked_result_survives_finish_order_and_scheduler_metadata_changes():

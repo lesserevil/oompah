@@ -14486,13 +14486,17 @@ class Orchestrator:
         Selection is deliberately two-phase.  Relationship and similarity
         candidates are selected before the generic project-task fallback, so
         a large project cannot evict the peers needed to make a duplicate
-        decision merely because their identifiers sort later.  The final
-        envelope reports any required peers that could not fit the bounded
-        corpus instead of hiding that loss from the investigator.
+        decision merely because their identifiers sort later.  Structural
+        peers that cannot fit as full task rows are retained as compact peer
+        records; a healthy tracker read therefore remains authoritative even
+        when the configured task or byte budget is tight.
         """
 
         try:
-            tasks = list(tracker.fetch_all_issues())
+            raw_tasks = tracker.fetch_all_issues()
+            if not isinstance(raw_tasks, (list, tuple)):
+                raise ValueError("tracker returned a non-sequence task corpus")
+            tasks = list(raw_tasks)
         except Exception as exc:
             logger.info(
                 "Duplicate investigator corpus unavailable for %s: %s",
@@ -14530,7 +14534,28 @@ class Orchestrator:
             task_id = str(getattr(task, "id", "") or "").strip()
             return task_id.casefold()
 
+        # A healthy tracker must return records with a stable identity. Do not
+        # silently turn malformed records into an apparently authoritative
+        # corpus containing only the current task: that would make a
+        # conclusive verdict unsafe. Budget pressure is handled below, after
+        # this health boundary, so it cannot be confused with a read failure.
+        malformed_count = sum(1 for task in tasks if not _task_key(task))
+        if malformed_count:
+            logger.info(
+                "Duplicate investigator corpus malformed for %s: %d record(s)",
+                issue.identifier,
+                malformed_count,
+            )
+            return json.dumps(
+                {
+                    "availability": "corrupt",
+                    "reason": "The project task tracker returned malformed task records.",
+                },
+                ensure_ascii=False,
+            )
+
         current_project = str(issue.project_id or "").strip()
+
         scoped_by_key: dict[str, Issue] = {}
         for task in tasks:
             task_project = str(getattr(task, "project_id", "") or "").strip()
@@ -14748,22 +14773,71 @@ class Orchestrator:
         )
 
         def _clip(value: object, limit: int) -> str:
+            """Clip untrusted corpus text by UTF-8 bytes, not characters."""
+
             text = str(value or "")
-            return text if len(text) <= limit else text[:limit] + "\n[truncated]"
+            encoded = text.encode("utf-8")
+            if len(encoded) <= limit:
+                return text
+            marker = b"\n[truncated]"
+            if limit <= len(marker):
+                return encoded[:limit].decode("utf-8", errors="ignore")
+            return (
+                encoded[: limit - len(marker)].decode("utf-8", errors="ignore")
+                + marker.decode("utf-8")
+            )
+
+        comments_cache: dict[str, list[dict]] = {}
+
+        def _comments(task: Issue) -> list[dict]:
+            key = _task_key(task)
+            if key not in comments_cache:
+                try:
+                    comments_cache[key] = compact_prompt_comments(
+                        task,
+                        tracker.fetch_comments(task.identifier),
+                        max_comments=4,
+                        max_bytes=3000,
+                    )
+                except Exception:
+                    comments_cache[key] = []
+            return comments_cache[key]
+
+        def _reference_text(value: object) -> str:
+            if isinstance(value, str):
+                return value.strip()
+            for attribute in ("identifier", "id"):
+                text = str(getattr(value, attribute, "") or "").strip()
+                if text:
+                    return text
+            return ""
+
+        def _relationship_evidence(task: Issue) -> dict[str, Any]:
+            """Expose bounded exact relationship identifiers as reference data."""
+
+            details: dict[str, Any] = {}
+            parent = _reference_text(getattr(task, "parent_id", None))
+            if parent:
+                details["parent"] = _clip(parent, 192)
+            for attribute, output_key in (
+                ("blocked_by", "depends_on"),
+                ("start_blocked_by", "hard_start_depends_on"),
+            ):
+                references = [
+                    _clip(reference, 192)
+                    for reference in (
+                        _reference_text(value)
+                        for value in (getattr(task, attribute, None) or [])
+                    )
+                    if reference
+                ]
+                if references:
+                    details[output_key] = references[:16]
+            return details
 
         def _row(task: Issue, *, compact: bool = False) -> dict[str, Any]:
             description_limit = 600 if compact else 2500
             comment_limit = 500 if compact else 900
-            comment_bytes = 1200 if compact else 3000
-            try:
-                comments = compact_prompt_comments(
-                    task,
-                    tracker.fetch_comments(task.identifier),
-                    max_comments=2 if compact else 4,
-                    max_bytes=comment_bytes,
-                )
-            except Exception:
-                comments = []
             key = _task_key(task)
             row: dict[str, Any] = {
                 "identifier": _clip(getattr(task, "identifier", ""), 256),
@@ -14777,10 +14851,13 @@ class Orchestrator:
                         "created_at": _clip(comment.get("created_at"), 80),
                         "text": _clip(comment.get("text"), comment_limit),
                     }
-                    for comment in comments
+                    for comment in _comments(task)[: (2 if compact else 4)]
                     if isinstance(comment, dict)
                 ],
             }
+            relationship_evidence = _relationship_evidence(task)
+            if relationship_evidence:
+                row["relationship_evidence"] = relationship_evidence
             if key == current_key:
                 row["relevance"] = ["current_task"]
             elif key in relevance:
@@ -14789,6 +14866,54 @@ class Orchestrator:
                 row["relevance"] = ["title_description_similarity"]
                 row["similarity_score"] = round(similarity_scores[key], 3)
             return row
+
+        def _structural_peer_row(task: Issue, level: int = 0) -> dict[str, Any]:
+            """Return a deterministic summary for a required structural peer."""
+
+            key = _task_key(task)
+            row: dict[str, Any] = {
+                "identifier": _clip(getattr(task, "identifier", ""), 192),
+                "title": _clip(getattr(task, "title", ""), 192),
+                "status": _clip(getattr(task, "state", ""), 64),
+                "relationships": sorted(relevance.get(key, set())),
+            }
+            relationship_evidence = _relationship_evidence(task)
+            if relationship_evidence:
+                row["relationship_evidence"] = relationship_evidence
+            if level <= 2:
+                evidence: dict[str, Any] = {
+                    "description": _clip(
+                        getattr(task, "description", ""),
+                        (320, 160, 48)[level],
+                    )
+                }
+                if level == 0:
+                    evidence["comments"] = [
+                        {
+                            "author": _clip(comment.get("author"), 64),
+                            "text": _clip(comment.get("text"), 160),
+                        }
+                        for comment in _comments(task)[:1]
+                        if isinstance(comment, dict)
+                    ]
+                row["evidence"] = evidence
+            elif level == 3:
+                row["title"] = _clip(getattr(task, "title", ""), 96)
+            elif level == 4:
+                row.pop("title", None)
+            else:
+                row.pop("title", None)
+                row.pop("relationships", None)
+                row.pop("relationship_evidence", None)
+            return row
+
+        def _minimal_current_row() -> dict[str, Any]:
+            return {
+                "identifier": _clip(getattr(issue, "identifier", ""), 192),
+                "title": _clip(getattr(issue, "title", ""), 192),
+                "status": _clip(getattr(issue, "state", ""), 64),
+                "relevance": ["current_task"],
+            }
 
         def _id_for_key(key: str) -> str:
             task = scoped_by_key.get(key)
@@ -14802,18 +14927,20 @@ class Orchestrator:
 
         rows: list[dict[str, Any]] = []
         selected_keys: set[str] = set()
+        compact_keys: set[str] = set()
         max_tasks = max(1, int(_DUPLICATE_CORPUS_MAX_TASKS))
 
         def _payload(
             current_rows: list[dict[str, Any]],
-            pending_key: str | None = None,
+            current_compact_rows: list[dict[str, Any]],
+            *,
+            selected: set[str] | None = None,
+            compacted: set[str] | None = None,
         ) -> dict[str, Any]:
-            # Keep selection accounting keyed by the normalized tracker
-            # identity, never by clipped attacker-controlled display text.
-            selected = set(selected_keys)
-            if pending_key:
-                selected.add(pending_key)
-            omitted_required = sorted(required_keys - selected)
+            selected = set(selected_keys if selected is None else selected)
+            compacted = set(compact_keys if compacted is None else compacted)
+            represented = selected | compacted
+            omitted_required = sorted(required_keys - represented)
             omitted_similarity = sorted(
                 set(similarity_scores) - selected,
                 key=lambda key: (-similarity_scores[key], key),
@@ -14821,8 +14948,12 @@ class Orchestrator:
             selection: dict[str, Any] = {
                 "required_peer_count": max(len(required_keys) - 1, 0),
                 "required_peers_included": max(
-                    len(required_keys & selected) - (1 if current_key in selected else 0),
+                    len(required_keys & represented)
+                    - (1 if current_key in represented else 0),
                     0,
+                ),
+                "required_peers_compacted": len(
+                    (required_keys - {current_key}) & compacted
                 ),
                 "omitted_required_peer_count": len(omitted_required),
                 "omitted_required_peer_identifiers": _bounded_ids(omitted_required),
@@ -14830,68 +14961,151 @@ class Orchestrator:
                 "similarity_candidates_included": len(set(similarity_scores) & selected),
                 "omitted_similarity_candidate_count": len(omitted_similarity),
             }
-            if omitted_required:
-                selection["diagnostic"] = (
-                    "Required structural peers could not fit the bounded corpus. "
-                    "Increase the duplicate corpus task/byte budget or have a "
-                    "project owner review the omitted identifiers before deciding."
-                )
             return {
-                "availability": "insufficient" if omitted_required else "authoritative",
+                # Once fetch_all_issues passed the health boundary above, all
+                # structural peers are represented either as task rows or as
+                # compact peer records. Budget pressure is not an unavailable
+                # corpus and must never route a healthy task to Needs Human.
+                "availability": "authoritative",
                 "scope": "current project tracker",
                 "current_task": _clip(issue.identifier, 256),
                 "selection": selection,
                 "tasks": current_rows,
+                "structural_peers": current_compact_rows,
             }
 
-        def _fits(candidate_rows: list[dict[str, Any]], pending_key: str) -> bool:
+        def _fits(
+            candidate_rows: list[dict[str, Any]],
+            candidate_compact_rows: list[dict[str, Any]],
+            *,
+            selected: set[str],
+            compacted: set[str],
+        ) -> bool:
             encoded = json.dumps(
-                _payload(candidate_rows, pending_key),
+                _payload(
+                    candidate_rows,
+                    candidate_compact_rows,
+                    selected=selected,
+                    compacted=compacted,
+                ),
                 ensure_ascii=False,
                 indent=2,
             )
             return len(encoded.encode("utf-8")) <= _DUPLICATE_CORPUS_MAX_BYTES
 
-        omitted_required_keys: set[str] = set()
-        for task in [*required_tasks, *similarity_tasks, *generic_tasks]:
+        required_peer_tasks = [
+            task for task in required_tasks if _task_key(task) != current_key
+        ]
+        selected_keys = {current_key} if current_key else set()
+        current_row: dict[str, Any] | None = None
+        reserved_compact_rows: list[dict[str, Any]] = []
+        reserved_compact_keys: set[str] = set()
+        reserved_compact_task_keys: list[str] = []
+
+        # Reserve compact records for every structural peer before allowing a
+        # full row or a generic candidate to consume either budget.
+        for current_compact in (False, True):
+            candidate_current = (
+                _row(issue) if not current_compact else _minimal_current_row()
+            )
+            for level in range(6):
+                candidate_compact_rows = [
+                    _structural_peer_row(task, level=level)
+                    for task in required_peer_tasks
+                ]
+                candidate_compact_keys = {
+                    _task_key(task) for task in required_peer_tasks
+                }
+                if _fits(
+                    [candidate_current],
+                    candidate_compact_rows,
+                    selected=selected_keys,
+                    compacted=candidate_compact_keys,
+                ):
+                    current_row = candidate_current
+                    reserved_compact_rows = candidate_compact_rows
+                    reserved_compact_keys = candidate_compact_keys
+                    reserved_compact_task_keys = [
+                        _task_key(task) for task in required_peer_tasks
+                    ]
+                    break
+            if current_row is not None:
+                break
+
+        # A budget smaller than the protocol envelope itself is invalid, but
+        # retain the deterministic minimal representation rather than dropping
+        # a structural peer. Normal configured limits take the branch above.
+        if current_row is None:
+            current_row = _minimal_current_row()
+            reserved_compact_rows = [
+                _structural_peer_row(task, level=5) for task in required_peer_tasks
+            ]
+            reserved_compact_keys = {_task_key(task) for task in required_peer_tasks}
+            reserved_compact_task_keys = [
+                _task_key(task) for task in required_peer_tasks
+            ]
+
+        rows = [current_row]
+        selected_keys = {current_key} if current_key else set()
+        compact_keys = set(reserved_compact_keys)
+
+        # Upgrade reserved peers to full task rows only when both budgets
+        # permit it. Removing a compact record before the fit check keeps every
+        # peer represented during the upgrade.
+        for task in required_peer_tasks:
             key = _task_key(task)
-            if not key or key in selected_keys:
-                continue
-            is_required = key in required_keys
             if len(rows) >= max_tasks:
-                if is_required:
-                    omitted_required_keys.add(key)
+                break
+            try:
+                compact_index = next(
+                    index
+                    for index, compact_key in enumerate(reserved_compact_task_keys)
+                    if compact_key == key
+                )
+            except StopIteration:
                 continue
+            candidate_rows = [*rows, _row(task)]
+            candidate_compact_rows = [
+                row
+                for index, row in enumerate(reserved_compact_rows)
+                if index != compact_index
+            ]
+            if _fits(
+                candidate_rows,
+                candidate_compact_rows,
+                selected=selected_keys | {key},
+                compacted=compact_keys - {key},
+            ):
+                rows = candidate_rows
+                reserved_compact_rows = candidate_compact_rows
+                reserved_compact_task_keys = [
+                    current_key
+                    for index, current_key in enumerate(reserved_compact_task_keys)
+                    if index != compact_index
+                ]
+                selected_keys.add(key)
+                compact_keys.discard(key)
+
+        # Similarity candidates are useful but never displace a reserved
+        # structural peer. Generic tasks are last and may be omitted as normal
+        # budget pressure.
+        for task in [*similarity_tasks, *generic_tasks]:
+            key = _task_key(task)
+            if not key or key in selected_keys or key in compact_keys:
+                continue
+            if len(rows) >= max_tasks:
+                break
             candidate_row = _row(task)
-            if _fits([*rows, candidate_row], key):
+            if _fits(
+                [*rows, candidate_row],
+                reserved_compact_rows,
+                selected=selected_keys | {key},
+                compacted=compact_keys,
+            ):
                 rows.append(candidate_row)
                 selected_keys.add(key)
-                continue
-            if is_required:
-                compact_row = _row(task, compact=True)
-                if _fits([*rows, compact_row], key):
-                    rows.append(compact_row)
-                    selected_keys.add(key)
-                else:
-                    omitted_required_keys.add(key)
 
-        # The fit checks above calculate omission diagnostics from the current
-        # rows. Keep an explicit record for required peers skipped by the task
-        # count or byte limit.
-        omitted_required_keys.update(required_keys - selected_keys)
-        final_payload = _payload(rows)
-        if omitted_required_keys:
-            final_selection = final_payload["selection"]
-            final_selection["omitted_required_peer_count"] = len(omitted_required_keys)
-            final_selection["omitted_required_peer_identifiers"] = _bounded_ids(
-                sorted(omitted_required_keys)
-            )
-            final_selection["diagnostic"] = (
-                "Required structural peers could not fit the bounded corpus. "
-                "Increase the duplicate corpus task/byte budget or have a "
-                "project owner review the omitted identifiers before deciding."
-            )
-            final_payload["availability"] = "insufficient"
+        final_payload = _payload(rows, reserved_compact_rows)
 
         return json.dumps(final_payload, ensure_ascii=False, indent=2)
 
@@ -37641,75 +37855,43 @@ class Orchestrator:
                     f"task(s): {', '.join(invalid_matches or matched_identifiers)}"
                 )
 
-            # A corpus-budget failure is an operator/configuration diagnostic,
-            # not a model ambiguity. Re-read the tracker corpus server-side so
-            # untrusted model prose cannot trigger this fast path, then expose
-            # the omitted peer identifiers immediately instead of spending the
-            # remaining indistinguishable retries on an impossible comparison.
-            corpus_budget_diagnostic: str | None = None
+            # Re-read corpus health server-side so untrusted model prose cannot
+            # classify a healthy bounded corpus as unusable. A successful read
+            # is authoritative even when structural peers were compacted. Only
+            # an actual unavailable/corrupt read contributes a diagnostic to
+            # the normal bounded retry path.
+            corpus_health_diagnostic: str | None = None
             try:
                 corpus_payload = json.loads(
                     self._duplicate_preflight_task_corpus(tracker, current)
                 )
-                if corpus_payload.get("availability") == "insufficient":
-                    selection = corpus_payload.get("selection")
-                    omitted = (
-                        selection.get("omitted_required_peer_identifiers", [])
-                        if isinstance(selection, dict)
-                        else []
-                    )
-                    safe_omitted = [
-                        re.sub(
-                            r"[^A-Za-z0-9._/#:-]+",
-                            "_",
-                            str(identifier),
-                        )[:128]
-                        for identifier in omitted
-                        if str(identifier).strip()
-                    ]
-                    corpus_budget_diagnostic = (
-                        "Required structural peers could not fit the bounded "
+                availability = corpus_payload.get("availability")
+                if availability == "unavailable":
+                    corpus_health_diagnostic = (
+                        "The project task tracker could not provide a readable "
                         "duplicate corpus."
                     )
-                    if safe_omitted:
-                        corpus_budget_diagnostic += (
-                            " Omitted peer identifiers: "
-                            + ", ".join(safe_omitted)
-                            + "."
-                        )
+                elif availability == "corrupt":
+                    corpus_health_diagnostic = (
+                        "The project task tracker returned a corrupt duplicate "
+                        "corpus."
+                    )
+                elif availability != "authoritative":
+                    corpus_health_diagnostic = (
+                        "The duplicate corpus health result was invalid."
+                    )
             except Exception:
-                # A tracker read failure should retain the normal bounded retry
-                # path; only an authoritative insufficient envelope fast-fails.
-                corpus_budget_diagnostic = None
+                corpus_health_diagnostic = (
+                    "The project task tracker returned an unreadable duplicate "
+                    "corpus health response."
+                )
 
-            if corpus_budget_diagnostic:
-                failed = inconclusive_record(
-                    record,
-                    retry_count=_DUPLICATE_PREFLIGHT_MAX_RETRIES,
-                    retry_after=now,
-                    evidence=corpus_budget_diagnostic,
+            if corpus_health_diagnostic:
+                evidence = (
+                    f"{evidence} {corpus_health_diagnostic}".strip()
+                    if evidence
+                    else corpus_health_diagnostic
                 )
-                save_duplicate_screening_record(tracker, current, failed)
-                issue.duplicate_screening = failed.to_dict()
-                self._mark_needs_human(
-                    tracker,
-                    entry.identifier,
-                    (
-                        "Duplicate screening stopped with an actionable corpus "
-                        "diagnostic: "
-                        + corpus_budget_diagnostic
-                        + " Increase the duplicate corpus task/byte budget or "
-                        "have a project owner review the authoritative tracker "
-                        "corpus, then use the authenticated duplicate-screening "
-                        "owner-resolution action with a conclusive verdict."
-                    ),
-                )
-                issue.state = NEEDS_HUMAN
-                return {
-                    "outcome": "needs_human",
-                    "terminal": True,
-                    "diagnostic": "corpus_insufficient",
-                }
 
             retry_count = record.retry_count + 1
             retry_delay = min(60 * (2 ** max(retry_count - 1, 0)), 15 * 60)

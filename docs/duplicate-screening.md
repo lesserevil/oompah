@@ -130,11 +130,13 @@ contain untrusted task text; they cannot issue tracker mutations or satisfy the
 verdict contract. Structural peers (the current task's parent, children,
 same-parent siblings, direct and reverse dependencies, and hard-start
 dependencies) and title/description similarity candidates are selected before
-generic tasks. If required peers cannot fit the deterministic task or byte
-budget, the corpus is marked `insufficient` and includes an actionable list of
-omitted identifiers; the investigator must report that diagnostic rather than
-guessing. The worker has no task CLI, HTTP, localhost, or loopback tracker
-transport, so the supplied corpus is the complete evidence source.
+generic tasks. Structural peers are reserved before generic rows and, when the
+task or byte budget is tight, are represented by compact records containing
+their identity, title/status, relationship, and bounded evidence summary. A
+healthy tracker corpus remains `authoritative` under budget pressure; only an
+unavailable or corrupt tracker read is non-authoritative and actionable. The
+worker has no task CLI, HTTP, localhost, or loopback tracker transport, so the
+supplied corpus is the complete evidence source.
 
 The investigator must emit the machine-readable block first, before optional
 narrative:

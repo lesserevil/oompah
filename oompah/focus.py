@@ -679,10 +679,10 @@ BUILTIN_FOCI: list[Focus] = [
             "the screening sandbox has no authenticated tracker transport and only "
             "the supplied evidence is available",
             "Compare the current task with peer descriptions, statuses, and "
-            "relevant comments from that corpus. If the corpus is unavailable "
-            "or insufficient, report inconclusive rather than guessing. If its "
-            "selection diagnostic names omitted structural peers, include those "
-            "identifiers and the requested budget/review action in the evidence",
+            "relevant comments from that corpus. Read compact structural peer "
+            "records alongside full task rows when they are present. If the "
+            "corpus is unavailable or corrupt, report inconclusive rather than "
+            "guessing; ordinary task/byte budget pressure is still authoritative",
             "Exclude every candidate in a terminal state (Done, Merged, or "
             "Archived). A completed task is historical context, not an active "
             "duplicate target",
