@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T08:49:39.994903Z'
+updated_at: '2026-08-06T09:38:58.437589Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -311,5 +311,10 @@ author: oompah
 created: 2026-08-06 08:49
 ---
 Third-review repair is complete but remains uncommitted/test-free pending another independent static review. The repair moves generation allocation ahead of tracker fetch, fences evaluator/scheduler/failure publication and omitted-task authority, makes observe+persistence/reload generation-coherent, replaces lossy tombstones with a persisted non-recount membership ledger, and accumulates bounded materialization across passes/restarts until exact job coverage converges. Added concurrency, rollback, restart, >window, and no-false-green regressions; diff check is clean.
+---
+author: oompah
+created: 2026-08-06 09:38
+---
+Fresh independent static review rejected the latest repair for four remaining correctness gaps: semantic/evidence revision corruption can renew SLO; publication rollback excludes already-committed membership/cursor/job authority; valid-root restart timestamp corruption can raise at startup/snapshot; and reconcile_schedule can supersede workflow_managed=0 direct jobs. Repair is active with nonempty publication-failure, valid-root nested corruption, and mixed managed/unmanaged scope tests; no validation or submission until another independent review accepts it.
 ---
 <!-- COMMENTS:END -->
