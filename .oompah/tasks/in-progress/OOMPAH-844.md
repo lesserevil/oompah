@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:00:58.832102Z'
-updated_at: '2026-08-06T04:02:17.974107Z'
+updated_at: '2026-08-06T04:04:40.639270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-06 04:02
 ---
 Implementation: Added a scoped @pytest.mark.timeout(20) to the storage-backed GitHub lifecycle construction test. Stubbed _recover_release_addendum_leases in the repo-heal failure test and three adjacent epic-maintenance _tick tests, preserving their existing assertions and teardown handling. No production code or global timeout changed.
+---
+author: oompah
+created: 2026-08-06 04:04
+---
+Verification: Focused xdist checks passed: 15 affected handler tests in 7.33s, lifecycle construction target in 3.48s, full GitHub lifecycle module (41 tests) in 13.37s, and eight concurrent repo-heal regression processes. The combined affected modules passed 320 tests in 86.54s. Next is make test at the review head.
 ---
 <!-- COMMENTS:END -->
