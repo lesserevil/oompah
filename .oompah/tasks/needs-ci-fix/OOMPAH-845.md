@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:03:28.491711Z'
+updated_at: '2026-08-06T21:05:24.051635Z'
 work_branch: null
 target_branch: null
 review_url: null
