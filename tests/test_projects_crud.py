@@ -327,6 +327,44 @@ class TestProjectAPI:
         assert "github_issue_intake_enabled" in data
         assert "external_issue_intake_enabled" in data
 
+    def test_project_api_updates_auditor_validation_contract_atomically(self):
+        response = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={
+                "auditor_validation_targets": ["focused", "test"],
+                "auditor_validation_target_deadlines": {
+                    "focused": 300,
+                    "test": 1200,
+                },
+                "auditor_validation_target_expected_seconds": {
+                    "focused": 120,
+                    "test": 1080,
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["auditor_validation_targets"] == ["focused", "test"]
+        assert data["auditor_validation_target_deadlines"]["test"] == 1200
+        assert data["auditor_validation_target_expected_seconds"]["test"] == 1080
+
+    def test_project_api_rejects_impossible_auditor_validation_contract(self):
+        response = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={
+                "auditor_validation_targets": ["test"],
+                "auditor_validation_target_deadlines": {"test": 720},
+                "auditor_validation_target_expected_seconds": {"test": 1080},
+            },
+        )
+
+        assert response.status_code == 400
+        assert "expected_seconds=1080" in response.json()["error"]["message"]
+        project = self.store.get("proj-test1")
+        assert project.auditor_validation_targets == []
+        assert project.auditor_validation_target_deadlines == {}
+
     def test_project_api_updates_gitlab_forge_through_new_fields(self):
         response = self.client.patch(
             "/api/v1/projects/proj-test1",
@@ -751,6 +789,9 @@ class TestProjectStoreUpdatableFields:
             "test_command",
             "test_command_full",
             "test_skip_paths",
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
             "epic_strategy",
             "require_epic_for_tasks",
             "intake_auto_promote",

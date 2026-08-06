@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from urllib.parse import urlsplit
 
@@ -1560,6 +1560,19 @@ class ProjectStore:
             for entry in data:
                 p = Project.from_dict(entry)
                 if p.id:
+                    from oompah.auditor import build_auditor_validation_contract
+
+                    contract = build_auditor_validation_contract(p)
+                    p.auditor_validation_contract_error = (
+                        contract.configuration_error
+                    )
+                    if contract.configuration_error:
+                        logger.error(
+                            "Project %s has incompatible auditor validation "
+                            "configuration: %s",
+                            p.id,
+                            contract.configuration_error,
+                        )
                     self._projects[p.id] = p
                     register_secret_values((p.access_token, p.webhook_secret))
         except (json.JSONDecodeError, OSError) as exc:
@@ -1899,6 +1912,11 @@ class ProjectStore:
             supported_release_branches=supported_release_branches,
             paused=bool(paused),
         )
+        from oompah.auditor import build_auditor_validation_contract
+
+        project.auditor_validation_contract_error = (
+            build_auditor_validation_contract(project).configuration_error
+        )
         self._projects[project_id] = project
         register_secret_values((project.access_token, project.webhook_secret))
         self._save()
@@ -1933,6 +1951,9 @@ class ProjectStore:
             "test_command",
             "test_command_full",
             "test_skip_paths",
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
             "epic_strategy",
             "require_epic_for_tasks",
             "intake_auto_promote",
@@ -2024,6 +2045,68 @@ class ProjectStore:
                 fields["test_skip_paths"] = cleaned
             else:
                 raise ProjectError("'test_skip_paths' must be a list of strings")
+
+        if "auditor_validation_targets" in fields:
+            val = fields["auditor_validation_targets"]
+            if val is None:
+                fields["auditor_validation_targets"] = []
+            elif not isinstance(val, list):
+                raise ProjectError(
+                    "'auditor_validation_targets' must be a list of strings"
+                )
+            else:
+                cleaned_targets: list[str] = []
+                seen_targets: set[str] = set()
+                for item in val:
+                    if not isinstance(item, str):
+                        raise ProjectError(
+                            "'auditor_validation_targets' entries must be strings"
+                        )
+                    target = item.strip()
+                    if (
+                        not target
+                        or not target.isascii()
+                        or not target[0].isalnum()
+                        or not all(
+                            char.isalnum() or char in "_.-" for char in target
+                        )
+                    ):
+                        raise ProjectError(
+                            f"unsafe auditor validation target {target!r}"
+                        )
+                    if target in seen_targets:
+                        raise ProjectError(
+                            f"duplicate auditor validation target {target!r}"
+                        )
+                    seen_targets.add(target)
+                    cleaned_targets.append(target)
+                fields["auditor_validation_targets"] = cleaned_targets
+
+        for field_name in (
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+        ):
+            if field_name not in fields:
+                continue
+            val = fields[field_name]
+            if val is None:
+                fields[field_name] = {}
+                continue
+            if not isinstance(val, dict):
+                raise ProjectError(f"'{field_name}' must be an object")
+            normalized_mapping: dict[str, int] = {}
+            for raw_target, raw_seconds in val.items():
+                target = str(raw_target).strip()
+                if (
+                    isinstance(raw_seconds, bool)
+                    or not isinstance(raw_seconds, int)
+                    or raw_seconds <= 0
+                ):
+                    raise ProjectError(
+                        f"'{field_name}[{target!r}]' must be a positive integer"
+                    )
+                normalized_mapping[target] = raw_seconds
+            fields[field_name] = normalized_mapping
 
         # Validate epic_strategy: only "shared" is supported.
         # "flat" and "stacked" were removed; callers that still send them
@@ -2332,8 +2415,67 @@ class ProjectStore:
                         "'state_branch_checkpoint_debounce_ms' + 1000 ms"
                     )
 
+        validation_contract_inputs = {
+            "auditor_validation_targets",
+            "auditor_validation_target_deadlines",
+            "auditor_validation_target_expected_seconds",
+            "test_command",
+            "test_command_full",
+            "repo_url",
+        }
+        validation_contract_changed = bool(
+            validation_contract_inputs & fields.keys()
+        )
+        candidate_validation_observations: dict[str, int] | None = None
+        if validation_contract_changed:
+            from oompah.auditor import build_auditor_validation_contract
+
+            candidate = replace(project, **fields)
+            approved_targets = set(
+                candidate.auditor_validation_targets
+                or ("test", "test-serial", "check-secrets")
+            )
+            previous_gate_command = (
+                project.test_command_full or project.test_command or ""
+            ).strip()
+            candidate_gate_command = (
+                candidate.test_command_full or candidate.test_command or ""
+            ).strip()
+            previous_repository_identity = str(
+                project.repo_url or project.repo_path or project.id
+            )
+            candidate_repository_identity = str(
+                candidate.repo_url or candidate.repo_path or candidate.id
+            )
+            retain_observations = (
+                previous_gate_command == candidate_gate_command
+                and previous_repository_identity == candidate_repository_identity
+            )
+            candidate.auditor_validation_target_observed_seconds = {
+                target: seconds
+                for target, seconds in (
+                    project.auditor_validation_target_observed_seconds.items()
+                )
+                if retain_observations and target in approved_targets
+            }
+            candidate_validation_observations = dict(
+                candidate.auditor_validation_target_observed_seconds
+            )
+            contract = build_auditor_validation_contract(candidate)
+            if contract.configuration_error:
+                raise ProjectError(
+                    "auditor validation configuration is incompatible: "
+                    f"{contract.configuration_error}"
+                )
+
         for key, value in fields.items():
             setattr(project, key, value)
+
+        if validation_contract_changed:
+            project.auditor_validation_target_observed_seconds = (
+                candidate_validation_observations or {}
+            )
+            project.auditor_validation_contract_error = None
 
         # Dynamic project updates can introduce a new opaque token/secret;
         # retain both the new and old value in the process-local registry so

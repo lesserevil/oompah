@@ -18,7 +18,9 @@ from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_SCHEMA,
     AuditorTargetContract,
+    AuditorValidationContract,
     auditor_target_contract,
+    build_auditor_validation_contract,
 )
 from oompah.provenance import (
     ContentSource,
@@ -359,6 +361,7 @@ def render_auditor_prompt(
     task_metadata: Mapping[str, Any] | None = None,
     project_id: str | None = None,
     validation_targets: list[str] | None = None,
+    validation_contract: AuditorValidationContract | None = None,
 ) -> str:
     """Render the trusted contract and untrusted evidence for an auditor.
 
@@ -517,28 +520,43 @@ def render_auditor_prompt(
     )
     schema = json.dumps(AUDITOR_RESULT_TOOL_SCHEMA, ensure_ascii=False, indent=2)
     
-    # Build the validation targets section from project config or explicit list
+    # Build the validation targets section from the scheduler's project snapshot.
     validation_targets_section = ""
-    if validation_targets is not None:
-        # Use explicitly provided targets
-        targets_list = validation_targets
-    elif project_id is not None:
-        # Look up targets from project configuration
-        try:
-            from oompah.auditor import _get_auditor_validation_targets
-            targets_list = _get_auditor_validation_targets(project_id)
-        except Exception:
-            targets_list = []
-    else:
-        targets_list = []
-    
-    if targets_list:
+    effective_contract = validation_contract
+    if effective_contract is None and validation_targets is not None:
+        project_like = type(
+            "AuditorPromptProject",
+            (),
+            {
+                "id": project_id or "",
+                "auditor_validation_targets": validation_targets,
+                "auditor_validation_target_deadlines": {},
+                "auditor_validation_target_expected_seconds": {},
+            },
+        )()
+        effective_contract = build_auditor_validation_contract(project_like)
+
+    if effective_contract is not None and effective_contract.targets:
+        target_lines = []
+        for budget in effective_contract.targets:
+            target_lines.append(
+                f"- make {budget.target} — "
+                f"expected_seconds={budget.expected_seconds}; "
+                f"deadline_seconds={budget.deadline_seconds}; "
+                f"deadline_source={budget.deadline_source}"
+            )
         validation_targets_section = (
-            "\n### Approved validation targets\n"
-            "When run_command is used with make, only these targets are allowed:\n"
-            + "\n".join(f"- make {target}" for target in targets_list)
+            "\n### Approved validation targets (preference order)\n"
+            "Only these exact Make targets are allowed. Prefer the first focused "
+            "target that can establish the required evidence:\n"
+            + "\n".join(target_lines)
             + "\n"
         )
+        if effective_contract.configuration_error:
+            validation_targets_section += (
+                "Configuration error (the scheduler must block launch): "
+                f"{effective_contract.configuration_error}\n"
+            )
 
     # Build the prompt content, conditionally including validation targets
     prompt_content = [
@@ -597,6 +615,9 @@ def render_auditor_prompt(
         "return a recoverable validation response; split the commands and continue.",
         "- A validation response from run_command means the command was not "
         "executed; it is not a provider transport failure or an audit verdict.",
+        "- If a validation target times out, do not run a broader or predictably "
+        "slower fallback (especially a serial full-suite fallback). Submit the "
+        "timeout evidence as a configuration/code failure instead.",
         "- The result tool is the only stateful capability; it submits to the scheduler "
         "and does not directly change repository or tracker state.",
         "",
@@ -660,6 +681,11 @@ def render_prompt(
     native tasks that are stored on a state branch rather than in the worker
     checkout.
     """
+    auditor_validation_contract = (
+        build_auditor_validation_contract(project)
+        if auditor_context
+        else None
+    )
     if not template_source.strip():
         text = f"You are working on an issue from the project tracker.\n\nIssue: {issue.identifier} - {issue.title}"
         if auditor_context:
@@ -669,6 +695,7 @@ def render_prompt(
                 evidence_summary=auditor_context.get("evidence_summary"),
                 comments=auditor_context.get("comments"),
                 task_metadata=auditor_context.get("task_metadata"),
+                validation_contract=auditor_validation_contract,
             )
         if duplicate_task_corpus:
             corpus_provenance = make_provenance(
@@ -831,6 +858,7 @@ def render_prompt(
             evidence_summary=auditor_context.get("evidence_summary"),
             comments=auditor_context.get("comments"),
             task_metadata=auditor_context.get("task_metadata"),
+            validation_contract=auditor_validation_contract,
         )
 
     if attachments is None:

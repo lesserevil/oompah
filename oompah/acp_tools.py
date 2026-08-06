@@ -61,7 +61,11 @@ from oompah.authority_boundary import (
     check_read_only_mutation,
     check_shell_command,
 )
-from oompah.auditor import is_recoverable_auditor_command_denial
+from oompah.auditor import (
+    auditor_validation_timeout_message,
+    is_recoverable_auditor_command_denial,
+    resolve_auditor_validation_budget,
+)
 from oompah.integration import task_submit_required_message
 from oompah.label_auth import label_name_to_status
 from oompah.statuses import READY_TO_INTEGRATE, canonicalize_status
@@ -208,6 +212,59 @@ def _agent_submission_result(identifier: str, accepted: Any) -> str:
     return f"Submitted for integration: {identifier}"
 
 
+def _auditor_project_snapshot(
+    project_store: Any,
+    project_id: str | None,
+    *,
+    auditor_mode: bool,
+) -> tuple[Any, str | None]:
+    if not auditor_mode:
+        return None, None
+    # Standalone catalog consumers historically use the default auditor
+    # contract without a ProjectStore. Production sessions inject the store;
+    # once one is supplied, missing identity/configuration must fail closed.
+    if project_store is None:
+        return None, None
+    if not project_id:
+        return None, "auditor project identity is unavailable"
+    try:
+        project = project_store.get(project_id)
+    except Exception as exc:
+        return None, (
+            "auditor project configuration could not be read "
+            f"({type(exc).__name__})"
+        )
+    if project is None:
+        return None, f"auditor project {project_id!r} is not configured"
+    return project, None
+
+
+def _auditor_run_command_options(
+    command: str,
+    project: Any,
+    *,
+    auditor_mode: bool,
+    fallback_timeout: int | None,
+) -> tuple[int | None, str | None, str | None, bool]:
+    if not auditor_mode:
+        return fallback_timeout, None, None, False
+    budget, configuration_error = resolve_auditor_validation_budget(
+        command,
+        project,
+        global_timeout_seconds=fallback_timeout,
+    )
+    if configuration_error:
+        return fallback_timeout, None, configuration_error, False
+    if budget is None:
+        return fallback_timeout, None, None, False
+    return (
+        budget.deadline_seconds,
+        auditor_validation_timeout_message(budget),
+        None,
+        True,
+    )
+
+
 def _read_file_input_schema() -> dict[str, Any]:
     """Return the shared optional-chunk schema for MCP read_file tools."""
 
@@ -300,6 +357,9 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "status_label_authorized_logins",
         "intake_auto_promote",
         "paused",
+        "auditor_validation_targets",
+        "auditor_validation_target_deadlines",
+        "auditor_validation_target_expected_seconds",
     }
 )
 
@@ -318,6 +378,9 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "status_label_authorized_logins",
         "intake_auto_promote",
         "paused",
+        "auditor_validation_targets",
+        "auditor_validation_target_deadlines",
+        "auditor_validation_target_expected_seconds",
     }
 )
 
@@ -355,6 +418,20 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         ),
         "intake_auto_promote": bool_attr("intake_auto_promote", True),
         "paused": bool_attr("paused", False),
+        "auditor_validation_targets": list(
+            getattr(project, "auditor_validation_targets", []) or []
+        ),
+        "auditor_validation_target_deadlines": dict(
+            getattr(project, "auditor_validation_target_deadlines", {}) or {}
+        ),
+        "auditor_validation_target_expected_seconds": dict(
+            getattr(
+                project,
+                "auditor_validation_target_expected_seconds",
+                {},
+            )
+            or {}
+        ),
     }
 
 
@@ -1426,11 +1503,22 @@ def build_tool_catalog(
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            current_project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, cmd)
+        shell_denial = check_shell_command(action_policy, cmd, project=project)
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
+        if project_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
@@ -1444,12 +1532,26 @@ def build_tool_catalog(
         )
         if direct is not None:
             return _wrap_text(direct)
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                cmd,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return _wrap_text(
             await asyncio.to_thread(
                 _exec_run_command,
                 workspace,
                 args,
-                timeout=run_command_timeout_s,
+                timeout=command_timeout,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
                 validation_lease=validation_lease,
@@ -1463,6 +1565,8 @@ def build_tool_catalog(
                 ),
                 validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                timeout_error=timeout_error,
+                configured_validation_target=configured_target,
             )
         )
 
@@ -1519,7 +1623,8 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
         "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -1544,7 +1649,8 @@ def build_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},
@@ -1846,11 +1952,26 @@ def build_codex_tool_catalog(
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
         configured. Returns stdout, stderr, and exit code."""
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            current_project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, command)
+        shell_denial = check_shell_command(
+            action_policy,
+            command,
+            project=project,
+        )
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return shell_denial
+        if project_error:
+            return (
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             command,
             task_tracker,
@@ -1864,6 +1985,20 @@ def build_codex_tool_catalog(
         )
         if direct is not None:
             return direct
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                command,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return (
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return await asyncio.to_thread(
             _exec_run_command,
             workspace,
@@ -1872,7 +2007,7 @@ def build_codex_tool_catalog(
                 "validation_mode": validation_mode,
                 "validation_justification": validation_justification,
             },
-            timeout=run_command_timeout_s,
+            timeout=command_timeout,
             tool_liveness=tool_liveness,
             output_store=command_output_store,
             validation_lease=validation_lease,
@@ -1884,6 +2019,8 @@ def build_codex_tool_catalog(
             validation_reuse_authority_check=validation_reuse_authority_check,
             validation_reuse_policy_handler=validation_reuse_policy_handler,
             result_delivery_required=tool_liveness is not None,
+            timeout_error=timeout_error,
+            configured_validation_target=configured_target,
         )
 
     @function_tool
@@ -1915,7 +2052,8 @@ def build_codex_tool_catalog(
         """Update tracker configuration fields for the managed project.
         ``fields_json`` must be a JSON-encoded object whose keys are a
         subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner,
-        tracker_repo, github_issue_intake_enabled, github_project_node_id, paused.
+        tracker_repo, github_issue_intake_enabled, github_project_node_id, paused,
+        and the auditor_validation_* contract fields.
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
@@ -2240,11 +2378,22 @@ def build_opencode_tool_catalog(
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
         cmd = str(args.get("command", ""))
+        project, project_error = _auditor_project_snapshot(
+            project_store,
+            project_id,
+            auditor_mode=auditor_mode,
+        )
         # Authority check for shell commands (git push, gh CLI, credentials, …)
-        shell_denial = check_shell_command(action_policy, cmd)
+        shell_denial = check_shell_command(action_policy, cmd, project=project)
         if shell_denial is not None:
             _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
+        if project_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is unavailable; "
+                f"the command was not executed: {project_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         direct = await _exec_oompah_task_command_async(
             cmd,
             task_tracker,
@@ -2258,12 +2407,26 @@ def build_opencode_tool_catalog(
         )
         if direct is not None:
             return _wrap_text(direct)
+        command_timeout, timeout_error, configuration_error, configured_target = (
+            _auditor_run_command_options(
+                cmd,
+                project,
+                auditor_mode=auditor_mode,
+                fallback_timeout=run_command_timeout_s,
+            )
+        )
+        if configuration_error:
+            return _wrap_text(
+                "Error: auditor validation configuration is incompatible; "
+                f"the command was not executed: {configuration_error} "
+                "[reason=auditor_validation_configuration]"
+            )
         return _wrap_text(
             await asyncio.to_thread(
                 _exec_run_command,
                 workspace,
                 args,
-                timeout=run_command_timeout_s,
+                timeout=command_timeout,
                 tool_liveness=tool_liveness,
                 output_store=command_output_store,
                 validation_lease=validation_lease,
@@ -2277,6 +2440,8 @@ def build_opencode_tool_catalog(
                 ),
                 validation_reuse_policy_handler=validation_reuse_policy_handler,
                 result_delivery_required=tool_liveness is not None,
+                timeout_error=timeout_error,
+                configured_validation_target=configured_target,
             )
         )
 
@@ -2333,7 +2498,8 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Example: '{\"forge_kind\": \"gitlab\", \"forge_base_url\": "
         "\"https://gitlab.com\", \"tracker_kind\": \"gitlab_issues\"}'. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -2358,7 +2524,8 @@ def build_opencode_tool_catalog(
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: forge_kind, forge_base_url, tracker_kind, tracker_owner, "
         "tracker_repo, github_issue_intake_enabled, github_project_node_id, "
-        "status_actor_login, status_label_authorized_logins, paused. "
+        "status_actor_login, status_label_authorized_logins, paused, and the "
+        "auditor_validation_* contract fields. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
         {"project_id": str, "fields_json": str},

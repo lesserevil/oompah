@@ -162,10 +162,11 @@ class AuditorDispatchLane:
         """Rehydrate a record and mark an abandoned launch ready for retry.
 
         When the caller supplies the live attempt IDs, an attempt absent from
-        that set is abandoned immediately (including after a process restart).
-        Callers without a live-worker registry can omit the set and use the
-        TTL grace period instead.  A changed fingerprint is never allowed to
-        complete an old attempt.
+        that set is abandoned immediately (including after a process restart),
+        while a live worker remains owned by its phase-specific liveness
+        deadlines. Callers without a live-worker registry can omit the set and
+        use the TTL grace period instead. A changed fingerprint is never
+        allowed to complete an old attempt.
         """
 
         current = self.current_attempt(record)
@@ -200,13 +201,6 @@ class AuditorDispatchLane:
             )
         if fingerprint_changed:
             reason = "evidence fingerprint changed during auditor run"
-        elif active and age >= self.attempt_ttl_seconds:
-            return AuditRecovery(
-                record,
-                False,
-                "auditor session exceeded TTL; termination required",
-                current.attempt_id,
-            )
         elif active:
             return AuditRecovery(record, False, "auditor already running", current.attempt_id)
         elif current.ended_at:

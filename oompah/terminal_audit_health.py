@@ -81,6 +81,9 @@ class AuditHealthObservation:
     # verdict was produced (or the finalization boundary was exhausted) but
     # the authoritative terminal status has not been acknowledged yet.
     finalization_failure_count: int = 0
+    # A pre-launch validation-contract error is configuration health, not a
+    # transport, policy-attempt, or stale-backlog failure.
+    configuration_error: bool = False
 
 
 @dataclass
@@ -96,6 +99,7 @@ class TerminalAuditHealth:
     launch_failure_count: int = 0
     transport_failure_count: int = 0
     policy_incompatibility_count: int = 0
+    configuration_error_count: int = 0
     finalization_failure_count: int = 0
     retry_exhausted_count: int = 0
     quarantined_count: int = 0
@@ -119,6 +123,7 @@ class TerminalAuditHealth:
             self.launch_failure_count
             or self.transport_failure_count
             or self.policy_incompatibility_count
+            or self.configuration_error_count
             or self.finalization_failure_count
             or self.stale_pending_count
             or self.stale_in_validation_count
@@ -138,6 +143,7 @@ class TerminalAuditHealth:
             "launch_failure_count": self.launch_failure_count,
             "transport_failure_count": self.transport_failure_count,
             "policy_incompatibility_count": self.policy_incompatibility_count,
+            "configuration_error_count": self.configuration_error_count,
             "finalization_failure_count": self.finalization_failure_count,
             "failure_count": self.failure_count,
             "retry_exhausted_count": self.retry_exhausted_count,
@@ -166,6 +172,7 @@ class TerminalAuditHealth:
             "launch_failure_count",
             "transport_failure_count",
             "policy_incompatibility_count",
+            "configuration_error_count",
             "finalization_failure_count",
             "retry_exhausted_count",
             "quarantined_count",
@@ -276,6 +283,7 @@ def build_terminal_audit_health(
     launch_failures = 0
     transport_failures = 0
     policy_incompatibilities = 0
+    configuration_errors = 0
     finalization_failures = 0
     exhausted = 0
     quarantined = 0
@@ -312,6 +320,20 @@ def build_terminal_audit_health(
         if observation.quarantined:
             quarantined += 1
             increment(observation.project_id, "quarantined_count")
+            continue
+
+        if observation.configuration_error:
+            configuration_errors += 1
+            increment(observation.project_id, "configuration_error_count")
+            if record is not None:
+                if record.request_state == RequestState.IN_PROGRESS:
+                    in_progress += 1
+                    increment(observation.project_id, "in_progress_count")
+                elif record.request_state == RequestState.PENDING:
+                    pending += 1
+                    increment(observation.project_id, "pending_count")
+            # The exact actionable condition is surfaced by the scheduler's
+            # project-scoped alert. Do not also classify it as stale/transport.
             continue
 
         if record is None:
@@ -404,6 +426,7 @@ def build_terminal_audit_health(
         launch_failure_count=launch_failures,
         transport_failure_count=transport_failures,
         policy_incompatibility_count=policy_incompatibilities,
+        configuration_error_count=configuration_errors,
         finalization_failure_count=finalization_failures,
         retry_exhausted_count=exhausted,
         quarantined_count=quarantined,

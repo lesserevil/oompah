@@ -833,22 +833,10 @@ def test_git_rev_list_recovers_after_unsupported_but_safe_syntax(tmp_path: Path)
     assert received[0].audit_id == target.audit_id
 
 
-def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recoverable(
+def test_unapproved_make_targets_are_fatal_policy_denials(
     tmp_path: Path,
 ):
-    """Regression test for OOMPAH-753: non-mutating validator requests outside the
-    project's validation contract should be recoverable and not consume the fatal
-    policy budget.
-    
-    This test simulates the OOMPAH-731 audit scenario where an auditor requests
-    focused pytest commands (e.g., with output truncation) that are syntactically
-    valid but outside the structured validation contract (which only allows
-    "make test", "make test-serial", "make check-secrets").
-    
-    Previously, these denials consumed the fatal policy budget and terminated the
-    auditor after 3 denials. Now they should be recoverable and allow the auditor
-    to continue and run approved commands.
-    """
+    """An innocuous target name cannot expand server-issued authority."""
     target = _target()
     policy = auditor_policy(
         task_identifier=target.task_id,
@@ -867,8 +855,7 @@ def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recover
     )
     assert result1.startswith("Error:")
     assert "not executed" in result1
-    # This denial should NOT be passed to the handler (recoverable)
-    assert denials == []
+    assert len(denials) == 1
 
     # Second denial: make fmt-check command (outside contract's default targets)
     result2 = _execute_tool(
@@ -880,8 +867,7 @@ def test_oompah_753_non_mutating_validator_requests_outside_contract_are_recover
     )
     assert result2.startswith("Error:")
     assert "not executed" in result2
-    # This denial should also NOT be passed to the handler (recoverable)
-    assert denials == []
+    assert len(denials) == 2
 
     # Auditor can still use search_files and read_file
     search = _execute_tool(

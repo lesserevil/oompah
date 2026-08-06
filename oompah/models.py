@@ -449,10 +449,11 @@ class Project:
     test_skip_paths: list[str] = field(default_factory=list)
     # Auditor validation command contract: explicit allowlist of non-mutating
     # Makefile/shell targets that the completion auditor may run for validation.
-    # Examples: ["test", "fmt-check", "lint", "help"]. The full test_command
-    # is always implicitly included. When empty (the default), falls back to the
-    # default allowlist. Enables aligning auditor prompt guidance with actual
-    # enforcement (OOMPAH-736).
+    # Examples: ["test", "fmt-check", "lint", "help"]. Targets must be
+    # enumerated explicitly; deadline configuration never expands this
+    # allowlist. When empty (the default), falls back to the default targets.
+    # Enables aligning auditor prompt guidance with actual enforcement
+    # (OOMPAH-736).
     auditor_validation_targets: list[str] = field(default_factory=list)
     # Per-target command deadlines (seconds) for auditor validation targets.
     # Maps target name (from auditor_validation_targets) to its required execution
@@ -461,6 +462,29 @@ class Project:
     # longer validation commands (e.g., integration tests) within their deadline.
     # Example: {"test": 1800, "test-serial": 2400, "check-secrets": 300}
     auditor_validation_target_deadlines: dict[str, int] = field(default_factory=dict)
+    # Observed or operator-configured duration budget for each approved target.
+    # A configured duration greater than its effective deadline is rejected
+    # before an auditor can consume an attempt.
+    auditor_validation_target_expected_seconds: dict[str, int] = field(
+        default_factory=dict
+    )
+    # Derived at project load/update time. It is intentionally not persisted:
+    # the exact error can include effective environment fallback values.
+    auditor_validation_contract_error: str | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    # Maximum compatible exact-gate durations observed by the service. This is
+    # hydrated from quality_gates.json at runtime and is never user-authored or
+    # persisted in project configuration.
+    auditor_validation_target_observed_seconds: dict[str, int] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        compare=False,
+    )
     # Per-project strategy controlling how children of an epic relate to
     # branches and CI.  "shared" is the only supported value: each epic gets
     # ONE shared worktree and ONE shared branch; child tasks commit directly
@@ -672,6 +696,10 @@ class Project:
         if self.auditor_validation_target_deadlines:
             d["auditor_validation_target_deadlines"] = dict(
                 self.auditor_validation_target_deadlines
+            )
+        if self.auditor_validation_target_expected_seconds:
+            d["auditor_validation_target_expected_seconds"] = dict(
+                self.auditor_validation_target_expected_seconds
             )
         # Always emit epic_strategy so dashboards can render the current
         # mode without back-compat guessing.  "shared" is the only supported
@@ -908,19 +936,73 @@ class Project:
                 state_branch_checkpoint_max_delay_ms = v if v > 0 else None
             except (TypeError, ValueError):
                 state_branch_checkpoint_max_delay_ms = None
-        # Auditor validation target deadlines (per-target command execution limits).
-        # Legacy records that lack this field default to an empty dict.
-        raw_deadlines = d.get("auditor_validation_target_deadlines") or {}
-        auditor_validation_target_deadlines: dict[str, int] = {}
-        if isinstance(raw_deadlines, dict):
-            for target, deadline in raw_deadlines.items():
-                try:
-                    target_name = str(target).strip()
-                    deadline_seconds = int(deadline)
-                    if target_name and deadline_seconds > 0:
-                        auditor_validation_target_deadlines[target_name] = deadline_seconds
-                except (TypeError, ValueError):
-                    pass
+        raw_validation_targets = d.get("auditor_validation_targets")
+        if raw_validation_targets is None:
+            auditor_validation_targets: list[str] = []
+        elif not isinstance(raw_validation_targets, list):
+            raise ValueError("auditor_validation_targets must be a list of strings")
+        else:
+            auditor_validation_targets = []
+            seen_validation_targets: set[str] = set()
+            for raw_target in raw_validation_targets:
+                if not isinstance(raw_target, str):
+                    raise ValueError(
+                        "auditor_validation_targets entries must be strings"
+                    )
+                target = raw_target.strip()
+                if (
+                    not target
+                    or not target.isascii()
+                    or not all(
+                        char.isalnum() or char in "_.-" for char in target
+                    )
+                    or not target[0].isalnum()
+                ):
+                    raise ValueError(
+                        f"unsafe auditor validation target {target!r}"
+                    )
+                if target in seen_validation_targets:
+                    raise ValueError(
+                        f"duplicate auditor validation target {target!r}"
+                    )
+                seen_validation_targets.add(target)
+                auditor_validation_targets.append(target)
+
+        effective_validation_targets = set(
+            auditor_validation_targets
+            or ("test", "test-serial", "check-secrets")
+        )
+
+        def _strict_target_seconds_map(field_name: str) -> dict[str, int]:
+            raw_mapping = d.get(field_name)
+            if raw_mapping is None:
+                return {}
+            if not isinstance(raw_mapping, dict):
+                raise ValueError(f"{field_name} must be an object")
+            result: dict[str, int] = {}
+            for raw_target, raw_seconds in raw_mapping.items():
+                target = str(raw_target).strip()
+                if target not in effective_validation_targets:
+                    raise ValueError(
+                        f"{field_name} contains unapproved target {target!r}"
+                    )
+                if (
+                    isinstance(raw_seconds, bool)
+                    or not isinstance(raw_seconds, int)
+                    or raw_seconds <= 0
+                ):
+                    raise ValueError(
+                        f"{field_name}[{target!r}] must be a positive integer"
+                    )
+                result[target] = raw_seconds
+            return result
+
+        auditor_validation_target_deadlines = _strict_target_seconds_map(
+            "auditor_validation_target_deadlines"
+        )
+        auditor_validation_target_expected_seconds = _strict_target_seconds_map(
+            "auditor_validation_target_expected_seconds"
+        )
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -946,12 +1028,11 @@ class Project:
             test_command=test_command or None,
             test_command_full=test_command_full or None,
             test_skip_paths=test_skip_paths,
-            auditor_validation_targets=[
-                str(t).strip()
-                for t in (d.get("auditor_validation_targets") or [])
-                if str(t).strip()
-            ],
+            auditor_validation_targets=auditor_validation_targets,
             auditor_validation_target_deadlines=auditor_validation_target_deadlines,
+            auditor_validation_target_expected_seconds=(
+                auditor_validation_target_expected_seconds
+            ),
             epic_strategy=epic_strategy,
             require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
             intake_auto_promote=bool(d.get("intake_auto_promote", True)),

@@ -1064,7 +1064,7 @@ def test_running_audits_do_not_emit_queue_age_alerts(tmp_path: Path) -> None:
     )
     try:
         now = datetime.now(timezone.utc)
-        orchestrator.config.audit_attempt_ttl_seconds = 60
+        orchestrator.config.audit_attempt_ttl = 60
         issue = Issue(
             id="TASK-1",
             identifier="TASK-1",

@@ -139,7 +139,7 @@ def test_restart_with_no_live_worker_reclaims_in_progress_attempt():
     assert recovery.record.attempts[0].request_state == RequestState.PENDING
 
 
-def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
+def test_live_attempt_is_not_duplicated_and_ttl_only_recovers_missing_owner():
     now = datetime(2026, 7, 29, tzinfo=timezone.utc)
     lane = _lane([Candidate("provider-a", "model-a")], now=now)
     plan, _ = lane.plan(_record(), [], branch_key="branch-1", now=now)
@@ -164,7 +164,7 @@ def test_live_attempt_is_not_duplicated_and_timeout_is_recoverable():
         active_old, active_attempt_ids={plan.attempt_id}, now=now
     )
     assert not active_expired.ready
-    assert "termination required" in (active_expired.reason or "")
+    assert active_expired.reason == "auditor already running"
 
     old = replace(
         persisted,
