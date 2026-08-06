@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-832
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Bootstrap terminal-auditor inspection contract onto main
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:52:49.064850Z'
-updated_at: '2026-08-06T19:15:06.233639Z'
+updated_at: '2026-08-06T19:15:18.252462Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,6 +72,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-832
     source_sha: b98ebb40d269ebeb7a134dc43add36bf782d9402
     completed_at: '2026-08-05T23:59:50.115041+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-832
+  head_sha: faa217b41a87ed3a1869a4fe38947778a55fe4fe
+  submitted_at: '2026-08-06T19:15:11.772065+00:00'
+  updated_at: '2026-08-06T19:15:11.772065+00:00'
 ---
 ## Summary
 
@@ -157,5 +165,10 @@ author: oompah
 created: 2026-08-06 19:15
 ---
 COMPLETION: Terminal-auditor inspection contract successfully bootstrapped onto main. Delivered: (1) search_files.py module for bounded Python-regex search with context/include support, (2) safe git inspections (ls-tree, ls-remote, for-each-ref, wc -l), (3) auditor.py ordering fix ensuring escape denials remain fatal before contract checks, (4) unified ACP tool catalogs with consistent search_files schema, (5) 62+ new tests verifying safety boundaries and recovery paths. All acceptance criteria met: OOMPAH-542 and OOMPAH-815 inspection traces confirmed working, dangerous operations (mutation, redirection, credential/path escape) remain fatal, terminal audit health and API contract pass 53 focused tests. Standalone head contains only OOMPAH-831 changes, no unrelated systemic-epic work.
+---
+author: oompah
+created: 2026-08-06 19:15
+---
+Terminal-auditor inspection contract bootstrapped onto main with 62+ tests passing; search_files.py with context support, safe git inspections, and auditor safety ordering fixed
 ---
 <!-- COMMENTS:END -->
