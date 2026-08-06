@@ -6,13 +6,12 @@ priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
 children: []
-blocked_by:
-- OOMPAH-791
+blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-05T19:59:06.078232Z'
+updated_at: '2026-08-06T09:33:37.781197Z'
 work_branch: null
 target_branch: null
 review_url: null
