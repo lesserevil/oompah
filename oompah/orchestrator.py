@@ -24,7 +24,7 @@ from functools import partial
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
-from typing import Any, Callable, TypedDict
+from typing import Any, Awaitable, Callable, TypedDict
 
 from oompah.agent import (
     AgentError,
@@ -35,7 +35,6 @@ from oompah.agent import (
     terminate_captured_processes,
 )
 from oompah.agent_profile_store import AgentProfileStore
-from oompah.auditor_policy_authority import AUDITOR_POLICY_AUTHORITY
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.secrets import redact_sensitive_data
 from oompah.tool_liveness import ToolLivenessMonitor
@@ -46,15 +45,7 @@ from oompah.authority_boundary import (
     operator_policy,
 )
 from oompah.completion_verifier import VerifierResult, verify_completion
-from oompah.provider_health import (
-    PROVIDER_HEALTH_CACHE,
-    ProviderProbeAuthorityError,
-    ProviderTestResult,
-    openai_base_url_error,
-    run_acp_health_check,
-    run_health_check,
-    snapshot_provider_for_probe,
-)
+from oompah.provider_health import openai_base_url_error
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
 from oompah.container_dependency_graph import (
     ContainerDependencyCycle,
@@ -252,12 +243,22 @@ from oompah.workflow_shadow import (
 
 
 _TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+_UNADMITTED_AUDIT_ROLLBACKS_STATE_KEY = "terminal_audit_unadmitted_rollbacks"
+_RETRY_ATTEMPTS_VERSION_STATE_KEY = "retry_attempts_version"
 
 # A structured verdict is a durable authority hand-off, not ordinary model
 # work.  Reserve one provider turn for submit_audit_result after the ordinary
 # configured budget has been consumed.  The coordinator remains idempotent,
 # so a provider retry cannot apply the terminal transition twice.
 AUDITOR_FINALIZATION_TURN_RESERVE = 1
+
+
+class UnadmittedAuditRollbackOutcome(str, Enum):
+    """Disposition of an exact pre-transport audit rollback CAS."""
+
+    RESTORED = "restored"
+    SUPERSEDED = "superseded"
+    AMBIGUOUS = "ambiguous"
 
 
 def auditor_turn_budget(ordinary_turns: int, *, auditor: bool) -> int:
@@ -305,10 +306,7 @@ from oompah.auditor_dispatch import (
     audit_branch_key,
     timestamp,
 )
-from oompah.auditor_candidate_selector import (
-    AUDITOR_ROLE_NAME,
-    AuditorCandidateSelector,
-)
+from oompah.auditor_candidate_selector import AuditorCandidateSelector
 from oompah.authority_boundary import auditor_policy
 from oompah.focus import (
     DUPLICATE_DETECTOR_FOCUS_NAME,
@@ -345,7 +343,7 @@ from oompah.projects import (
     repository_identity_for_path,
 )
 from oompah.providers import ProviderStore
-from oompah.roles import Candidate, CandidateSelector, RoleStore
+from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
@@ -361,11 +359,9 @@ from oompah.tracker import (
 from oompah.work_contributors import (
     METADATA_KEY as _WORK_CONTRIBUTORS_KEY,
     WorkContributor,
-    contributor_run_identity,
+    _UNKNOWN_MODEL_NAMES as _WORK_CONTRIBUTOR_UNKNOWN_MODELS,
     merge_contributor_records as _merge_work_contributors,
     load_contributors as _load_work_contributors,
-    normalize_contributor_model,
-    SDK_MANAGED_MODEL,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
 from oompah.yolo_watchdog import (
@@ -973,107 +969,6 @@ class ProviderStartupError(Exception):
         self.reason = reason
 
 
-_PROVIDER_STARTUP_CANDIDATE_LIMIT = 160
-_PROVIDER_STARTUP_REASON_LIMIT = 64
-_PROVIDER_STARTUP_DETAIL_LIMIT = 500
-_PROVIDER_STARTUP_AGGREGATE_LIMIT = 2048
-
-
-def _bounded_redacted_provider_startup_text(value: Any, limit: int) -> str:
-    """Return one secret-safe startup diagnostic component within *limit*."""
-
-    redacted = redact_sensitive_data(str(value or ""))
-    if not isinstance(redacted, str):
-        redacted = "[REDACTED]"
-    if len(redacted) <= limit:
-        return redacted
-    marker = "...[truncated]"
-    if limit <= len(marker):
-        return marker[:limit]
-    return f"{redacted[: limit - len(marker)]}{marker}"
-
-
-def _provider_startup_failure_diagnostic(
-    candidate_key: Any,
-    reason: Any,
-    detail: Any = "",
-) -> tuple[str, str, str, str]:
-    """Build stable redacted fields and their bounded aggregate entry."""
-
-    safe_candidate = _bounded_redacted_provider_startup_text(
-        candidate_key,
-        _PROVIDER_STARTUP_CANDIDATE_LIMIT,
-    )
-    safe_reason = _bounded_redacted_provider_startup_text(
-        reason,
-        _PROVIDER_STARTUP_REASON_LIMIT,
-    )
-    safe_detail = _bounded_redacted_provider_startup_text(
-        detail,
-        _PROVIDER_STARTUP_DETAIL_LIMIT,
-    )
-    entry = f"{safe_candidate}: {safe_reason}"
-    if safe_detail:
-        entry = f"{entry}: {safe_detail}"
-    return safe_candidate, safe_reason, safe_detail, entry
-
-
-def _provider_startup_aggregate(
-    target_count: int,
-    diagnostics: list[str],
-    *,
-    fallback: Any = "",
-) -> str:
-    """Return a bounded complete candidate-startup failure message.
-
-    Entries are already component-bounded by
-    :func:`_provider_startup_failure_diagnostic`.  Retaining only whole
-    entries keeps the candidate and stable reason actionable; the suffix
-    makes omitted diagnostics explicit instead of silently slicing through a
-    provider identity or reason code.
-    """
-
-    prefix = f"All {target_count} dispatch candidates unavailable: "
-    safe_diagnostics = list(diagnostics)
-    if not safe_diagnostics:
-        safe_diagnostics = [
-            _bounded_redacted_provider_startup_text(
-                fallback or "no startup diagnostic",
-                _PROVIDER_STARTUP_DETAIL_LIMIT,
-            )
-        ]
-    complete = f"{prefix}{'; '.join(safe_diagnostics)}"
-    if len(complete) <= _PROVIDER_STARTUP_AGGREGATE_LIMIT:
-        return complete
-
-    included: list[str] = []
-    for diagnostic in safe_diagnostics:
-        prospective = [*included, diagnostic]
-        omitted = len(safe_diagnostics) - len(prospective)
-        suffix = (
-            f"; [truncated: {omitted} additional candidate diagnostics omitted]"
-            if omitted
-            else ""
-        )
-        candidate = f"{prefix}{'; '.join(prospective)}{suffix}"
-        if len(candidate) > _PROVIDER_STARTUP_AGGREGATE_LIMIT:
-            break
-        included = prospective
-
-    # One component-bounded entry and the omission suffix always fit beneath
-    # the aggregate cap. Keep a defensive fallback in case the prefix format
-    # or constants are changed independently later.
-    omitted = len(safe_diagnostics) - len(included)
-    suffix = f"; [truncated: {omitted} additional candidate diagnostics omitted]"
-    bounded = f"{prefix}{'; '.join(included)}{suffix}"
-    if len(bounded) <= _PROVIDER_STARTUP_AGGREGATE_LIMIT:
-        return bounded
-    return _bounded_redacted_provider_startup_text(
-        bounded,
-        _PROVIDER_STARTUP_AGGREGATE_LIMIT,
-    )
-
-
 class DispatchAuthorityRevoked(RuntimeError):
     """Raised when an accepted lifecycle change withdraws a worker run."""
 
@@ -1493,18 +1388,18 @@ class Orchestrator:
         self._workflow_shadow_generation_lock = threading.Lock()
         self._workflow_shadow_future: asyncio.Future[Any] | None = None
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
+        self._audit_rollback_fallback_path = (
+            f"{self._state_path}.unadmitted-audit-rollbacks.json"
+        )
+        self._retry_fallback_path = (
+            f"{self._state_path}.implementation-retries.json"
+        )
         # Service state is shared by the dispatch loop, maintenance workers,
         # API callbacks, and terminal-audit enforcement. Keep each
         # read-modify-write transaction under one re-entrant lock so updates
         # cannot race and replace one another.
         self._state_io_lock = threading.RLock()
         self._state_load_failed = False
-        PROVIDER_HEALTH_CACHE.configure(
-            os.path.join(_state_dir, "provider_health.json")
-        )
-        self._audit_budget_lock = threading.RLock()
-        self._audit_budget_reservations: dict[str, dict[str, Any]] = {}
-        self._audit_budget_authority_error: str | None = None
         # Terminal-audit enforcement is initialized at the start of ``run``
         # once all project trackers are available.  Its state lives inside the
         # existing service-state document so unrelated service state remains
@@ -1533,12 +1428,14 @@ class Orchestrator:
         # retry map and its in-flight dispatch claims behind one process-wide
         # lock so those two authorities cannot both launch work.
         self._retry_authority_lock = threading.RLock()
+        # Snapshot construction, version allocation, and both durable writes
+        # form one retry-journal transaction.  The authority lock is always
+        # acquired before this lock so a cancelled/rearmed owner cannot be
+        # serialized by an older writer after a newer mutation.
+        self._retry_persistence_lock = threading.RLock()
+        self._retry_snapshot_version = 0
+        self._retry_persistence_failed = False
         self._retry_dispatching: dict[str, RetryEntry] = {}
-        # Owner overrides bump this project/task-scoped generation even when an
-        # auditor is still between durable reservation and RunningEntry
-        # publication. Auditor registration compares the generation captured at
-        # dispatch entry, closing that otherwise invisible pre-registration gap.
-        self._auditor_authority_generations: dict[tuple[str, str], int] = {}
         # Generation tombstones close the gap after a retry has been selected
         # or a worker has been registered but before its provider/workspace
         # setup completes.  They are process-local by design: accepted
@@ -1563,17 +1460,17 @@ class Orchestrator:
             project_store=self.project_store,
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
             revoke_auditor_authority=self._revoke_auditor_authority,
-            release_audit_budget_reservation=self._release_audit_budget_after_override,
             clear_audit_alert=self.clear_terminal_audit_alert,
             clear_integrated_audit_recovery_alert=(
                 self._clear_integrated_audit_recovery_alert
             ),
             validate_terminal_transition=self._validate_terminal_transition,
         )
-        # Serializes the final implementation status claim with terminal-audit
-        # staging for one task.  The terminal path installs its in-memory fence
-        # before waiting for this lock, so a slow dispatch setup cannot starve
-        # an audit request, while the tracker writes themselves cannot cross.
+        # Serializes final implementation status claims and ordinary worker
+        # publication with submission and terminal-audit staging for one task.
+        # The terminal path installs its in-memory fence before waiting for
+        # this lock, so a slow dispatch setup cannot starve an audit request,
+        # while tracker writes and runtime ownership themselves cannot cross.
         self._issue_transition_locks: dict[str, CrossLoopTaskLock] = {}
         self._issue_transition_locks_guard = threading.Lock()
         # Per-project branch-to-issue index: maps work_branch → identifier.
@@ -1595,6 +1492,15 @@ class Orchestrator:
         self._prompt_template: str = ""
         self._tick_task: asyncio.Task | None = None
         self._stopping = False
+        # Lifecycle fences and the two irreversible dispatch boundaries share
+        # one synchronization domain.  A lifecycle caller that returns after
+        # setting pause/quiesce has therefore either won before admission, or
+        # observed the complete worker-task/RunningEntry publication of an
+        # admission that won first.  The re-entrant lock also covers the later
+        # provider-start admission so a pre-existing setup task cannot cross a
+        # newly installed lifecycle fence.
+        self._provider_admission_lock = threading.RLock()
+        self._provider_admission_generation = 0
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
@@ -1603,10 +1509,25 @@ class Orchestrator:
         # is deliberately not persisted as user intent across a restart.
         self._quiesced = False
         self._restore_budget_state()
-        self._restore_audit_budget_reservations()
         self._service_instance_id = str(uuid.uuid4())
         self._restart_requested = False
         self._restart_in_progress = False
+        # The HTTP endpoint claims a restart synchronously before its drain
+        # coroutine receives event-loop time. Keep the claim and the single
+        # drain owner distinct so the matching coroutine may start exactly
+        # once while every competing API/direct request coalesces.
+        self._restart_drain_started = False
+        self._restart_drain_scheduled = False
+        # The scheduled coroutine is itself restart authority.  Publishing
+        # the task under ``_provider_admission_lock`` lets callers distinguish
+        # a real drain owner from a boolean left behind by failed task
+        # creation, and prevents a second matching request from stealing a
+        # pre-claimed restart before the first task receives event-loop time.
+        self._restart_drain_task: asyncio.Task[None] | None = None
+        self._restart_drain_owner: str | None = None
+        self._restart_journal_lock = threading.RLock()
+        self._restart_recovery_task: asyncio.Task[None] | None = None
+        self._restart_persistence_failed = False
         self._restart_request_id: str | None = None
         self._restart_requested_at: str | None = None
         self._restart_initial_running = 0
@@ -1669,9 +1590,65 @@ class Orchestrator:
             if isinstance(persisted_cycle_repairs, Mapping)
             else {}
         )
-        self._persisted_retry_entries = self._parse_persisted_retry_entries(
-            state_data.get("retry_attempts")
+        state_retry_snapshot = self._decode_retry_snapshot(
+            state_data.get("retry_attempts"),
+            version=state_data.get(_RETRY_ATTEMPTS_VERSION_STATE_KEY, 0),
         )
+        fallback_retry_snapshot = self._load_retry_fallback()
+        self._retry_snapshot_version = max(
+            state_retry_snapshot[0],
+            fallback_retry_snapshot[0],
+            0,
+        )
+        raw_retry_entries = max(
+            (state_retry_snapshot, fallback_retry_snapshot),
+            key=lambda snapshot: snapshot[0],
+        )[1]
+        self._persisted_retry_entries = self._parse_persisted_retry_entries(
+            raw_retry_entries
+        )
+        state_audit_rollbacks = self._decode_audit_rollback_snapshot(
+            state_data.get(_UNADMITTED_AUDIT_ROLLBACKS_STATE_KEY, [])
+        )
+        fallback_audit_rollbacks = self._load_audit_rollback_fallback()
+        self._audit_rollback_snapshot_version = max(
+            state_audit_rollbacks[0],
+            fallback_audit_rollbacks[0],
+            0,
+        )
+        raw_audit_rollbacks = max(
+            (state_audit_rollbacks, fallback_audit_rollbacks),
+            key=lambda snapshot: snapshot[0],
+        )[1]
+        self._pending_audit_rollbacks: dict[str, dict[str, str]] = {}
+        if isinstance(raw_audit_rollbacks, list):
+            for raw in raw_audit_rollbacks:
+                if not isinstance(raw, Mapping):
+                    continue
+                attempt_id = str(raw.get("attempt_id") or "")
+                audit_id = str(raw.get("audit_id") or "")
+                identifier = str(raw.get("identifier") or "")
+                issue_id = str(raw.get("issue_id") or "")
+                branch_key = str(raw.get("branch_key") or "")
+                if not all((attempt_id, audit_id, identifier, issue_id, branch_key)):
+                    continue
+                self._pending_audit_rollbacks[attempt_id] = {
+                    "attempt_id": attempt_id,
+                    "audit_id": audit_id,
+                    "identifier": identifier,
+                    "issue_id": issue_id,
+                    "project_id": str(raw.get("project_id") or ""),
+                    "branch_key": branch_key,
+                }
+        # Remember which exact rows were loaded from a durable snapshot.  A
+        # later write of the same in-memory row may fail in both journals, but
+        # the older snapshot still owns recovery across restart.  Newly-added
+        # rows are not safe to forget until at least one journal has accepted
+        # a snapshot containing them.
+        self._durable_audit_rollback_attempt_ids = set(
+            self._pending_audit_rollbacks
+        )
+        self._audit_rollback_persistence_failed = False
         cursors = state_data.get("maintenance_cursors", {})
         self._maintenance_cursors: dict[str, str | None] = (
             dict(cursors) if isinstance(cursors, dict) else {}
@@ -1785,7 +1762,15 @@ class Orchestrator:
         # Independent auditor dispatch state. Auditor entries share
         # ``state.running`` with implementation workers, so the ordinary
         # global slot and shared-epic gates remain authoritative.
-        self._audit_branch_claims: dict[str, str] = {}
+        self._audit_rollback_lock = threading.RLock()
+        # A rollback that could not reach durable audit metadata remains branch
+        # authority across process restart.  The audit lane retries that exact
+        # CAS before releasing the fence; it never treats the unlaunched
+        # transport as a failed/rotated attempt.
+        self._audit_branch_claims: dict[str, str] = {
+            row["branch_key"]: attempt_id
+            for attempt_id, row in self._pending_audit_rollbacks.items()
+        }
         self._audit_metrics: dict[str, Any] = {
             "dispatch_count": 0,
             "rotation_count": 0,
@@ -2000,12 +1985,35 @@ class Orchestrator:
         # backend-specific close path instead of relying on task cancellation.
         self._acp_agent_sessions: dict[str, Any] = {}
         # Prevent a cancelled worker's finally block from racing the forced
-        # termination path and reporting a normal exit before shutdown finishes.
-        self._terminating_worker_ids: set[str] = set()
-        self._scheduled_termination_ids: set[str] = set()
-        self._scheduled_termination_tasks: dict[str, asyncio.Task[bool]] = {}
+        # termination path and reporting an exit before shutdown finishes.
+        # Ownership is exact-runtime scoped and reference-counted by opaque
+        # parent tokens: an old generation must not suppress its replacement,
+        # and one concurrent retirement parent must not release another's
+        # callback fence.
+        self._terminating_worker_owners: dict[
+            tuple[str, str, int], set[object]
+        ] = {}
+        # The first parent records whether retirement was already fenced before
+        # any cleanup owner arrived.  If every concurrent parent fails before
+        # creating its child task, the last release restores that exact prior
+        # state instead of leaving a phantom retirement fence.  Once any child
+        # task owns cleanup, fail-closed child semantics remain authoritative.
+        self._termination_pending_baselines: dict[
+            tuple[str, str, int], bool
+        ] = {}
+        self._termination_child_owned_keys: set[tuple[str, str, int]] = set()
+        # Retain the entry as the value as well as encoding its process-local
+        # identity in the key.  That strong reference prevents ``id(entry)``
+        # reuse until the scheduled task's done callback has released the
+        # exact key.
+        self._scheduled_termination_entries: dict[
+            tuple[str, str, int], RunningEntry
+        ] = {}
+        self._scheduled_termination_tasks: dict[
+            tuple[str, str, int], asyncio.Task[bool]
+        ] = {}
         # Shutdown closes this admission gate before draining the tracked
-        # tasks.  A foreign thread may already have queued ``_schedule`` on
+        # tasks. A foreign thread may already have queued ``_schedule`` on
         # the dispatch loop, so the callback itself must re-check the gate.
         self._termination_scheduling_closed = False
 
@@ -2897,1050 +2905,6 @@ class Orchestrator:
                 remaining,
             )
 
-    def _restore_audit_budget_reservations(self) -> None:
-        """Restore durable terminal-auditor financial capacity claims."""
-
-        raw = self._load_state().get("audit_budget_reservations", {})
-        if not isinstance(raw, dict):
-            logger.error(
-                "Malformed audit_budget_reservations service state blocks dispatch"
-            )
-            self._audit_budget_authority_error = (
-                "audit budget reservation state is malformed"
-            )
-            return
-        restored: dict[str, dict[str, Any]] = {}
-        authority_error: str | None = None
-        for issue_id, value in raw.items():
-            if not isinstance(value, dict):
-                authority_error = "an audit budget reservation is malformed"
-                continue
-            amount = value.get("amount_usd")
-            if (
-                isinstance(amount, bool)
-                or not isinstance(amount, (int, float))
-                or not math.isfinite(float(amount))
-                or amount < 0
-            ):
-                authority_error = "an audit budget reservation amount is invalid"
-                continue
-            raw_started = value.get("audit_started", False)
-            raw_reconciled = value.get("spend_reconciled", False)
-            if (
-                not isinstance(raw_started, bool)
-                or not isinstance(raw_reconciled, bool)
-                or (raw_reconciled and not raw_started)
-            ):
-                authority_error = "an audit budget reservation lifecycle is invalid"
-                continue
-            # Reservations created by this implementation carry an explicit
-            # authority scope/version.  The only records allowed to omit it
-            # are genuinely old, *unscoped* records (both fields absent), not
-            # a partially-written managed record.  Otherwise a crash during a
-            # schema migration could silently turn an incomplete record into a
-            # reusable budget credit after restart.
-            scope = value.get("authority_scope")
-            version = value.get("authority_version")
-            legacy_unscoped = scope is None and version is None
-            if legacy_unscoped:
-                scope = "legacy-unscoped-v0"
-                version = 0
-            elif (
-                scope != "managed-audit-budget"
-                or isinstance(version, bool)
-                or not isinstance(version, int)
-                or version not in {1, 2}
-            ):
-                authority_error = (
-                    "an audit budget reservation scope/version is invalid"
-                )
-                continue
-
-            # ``model`` and ``project_id`` were legitimately blank only in
-            # old SDK-managed ACP/unscoped records.  New managed records must
-            # be complete, including an explicit nonempty scope marker.
-            identity = {
-                field: value.get(field)
-                for field in (
-                    "provider_id",
-                    "model",
-                    "project_id",
-                    "task_id",
-                    "issue_id",
-                    "reserved_at",
-                )
-            }
-            required_identity = ("provider_id", "task_id", "reserved_at")
-            if any(
-                not isinstance(identity[field], str) or not identity[field].strip()
-                for field in required_identity
-            ):
-                authority_error = "an audit budget reservation identity is incomplete"
-                continue
-            raw_model = identity["model"]
-            if not isinstance(raw_model, str):
-                authority_error = "an audit budget reservation identity is incomplete"
-                continue
-            model = raw_model.strip()
-            if not model:
-                if not legacy_unscoped:
-                    authority_error = "an audit budget reservation identity is incomplete"
-                    continue
-                try:
-                    reservation_provider = self.provider_store.get(
-                        identity["provider_id"].strip()
-                    )
-                except Exception:
-                    reservation_provider = None
-                if not (
-                    reservation_provider is not None
-                    and str(getattr(reservation_provider, "mode", "") or "").casefold()
-                    == "acp"
-                    and not list(getattr(reservation_provider, "models", None) or [])
-                ):
-                    authority_error = "an audit budget reservation identity is incomplete"
-                    continue
-                model = SDK_MANAGED_MODEL
-            raw_project_id = identity["project_id"]
-            if not isinstance(raw_project_id, str):
-                authority_error = "an audit budget reservation identity is incomplete"
-                continue
-            project_id = raw_project_id.strip()
-            if legacy_unscoped and project_id:
-                authority_error = (
-                    "an audit budget reservation scope/version is invalid"
-                )
-                continue
-            if not project_id:
-                if not legacy_unscoped:
-                    authority_error = "an audit budget reservation identity is incomplete"
-                    continue
-                project_id = "__legacy_unscoped__"
-            raw_internal_issue_id = identity["issue_id"]
-            if version == 2:
-                if (
-                    not isinstance(raw_internal_issue_id, str)
-                    or not raw_internal_issue_id.strip()
-                ):
-                    authority_error = (
-                        "an audit budget reservation identity is incomplete"
-                    )
-                    continue
-                internal_issue_id = raw_internal_issue_id.strip()
-            else:
-                # Version 1 used the outer mapping key as the internal issue
-                # identity.  Migrate it into the explicit scoped identity.
-                internal_issue_id = str(issue_id).strip()
-                if not internal_issue_id:
-                    authority_error = (
-                        "an audit budget reservation identity is incomplete"
-                    )
-                    continue
-            reserved_at = identity["reserved_at"].strip()
-            try:
-                parsed_reserved_at = datetime.fromisoformat(
-                    reserved_at.replace("Z", "+00:00")
-                )
-                if parsed_reserved_at.tzinfo is None:
-                    raise ValueError("timezone required")
-            except (TypeError, ValueError):
-                authority_error = "an audit budget reservation timestamp is invalid"
-                continue
-            restored_value = {
-                "amount_usd": float(amount),
-                "provider_id": identity["provider_id"].strip(),
-                "model": model,
-                "project_id": project_id,
-                "task_id": identity["task_id"].strip(),
-                "issue_id": internal_issue_id,
-                "reserved_at": reserved_at,
-                "audit_started": raw_started,
-                "spend_reconciled": raw_reconciled,
-                "reconciled_at": str(value.get("reconciled_at") or ""),
-                "authority_scope": scope,
-                "authority_version": 2 if not legacy_unscoped else version,
-            }
-            # Current rates/configuration are authoritative after a restart.
-            # Retain a larger historical amount, but never restore a smaller
-            # amount than the current exact-candidate projection.
-            projection, projection_error = self._projected_auditor_cost(
-                Candidate(restored_value["provider_id"], restored_value["model"])
-            )
-            if projection_error is not None or projection is None:
-                authority_error = (
-                    "an audit budget reservation projection cannot be verified"
-                )
-                continue
-            restored_value["amount_usd"] = max(
-                restored_value["amount_usd"], float(projection)
-            )
-            storage_key = self._audit_reservation_storage_key(
-                project_id,
-                internal_issue_id,
-            )
-            if storage_key in restored:
-                authority_error = "an audit budget reservation identity is duplicated"
-                continue
-            restored[storage_key] = restored_value
-        if authority_error is not None:
-            # Never persist a parsed subset. A skipped record may represent a
-            # contacted auditor whose spend still needs reconciliation. Keep
-            # the raw ledger byte-for-byte authoritative across restarts and
-            # expose no mutable subset to background reconciliation.
-            self._audit_budget_authority_error = authority_error
-            with self._audit_budget_lock:
-                self._audit_budget_reservations = {}
-            return
-        with self._audit_budget_lock:
-            self._audit_budget_reservations = restored
-        # Persist any conservative projection adjustment before dispatch can
-        # observe it.  A failed write leaves the authority error visible and
-        # blocks further admissions rather than under-reserving after a crash.
-        if restored and not self._save_state(audit_budget_reservations=restored):
-            self._audit_budget_authority_error = (
-                "audit budget reservation projection could not be durably updated"
-            )
-
-    @staticmethod
-    def _audit_reservation_storage_key(project_id: str | None, issue_id: str) -> str:
-        """Return a collision-free durable key for one managed task identity."""
-
-        scope = str(project_id or "__managed_unscoped__")
-        internal_id = str(issue_id)
-        if scope in {"__legacy_unscoped__", "__managed_unscoped__"}:
-            return internal_id
-        return json.dumps([scope, internal_id], separators=(",", ":"))
-
-    @classmethod
-    def _audit_reservation_key_for_issue(cls, issue: Issue) -> str:
-        return cls._audit_reservation_storage_key(issue.project_id, issue.id)
-
-    def _find_audit_reservation_key(
-        self,
-        *,
-        issue_id: str | None = None,
-        project_id: str | None = None,
-        task_id: str | None = None,
-    ) -> str | None:
-        """Resolve exactly one claim without crossing managed project scope."""
-
-        if project_id is not None and issue_id is not None:
-            key = self._audit_reservation_storage_key(project_id, issue_id)
-            value = self._audit_budget_reservations.get(key)
-            if value is not None and (
-                str(value.get("project_id") or "") == str(project_id)
-                and str(value.get("issue_id") or "") == str(issue_id)
-            ):
-                return key
-            return None
-        # Omitted project scope is retained only for records explicitly migrated
-        # from the legacy unscoped ledger. A bare internal issue/task ID must
-        # never resolve a managed project's claim merely because it is the sole
-        # current match; another project can acquire the same local identity at
-        # any time.
-        matches = [
-            key
-            for key, value in self._audit_budget_reservations.items()
-            if (
-                (
-                    project_id is None
-                    and str(value.get("project_id") or "") == "__legacy_unscoped__"
-                )
-                or str(value.get("project_id") or "") == str(project_id)
-            )
-            and (
-                issue_id is None
-                or str(value.get("issue_id") or "") == str(issue_id)
-            )
-            and (
-                task_id is None
-                or str(value.get("task_id") or "") == str(task_id)
-            )
-        ]
-        return matches[0] if len(matches) == 1 else None
-
-    def _has_omitted_scope_managed_audit_reservation(
-        self,
-        *,
-        issue_id: str | None = None,
-        task_id: str | None = None,
-    ) -> bool:
-        """Detect a bare identity that belongs to any managed project claim."""
-
-        return any(
-            str(value.get("project_id") or "")
-            not in {"", "__legacy_unscoped__", "__managed_unscoped__"}
-            and (
-                issue_id is None
-                or str(value.get("issue_id") or "") == str(issue_id)
-            )
-            and (
-                task_id is None
-                or str(value.get("task_id") or "") == str(task_id)
-            )
-            for value in self._audit_budget_reservations.values()
-        )
-
-    def _audit_budget_reserved_total(
-        self, *, exclude_issue_id: str | None = None
-    ) -> float:
-        with self._audit_budget_lock:
-            return sum(
-                float(value.get("amount_usd", 0.0) or 0.0)
-                for issue_id, value in self._audit_budget_reservations.items()
-                if str(issue_id) != str(exclude_issue_id or "")
-            )
-
-    def _projected_auditor_cost(
-        self, candidate: Candidate
-    ) -> tuple[float | None, str | None]:
-        try:
-            provider = self.provider_store.get(candidate.provider_id)
-        except Exception as exc:  # noqa: BLE001 - financial authority fails closed
-            return None, (
-                "reserved auditor provider could not be read "
-                f"({type(exc).__name__})"
-            )
-        if provider is None:
-            return None, "reserved auditor provider is no longer configured"
-        try:
-            if provider.is_per_token_billed("acp") is False and (
-                str(getattr(provider, "mode", "api") or "api").casefold() == "acp"
-            ):
-                return 0.0, None
-            if provider.is_model_explicitly_free(candidate.model):
-                return 0.0, None
-        except Exception as exc:  # noqa: BLE001 - billing policy fails closed
-            return None, (
-                "reserved auditor billing policy could not be evaluated "
-                f"({type(exc).__name__})"
-            )
-        costs = getattr(provider, "model_costs", None)
-        entry = costs.get(candidate.model) if isinstance(costs, Mapping) else None
-        if not isinstance(entry, Mapping):
-            return None, (
-                "paid auditor model has no model_costs entry; configure exact "
-                f"rates for {provider.name}/{candidate.model}"
-            )
-        input_rate = entry.get("cost_per_1k_input")
-        output_rate = entry.get("cost_per_1k_output")
-        if (
-            isinstance(input_rate, bool)
-            or isinstance(output_rate, bool)
-            or not isinstance(input_rate, (int, float))
-            or not isinstance(output_rate, (int, float))
-            or not math.isfinite(float(input_rate))
-            or not math.isfinite(float(output_rate))
-            or float(input_rate) < 0
-            or float(output_rate) < 0
-        ):
-            return None, "auditor model_costs rates must be numeric"
-        if input_rate < 0 or output_rate < 0:
-            return None, "auditor model_costs rates cannot be negative"
-        projected = (
-            self.config.audit_projected_input_tokens / 1000.0 * float(input_rate)
-            + self.config.audit_projected_output_tokens
-            / 1000.0
-            * float(output_rate)
-        )
-        if projected <= 0:
-            return None, (
-                "paid auditor projection is zero without an explicitly free model"
-            )
-        return round(projected, 8), None
-
-    def _canonical_auditor_candidate(self, candidate: Candidate) -> Candidate:
-        """Give a blank SDK-managed ACP role candidate one durable identity.
-
-        Roles intentionally retain the operator-facing blank model because
-        that tells the SDK to select its subscription default.  Runtime
-        admission, budget persistence, and restart restoration instead need
-        a non-empty exact key.  Translate only an empty catalog ACP target;
-        ordinary blank/misconfigured candidates remain invalid.
-        """
-
-        raw_model = str(candidate.model or "").strip()
-        if raw_model:
-            return Candidate(candidate.provider_id, raw_model)
-        try:
-            provider = self.provider_store.get(candidate.provider_id)
-        except Exception:
-            return candidate
-        if (
-            provider is not None
-            and str(getattr(provider, "mode", "") or "").casefold() == "acp"
-            and not list(getattr(provider, "models", None) or [])
-        ):
-            return Candidate(candidate.provider_id, SDK_MANAGED_MODEL)
-        return candidate
-
-    def _reserve_audit_budget_capacity(
-        self,
-        issue: Issue,
-        candidate: Candidate,
-        *,
-        new_audit_attempt: bool = False,
-    ) -> str | None:
-        """Atomically persist one task's projected terminal-audit capacity."""
-
-        candidate = self._canonical_auditor_candidate(candidate)
-        if self.config.budget_limit <= 0:
-            return None
-        if self._audit_budget_authority_error is not None:
-            return (
-                "Cannot establish terminal-auditor budget authority: "
-                f"{self._audit_budget_authority_error}. Repair service_state.json "
-                "and restart oompah before dispatch."
-            )
-        issue_id = str(issue.id)
-        reservation_key = self._audit_reservation_key_for_issue(issue)
-        if new_audit_attempt:
-            with self._audit_budget_lock:
-                prior = self._audit_budget_reservations.get(reservation_key)
-                prior_needs_reconciliation = bool(
-                    prior
-                    and prior.get("audit_started")
-                    and not prior.get("spend_reconciled")
-                )
-            if prior_needs_reconciliation and not self._reconcile_audit_budget_spend(
-                reservation_key,
-                actual_cost=None,
-            ):
-                return (
-                    "Cannot reconcile the prior auditor attempt's projected spend; "
-                    "repair service-state persistence before retrying."
-                )
-        projected, projection_error = self._projected_auditor_cost(candidate)
-        if projection_error is not None or projected is None:
-            return projection_error or "auditor cost projection is unavailable"
-        with self._audit_budget_lock:
-            self._roll_budget_window_if_due()
-            previous = self._audit_budget_reservations.get(reservation_key)
-            other_reserved = self._audit_budget_reserved_total(
-                exclude_issue_id=reservation_key
-            )
-            required = (
-                self.state.agent_totals.estimated_cost
-                + other_reserved
-                + projected
-            )
-            if required > self.config.budget_limit + 1e-9:
-                available = max(
-                    0.0,
-                    self.config.budget_limit
-                    - self.state.agent_totals.estimated_cost
-                    - other_reserved,
-                )
-                return (
-                    "Insufficient unreserved budget for independent terminal audit: "
-                    f"projected ${projected:.4f}, available ${available:.4f}. "
-                    "Increase OOMPAH_BUDGET_LIMIT, configure lower exact model "
-                    "rates, or wait for the budget window to reset."
-                )
-            self._audit_budget_reservations[reservation_key] = {
-                "amount_usd": projected,
-                "provider_id": candidate.provider_id,
-                "model": candidate.model,
-                "project_id": str(issue.project_id or "__managed_unscoped__"),
-                "task_id": str(issue.identifier),
-                "issue_id": issue_id,
-                "reserved_at": datetime.now(timezone.utc).isoformat(),
-                "audit_started": bool(
-                    previous.get("audit_started", False)
-                    if previous is not None and not new_audit_attempt
-                    else False
-                ),
-                "spend_reconciled": bool(
-                    previous.get("spend_reconciled", False)
-                    if previous is not None and not new_audit_attempt
-                    else False
-                ),
-                "reconciled_at": str(
-                    previous.get("reconciled_at", "")
-                    if previous is not None and not new_audit_attempt
-                    else ""
-                ),
-                "authority_scope": "managed-audit-budget",
-                "authority_version": 2,
-            }
-            if not self._save_state(
-                audit_budget_reservations=self._audit_budget_reservations
-            ):
-                if previous is None:
-                    self._audit_budget_reservations.pop(reservation_key, None)
-                else:
-                    self._audit_budget_reservations[reservation_key] = previous
-                return (
-                    "Cannot durably reserve terminal-auditor budget capacity; "
-                    "repair service-state persistence before dispatch."
-                )
-        return None
-
-    def _mark_audit_budget_started(
-        self,
-        issue_id: str,
-        *,
-        expected_identity: tuple[str, ...] | None = None,
-    ) -> bool:
-        """Persist that a reserved auditor may now incur provider spend."""
-
-        if self._audit_budget_authority_error is not None:
-            return False
-        key = str(issue_id)
-        with self._audit_budget_lock:
-            if key not in self._audit_budget_reservations:
-                resolved = self._find_audit_reservation_key(issue_id=key)
-                if resolved is None and self._has_omitted_scope_managed_audit_reservation(
-                    issue_id=key
-                ):
-                    return False
-                key = resolved or key
-            previous = self._audit_budget_reservations.get(key)
-            if (
-                expected_identity is not None
-                and (
-                    previous is None
-                    or self._audit_reservation_identity(previous)
-                    != expected_identity
-                )
-            ):
-                return False
-            if previous is None or previous.get("audit_started") is True:
-                return True
-            updated = dict(previous)
-            updated["audit_started"] = True
-            updated["spend_reconciled"] = False
-            updated["reconciled_at"] = ""
-            self._audit_budget_reservations[key] = updated
-            if self._save_state(
-                audit_budget_reservations=self._audit_budget_reservations
-            ):
-                return True
-            self._audit_budget_reservations[key] = previous
-            return False
-
-    def _unmark_unused_audit_budget_contact(self, issue_id: str) -> bool:
-        """Return a grant that was cancelled before any provider transport.
-
-        ACP can be terminated after its contact permit commits but before its
-        backend enters ``run_turn``.  That is still a local lifecycle outcome,
-        not provider spend.  This exact rollback is only used by the ACP
-        session's pre-transport cancellation callback; after a real transport
-        begins, normal exit reconciliation owns the reservation.
-        """
-
-        if self._audit_budget_authority_error is not None:
-            return False
-        key = str(issue_id)
-        with self._audit_budget_lock:
-            if key not in self._audit_budget_reservations:
-                resolved = self._find_audit_reservation_key(issue_id=key)
-                if resolved is None and self._has_omitted_scope_managed_audit_reservation(
-                    issue_id=key
-                ):
-                    return False
-                key = resolved or key
-            previous = self._audit_budget_reservations.get(key)
-            if previous is None or previous.get("audit_started") is not True:
-                return True
-            if previous.get("spend_reconciled") is True:
-                return False
-            updated = dict(previous)
-            updated["audit_started"] = False
-            updated["spend_reconciled"] = False
-            updated["reconciled_at"] = ""
-            self._audit_budget_reservations[key] = updated
-            if self._save_state(
-                audit_budget_reservations=self._audit_budget_reservations
-            ):
-                return True
-            self._audit_budget_reservations[key] = previous
-            return False
-
-    def _auditor_actual_cost(self, entry: RunningEntry) -> float | None:
-        """Return exact-candidate auditor cost when final usage is observable.
-
-        Auditor profiles can resolve through a role and therefore need not
-        identify the provider/model that this persisted attempt actually ran.
-        Reconciliation must use the billing mode and rates captured by the
-        provider-contact CAS on ``RunningEntry``; otherwise a rotated candidate
-        or mid-run provider edit can prematurely release reserved capacity.
-        """
-
-        if entry.session is None:
-            return None
-        per_token_billed = getattr(entry, "admitted_per_token_billed", None)
-        if per_token_billed is False:
-            return 0.0
-        if per_token_billed is not True:
-            # A contacted run without an admission snapshot cannot safely use
-            # mutable live provider rates. Preserve the reservation projection.
-            return None
-        # A LiveSession's counters are initialized to zero for telemetry.  A
-        # contacted paid auditor that is cancelled, revoked, or crashes before
-        # the provider sends final usage has uncertain spend, not exact $0.
-        # Preserve the reservation and reconcile its projection in that case.
-        if getattr(entry.session, "final_usage_observed", False) is not True:
-            return None
-        sdk_cost = getattr(entry.session, "sdk_cost_usd", None)
-        if (
-            getattr(entry.session, "final_cost_observed", False) is True
-            and sdk_cost is not None
-        ):
-            try:
-                normalized_sdk_cost = float(sdk_cost)
-                if math.isfinite(normalized_sdk_cost):
-                    return max(0.0, normalized_sdk_cost)
-            except (TypeError, ValueError):
-                pass
-        input_rate = getattr(entry, "admitted_cost_per_1k_input", None)
-        output_rate = getattr(entry, "admitted_cost_per_1k_output", None)
-        if (
-            isinstance(input_rate, bool)
-            or isinstance(output_rate, bool)
-            or not isinstance(input_rate, (int, float))
-            or not isinstance(output_rate, (int, float))
-            or not math.isfinite(float(input_rate))
-            or not math.isfinite(float(output_rate))
-        ):
-            return None
-        return (
-            entry.session.input_tokens / 1000.0 * float(input_rate)
-            + entry.session.output_tokens / 1000.0 * float(output_rate)
-        )
-
-    @staticmethod
-    def _worker_health_reason(status: str) -> str:
-        """Map a completed worker outcome to durable provider-health evidence."""
-
-        return {
-            "rate_limited": "rate_limited",
-            "stalled": "timeout",
-            "interrupted": "provider_unavailable",
-            "failed": "provider_unavailable",
-            "errored": "provider_unavailable",
-        }.get(str(status), "unknown_error")
-
-    def _record_worker_provider_health(
-        self,
-        provider: Any | None,
-        model: str | None,
-        status: str,
-        *,
-        detail: str | None = None,
-        outcome_is_provider_evidence: bool = True,
-        expected_configuration_signature: str | None = None,
-    ) -> None:
-        """Persist one exact provider outcome from an API or ACP worker.
-
-        A successful launch alone is not health evidence: a failed, stalled,
-        interrupted, or rate-limited run must replace any prior success for
-        the exact model so the selector observes the durable TTL-bound
-        failure.  Ask-question and max-turns outcomes have completed real
-        provider turns and therefore remain healthy transport evidence.
-        """
-
-        if provider is None or not outcome_is_provider_evidence:
-            return
-        normalized = str(status or "")
-        result = ProviderTestResult(
-            provider_id=str(provider.id),
-            provider_name=str(provider.name),
-            model=str(model or ""),
-            success=normalized in {"succeeded", "ask_question", "max_turns"},
-            latency_ms=0.0,
-            error_reason=(
-                ""
-                if normalized in {"succeeded", "ask_question", "max_turns"}
-                else self._worker_health_reason(normalized)
-            ),
-            error_detail=(
-                ""
-                if normalized in {"succeeded", "ask_question", "max_turns"}
-                else detail or ""
-            ),
-        )
-        if expected_configuration_signature is None:
-            # Worker health is authoritative only after the contact CAS captured
-            # a concrete provider generation. Explicit health probes use the
-            # cache's ordinary ``record`` path instead.
-            return
-        PROVIDER_HEALTH_CACHE.record_if_configuration(
-            provider,
-            result,
-            expected_signature=expected_configuration_signature,
-            current_provider=lambda: self.provider_store.get(str(provider.id)),
-        )
-
-    def _worker_provider_outcome_is_evidence(
-        self,
-        issue_id: str,
-        run_id: str | None,
-        status: str,
-        detail: str | None = None,
-    ) -> bool:
-        """Return whether a contacted run's outcome is provider evidence.
-
-        An owner override, pause/restart drain, or replacement may stop a
-        worker after it has crossed a provider boundary.  That is a local
-        lifecycle decision, so treating its resulting interrupt/error as a
-        provider outage would incorrectly remove a healthy auditor candidate.
-        """
-
-        with self._retry_authority_lock:
-            entry = self.state.running.get(issue_id)
-            if entry is None:
-                return False
-            if run_id is not None and getattr(entry, "run_id", None) != run_id:
-                return False
-            if getattr(self, "_quiesced", False) or self._stopping:
-                return False
-            if getattr(entry, "authority_revoked", False):
-                return False
-            if getattr(entry, "retirement_pending", False):
-                return False
-            if getattr(entry, "forced_exit_reason", None):
-                return False
-        normalized = str(status or "").casefold()
-        if normalized in {"succeeded", "ask_question", "max_turns"}:
-            return True
-        if normalized in {"rate_limited", "stalled"}:
-            return True
-        # ``interrupted`` is the local stop contract for every ACP backend;
-        # it never identifies a provider outage by itself.  Likewise a bare
-        # failed/errored result can be an agent/tool/orchestrator bug.  Record
-        # a durable provider failure only with transport-specific evidence.
-        if normalized == "interrupted":
-            return False
-        normalized_detail = str(detail or "").casefold()
-        return any(
-            marker in normalized_detail
-            for marker in (
-                "transport",
-                "connection",
-                "connect ",
-                "socket",
-                "network",
-                "timeout",
-                "timed out",
-                "rate limit",
-                "429",
-                "503",
-                "502",
-                "provider unavailable",
-                "provider error",
-                "api error",
-                "authentication",
-                "unauthorized",
-            )
-        )
-
-    def _reconcile_audit_budget_spend(
-        self,
-        issue_id: str,
-        *,
-        actual_cost: float | None,
-        project_id: str | None = None,
-        task_id: str | None = None,
-    ) -> bool:
-        """Atomically turn one started projection into rolling-window spend.
-
-        When a process restart lost the provider's final usage counters, the
-        conservative projection is charged instead. The reservation remains
-        in place if persistence fails, so a second task cannot reuse capacity
-        whose accounting is uncertain.
-        """
-
-        if self._audit_budget_authority_error is not None:
-            return False
-        key = str(issue_id)
-        with self._audit_budget_lock:
-            if (
-                key not in self._audit_budget_reservations
-                or project_id is not None
-                or task_id is not None
-            ):
-                resolved = self._find_audit_reservation_key(
-                    issue_id=(None if task_id is not None else str(issue_id)),
-                    project_id=project_id,
-                    task_id=task_id,
-                )
-                if (
-                    resolved is None
-                    and project_id is None
-                    and self._has_omitted_scope_managed_audit_reservation(
-                        issue_id=(None if task_id is not None else str(issue_id)),
-                        task_id=task_id,
-                    )
-                ):
-                    return False
-                key = resolved or key
-            reservation = self._audit_budget_reservations.get(key)
-            if (
-                reservation is not None
-                and reservation.get("spend_reconciled") is True
-            ):
-                return True
-            if reservation is None and self.config.budget_limit > 0:
-                # A concurrent override/reconciler already retired this
-                # enabled-budget claim. It charged the projection first when
-                # the auditor had started, so charging late usage here would
-                # double-count the same attempt.
-                return True
-            self._roll_budget_window_if_due()
-            previous_spend = self.state.agent_totals.estimated_cost
-            charge = actual_cost
-            if charge is None:
-                if reservation is None or not reservation.get("audit_started"):
-                    charge = 0.0
-                else:
-                    charge = float(reservation.get("amount_usd", 0.0) or 0.0)
-            charge = float(charge)
-            if not math.isfinite(charge):
-                charge = (
-                    float(reservation.get("amount_usd", 0.0) or 0.0)
-                    if reservation is not None
-                    else 0.0
-                )
-            charge = max(0.0, charge)
-            self.state.agent_totals.estimated_cost += charge
-            previous_reservation = dict(reservation) if reservation is not None else None
-            if reservation is not None:
-                updated = dict(reservation)
-                updated["spend_reconciled"] = True
-                updated["reconciled_at"] = datetime.now(timezone.utc).isoformat()
-                self._audit_budget_reservations[key] = updated
-            saved = self._save_state(
-                estimated_cost=self.state.agent_totals.estimated_cost,
-                budget_window_start=self.state.budget_window_start,
-                budget_window_kind=self.config.budget_window,
-                audit_budget_reservations=self._audit_budget_reservations,
-            )
-            if saved:
-                return True
-            self.state.agent_totals.estimated_cost = previous_spend
-            if previous_reservation is not None:
-                self._audit_budget_reservations[key] = previous_reservation
-            return False
-
-    def _record_ordinary_budget_spend(self, profile_name: str, cost: float) -> bool:
-        """Durably add ordinary spend under the audit-capacity lock.
-
-        Terminal-audit reservations and ordinary worker completions share a
-        single rolling budget.  Serialising both mutations prevents an exit
-        from reading the old spend while a concurrent reservation commits,
-        which otherwise permits both to consume the same remaining dollars.
-        """
-
-        if self._audit_budget_authority_error is not None:
-            return False
-        normalized_cost = max(0.0, float(cost))
-        if not math.isfinite(normalized_cost):
-            return False
-        with self._audit_budget_lock:
-            self._roll_budget_window_if_due()
-            previous_spend = self.state.agent_totals.estimated_cost
-            previous_profile_cost = self.state.cost_by_profile.get(profile_name, 0.0)
-            self.state.agent_totals.estimated_cost = previous_spend + normalized_cost
-            self.state.cost_by_profile[profile_name] = (
-                previous_profile_cost + normalized_cost
-            )
-            if self._save_state(
-                estimated_cost=self.state.agent_totals.estimated_cost,
-                budget_window_start=self.state.budget_window_start,
-                budget_window_kind=self.config.budget_window,
-                audit_budget_reservations=self._audit_budget_reservations,
-            ):
-                return True
-            self.state.agent_totals.estimated_cost = previous_spend
-            self.state.cost_by_profile[profile_name] = previous_profile_cost
-            return False
-
-    def _release_audit_budget_reservation(
-        self,
-        issue_id: str,
-        *,
-        project_id: str | None = None,
-        task_id: str | None = None,
-    ) -> bool:
-        """Release a completed/overridden audit claim without losing it on error."""
-
-        if self._audit_budget_authority_error is not None:
-            return False
-        key = str(issue_id)
-        with self._audit_budget_lock:
-            if (
-                key not in self._audit_budget_reservations
-                or project_id is not None
-                or task_id is not None
-            ):
-                resolved = self._find_audit_reservation_key(
-                    issue_id=(None if task_id is not None else str(issue_id)),
-                    project_id=project_id,
-                    task_id=task_id,
-                )
-                if (
-                    resolved is None
-                    and project_id is None
-                    and self._has_omitted_scope_managed_audit_reservation(
-                        issue_id=(None if task_id is not None else str(issue_id)),
-                        task_id=task_id,
-                    )
-                ):
-                    return False
-                key = resolved or key
-            previous = self._audit_budget_reservations.pop(key, None)
-            if previous is None:
-                return True
-            if self._save_state(
-                audit_budget_reservations=self._audit_budget_reservations
-            ):
-                return True
-            self._audit_budget_reservations[key] = previous
-            return False
-
-    def _release_audit_budget_after_override(
-        self,
-        project_id: str,
-        task_id: str,
-    ) -> None:
-        """Release an overridden claim unless its auditor still owns runtime."""
-
-        if any(
-            entry.is_auditor
-            and str(getattr(entry.issue, "project_id", "") or "") == str(project_id)
-            and str(entry.identifier) == str(task_id)
-            for entry in self._running_values_snapshot()
-        ):
-            return
-        if not self._reconcile_and_release_audit_budget(
-            task_id,
-            project_id=project_id,
-            task_id=task_id,
-        ):
-            logger.error(
-                "Owner override for %s/%s committed, but its audit budget "
-                "reservation remains durable because spend/release persistence failed",
-                project_id,
-                task_id,
-            )
-
-    def _reconcile_and_release_audit_budget(
-        self,
-        issue_id: str,
-        *,
-        project_id: str | None = None,
-        task_id: str | None = None,
-    ) -> bool:
-        """Safely retire capacity when no live auditor can report final usage."""
-
-        with self._audit_budget_lock:
-            key = (
-                str(issue_id)
-                if (
-                    project_id is None
-                    and task_id is None
-                    and str(issue_id) in self._audit_budget_reservations
-                )
-                else self._find_audit_reservation_key(
-                    issue_id=(None if task_id is not None else str(issue_id)),
-                    project_id=project_id,
-                    task_id=task_id,
-                )
-            )
-            reservation = self._audit_budget_reservations.get(key or "")
-        if (
-            reservation is not None
-            and reservation.get("audit_started")
-            and not reservation.get("spend_reconciled")
-            and not self._reconcile_audit_budget_spend(
-                key or issue_id,
-                actual_cost=None,
-                project_id=project_id,
-                task_id=task_id,
-            )
-        ):
-            return False
-        return self._release_audit_budget_reservation(
-            key or issue_id,
-            project_id=project_id,
-            task_id=task_id,
-        )
-
-    def _reconcile_audit_budget_reservations(self) -> None:
-        """Release restart-surviving claims only for durably terminal tasks.
-
-        Unknown tracker/project state retains capacity. This intentionally
-        favors a visible budget block over silently spending the same dollars
-        twice after a crash.
-        """
-
-        with self._audit_budget_lock:
-            reservations = list(self._audit_budget_reservations.items())
-        running_audits = {
-            (
-                str(getattr(entry.issue, "project_id", "") or "__unscoped__"),
-                str(getattr(entry.issue, "id", "") or ""),
-                str(entry.identifier),
-            )
-            for entry in self._running_values_snapshot()
-            if entry.is_auditor
-        }
-        for issue_id, reservation in reservations:
-            task_id = str(reservation.get("task_id") or issue_id)
-            project_id = str(reservation.get("project_id") or "")
-            legacy_unscoped = project_id in {
-                "__legacy_unscoped__",
-                "__managed_unscoped__",
-            }
-            runtime_identity = (
-                "__unscoped__" if legacy_unscoped else project_id,
-                str(reservation.get("issue_id") or ""),
-                task_id,
-            )
-            if runtime_identity in running_audits:
-                continue
-            try:
-                tracker = (
-                    self._tracker_for_project(project_id)
-                    if project_id and not legacy_unscoped
-                    else self.tracker
-                )
-                issue = tracker.fetch_issue_detail(task_id)
-            except Exception as exc:  # noqa: BLE001 - retain capacity on uncertainty
-                logger.warning(
-                    "Retaining audit budget reservation for %s/%s: terminal "
-                    "state could not be reconciled (%s)",
-                    project_id or "legacy",
-                    task_id,
-                    type(exc).__name__,
-                )
-                continue
-            if canonicalize_status(issue.state) not in {DONE, MERGED, ARCHIVED}:
-                continue
-            if (
-                reservation.get("audit_started")
-                and not reservation.get("spend_reconciled")
-                and not self._reconcile_audit_budget_spend(
-                    issue_id,
-                    actual_cost=None,
-                )
-            ):
-                logger.error(
-                    "Terminal task %s/%s retains audit capacity because prior "
-                    "auditor spend could not be reconciled",
-                    project_id or "legacy",
-                    task_id,
-                )
-                continue
-            if not self._release_audit_budget_reservation(issue_id):
-                logger.error(
-                    "Terminal task %s/%s retains an audit budget reservation "
-                    "because service-state persistence failed",
-                    project_id or "legacy",
-                    task_id,
-                )
-
     def _restore_epic_rebase_states(self) -> None:
         """Restore persisted epic rebase states on startup.
 
@@ -4767,24 +3731,49 @@ class Orchestrator:
         self._prompt_template = template
 
     def pause(self) -> None:
-        """Pause: stop all running agents, cancel pending retries, and
-        prevent new dispatches. Agents that were running are terminated;
-        retry timers that were scheduled are cancelled. Without this,
-        a retry timer fires while paused, bypasses the dispatch loop's
-        paused check (which only guards _should_dispatch, not _dispatch
-        itself), and re-dispatches an issue against the user's intent.
+        """Pause agents and dispatch without forgetting recovery authority.
+
+        Ordinary retry intents are cancelled. A pre-admission recovery owns a
+        tracker mutation that has not yet been rolled back, so pause suspends
+        its timer but preserves the durable owner for resume/restart.
         """
-        self._paused = True
+        with self._provider_admission_lock:
+            self._paused = True
+            self._provider_admission_generation += 1
         self._save_paused_state()
-        # Cancel pending retries — they bypass _should_dispatch and would
-        # otherwise re-dispatch while paused.
-        for retry_iid, retry in list(self.state.retry_attempts.items()):
+        preserved_recovery_ids: set[str] = set()
+        with self._retry_authority_lock:
+            recovery_entries = list(self.state.retry_attempts.items())
+            recovery_entries.extend(
+                (issue_id, retry)
+                for issue_id, retry in self._retry_dispatching.items()
+                if issue_id not in self.state.retry_attempts
+            )
+            for retry_iid, retry in recovery_entries:
+                if not retry.pre_admission_recovery or retry.cancelled:
+                    continue
+                preserved_recovery_ids.add(retry_iid)
+                timer = retry.timer_handle
+                if timer is not None and not self._retry_timer_cancelled(timer):
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+                retry.timer_handle = None
+                self.state.retry_attempts[retry.issue_id] = retry
+
+        # Ordinary timers bypass _should_dispatch and must be withdrawn.
+        for retry_iid, _retry in list(self.state.retry_attempts.items()):
+            if retry_iid in preserved_recovery_ids:
+                continue
             self._cancel_retry_for_issue(
                 issue_id=retry_iid,
                 reason="orchestrator paused",
                 notify=False,
             )
-        for retry_iid, retry in list(self._retry_dispatching.items()):
+        for retry_iid, _retry in list(self._retry_dispatching.items()):
+            if retry_iid in preserved_recovery_ids:
+                continue
             self._cancel_retry_for_issue(
                 issue_id=retry_iid,
                 reason="orchestrator paused",
@@ -4812,20 +3801,124 @@ class Orchestrator:
         process starts from the persisted explicit pause state.  In
         particular, quiescing must never call ``_terminate_all_running``.
         """
-        self._quiesced = True
+        # This lock is also held while the dispatcher publishes a worker task
+        # and its RunningEntry, and while a setup task enters provider start.
+        # Returning from quiesce is consequently a real admission fence, not a
+        # check-then-act hint to concurrent dispatch code.
+        with self._provider_admission_lock:
+            self._quiesced = True
+            self._provider_admission_generation += 1
         self._notify_observers()
         logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
 
-    def _dispatch_is_blocked(self) -> bool:
+    def _dispatch_is_blocked(self, issue: Issue | None = None) -> bool:
         """Return whether ordinary or retry dispatch is currently blocked."""
         # ``getattr`` keeps lightweight ``Orchestrator.__new__`` test doubles
         # and older embedders compatible while the transient field is new.
-        return bool(
-            getattr(self, "_paused", False)
-            or getattr(self, "_quiesced", False)
-        )
+        def _blocked() -> bool:
+            return bool(
+                getattr(self, "_paused", False)
+                or getattr(self, "_quiesced", False)
+                or getattr(self, "_audit_rollback_persistence_failed", False)
+                or getattr(self, "_retry_persistence_failed", False)
+                or getattr(self, "_restart_in_progress", False)
+                or getattr(self, "_stopping", False)
+                or (
+                    issue is not None
+                    and self._is_project_paused(issue.project_id)
+                )
+            )
 
-    def _persist_restart_issue(self, issue: Issue) -> None:
+        admission_lock = getattr(self, "_provider_admission_lock", None)
+        if admission_lock is None:
+            return _blocked()
+        with admission_lock:
+            return _blocked()
+
+    def _restart_issue_snapshot(self) -> list[dict[str, Any]]:
+        """Return a stable copy of the durable restart-recovery journal."""
+
+        with self._restart_journal_lock:
+            raw = self._load_state().get("restart_issues", [])
+            if not isinstance(raw, list):
+                return []
+            return [dict(entry) for entry in raw if isinstance(entry, Mapping)]
+
+    def _fail_closed_restart_persistence(self, reason: str) -> None:
+        """Prevent provider admission after restart authority cannot persist."""
+
+        self._restart_persistence_failed = True
+        with self._provider_admission_lock:
+            self._quiesced = True
+            self._provider_admission_generation += 1
+        logger.error("Restart recovery persistence failed closed: %s", reason)
+
+    def _merge_restart_issues(
+        self,
+        entries: list[dict[str, Any]],
+        *,
+        paused: bool | None = None,
+    ) -> tuple[bool, int, int]:
+        """Atomically merge restart rows and optional post-restart pause intent."""
+
+        with self._restart_journal_lock:
+            existing = self._restart_issue_snapshot()
+            existing_ids = {
+                str(entry.get("issue_id") or "")
+                for entry in existing
+                if entry.get("issue_id")
+            }
+            additions: list[dict[str, Any]] = []
+            for entry in entries:
+                issue_id = str(entry.get("issue_id") or "")
+                if not issue_id or issue_id in existing_ids:
+                    continue
+                additions.append(dict(entry))
+                existing_ids.add(issue_id)
+            merged = existing + additions
+            updates: dict[str, Any] = {"restart_issues": merged}
+            if paused is not None:
+                updates["paused"] = paused
+            saved = (
+                True
+                if not additions and paused is None
+                else self._save_state(**updates)
+            )
+        if saved:
+            self._restart_persistence_failed = False
+        else:
+            self._fail_closed_restart_persistence(
+                "could not commit merged restart issue journal"
+            )
+        return saved, len(existing), len(additions)
+
+    def _ack_restart_issue(self, entry: Mapping[str, Any]) -> bool:
+        """Durably remove exactly one processed restart row."""
+
+        target = dict(entry)
+        target_issue_id = str(target.get("issue_id") or "")
+        with self._restart_journal_lock:
+            current = self._restart_issue_snapshot()
+            removed = False
+            remaining: list[dict[str, Any]] = []
+            for candidate in current:
+                same_row = candidate == target
+                if not removed and same_row:
+                    removed = True
+                    continue
+                remaining.append(candidate)
+            if not removed:
+                return True
+            saved = self._save_state(restart_issues=remaining)
+        if saved:
+            self._restart_persistence_failed = False
+            return True
+        self._fail_closed_restart_persistence(
+            f"could not acknowledge restart row {target_issue_id or '<invalid>'}"
+        )
+        return False
+
+    def _persist_restart_issue(self, issue: Issue) -> bool:
         """Durably remember work fenced immediately before provider launch."""
 
         restart_entry = {
@@ -4833,58 +3926,41 @@ class Orchestrator:
             "identifier": issue.identifier,
             "project_id": issue.project_id,
         }
-        with self._state_io_lock:
-            existing = self._load_state().get("restart_issues", [])
-            existing = list(existing) if isinstance(existing, list) else []
-            if not any(item.get("issue_id") == issue.id for item in existing):
-                existing.append(restart_entry)
-                self._save_state(restart_issues=existing)
+        saved, _existing_count, _added_count = self._merge_restart_issues(
+            [restart_entry]
+        )
+        return saved
 
     def _provider_launch_blocked(self, issue: Issue, run_id: str | None) -> bool:
-        """Fence the last launch boundary once lifecycle drain has begun.
+        """Reserve the first phase of provider admission after setup.
 
         Dispatch setup performs blocking tracker and worktree work.  A restart
         can quiesce the service while that work is in flight, after the lane's
         initial gate but before the provider is created.  Persisting the task
         here makes the interrupted dispatch recover exactly once on the next
-        boot without allowing a new child transport in the old process.
+        boot without allowing a new child transport in the old process.  A
+        successful return only reserves the current lifecycle generation; the
+        caller must publish its actual ``run_task``/``start`` task through
+        :meth:`_publish_provider_start` before awaiting it.
         """
 
-        # A dispatched worker must retain its exact RunningEntry until it has
-        # crossed the transport boundary.  In particular, an owner override
-        # can remove an entry while workspace setup is running; treating that
-        # absence as a legacy/no-op launch would start a provider after its
-        # authority was withdrawn.  Direct legacy callers have no run ID and
-        # retain their historical compatibility path.
-        if run_id is not None and not self._worker_authority_current(issue, run_id):
-            logger.info(
-                "Provider launch fenced by missing/superseded runtime authority "
-                "issue_id=%s identifier=%s run_id=%s",
-                issue.id,
-                issue.identifier,
-                run_id,
+        with self._provider_admission_lock:
+            entry = self.state.running.get(issue.id)
+            current_run = entry is not None and self._is_current_run(issue.id, run_id)
+            blocked = self._dispatch_is_blocked(issue)
+            retiring = bool(
+                current_run
+                and (
+                    getattr(entry, "retirement_pending", False)
+                    or getattr(entry, "authority_revoked", False)
+                )
             )
-            return True
-
-        if not (getattr(self, "_quiesced", False) or self._stopping):
-            return False
-        entry = self._current_running_entry(issue.id)
-        current_run = entry is not None and self._is_current_run(issue.id, run_id)
-        if current_run:
-            entry.retirement_pending = True
-            if entry.is_auditor:
-                entry.forced_exit_reason = "lifecycle_drain_before_launch"
-                entry.forced_exit_error = (
-                    "lifecycle drain began before auditor provider launch"
+            if current_run and not blocked and not retiring:
+                entry.provider_admission_generation = (
+                    self._provider_admission_generation
                 )
-            else:
-                entry.authority_revoked = True
-                entry.authority_revocation_reason = (
-                    "lifecycle drain began before provider launch"
-                )
-        if current_run and not entry.is_auditor:
-            if not getattr(entry, "duplicate_preflight", False):
-                self._persist_restart_issue(issue)
+                return False
+            self._reject_provider_launch_locked(issue, entry, current_run)
         logger.info(
             "Provider launch fenced by lifecycle drain issue_id=%s "
             "identifier=%s run_id=%s",
@@ -4894,600 +3970,192 @@ class Orchestrator:
         )
         return True
 
-    def _auditor_contact_authority_error(self, entry: RunningEntry) -> str | None:
-        """Read live auditor policy before the irreversible contact CAS.
-
-        Reservation selection is deliberately earlier than workspace setup so
-        no implementation contributor can consume the last independent
-        candidate.  It is not, however, authorization to contact a provider:
-        role, allowlist, health, contributor evidence, and budget state can
-        all change while local setup runs.
-
-        This method intentionally performs project, role, tracker, and policy
-        reads *without* holding ``_retry_authority_lock``.  Those stores can
-        take their own project locks or perform I/O.  The caller subsequently
-        makes a short runtime CAS under ``_retry_authority_lock``; keeping
-        that order (policy read -> retry lock) avoids a project/retry lock
-        inversion with an owner terminal override.
-        """
-
-        provider_id = str(getattr(entry, "provider_id", "") or "").strip()
-        model = str(getattr(entry, "model_name", "") or "").strip()
-        if not provider_id or not model:
-            return "auditor admission lacks an exact provider/model identity"
-        issue = entry.issue
-        audit_id = str(getattr(entry, "audit_id", "") or "").strip()
-        attempt_id = str(getattr(entry, "audit_attempt_id", "") or "").strip()
-        if audit_id or attempt_id:
-            if not audit_id or not attempt_id:
-                return "auditor admission lacks an exact audit/attempt identity"
-            try:
-                # TerminalAuditMetadataStore.read holds the owning project's
-                # write lock. An owner override that has begun but not committed
-                # therefore completes before this check, while an override that
-                # begins afterward revokes the registered entry at the runtime
-                # CAS below.
-                document = self._audit_store(issue).read(issue.identifier)
-                record = next(
-                    (
-                        value
-                        for value in document.pending_chain
-                        if value.audit_id == audit_id
-                    ),
-                    None,
-                )
-                attempt = (
-                    next(
-                        (
-                            value
-                            for value in record.attempts
-                            if value.attempt_id == attempt_id
-                        ),
-                        None,
-                    )
-                    if record is not None
-                    else None
-                )
-            except Exception as exc:  # noqa: BLE001 - terminal state is authority
-                return f"live terminal-audit authority is unavailable ({type(exc).__name__})"
-            if (
-                record is None
-                or record.request_state != RequestState.IN_PROGRESS
-                or attempt is None
-                or attempt.request_state != RequestState.IN_PROGRESS
-                or bool(attempt.ended_at)
-            ):
-                return "owner override or audit retirement revoked this auditor attempt"
-            attempt_candidate = self._canonical_auditor_candidate(
-                Candidate(
-                    str(attempt.provider_id or ""),
-                    str(attempt.model or ""),
-                )
-            )
-            if attempt_candidate != Candidate(provider_id, model):
-                return "live terminal-audit attempt identity no longer matches this auditor"
-        try:
-            project = (
-                self.project_store.get(issue.project_id) if issue.project_id else None
-            )
-        except Exception as exc:  # noqa: BLE001 - project policy is authority
-            return f"auditor project allowlist is unavailable ({type(exc).__name__})"
-        if issue.project_id and project is None:
-            return "auditor project allowlist is unavailable"
-        try:
-            role = self.role_store.get(AUDITOR_ROLE_NAME)
-        except Exception as exc:  # noqa: BLE001 - live role is authority
-            return f"live auditor role is unavailable ({type(exc).__name__})"
-        candidate = Candidate(provider_id=provider_id, model=model)
-        role_candidates = list(getattr(role, "candidates", []) or []) if role else []
-        if role is None or not any(
-            self._canonical_auditor_candidate(value) == candidate
-            for value in role_candidates
-        ):
-            return "exact auditor candidate is no longer present in the live auditor role"
-        try:
-            tracker = self._tracker_for_issue(issue)
-            contributors = _load_work_contributors(
-                tracker.get_metadata(issue.identifier) or {}
-            )
-            selector = self._audit_selector(issue, project=project)
-            eligible, reason = selector._eligible_candidates(
-                list(role.candidates), selector._contributor_pairs(contributors)
-            )
-        except Exception as exc:  # noqa: BLE001 - no contact without authority
-            return f"auditor admission authority could not be read ({type(exc).__name__})"
-        if reason is not None:
-            return f"auditor admission no longer has an eligible candidate: {reason.detail}"
-        if not any(
-            self._canonical_auditor_candidate(value) == candidate
-            for value in eligible
-        ):
-            return (
-                "exact auditor candidate is no longer independently eligible "
-                "under the current allowlist, health, or contributor evidence"
-            )
-        return None
-
-    def _contributor_contact_authority_error(
-        self,
-        entry: RunningEntry,
-        candidate: Candidate,
-    ) -> tuple[Candidate | None, str | None]:
-        """Return the exact live auditor reservation for one contributor."""
-
-        issue = entry.issue
-        candidate = self._canonical_auditor_candidate(candidate)
-        try:
-            project = (
-                self.project_store.get(issue.project_id) if issue.project_id else None
-            )
-            if issue.project_id and project is None:
-                return None, "contributor project allowlist is unavailable"
-            provider = self.provider_store.get(candidate.provider_id)
-            if provider is not None:
-                target = DispatchTarget(
-                    role_name=None,
-                    provider=provider,
-                    model=candidate.model,
-                    candidate_key=f"{candidate.provider_id}/{candidate.model}",
-                    source="provider-contact-fence",
-                    candidate=None,
-                )
-                filtered, whitelist_applied = self._apply_project_provider_whitelist(
-                    [target], issue
-                )
-                if whitelist_applied and not filtered:
-                    return None, (
-                        "exact contributor provider is no longer project-allowed"
-                    )
-            elif candidate.provider_id not in {"cli", "acp"}:
-                return None, "exact contributor provider is no longer configured"
-            tracker = self._tracker_for_issue(issue)
-            contributors = _load_work_contributors(
-                tracker.get_metadata(issue.identifier) or {}
-            )
-            selector = self._audit_selector(issue, project=project)
-            allowed, reserved, reason = selector.reserve_for_contributor_candidates(
-                [candidate], contributors
-            )
-        except Exception as exc:  # noqa: BLE001 - contact must fail closed
-            return None, (
-                "contributor auditor-allocation authority could not be read "
-                f"({type(exc).__name__})"
-            )
-        if reason is not None:
-            return None, reason.detail
-        if not any(
-            self._canonical_auditor_candidate(value)
-            == self._canonical_auditor_candidate(candidate)
-            for value in allowed
-        ):
-            return None, (
-                "exact contributor provider/model would consume the last viable "
-                "independent auditor"
-            )
-        if reserved is None:
-            return None, (
-                "live auditor allocation did not identify an exact reserved candidate"
-            )
-        return self._canonical_auditor_candidate(reserved), None
-
-    @staticmethod
-    def _audit_reservation_identity(reservation: Mapping[str, Any]) -> tuple[str, ...]:
-        """Return the exact immutable identity of one projected-spend claim."""
-
-        return tuple(
-            str(reservation.get(field) or "")
-            for field in (
-                "authority_scope",
-                "authority_version",
-                "provider_id",
-                "model",
-                "project_id",
-                "task_id",
-                "issue_id",
-                "reserved_at",
-            )
-        )
-
-    def _refresh_audit_budget_admission(
-        self,
-        entry: RunningEntry,
-        *,
-        require_entry_identity: bool,
-        reserved_candidate: Candidate | None = None,
-    ) -> tuple[tuple[str, ...] | None, str | None]:
-        """Re-price and atomically refresh the exact durable budget claim.
-
-        Budget persistence has its own lock and can write service state.  It
-        must never be acquired while a terminal-owner revocation waits on the
-        runtime authority lock.  Provider rates are read first, then the exact
-        reservation identity, spend, other reservations, and refreshed amount
-        are compared and persisted in one budget transaction.
-        """
-
-        if self.config.budget_limit <= 0:
-            return None, None
-        provider_id = str(getattr(entry, "provider_id", "") or "").strip()
-        model = str(getattr(entry, "model_name", "") or "").strip()
-        issue = entry.issue
-        reservation_key = self._audit_reservation_key_for_issue(issue)
-        with self._audit_budget_lock:
-            reservation = self._audit_budget_reservations.get(reservation_key)
-            if reservation is None:
-                return None, "auditor budget reservation is missing at provider admission"
-            expected_identity = self._audit_reservation_identity(reservation)
-            if (
-                reservation.get("authority_scope") != "managed-audit-budget"
-                or reservation.get("authority_version") != 2
-                or str(reservation.get("task_id") or "") != str(issue.identifier)
-                or str(reservation.get("project_id") or "")
-                != str(issue.project_id or "__managed_unscoped__")
-                or str(reservation.get("issue_id") or "") != str(issue.id)
-            ):
-                return None, "auditor budget reservation identity changed before provider admission"
-            stored_candidate = Candidate(
-                str(reservation.get("provider_id") or ""),
-                str(reservation.get("model") or ""),
-            )
-            if require_entry_identity and (
-                stored_candidate.provider_id != provider_id
-                or stored_candidate.model != model
-            ):
-                return None, "auditor budget reservation identity changed before provider admission"
-
-        if not require_entry_identity:
-            if reserved_candidate is None:
-                return None, (
-                    "live contributor admission lacks an exact auditor reservation"
-                )
-            reserved_candidate = self._canonical_auditor_candidate(reserved_candidate)
-            if not reserved_candidate.provider_id or not reserved_candidate.model:
-                return None, (
-                    "live contributor admission lacks an exact auditor reservation"
-                )
-        projection_candidate = reserved_candidate or stored_candidate
-
-        projected, projection_error = self._projected_auditor_cost(projection_candidate)
-        if projection_error is not None or projected is None:
-            return None, projection_error or "auditor cost projection is unavailable"
-
-        with self._audit_budget_lock:
-            self._roll_budget_window_if_due()
-            current = self._audit_budget_reservations.get(reservation_key)
-            if (
-                current is None
-                or self._audit_reservation_identity(current) != expected_identity
-            ):
-                return None, "auditor budget reservation identity changed before provider admission"
-            other_reserved = self._audit_budget_reserved_total(
-                exclude_issue_id=reservation_key
-            )
-            candidate_changed = (
-                str(current.get("provider_id") or "")
-                != projection_candidate.provider_id
-                or str(current.get("model") or "") != projection_candidate.model
-            )
-            audit_started = current.get("audit_started") is True
-            if candidate_changed and audit_started:
-                return None, (
-                    "started auditor budget reservation cannot migrate to another "
-                    "provider/model"
-                )
-            # Before provider contact, the old projection is only capacity for a
-            # future auditor. Replace it with the exact current candidate/rates;
-            # retaining a more expensive stale candidate can create a false
-            # budget deadlock. Once contact has started, retain the larger value
-            # because the historical projection may already represent spend.
-            refreshed_amount = (
-                max(
-                    float(current.get("amount_usd", 0.0) or 0.0),
-                    float(projected),
-                )
-                if audit_started
-                else float(projected)
-            )
-            required = (
-                self.state.agent_totals.estimated_cost
-                + other_reserved
-                + refreshed_amount
-            )
-            if required > self.config.budget_limit + 1e-9:
-                available = max(
-                    0.0,
-                    self.config.budget_limit
-                    - self.state.agent_totals.estimated_cost
-                    - other_reserved,
-                )
-                return None, (
-                    "auditor budget reservation no longer covers the current "
-                    f"projection (${refreshed_amount:.4f} required, "
-                    f"${available:.4f} available)"
-                )
-            if (
-                candidate_changed
-                or refreshed_amount != float(current.get("amount_usd", 0.0) or 0.0)
-            ):
-                previous = current
-                updated = dict(current)
-                updated["amount_usd"] = refreshed_amount
-                updated["provider_id"] = projection_candidate.provider_id
-                updated["model"] = projection_candidate.model
-                self._audit_budget_reservations[reservation_key] = updated
-                if not self._save_state(
-                    audit_budget_reservations=self._audit_budget_reservations
-                ):
-                    self._audit_budget_reservations[reservation_key] = previous
-                    return None, (
-                        "auditor budget projection refresh could not be persisted"
-                    )
-                current = updated
-            return self._audit_reservation_identity(current), None
-
-    def _begin_provider_contact(
+    def _reject_provider_launch_locked(
         self,
         issue: Issue,
-        run_id: str | None,
-        *,
-        transport: str,
-        contributor_candidate: Candidate | None = None,
-        transport_configuration_signature: str | None = None,
-    ) -> str | None:
-        """Atomically fence the final pre-contact authority boundary.
-
-        Workspace construction can yield to tracker, git, and filesystem work.
-        Every API, ACP, and CLI transport therefore calls this immediately
-        before its first provider/subprocess contact.  A vanished or replaced
-        RunningEntry is a fail-closed revocation, never permission to launch.
-        For terminal auditors the durable projected-cost claim becomes spend
-        eligible only at this boundary, rather than while dispatch is still
-        doing local setup.
-        """
-
-        if self._provider_launch_blocked(issue, run_id):
-            return f"{transport} provider launch was blocked by lifecycle or runtime authority"
-
-        # Read slow project/tracker/policy state before taking the runtime
-        # lock.  In particular, an owner transition takes a project lock then
-        # invokes `_revoke_auditor_authority`; reversing that order here would
-        # deadlock the terminal transition against transport admission.
-        policy_generation = AUDITOR_POLICY_AUTHORITY.generation()
-        entry_snapshot = self._current_running_entry(issue.id)
-        reservation_identity: tuple[str, ...] | None = None
-        if entry_snapshot is not None and entry_snapshot.is_auditor:
-            admission_error = self._auditor_contact_authority_error(entry_snapshot)
-            if admission_error is not None:
-                return f"{transport} provider launch was blocked because {admission_error}"
-            reservation_identity, admission_error = (
-                self._refresh_audit_budget_admission(
-                    entry_snapshot,
-                    require_entry_identity=True,
-                )
-            )
-            if admission_error is not None:
-                return f"{transport} provider launch was blocked because {admission_error}"
-        elif entry_snapshot is not None:
-            candidate = self._canonical_auditor_candidate(
-                contributor_candidate or Candidate(
-                    str(getattr(entry_snapshot, "provider_id", "") or ""),
-                    str(getattr(entry_snapshot, "model_name", "") or ""),
-                )
-            )
-            if not candidate.provider_id or not candidate.model:
-                return (
-                    f"{transport} provider launch was blocked because exact "
-                    "contributor identity is unavailable"
-                )
-            live_reserved_candidate, admission_error = (
-                self._contributor_contact_authority_error(
-                    entry_snapshot,
-                    candidate,
-                )
-            )
-            if admission_error is not None:
-                return f"{transport} provider launch was blocked because {admission_error}"
-            reservation_identity, admission_error = (
-                self._refresh_audit_budget_admission(
-                    entry_snapshot,
-                    require_entry_identity=False,
-                    reserved_candidate=live_reserved_candidate,
-                )
-            )
-            if admission_error is not None:
-                return f"{transport} provider launch was blocked because {admission_error}"
-
-        # This is the linearization point shared with owner override.  A
-        # successful CAS is an explicit contact permit; the override either
-        # revokes before it (no provider contact), or sees the permit and
-        # schedules safe retirement of this exact admitted run.
-        admitted_entry: RunningEntry | None = None
-        with AUDITOR_POLICY_AUTHORITY.admission(policy_generation) as policy_current:
-            if not policy_current:
-                return (
-                    f"{transport} provider launch was blocked because live auditor "
-                    "policy changed during admission"
-                )
-            admitted_provider_id = str(
-                (
-                    contributor_candidate.provider_id
-                    if contributor_candidate is not None
-                    else getattr(entry_snapshot, "provider_id", "")
-                )
-                or ""
-            ).strip()
-            admitted_model = str(
-                (
-                    contributor_candidate.model
-                    if contributor_candidate is not None
-                    else getattr(entry_snapshot, "model_name", "")
-                )
-                or ""
-            ).strip()
-            admitted_provider = None
-            if admitted_provider_id:
-                try:
-                    admitted_provider = self.provider_store.get(admitted_provider_id)
-                except Exception:
-                    admitted_provider = None
-            admitted_signature: str | None = None
-            admitted_per_token_billed: bool | None = None
-            admitted_input_rate: float | None = None
-            admitted_output_rate: float | None = None
-            if admitted_provider is not None:
-                admitted_signature = (
-                    PROVIDER_HEALTH_CACHE.configuration_signature(admitted_provider)
-                )
-                if (
-                    transport_configuration_signature is not None
-                    and admitted_signature != transport_configuration_signature
-                ):
-                    return (
-                        f"{transport} provider launch was blocked because provider "
-                        "configuration changed after transport setup"
-                    )
-                admitted_mode = str(
-                    getattr(admitted_provider, "mode", "api") or "api"
-                ).casefold()
-                admitted_per_token_billed = bool(
-                    admitted_provider.is_per_token_billed(admitted_mode)
-                )
-                costs = getattr(admitted_provider, "model_costs", None)
-                model_costs = (
-                    costs.get(admitted_model) if isinstance(costs, Mapping) else None
-                )
-                if isinstance(model_costs, Mapping):
-                    raw_input_rate = model_costs.get("cost_per_1k_input")
-                    raw_output_rate = model_costs.get("cost_per_1k_output")
-                    if (
-                        not isinstance(raw_input_rate, bool)
-                        and not isinstance(raw_output_rate, bool)
-                        and isinstance(raw_input_rate, (int, float))
-                        and isinstance(raw_output_rate, (int, float))
-                        and math.isfinite(float(raw_input_rate))
-                        and math.isfinite(float(raw_output_rate))
-                        and float(raw_input_rate) >= 0
-                        and float(raw_output_rate) >= 0
-                    ):
-                        admitted_input_rate = float(raw_input_rate)
-                        admitted_output_rate = float(raw_output_rate)
-            elif transport_configuration_signature is not None:
-                return (
-                    f"{transport} provider launch was blocked because provider "
-                    "configuration disappeared after transport setup"
-                )
-            with self._retry_authority_lock:
-                entry = self.state.running.get(issue.id)
-                if (
-                    getattr(self, "_quiesced", False)
-                    or self._stopping
-                    or (
-                        run_id is not None
-                        and (
-                            entry is None
-                            or getattr(entry, "run_id", None) != run_id
-                            or getattr(entry, "authority_revoked", False)
-                            or (
-                                getattr(entry, "authority_generation", None)
-                                in self._revoked_authority_generations
-                            )
-                        )
-                    )
-                ):
-                    return (
-                        f"{transport} provider launch was blocked because runtime "
-                        "authority disappeared"
-                    )
-                if entry is not None:
-                    entry.provider_contact_permitted = True
-                    entry.provider_configuration_signature = admitted_signature
-                    entry.admitted_per_token_billed = admitted_per_token_billed
-                    entry.admitted_cost_per_1k_input = admitted_input_rate
-                    entry.admitted_cost_per_1k_output = admitted_output_rate
-                    admitted_entry = entry
-
-        if admitted_entry is not None and admitted_entry.is_auditor:
-            # Reservation is intentionally only capacity until the contact
-            # permit exists.  Persist spend eligibility outside the retry lock
-            # so the project/owner -> retry lock order remains acyclic.
-            if not self._mark_audit_budget_started(
-                self._audit_reservation_key_for_issue(issue),
-                expected_identity=reservation_identity,
-            ):
-                with self._retry_authority_lock:
-                    current = self.state.running.get(issue.id)
-                    if current is admitted_entry:
-                        current.provider_contact_permitted = False
-                return (
-                    f"{transport} provider launch was blocked because auditor budget "
-                    "admission could not be persisted"
-                )
-        elif admitted_entry is not None and reservation_identity is not None:
-            # Contributor staging may rotate the exact future auditor while
-            # this worker is doing local setup. Recheck the budget CAS after
-            # runtime admission just as the auditor path does above; otherwise
-            # a concurrent replacement/release could invalidate the migrated
-            # capacity claim between refresh and provider contact.
-            reservation_key = self._audit_reservation_key_for_issue(issue)
-            with self._audit_budget_lock:
-                current_reservation = self._audit_budget_reservations.get(
-                    reservation_key
-                )
-                reservation_current = bool(
-                    current_reservation is not None
-                    and self._audit_reservation_identity(current_reservation)
-                    == reservation_identity
-                )
-            if not reservation_current:
-                with self._retry_authority_lock:
-                    current = self.state.running.get(issue.id)
-                    if current is admitted_entry:
-                        current.provider_contact_permitted = False
-                return (
-                    f"{transport} provider launch was blocked because auditor budget "
-                    "reservation changed during contributor admission"
-                )
-        if admitted_entry is not None:
-            with self._retry_authority_lock:
-                # Do not overwrite a replacement entry.  An owner override
-                # after the permit deliberately leaves the flag visible so
-                # its termination path can reconcile the admitted attempt.
-                if self.state.running.get(issue.id) is admitted_entry:
-                    admitted_entry.provider_started = True
-        return None
-
-    def _cancel_precontact_provider_admission(
-        self,
-        issue: Issue,
-        run_id: str | None,
+        entry: RunningEntry | None,
+        current_run: bool,
     ) -> None:
-        """Undo an ACP permit cancelled before its backend touched transport."""
+        """Mark a setup-only run withdrawn while admission lock is held."""
 
-        admitted_entry: RunningEntry | None = None
-        with self._retry_authority_lock:
-            entry = self.state.running.get(issue.id)
-            if entry is None:
-                return
-            if run_id is not None and getattr(entry, "run_id", None) != run_id:
-                return
-            if not getattr(entry, "provider_contact_permitted", False):
-                return
-            entry.provider_contact_permitted = False
-            entry.provider_started = False
-            entry.provider_configuration_signature = None
-            entry.admitted_per_token_billed = None
-            entry.admitted_cost_per_1k_input = None
-            entry.admitted_cost_per_1k_output = None
-            admitted_entry = entry
-        if admitted_entry.is_auditor and not self._unmark_unused_audit_budget_contact(
-            self._audit_reservation_key_for_issue(issue)
-        ):
-            # Fail closed if the cancellation itself cannot be persisted: the
-            # conservative reservation remains visible rather than becoming a
-            # silent budget credit after a crash.
-            logger.error(
-                "Unable to roll back unused auditor provider admission issue_id=%s",
-                issue.id,
+        if not current_run or entry is None:
+            return
+        entry.provider_admission_generation = None
+        entry.retirement_pending = True
+        if entry.is_auditor:
+            entry.forced_exit_reason = "lifecycle_drain_before_launch"
+            entry.forced_exit_error = (
+                "lifecycle drain began before auditor provider launch"
             )
+            return
+        entry.authority_revoked = True
+        entry.authority_revocation_reason = (
+            "lifecycle drain began before provider launch"
+        )
+        if not getattr(entry, "duplicate_preflight", False):
+            if not self._persist_restart_issue(issue):
+                # The shared restart journal is unavailable. Publish the same
+                # free pre-admission owner through the independent retry
+                # journal before the setup-only runtime is allowed to retire.
+                recovery = self._install_pre_admission_recovery(
+                    issue,
+                    restore_status=OPEN,
+                    intended_active_state=_configured_in_progress_state(
+                        self.config.tracker_active_states
+                    ),
+                    intended_assignment_id=self._retry_issue_assignment(issue)
+                    or None,
+                    attempt=getattr(entry, "retry_attempt", None),
+                    reason="restart journal failed before provider launch",
+                )
+                self._retain_or_arm_pre_admission_recovery(
+                    recovery,
+                    self._backoff_delay(recovery.attempt),
+                    issue=issue,
+                )
+
+    def _publish_provider_start(
+        self,
+        issue: Issue,
+        run_id: str | None,
+        start: Callable[[], Awaitable[Any]],
+    ) -> asyncio.Task[Any] | None:
+        """Complete provider admission by publishing its real start task.
+
+        No coroutine is constructed until this method owns the lifecycle lock.
+        Thus a lifecycle fence either invalidates the setup reservation first,
+        or observes the published provider task before returning.  That task
+        marks ``provider_started`` on its first event-loop turn, immediately
+        before invoking the provider coroutine.  It is awaited only after
+        releasing the RLock.
+        """
+
+        rollback_entry: RunningEntry | None = None
+        creation_error: BaseException | None = None
+        publication_gate = asyncio.Event()
+        with self._provider_admission_lock:
+            entry = self.state.running.get(issue.id)
+            current_run = entry is not None and self._is_current_run(issue.id, run_id)
+            retiring = bool(
+                current_run
+                and (
+                    getattr(entry, "retirement_pending", False)
+                    or getattr(entry, "authority_revoked", False)
+                )
+            )
+            if (
+                current_run
+                and not retiring
+                and entry.provider_start_task is not None
+            ):
+                return entry.provider_start_task
+            generation = getattr(entry, "provider_admission_generation", None)
+            blocked = self._dispatch_is_blocked(issue)
+            if (
+                not current_run
+                or blocked
+                or retiring
+                or generation is None
+                or generation != self._provider_admission_generation
+            ):
+                self._reject_provider_launch_locked(issue, entry, current_run)
+                return None
+
+            async def _start_admitted_provider() -> Any:
+                # An eager/reentrant create_task may advance this wrapper, but
+                # it cannot invoke the transport before the task is published
+                # to the exact RunningEntry and the gate is opened below.
+                try:
+                    await publication_gate.wait()
+                    with self._provider_admission_lock:
+                        current = self.state.running.get(issue.id)
+                        if (
+                            current is not entry
+                            or not self._is_current_run(issue.id, run_id)
+                            or entry.provider_start_task is not asyncio.current_task()
+                            or getattr(entry, "retirement_pending", False)
+                            or getattr(entry, "authority_revoked", False)
+                        ):
+                            return None
+                        entry.provider_started = True
+                    return await start()
+                finally:
+                    with self._provider_admission_lock:
+                        if entry.provider_start_task is asyncio.current_task():
+                            entry.provider_start_task = None
+
+            provider_coroutine = _start_admitted_provider()
+            try:
+                provider_task = asyncio.create_task(
+                    provider_coroutine,
+                    name=f"provider-start-{issue.identifier}",
+                )
+                if provider_task.done():
+                    raise RuntimeError(
+                        "provider task terminated before publication"
+                    )
+            except BaseException as exc:
+                # ``create_task`` can fail before taking ownership of the
+                # coroutine (closed loop, injected scheduler failure, etc.).
+                # Close it explicitly and withdraw every part of this exact
+                # admission while the lifecycle fence is still held.
+                provider_coroutine.close()
+                creation_error = exc
+                entry.provider_admission_generation = None
+                entry.provider_start_task = None
+                entry.provider_started = False
+                entry.retirement_pending = False
+                if entry.is_auditor:
+                    # Keep the runtime and branch owner published until the
+                    # exact attempt is either rolled back in metadata or its
+                    # recovery row is durable.  Otherwise a process exit in
+                    # this error path can abandon In Progress authority.
+                    rollback_entry = entry
+                else:
+                    # Ordinary workers retain their runtime entry just long
+                    # enough for the surrounding worker's ``finally`` block
+                    # to route the infrastructure failure through the normal
+                    # retry/status recovery state machine.
+                    entry.forced_exit_reason = "abnormal"
+                    entry.forced_exit_error = (
+                        f"provider task creation failed before launch: {exc}"
+                    )
+            else:
+                entry.provider_start_task = provider_task
+                entry.provider_admission_generation = None
+                publication_gate.set()
+                return provider_task
+
+        if rollback_entry is not None:
+            secured = self._secure_unadmitted_auditor_exit(
+                rollback_entry,
+                reason="provider task creation failed before launch",
+            )
+            if secured:
+                self._remove_running_entry(issue.id, rollback_entry)
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                self._remove_audit_workspace(rollback_entry)
+            else:
+                rollback_entry.retirement_pending = True
+                logger.critical(
+                    "Retaining auditor runtime after provider task creation "
+                    "failure because rollback authority is not durable "
+                    "issue=%s audit=%s attempt=%s",
+                    rollback_entry.identifier,
+                    rollback_entry.audit_id,
+                    rollback_entry.audit_attempt_id,
+                )
+            self._notify_observers()
+        logger.error(
+            "Provider task creation failed before launch issue=%s run_id=%s: %s",
+            issue.identifier,
+            run_id,
+            creation_error,
+        )
+        if creation_error is not None and not isinstance(creation_error, Exception):
+            raise creation_error
+        return None
 
     def _managed_processes(self, entry: RunningEntry) -> dict[int, ProcessIdentity]:
         """Merge fresh workspace descendants into a run's durable evidence.
@@ -5522,6 +4190,84 @@ class Orchestrator:
             entry.managed_processes = current
             return dict(current)
 
+    @staticmethod
+    def _termination_owner_key(
+        issue_id: str,
+        entry: RunningEntry,
+    ) -> tuple[str, str, int]:
+        """Return the process-local identity of one published runtime."""
+
+        return (
+            issue_id,
+            str(getattr(entry, "run_id", "") or ""),
+            id(entry),
+        )
+
+    def _acquire_termination_owner(
+        self,
+        issue_id: str,
+        entry: RunningEntry,
+    ) -> tuple[tuple[str, str, int], object]:
+        """Acquire one independent callback-suppression lease."""
+
+        key = self._termination_owner_key(issue_id, entry)
+        token = object()
+        with self._provider_admission_lock:
+            owners = self._terminating_worker_owners.setdefault(key, set())
+            if not owners:
+                self._termination_pending_baselines[key] = bool(
+                    entry.retirement_pending
+                )
+                self._termination_child_owned_keys.discard(key)
+            owners.add(token)
+        return key, token
+
+    def _mark_termination_child_owned(
+        self,
+        key: tuple[str, str, int],
+        token: object,
+    ) -> None:
+        """Record that one owner transferred cleanup to a real task."""
+
+        with self._provider_admission_lock:
+            if token in self._terminating_worker_owners.get(key, set()):
+                self._termination_child_owned_keys.add(key)
+
+    def _release_termination_owner(
+        self,
+        key: tuple[str, str, int],
+        token: object,
+        *,
+        restore_unstarted_entry: RunningEntry | None = None,
+    ) -> None:
+        """Release only the callback-suppression lease held by one parent."""
+
+        with self._provider_admission_lock:
+            owners = self._terminating_worker_owners.get(key)
+            if owners is None:
+                return
+            owners.discard(token)
+            if not owners:
+                self._terminating_worker_owners.pop(key, None)
+                baseline = self._termination_pending_baselines.pop(key, None)
+                child_owned = key in self._termination_child_owned_keys
+                self._termination_child_owned_keys.discard(key)
+                if (
+                    restore_unstarted_entry is not None
+                    and not child_owned
+                    and baseline is not None
+                    and self._current_running_entry(key[0])
+                    is restore_unstarted_entry
+                ):
+                    restore_unstarted_entry.retirement_pending = baseline
+
+    def _termination_owned(self, issue_id: str, entry: RunningEntry) -> bool:
+        """Return whether any parent is retiring this exact runtime."""
+
+        key = self._termination_owner_key(issue_id, entry)
+        with self._provider_admission_lock:
+            return bool(self._terminating_worker_owners.get(key))
+
     def _schedule_running_termination(
         self,
         issue_id: str,
@@ -5530,54 +4276,66 @@ class Orchestrator:
         task_name_prefix: str = "terminate-worker",
         expected_entry: RunningEntry | None = None,
     ) -> None:
-        """Schedule worker retirement on the loop that owns provider sessions.
-
-        When ``expected_entry`` is supplied, retirement is generation-scoped:
-        a replacement runtime registered before the callback runs is never
-        terminated on behalf of the older generation.
-        """
+        """Schedule worker retirement on the loop that owns provider sessions."""
 
         if self._termination_scheduling_closed:
             return
         dispatch_loop = self._dispatch_loop
 
         def _schedule() -> None:
-            current_entry = self._current_running_entry(issue_id)
-            if (
-                self._termination_scheduling_closed
-                or current_entry is None
-                or (
-                    expected_entry is not None
-                    and current_entry is not expected_entry
-                )
-                or issue_id in self._scheduled_termination_ids
-                or issue_id in self._terminating_worker_ids
-            ):
+            if self._termination_scheduling_closed:
                 return
-            self._scheduled_termination_ids.add(issue_id)
-
-            async def _terminate_expected() -> bool:
-                # The task callback can run after a natural worker exit and a
-                # replacement dispatch.  Re-check immediately before entering
-                # _terminate_running; that coroutine captures its entry before
-                # its first await, so no replacement can be selected in between.
-                if (
-                    expected_entry is not None
-                    and self._current_running_entry(issue_id) is not expected_entry
-                ):
-                    return True
-                return await self._terminate_running(issue_id, cleanup_workspace)
-
-            task = asyncio.create_task(
-                _terminate_expected(),
-                name=f"{task_name_prefix}-{issue_id}",
+            entry = (
+                expected_entry
+                if expected_entry is not None
+                else self._current_running_entry(issue_id)
             )
-            self._scheduled_termination_tasks[issue_id] = task
+            if entry is None:
+                return
+            scheduled_key = self._termination_owner_key(issue_id, entry)
+            with self._provider_admission_lock:
+                if (
+                    self._termination_scheduling_closed
+                    or self._current_running_entry(issue_id) is not entry
+                ):
+                    return
+                if (
+                    self._scheduled_termination_entries.get(scheduled_key) is entry
+                    or self._terminating_worker_owners.get(scheduled_key)
+                ):
+                    return
+                self._scheduled_termination_entries[scheduled_key] = entry
+
+            retirement_coro = self._terminate_running(
+                issue_id,
+                cleanup_workspace,
+                expected_entry=entry,
+            )
+            try:
+                task = asyncio.create_task(
+                    retirement_coro,
+                    name=f"{task_name_prefix}-{issue_id}",
+                )
+                self._scheduled_termination_tasks[scheduled_key] = task
+            except BaseException:
+                retirement_coro.close()
+                with self._provider_admission_lock:
+                    if (
+                        self._scheduled_termination_entries.get(scheduled_key)
+                        is entry
+                    ):
+                        self._scheduled_termination_entries.pop(scheduled_key, None)
+                raise
 
             def _finished(completed: asyncio.Task) -> None:
-                self._scheduled_termination_ids.discard(issue_id)
-                if self._scheduled_termination_tasks.get(issue_id) is completed:
-                    self._scheduled_termination_tasks.pop(issue_id, None)
+                with self._provider_admission_lock:
+                    if (
+                        self._scheduled_termination_entries.get(scheduled_key)
+                        is entry
+                    ):
+                        self._scheduled_termination_entries.pop(scheduled_key, None)
+                    if self._scheduled_termination_tasks.get(scheduled_key) is completed:
+                        self._scheduled_termination_tasks.pop(scheduled_key, None)
                 try:
                     completed.result()
                 except asyncio.CancelledError:
@@ -5627,19 +4385,18 @@ class Orchestrator:
             if not scheduled:
                 return
             await asyncio.gather(
-                *(asyncio.shield(task) for _issue_id, task in scheduled),
+                *(asyncio.shield(task) for _scheduled_key, task in scheduled),
                 return_exceptions=True,
             )
             # Done callbacks normally remove these entries.  Retire them here
             # too so a caller does not depend on one more loop turn merely to
             # observe that the drain completed.
-            for issue_id, task in scheduled:
+            for scheduled_key, task in scheduled:
                 if (
                     task.done()
-                    and self._scheduled_termination_tasks.get(issue_id) is task
+                    and self._scheduled_termination_tasks.get(scheduled_key) is task
                 ):
-                    self._scheduled_termination_tasks.pop(issue_id, None)
-                    self._scheduled_termination_ids.discard(issue_id)
+                    self._scheduled_termination_tasks.pop(scheduled_key, None)
 
     def _record_auditor_policy_denial(
         self,
@@ -5692,6 +4449,7 @@ class Orchestrator:
                 issue_id,
                 cleanup_workspace=False,
                 task_name_prefix="retire-policy-loop",
+                expected_entry=entry,
             )
 
         loop = self._dispatch_loop
@@ -5706,23 +4464,240 @@ class Orchestrator:
             await self._terminate_running(issue_id, cleanup_workspace=False)
         self._notify_observers()
 
-    def unpause(self) -> None:
-        """Resume dispatching — agents will be re-dispatched on next tick."""
-        self._paused = False
-        self._quiesced = False
-        self._save_paused_state()
-        logger.info("Orchestrator unpaused")
-        # Post a REFRESH_REQUESTED event so the dispatch loop wakes immediately.
-        # Also set the legacy event for any code that still awaits it.
-        self._set_refresh_requested()
-        self._post_event(
-            DispatchEvent(
-                event_type=DispatchEventType.REFRESH_REQUESTED,
-                payload={"reason": "unpaused"},
+    def _activate_unpaused_dispatch(self) -> bool:
+        """Open timers and publish resume after every durable owner is ready."""
+
+        with self._retry_authority_lock:
+            suspended_recoveries = [
+                retry
+                for issue_id, retry in self.state.retry_attempts.items()
+                if retry.pre_admission_recovery
+                and not retry.cancelled
+                and retry.timer_handle is None
+                and self._retry_dispatching.get(issue_id) is not retry
+            ]
+        for retry in suspended_recoveries:
+            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+        if suspended_recoveries and not self._persist_retry_entries():
+            logger.error(
+                "Resume remains fenced because rearmed implementation retry "
+                "authority could not be persisted"
             )
+            self._notify_observers()
+            return False
+        with self._provider_admission_lock:
+            if self._dispatch_is_blocked():
+                logger.error(
+                    "Resume publication suppressed because provider admission "
+                    "became blocked during activation"
+                )
+                self._notify_observers()
+                return False
+            # The final gate observation and resume publication are one
+            # admission transaction. A concurrent persistence failure can
+            # either quiesce first (suppressing this event) or immediately
+            # after a truthful resume, never between the check and event.
+            logger.info("Orchestrator unpaused")
+            self._set_refresh_requested()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED,
+                    payload={"reason": "unpaused"},
+                )
+            )
+            self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
+            self._notify_observers()
+        return True
+
+    async def _recover_restart_issues_for_resume(self) -> None:
+        """Keep resume fenced until interrupted setup rows are acknowledged."""
+
+        retry_delay_s = max(
+            0.1,
+            min(float(self.config.poll_interval_ms) / 1000.0, 5.0),
         )
-        self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
-        self._notify_observers()
+        while True:
+            # Shutdown owns the recovery task once stopping begins. Check at
+            # the top of every iteration so a task woken from retry sleep
+            # cannot perform one final tracker/journal mutation while the
+            # dispatch loop is draining background work.
+            with self._provider_admission_lock:
+                if self._restart_in_progress or self._stopping:
+                    return
+            if await self._recover_restart_issues():
+                break
+            logger.warning(
+                "Resume remains quiesced with unresolved restart recovery rows; "
+                "retrying in %.1fs",
+                retry_delay_s,
+            )
+            self._notify_observers()
+            with self._provider_admission_lock:
+                if self._restart_in_progress or self._stopping:
+                    return
+            await asyncio.sleep(retry_delay_s)
+        with self._provider_admission_lock:
+            if self._restart_in_progress or self._paused or self._stopping:
+                return
+            self._quiesced = False
+            self._provider_admission_generation += 1
+            # Keep the final stop check, fence removal, and resume publication
+            # in the same admission transaction. A concurrent stop therefore
+            # wins either before all three or after all three, never between
+            # the unquiesce and its event/timer publication.
+            self._activate_unpaused_dispatch()
+
+    def _schedule_restart_issue_recovery_for_resume(self) -> bool:
+        """Publish and confirm one recovery owner on the orchestrator loop."""
+
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        dispatch_loop = getattr(self, "_dispatch_loop", None)
+        loop = (
+            dispatch_loop
+            if dispatch_loop is not None and dispatch_loop.is_running()
+            else running_loop
+        )
+        if loop is None:
+            self._fail_closed_restart_persistence(
+                "resume has restart rows but no event loop can recover them"
+            )
+            return False
+
+        publication_done = threading.Event()
+        publication_abandoned = threading.Event()
+        publication_result: dict[str, Any] = {
+            "published": False,
+            "error": None,
+        }
+
+        def _publish() -> None:
+            try:
+                if publication_abandoned.is_set():
+                    return
+                existing = self._restart_recovery_task
+                if existing is not None and not existing.done():
+                    publication_result["published"] = True
+                    return
+                recovery_coroutine = self._recover_restart_issues_for_resume()
+                try:
+                    task = loop.create_task(
+                        recovery_coroutine,
+                        name="restart-issue-resume-recovery",
+                    )
+                except BaseException as exc:
+                    recovery_coroutine.close()
+                    publication_result["error"] = exc
+                    self._fail_closed_restart_persistence(
+                        f"could not publish restart recovery task: {exc}"
+                    )
+                    return
+                self._restart_recovery_task = task
+                publication_result["published"] = True
+
+                def _finished(completed: asyncio.Task[None]) -> None:
+                    if self._restart_recovery_task is completed:
+                        self._restart_recovery_task = None
+                    try:
+                        completed.result()
+                    except asyncio.CancelledError:
+                        logger.warning(
+                            "Restart issue resume recovery was cancelled; "
+                            "dispatch remains quiesced"
+                        )
+                    except Exception as exc:
+                        logger.exception(
+                            "Restart issue resume recovery failed closed: %s",
+                            exc,
+                        )
+
+                task.add_done_callback(_finished)
+            finally:
+                publication_done.set()
+
+        if running_loop is loop:
+            _publish()
+        else:
+            try:
+                loop.call_soon_threadsafe(_publish)
+            except BaseException as exc:
+                publication_result["error"] = exc
+                publication_abandoned.set()
+                self._fail_closed_restart_persistence(
+                    f"restart recovery loop rejected publication: {exc}"
+                )
+                return False
+            if not publication_done.wait(timeout=1.0):
+                publication_abandoned.set()
+                self._fail_closed_restart_persistence(
+                    "restart recovery publication was not acknowledged"
+                )
+                return False
+        return bool(publication_result["published"])
+
+    def unpause(self) -> bool:
+        """Resume dispatch unless a restart transaction owns admission.
+
+        A restart request is an admission fence as soon as it is claimed, even
+        before its drain coroutine receives event-loop time. An operator or
+        delayed IPC ``unpause`` must not clear the pause/quiesce half of that
+        fence and reopen provider admission during the drain.
+        """
+        with self._provider_admission_lock:
+            if getattr(self, "_restart_in_progress", False):
+                logger.info(
+                    "Ignoring unpause while graceful restart %s is active",
+                    self._restart_request_id,
+                )
+                return False
+            recover_audit_rollbacks = getattr(
+                self, "_audit_rollback_persistence_failed", False
+            )
+            recover_implementation_retries = getattr(
+                self, "_retry_persistence_failed", False
+            )
+
+        # A dual-journal failure deliberately leaves the service quiesced.
+        # Repair the retained process-local authority while that fence is
+        # still closed, then re-check all lifecycle gates before reopening.
+        # Persistence takes its own locks and may fail closed by acquiring the
+        # provider lock, so it must not run while this method holds that lock.
+        if recover_audit_rollbacks:
+            self._persist_pending_audit_rollbacks()
+        if recover_implementation_retries:
+            self._persist_retry_entries()
+
+        with self._provider_admission_lock:
+            if getattr(self, "_restart_in_progress", False):
+                logger.info(
+                    "Ignoring unpause while graceful restart %s is active",
+                    self._restart_request_id,
+                )
+                return False
+            if getattr(self, "_audit_rollback_persistence_failed", False):
+                logger.error(
+                    "Refusing unpause while terminal-audit rollback authority "
+                    "is not durably persisted"
+                )
+                return False
+            if getattr(self, "_retry_persistence_failed", False):
+                logger.error(
+                    "Refusing unpause while implementation retry authority "
+                    "is not durably persisted"
+                )
+                return False
+            pending_restart_recovery = bool(self._restart_issue_snapshot())
+            self._paused = False
+            self._quiesced = pending_restart_recovery
+            self._provider_admission_generation += 1
+        self._save_paused_state()
+        if pending_restart_recovery:
+            scheduled = self._schedule_restart_issue_recovery_for_resume()
+            self._notify_observers()
+            return scheduled
+        return self._activate_unpaused_dispatch()
 
     async def graceful_restart(
         self,
@@ -5737,97 +4712,226 @@ class Orchestrator:
         3. Save any still-running issue IDs for re-dispatch after restart
         4. Signal the main loop to stop (which triggers os.execv in __main__)
         """
-        if self._restart_in_progress:
-            if request_id != self._restart_request_id:
-                logger.info(
-                    "Graceful restart request coalesced into %s",
-                    self._restart_request_id,
-                )
-                return
-        else:
-            self._restart_in_progress = True
-            self._restart_request_id = request_id or str(uuid.uuid4())
-            self._restart_requested_at = datetime.now(timezone.utc).isoformat()
-            self._restart_initial_running = len(self.state.running)
-        if drain_timeout_s is None:
-            drain_timeout_s = self.config.restart_drain_timeout_seconds
-        drain_timeout_s = max(float(drain_timeout_s), 0.0)
-        logger.info(
-            "Graceful restart %s requested (drain_timeout=%.0fs, running=%d)",
-            self._restart_request_id,
-            drain_timeout_s,
-            self._restart_initial_running,
-        )
-        # Capture whether the user had explicitly paused before this call.
-        # We pause internally for the drain regardless, but on the new boot
-        # we should respect the user's pre-existing intent — overwriting
-        # paused=False unconditionally would silently undo a user-set pause.
-        was_user_paused = self._paused
-        self._quiesced = True
-        self._paused = True
-        self._notify_observers()
+        # Claim/coalesce the restart and install its admission fence in the
+        # same synchronization domain as dispatch and provider launch. The API
+        # may have pre-claimed ``request_id`` synchronously; only that matching
+        # coroutine may become the drain owner, and only once. Direct callers
+        # claim and start atomically here.
+        current_task = asyncio.current_task()
+        restart_snapshot: dict[str, Any]
+        restart_rollback_generation: int
+        restart_staging_failed = False
+        with self._provider_admission_lock:
+            restart_snapshot = {
+                "in_progress": self._restart_in_progress,
+                "request_id": self._restart_request_id,
+                "requested_at": self._restart_requested_at,
+                "initial_running": self._restart_initial_running,
+                "drain_scheduled": self._restart_drain_scheduled,
+                "drain_started": self._restart_drain_started,
+                "drain_task": self._restart_drain_task,
+                "drain_owner": self._restart_drain_owner,
+                "paused": self._paused,
+                "quiesced": self._quiesced,
+                "stopping": self._stopping,
+                "restart_requested": self._restart_requested,
+                "admission_generation": self._provider_admission_generation,
+            }
+            if self._restart_in_progress:
+                matching_preclaim = request_id == self._restart_request_id
+                published_owner = getattr(self, "_restart_drain_task", None)
+                if (
+                    not matching_preclaim
+                    or getattr(self, "_restart_drain_started", False)
+                    or (
+                        published_owner is not None
+                        and published_owner is not current_task
+                    )
+                ):
+                    logger.info(
+                        "Graceful restart request coalesced into %s",
+                        self._restart_request_id,
+                    )
+                    return
+                self._restart_drain_scheduled = True
+            else:
+                self._restart_in_progress = True
+                self._restart_request_id = request_id or str(uuid.uuid4())
+                self._restart_requested_at = datetime.now(timezone.utc).isoformat()
+                self._restart_initial_running = len(self.state.running)
+                self._restart_drain_scheduled = True
+                self._provider_admission_generation += 1
+            if getattr(self, "_restart_drain_task", None) is None:
+                self._restart_drain_task = current_task
+                self._restart_drain_owner = self._restart_request_id
+            self._restart_drain_started = True
 
-        # Wait for running agents to drain
-        deadline = time.monotonic() + drain_timeout_s
-        while self.state.running and time.monotonic() < deadline:
-            remaining = len(self.state.running)
+            # Capture explicit user intent before applying the transient drain
+            # pause. This read and both writes are indivisible with restart
+            # admission, so a concurrent unpause cannot change the persisted
+            # post-restart intent or reopen provider admission.
+            was_user_paused = self._paused
+            self._quiesced = True
+            self._paused = True
+            self._provider_admission_generation += 1
+            # Rollback may restore lifecycle fields only while this remains the
+            # newest admission mutation. Pause, quiesce, stop, and every other
+            # admission fence advance the same generation under this lock.
+            restart_rollback_generation = self._provider_admission_generation
+        try:
+            if drain_timeout_s is None:
+                drain_timeout_s = self.config.restart_drain_timeout_seconds
+            drain_timeout_s = max(float(drain_timeout_s), 0.0)
             logger.info(
-                "Draining: %d agent(s) still running, %.0fs remaining",
-                remaining,
-                deadline - time.monotonic(),
+                "Graceful restart %s requested (drain_timeout=%.0fs, running=%d)",
+                self._restart_request_id,
+                drain_timeout_s,
+                self._restart_initial_running,
             )
-            await asyncio.sleep(min(2.0, max(deadline - time.monotonic(), 0.0)))
+            self._notify_observers()
 
-        # Save issue IDs of anything still running for re-dispatch
-        restart_issues = []
-        for issue_id, entry in self._running_items_snapshot():
-            restart_issues.append(
+            deadline = time.monotonic() + drain_timeout_s
+            while self.state.running and time.monotonic() < deadline:
+                remaining = len(self.state.running)
+                logger.info(
+                    "Draining: %d agent(s) still running, %.0fs remaining",
+                    remaining,
+                    deadline - time.monotonic(),
+                )
+                await asyncio.sleep(
+                    min(2.0, max(deadline - time.monotonic(), 0.0))
+                )
+
+            # The generic restart journal restores interrupted implementation
+            # status, but an auditor's authority lives in terminal-audit
+            # metadata.  Once the lifecycle fence has closed provider start,
+            # rollback every still-published setup-only auditor (or durably
+            # journal its exact rollback) before allowing the old process to
+            # exit.  A failed dual-journal write aborts the restart and leaves
+            # this process quiesced with its live owner intact.
+            for issue_id, entry in self._running_items_snapshot():
+                if not entry.is_auditor:
+                    continue
+                with self._provider_admission_lock:
+                    if (
+                        self._current_running_entry(issue_id) is not entry
+                        or getattr(entry, "provider_started", False)
+                    ):
+                        continue
+                # Retirement owns the exact runtime fence, secures rollback
+                # authority before cancelling a task/process, and keeps the
+                # RunningEntry published until cleanup completes.  Shield the
+                # whole transaction so cancellation cannot restore the old
+                # admission state while a detached setup worker is still
+                # capable of reaching provider transport.
+                retirement_coroutine = self._terminate_running(
+                    issue_id,
+                    cleanup_workspace=False,
+                )
+                try:
+                    retirement_task = asyncio.get_running_loop().create_task(
+                        retirement_coroutine,
+                        name=(
+                            "restart-retire-audit-"
+                            f"{entry.audit_attempt_id or issue_id}"
+                        ),
+                    )
+                except BaseException:
+                    retirement_coroutine.close()
+                    restart_staging_failed = True
+                    raise
+                interrupted = await self._await_guaranteed_cleanup(
+                    retirement_task
+                )
+                try:
+                    retired = bool(retirement_task.result())
+                except BaseException:
+                    restart_staging_failed = True
+                    raise
+                if not retired:
+                    restart_staging_failed = True
+                    raise OSError(
+                        "graceful restart could not durably recover "
+                        f"pre-provider auditor {entry.identifier}"
+                    )
+                if interrupted:
+                    raise asyncio.CancelledError
+
+            restart_issues = [
                 {
                     "issue_id": issue_id,
                     "identifier": entry.issue.identifier if entry.issue else issue_id,
                     "project_id": entry.issue.project_id if entry.issue else None,
                 }
+                for issue_id, entry in self._running_items_snapshot()
+            ]
+            saved, existing_count, added_count = self._merge_restart_issues(
+                restart_issues,
+                paused=was_user_paused,
             )
 
-        # Merge with any restart_issues saved from a previous graceful_restart
-        # call (e.g. the user triggered restart twice before the process exited).
-        # Deduplication by issue_id ensures each task is persisted exactly once.
-        existing_restart_issues: list[dict] = self._load_state().get(
-            "restart_issues", []
-        )
-        existing_ids = {e["issue_id"] for e in existing_restart_issues}
-        new_issues = [
-            e for e in restart_issues if e["issue_id"] not in existing_ids
-        ]
-        merged_restart_issues = existing_restart_issues + new_issues
+            if added_count:
+                logger.info(
+                    "Saving %d undrained issue(s) for re-dispatch after restart "
+                    "(%d already queued)",
+                    added_count,
+                    existing_count,
+                )
+            elif restart_issues:
+                logger.info(
+                    "All %d undrained issue(s) already queued for restart recovery",
+                    len(restart_issues),
+                )
 
-        if new_issues:
-            logger.info(
-                "Saving %d undrained issue(s) for re-dispatch after restart "
-                "(%d already queued)",
-                len(new_issues),
-                len(existing_restart_issues),
-            )
-        elif restart_issues:
-            logger.info(
-                "All %d undrained issue(s) already queued for restart recovery",
-                len(restart_issues),
-            )
+            if not saved:
+                restart_staging_failed = True
+                raise OSError(
+                    "graceful restart recovery authority was not durably persisted"
+                )
 
-        # Preserve user's explicit pause across the restart; otherwise
-        # come up unpaused so the saved restart_issues can re-dispatch.
-        self._save_state(
-            paused=was_user_paused,
-            restart_issues=merged_restart_issues,
-        )
-
-        # Signal the main loop to stop and restart
-        self._restart_requested = True
-        self._stopping = True
-        # Wake the dispatch loop if it's blocked on _dispatch_queue.get()
-        self._post_event(
-            DispatchEvent(event_type=DispatchEventType.SHUTDOWN)
-        )
+            with self._provider_admission_lock:
+                self._restart_requested = True
+                self._stopping = True
+                self._provider_admission_generation += 1
+            self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
+        except BaseException:
+            with self._provider_admission_lock:
+                # Restore only while this exact coroutine still owns the drain.
+                # A replacement restart transaction must never be overwritten.
+                if self._restart_drain_task is current_task:
+                    lifecycle_cas_matches = (
+                        self._provider_admission_generation
+                        == restart_rollback_generation
+                    )
+                    self._restart_in_progress = restart_snapshot["in_progress"]
+                    self._restart_request_id = restart_snapshot["request_id"]
+                    self._restart_requested_at = restart_snapshot["requested_at"]
+                    self._restart_initial_running = restart_snapshot["initial_running"]
+                    self._restart_drain_scheduled = restart_snapshot["drain_scheduled"]
+                    self._restart_drain_started = restart_snapshot["drain_started"]
+                    self._restart_drain_task = restart_snapshot["drain_task"]
+                    self._restart_drain_owner = restart_snapshot["drain_owner"]
+                    if lifecycle_cas_matches:
+                        self._paused = restart_snapshot["paused"]
+                        self._quiesced = restart_snapshot["quiesced"]
+                        self._stopping = restart_snapshot["stopping"]
+                        self._restart_requested = restart_snapshot[
+                            "restart_requested"
+                        ]
+                        self._provider_admission_generation = restart_snapshot[
+                            "admission_generation"
+                        ]
+                    if restart_staging_failed:
+                        # The old process remains authoritative, but it may
+                        # have setup-only workers represented by earlier
+                        # durable rows. Keep dispatch closed until an explicit
+                        # unpause drives those rows through recovery.
+                        if not self._quiesced:
+                            self._quiesced = True
+                            self._provider_admission_generation += 1
+            self._save_paused_state()
+            self._notify_observers()
+            raise
 
     @property
     def wants_restart(self) -> bool:
@@ -6621,43 +5725,11 @@ class Orchestrator:
             entry.accepted_submission_record = record
             return True
 
-    @staticmethod
-    def _auditor_authority_key(
-        project_id: str | None,
-        task_id: str,
-    ) -> tuple[str, str]:
-        return (str(project_id or "__unscoped__"), str(task_id))
-
-    def _auditor_authority_generation(
-        self,
-        project_id: str | None,
-        task_id: str,
-    ) -> int:
-        key = self._auditor_authority_key(project_id, task_id)
-        with self._retry_authority_lock:
-            return self._auditor_authority_generations.get(key, 0)
-
-    def _register_running_entry(self, issue_id: str, entry: RunningEntry) -> bool:
-        """Publish a runtime entry atomically with authority revocation.
-
-        Auditor dispatch captures a project/task generation before its awaited
-        setup. An owner override increments that generation even when no runtime
-        entry exists yet, so stale registration fails instead of opening a new
-        post-override provider-contact path.
-        """
+    def _register_running_entry(self, issue_id: str, entry: RunningEntry) -> None:
+        """Publish a runtime entry atomically with authority revocation."""
 
         with self._retry_authority_lock:
-            if entry.is_auditor:
-                key = self._auditor_authority_key(
-                    getattr(entry.issue, "project_id", None),
-                    entry.identifier,
-                )
-                if entry.auditor_authority_generation != (
-                    self._auditor_authority_generations.get(key, 0)
-                ):
-                    return False
             self.state.running[issue_id] = entry
-            return True
 
     def _remove_running_entry(
         self,
@@ -6697,44 +5769,10 @@ class Orchestrator:
             return not generation or generation not in self._revoked_authority_generations
 
     def _workspace_authority_check(self, issue: Issue, run_id: str | None):
-        """Return a setup callback whenever this is a dispatched run.
-
-        A missing runtime entry is an authority revocation, not an invitation
-        to skip the guard.  Legacy direct callers without a run identity keep
-        their unguarded compatibility path.
-        """
-        if run_id is None:
+        """Return a setup callback, preserving direct worker-test call sites."""
+        if issue.id not in self.state.running:
             return None
         return lambda: self._worker_authority_current(issue, run_id)
-
-    def _workspace_persists_dispatch_metadata(
-        self,
-        issue: Issue,
-        run_id: str | None,
-    ) -> bool:
-        """Return whether workspace setup represents implementation work.
-
-        Duplicate screening is read-only qualification.  All worker backends
-        use this one generation-aware decision so preflight setup cannot write
-        ``oompah.integration.state=working``.
-        """
-
-        with self._retry_authority_lock:
-            entry = self.state.running.get(issue.id)
-            if entry is None:
-                return True
-            if run_id is not None and getattr(entry, "run_id", None) != run_id:
-                return True
-            entry_issue = getattr(entry, "issue", None)
-            if (
-                entry_issue is None
-                or entry.identifier != issue.identifier
-                or not self._duplicate_screening_issue_identity_matches(
-                    issue, entry_issue
-                )
-            ):
-                return True
-            return not bool(getattr(entry, "duplicate_preflight", False))
 
     def _authority_guarded_call(
         self,
@@ -7676,15 +6714,18 @@ class Orchestrator:
             "orphan_process_recovery": orphan_recovery,
         }
 
-    async def _recover_restart_issues(self) -> None:
-        """Re-dispatch issues that were running when a graceful restart happened."""
-        state = self._load_state()
-        restart_issues = state.get("restart_issues", [])
-        if not restart_issues:
-            return
+    async def _recover_restart_issues(self) -> bool:
+        """Recover and acknowledge restart rows one at a time.
 
-        # Clear the restart_issues from state immediately
-        self._save_state(restart_issues=[])
+        A row remains durable until its tracker state is either restored to
+        Open or observed in a superseding state. Cancellation, process death,
+        tracker outage, or acknowledgement failure therefore replays at most
+        an idempotent recovery; it never loses the unprocessed suffix.
+        """
+
+        restart_issues = self._restart_issue_snapshot()
+        if not restart_issues:
+            return True
 
         logger.info("Recovering %d issue(s) from graceful restart", len(restart_issues))
         for entry in restart_issues:
@@ -7692,7 +6733,10 @@ class Orchestrator:
             identifier = entry.get("identifier", issue_id)
             project_id = entry.get("project_id")
             if not issue_id:
+                if not self._ack_restart_issue(entry):
+                    return False
                 continue
+            processed = False
             try:
                 if project_id:
                     tracker = self._tracker_for_project(project_id)
@@ -7738,27 +6782,32 @@ class Orchestrator:
                         logger.info(
                             "Restart recovery found %s already Open", identifier
                         )
-                        continue
-                    if current_status != IN_PROGRESS:
+                        processed = True
+                    elif current_status != IN_PROGRESS:
                         logger.info(
                             "Skipped restart recovery for %s: tracker state %s "
                             "supersedes the interrupted implementation worker",
                             identifier,
                             current_status,
                         )
-                        continue
-
-                    await asyncio.to_thread(
-                        tracker.update_issue,
-                        identifier,
-                        status=OPEN,
-                    )
-                    logger.info(
-                        "Marked %s as Open for re-dispatch after restart",
-                        identifier,
-                    )
-            except (TrackerError, ProjectError) as exc:
+                        processed = True
+                    else:
+                        await asyncio.to_thread(
+                            tracker.update_issue,
+                            identifier,
+                            status=OPEN,
+                        )
+                        logger.info(
+                            "Marked %s as Open for re-dispatch after restart",
+                            identifier,
+                        )
+                        processed = True
+            except Exception as exc:  # noqa: BLE001 - retain row for retry
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
+            if processed and not self._ack_restart_issue(entry):
+                return False
+
+        return not self._restart_issue_snapshot()
 
     def _full_sync_due(self) -> bool:
         """Return True if a safety-net full sync is due.
@@ -7894,16 +6943,25 @@ class Orchestrator:
             "preserving state and requesting service restart for recovery."
         )
 
-        # Save state so issue IDs that were queued/retrying survive restart.
-        # paused=False ensures the service comes up dispatching after restart.
-        try:
-            self._save_state(paused=False, restart_issues=[])
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to persist state before stale-loop restart: %s", exc)
+        # Preserve any setup-only restart rows already owned by this process.
+        # A stale-loop restart is subject to the same durable cutover rule as
+        # an operator restart; a failed state write keeps the old process up.
+        saved, _existing_count, _added_count = self._merge_restart_issues(
+            [],
+            paused=False,
+        )
+        if not saved:
+            logger.warning(
+                "Refusing stale-loop restart because recovery state could not "
+                "be durably persisted"
+            )
+            return False
 
         # Signal the Granian supervisor to restart the service.
-        self._restart_requested = True
-        self._stopping = True
+        with self._provider_admission_lock:
+            self._restart_requested = True
+            self._stopping = True
+            self._provider_admission_generation += 1
         # Post SHUTDOWN to wake the dispatch queue in case the loop IS alive
         # but blocked waiting on a queue.get().
         try:
@@ -8652,11 +7710,11 @@ class Orchestrator:
         self._post_event_on_loop(event)
 
     def stop_threadsafe(self):
-        """Schedule ``stop()`` on the orchestrator loop from another thread."""
+        """Schedule fail-closed shutdown on the orchestrator loop."""
         loop = self._dispatch_loop
         if loop is None or not loop.is_running() or self._running_loop() is loop:
             return None
-        return asyncio.run_coroutine_threadsafe(self.stop(), loop)
+        return asyncio.run_coroutine_threadsafe(self.stop_until_safe(), loop)
 
     async def _full_sync_loop(self) -> None:
         """Background task: post FULL_SYNC events at the configured safety-net interval.
@@ -8698,13 +7756,6 @@ class Orchestrator:
         await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._run_terminal_audit_enforcement
         )
-        # Complete an owner duplicate-screening decision if the previous
-        # process stopped after persisting the verdict but before its matching
-        # Open/Duplicate Candidate status write.
-        await asyncio.get_running_loop().run_in_executor(
-            self._tick_pool,
-            self._reconcile_owner_duplicate_resolution_boundaries,
-        )
         # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
         # from startup.  The service can accept health/state/resume traffic
         # while the durable worker drains its bounded queue.
@@ -8718,8 +7769,18 @@ class Orchestrator:
             self._tick_pool,
             lambda: self._reconcile_pending_recovery_publications(discover=True),
         )
-        await self._recover_restart_issues()
+        restart_recovered = await self._recover_restart_issues()
+        restart_recovery_pending = restart_recovered is False
+        if restart_recovery_pending:
+            # A tracker outage leaves its exact restart rows durable. Keep the
+            # initial scheduler tick behind a lifecycle fence and publish a
+            # long-lived retry owner before normal dispatch can begin.
+            with self._provider_admission_lock:
+                self._quiesced = True
+                self._provider_admission_generation += 1
         await self._restore_persisted_retries()
+        if restart_recovery_pending:
+            self._schedule_restart_issue_recovery_for_resume()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
             "Orchestrator starting event-driven loop "
@@ -8815,20 +7876,65 @@ class Orchestrator:
             finally:
                 self._dispatch_loop = None
 
-    async def stop(self) -> None:
-        """Gracefully stop the orchestrator."""
-        self._stopping = True
-        # See ``_schedule_running_termination``: setting this before the first
-        # await prevents a queued call_soon_threadsafe callback from creating a
-        # new fire-and-forget task after the drain has observed an empty set.
-        self._termination_scheduling_closed = True
-        # Let already-scheduled retirements finish before walking the same
-        # runtimes directly; two concurrent _terminate_running calls can race
-        # over one provider/session cleanup.
+    async def stop(self) -> bool:
+        """Attempt a graceful stop without abandoning live recovery owners.
+
+        ``False`` means at least one exact runtime remains intentionally
+        published because its durable recovery/retirement boundary could not
+        complete.  Process entry points must call :meth:`stop_until_safe` so
+        they cannot exit or re-exec while that in-memory owner is still the
+        only authority capable of recovering the task.
+        """
+        with self._provider_admission_lock:
+            # Fence admission first, but do not stop the scheduler loop until
+            # every runtime has either retired or durably transferred its
+            # recovery authority.  A failed stop remains alive and retryable.
+            self._quiesced = True
+            self._provider_admission_generation += 1
+            self._termination_scheduling_closed = True
+        # Let already-published retirements finish before walking the same
+        # runtimes directly; two concurrent cleanup paths must not race over
+        # one provider/session generation.
         await self._drain_scheduled_terminations()
-        # Terminate all running agents
-        for issue_id, entry in self._running_items_snapshot():
-            await self._terminate_running(issue_id, cleanup_workspace=False)
+        failed_issue_ids: list[str] = []
+        for issue_id, _entry in self._running_items_snapshot():
+            terminated = await self._terminate_running(
+                issue_id,
+                cleanup_workspace=False,
+            )
+            if not terminated:
+                failed_issue_ids.append(issue_id)
+        if getattr(self, "_audit_rollback_persistence_failed", False):
+            self._persist_pending_audit_rollbacks()
+        if getattr(self, "_retry_persistence_failed", False):
+            self._persist_retry_entries()
+        persistence_failures = [
+            name
+            for name, failed in (
+                (
+                    "terminal-audit rollback",
+                    getattr(self, "_audit_rollback_persistence_failed", False),
+                ),
+                (
+                    "implementation retry",
+                    getattr(self, "_retry_persistence_failed", False),
+                ),
+            )
+            if failed
+        ]
+        if failed_issue_ids or persistence_failures:
+            logger.critical(
+                "Orchestrator shutdown remains fenced; runtime recovery is "
+                "not durable for issue_ids=%s journals=%s",
+                sorted(failed_issue_ids),
+                persistence_failures,
+            )
+            self._notify_observers()
+            return False
+
+        with self._provider_admission_lock:
+            self._stopping = True
+            self._provider_admission_generation += 1
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
@@ -8847,6 +7953,23 @@ class Orchestrator:
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         await self._drain_background_work()
         logger.info("Orchestrator stopped")
+        return True
+
+    async def stop_until_safe(self) -> None:
+        """Retry shutdown until every in-memory recovery owner is durable."""
+
+        while True:
+            try:
+                if await self.stop():
+                    return
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - a process boundary must fail closed
+                logger.exception(
+                    "Orchestrator shutdown attempt failed; retaining process "
+                    "and retrying"
+                )
+            await asyncio.sleep(1.0)
 
     async def _drain_background_work(self) -> None:
         """Wait for fire-and-forget maintenance and shut down owned pools.
@@ -8857,6 +7980,52 @@ class Orchestrator:
         mutate tracker state after its event loop and fixtures have gone away.
         """
         await self._drain_scheduled_terminations()
+        current_loop = asyncio.get_running_loop()
+        restart_recovery = self._restart_recovery_task
+        if restart_recovery is not None:
+            try:
+                recovery_loop = restart_recovery.get_loop()
+            except AttributeError:
+                recovery_loop = current_loop
+
+            async def _cancel_and_wait_for_restart_recovery() -> None:
+                if not restart_recovery.done():
+                    restart_recovery.cancel()
+                await asyncio.gather(restart_recovery, return_exceptions=True)
+
+            if recovery_loop is current_loop:
+                await _cancel_and_wait_for_restart_recovery()
+            elif recovery_loop.is_running():
+                # asyncio Tasks may only be cancelled safely by their owning
+                # loop. Bridge the entire cancel-and-await transaction rather
+                # than merely posting cancel and allowing shutdown to race the
+                # task's next tracker mutation.
+                cancellation = _cancel_and_wait_for_restart_recovery()
+                try:
+                    bridge = asyncio.run_coroutine_threadsafe(
+                        cancellation,
+                        recovery_loop,
+                    )
+                except BaseException:
+                    # Submission did not transfer coroutine ownership.
+                    cancellation.close()
+                    raise
+                await asyncio.wrap_future(bridge)
+            elif restart_recovery.done():
+                # A completed foreign-loop task has already relinquished
+                # mutation authority; consume its result without attaching it
+                # to this loop.
+                try:
+                    restart_recovery.result()
+                except (asyncio.CancelledError, Exception):
+                    pass
+            else:
+                raise RuntimeError(
+                    "restart recovery task belongs to a stopped event loop"
+                )
+            if self._restart_recovery_task is restart_recovery:
+                self._restart_recovery_task = None
+
         futures = [
             future
             for future in (
@@ -8869,7 +8038,6 @@ class Orchestrator:
             )
             if future is not None
         ]
-        current_loop = asyncio.get_running_loop()
         local_futures: list[asyncio.Future[None]] = []
         foreign_futures: list[asyncio.Future[None]] = []
         for future in futures:
@@ -9847,6 +9015,618 @@ class Orchestrator:
         store.update(issue.identifier, _updater)
         return updated
 
+    def _restore_unadmitted_audit_attempt(
+        self,
+        issue: Issue,
+        audit_id: str | None,
+        attempt_id: str | None,
+    ) -> UnadmittedAuditRollbackOutcome:
+        """Atomically withdraw an audit launch identity that never ran.
+
+        Planning persists an attempt before dispatch so a process crash cannot
+        duplicate a launch.  When lifecycle admission rejects that exact plan,
+        it is not an auditor failure and must not consume candidate rotation or
+        retry budget.  Mutate the current durable document, rather than a stale
+        scheduler snapshot, and remove only the still-unresolved attempt that
+        owns ``attempt_id``.  A concurrent result, override, or replacement
+        generation therefore wins without being overwritten.
+        """
+
+        if not audit_id or not attempt_id:
+            return UnadmittedAuditRollbackOutcome.AMBIGUOUS
+        store = self._audit_store(issue)
+        outcome = UnadmittedAuditRollbackOutcome.AMBIGUOUS
+        remaining_attempts = 0
+
+        def _updater(document):
+            nonlocal outcome, remaining_attempts
+            # Dispatch planning always owns the first unresolved record in
+            # canonical chain order.  A later Merged/Archived request is a
+            # dependent target, not a replacement for an in-flight Done
+            # audit, so reverse-selecting the last unresolved row loses the
+            # exact attempt and permanently consumes its retry budget.
+            target = AuditorDispatchLane.pending_record(document.pending_chain)
+            exact_record = next(
+                (
+                    record
+                    for record in document.pending_chain
+                    if record.audit_id == audit_id
+                ),
+                None,
+            )
+            if target is None:
+                if exact_record is not None and exact_record.request_state not in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
+                    outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+            if target.audit_id != audit_id:
+                if exact_record is not None and exact_record.request_state not in (
+                    RequestState.PENDING,
+                    RequestState.IN_PROGRESS,
+                ):
+                    outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+            if target.request_state == RequestState.PENDING:
+                target_attempt = next(
+                    (
+                        attempt
+                        for attempt in target.attempts
+                        if attempt.attempt_id == attempt_id
+                    ),
+                    None,
+                )
+                history_attempt = next(
+                    (
+                        attempt
+                        for attempt in document.attempt_history
+                        if attempt.attempt_id == attempt_id
+                    ),
+                    None,
+                )
+                if target_attempt is None and history_attempt is None:
+                    outcome = UnadmittedAuditRollbackOutcome.RESTORED
+                elif (
+                    target_attempt is not None
+                    and history_attempt is not None
+                    and target_attempt.target_state == target.target_state
+                    and history_attempt.target_state == target.target_state
+                    and target_attempt.evidence_fingerprint
+                    == target.evidence_fingerprint
+                    and history_attempt.evidence_fingerprint
+                    == target.evidence_fingerprint
+                    and (
+                        target_attempt.request_state != RequestState.IN_PROGRESS
+                        or target_attempt.ended_at is not None
+                        or target_attempt.verdict is not None
+                    )
+                    and (
+                        history_attempt.request_state != RequestState.IN_PROGRESS
+                        or history_attempt.ended_at is not None
+                        or history_attempt.verdict is not None
+                    )
+                ):
+                    # A concurrent exit/result already consumed this launch
+                    # identity and returned the record to Pending.  That is
+                    # explicit newer authority, not a rollback ambiguity.
+                    outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+            if target.request_state != RequestState.IN_PROGRESS:
+                outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+
+            target_index = document.pending_chain.index(target)
+            if any(
+                candidate.audit_id != target.audit_id
+                and candidate.request_state
+                in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                and candidate.project_id == target.project_id
+                and candidate.task_id == target.task_id
+                and candidate.target_state == target.target_state
+                for candidate in document.pending_chain[target_index + 1 :]
+            ):
+                # A newer generation for this exact target supersedes the
+                # dispatched identity.  Never let rollback rewrite it.
+                outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+
+            # A durable owner override acquires terminal authority before its
+            # tracker status write. Do not rewrite its matching audit back to
+            # pending, including during the narrow ``applied=False`` recovery
+            # window. Malformed override evidence is ambiguous and therefore
+            # also fails closed.
+            raw_overrides = document.unknown_fields.get(
+                _TERMINAL_OVERRIDE_RECORDS_KEY, []
+            )
+            if not isinstance(raw_overrides, list):
+                return document
+            for raw_override in raw_overrides:
+                if not isinstance(raw_override, Mapping):
+                    return document
+                try:
+                    override = OverrideRecord.from_dict(raw_override)
+                except (TypeError, ValueError):
+                    return document
+                if (
+                    override.project_id == target.project_id
+                    and override.task_id == target.task_id
+                    and override.target_state == target.target_state
+                    and override.evidence_fingerprint
+                    == target.evidence_fingerprint
+                ):
+                    outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                    return document
+
+            current = next(
+                (
+                    attempt
+                    for attempt in reversed(target.attempts)
+                    if attempt.request_state == RequestState.IN_PROGRESS
+                    and not attempt.ended_at
+                ),
+                None,
+            )
+            history_attempt = next(
+                (
+                    attempt
+                    for attempt in reversed(document.attempt_history)
+                    if attempt.attempt_id == attempt_id
+                ),
+                None,
+            )
+            exact_target_attempt = next(
+                (
+                    attempt
+                    for attempt in target.attempts
+                    if attempt.attempt_id == attempt_id
+                ),
+                None,
+            )
+            if (
+                current is None
+                or current.attempt_id != attempt_id
+                or current.target_state != target.target_state
+                or current.evidence_fingerprint != target.evidence_fingerprint
+                or current.verdict is not None
+                or history_attempt is None
+                or history_attempt.target_state != target.target_state
+                or history_attempt.evidence_fingerprint
+                != target.evidence_fingerprint
+                or history_attempt.request_state != RequestState.IN_PROGRESS
+                or history_attempt.ended_at is not None
+                or history_attempt.verdict is not None
+            ):
+                if (
+                    exact_target_attempt is not None
+                    and (
+                        exact_target_attempt.request_state
+                        != RequestState.IN_PROGRESS
+                        or exact_target_attempt.ended_at is not None
+                        or exact_target_attempt.verdict is not None
+                    )
+                ) or (
+                    history_attempt is not None
+                    and (
+                        history_attempt.request_state != RequestState.IN_PROGRESS
+                        or history_attempt.ended_at is not None
+                        or history_attempt.verdict is not None
+                    )
+                ):
+                    outcome = UnadmittedAuditRollbackOutcome.SUPERSEDED
+                return document
+            attempts = [
+                attempt
+                for attempt in target.attempts
+                if attempt.attempt_id != attempt_id
+            ]
+            restored_target = replace(
+                target,
+                request_state=RequestState.PENDING,
+                attempts=attempts,
+                updated_at=timestamp(),
+            )
+            remaining_attempts = len(attempts)
+            outcome = UnadmittedAuditRollbackOutcome.RESTORED
+            return replace(
+                document,
+                pending_chain=[
+                    restored_target
+                    if record.audit_id == audit_id
+                    else record
+                    for record in document.pending_chain
+                ],
+                attempt_history=[
+                    attempt
+                    for attempt in document.attempt_history
+                    if attempt.attempt_id != attempt_id
+                ],
+            )
+
+        store.update(issue.identifier, _updater)
+        if outcome is UnadmittedAuditRollbackOutcome.RESTORED:
+            self._terminal_audit_metrics.record_unadmitted_rollback(
+                str(issue.project_id or "legacy"),
+                issue.identifier,
+                audit_id,
+                attempts=remaining_attempts,
+            )
+        return outcome
+
+    @staticmethod
+    def _decode_audit_rollback_snapshot(raw: Any) -> tuple[int, list[Any]]:
+        """Decode a versioned rollback snapshot, including the legacy list form."""
+
+        if isinstance(raw, list):
+            return 0, raw
+        if not isinstance(raw, Mapping):
+            return -1, []
+        try:
+            version = int(raw.get("version", -1))
+        except (TypeError, ValueError):
+            return -1, []
+        rows = raw.get("rows", [])
+        if not isinstance(rows, list):
+            return -1, []
+        return version, rows
+
+    def _load_audit_rollback_fallback(self) -> tuple[int, list[Any]]:
+        """Load the independent rollback snapshot used when service state fails."""
+
+        try:
+            with open(
+                self._audit_rollback_fallback_path,
+                "r",
+                encoding="utf-8",
+            ) as fallback_file:
+                return self._decode_audit_rollback_snapshot(json.load(fallback_file))
+        except FileNotFoundError:
+            return -1, []
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.error(
+                "Could not load unadmitted-audit rollback fallback %s: %s",
+                self._audit_rollback_fallback_path,
+                exc,
+            )
+            return -1, []
+
+    def _save_audit_rollback_fallback(self, snapshot: Mapping[str, Any]) -> bool:
+        """Atomically persist rollback authority outside the service-state file."""
+
+        fallback_path = self._audit_rollback_fallback_path
+        fallback_dir = os.path.dirname(fallback_path) or "."
+        temp_path = os.path.join(
+            fallback_dir,
+            f".{os.path.basename(fallback_path)}.{uuid.uuid4().hex}.tmp",
+        )
+        saved = False
+        try:
+            os.makedirs(fallback_dir, exist_ok=True)
+            with open(temp_path, "x", encoding="utf-8") as fallback_file:
+                os.chmod(temp_path, 0o600)
+                json.dump(dict(snapshot), fallback_file, indent=2)
+                fallback_file.write("\n")
+                fallback_file.flush()
+                os.fsync(fallback_file.fileno())
+            os.replace(temp_path, fallback_path)
+            try:
+                directory_fd = os.open(fallback_dir, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            except OSError:
+                # The file itself is already fsynced. Some platforms do not
+                # support opening or syncing a directory descriptor.
+                pass
+            saved = True
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error(
+                "Could not persist unadmitted-audit rollback fallback %s: %s",
+                fallback_path,
+                exc,
+            )
+        finally:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "Could not remove rollback fallback temporary file %s: %s",
+                    temp_path,
+                    exc,
+                )
+        return saved
+
+    def _persist_pending_audit_rollbacks(self) -> bool:
+        """Persist exact rollback owners to two independently readable stores."""
+
+        with self._audit_rollback_lock:
+            rows = [dict(row) for row in self._pending_audit_rollbacks.values()]
+            self._audit_rollback_snapshot_version += 1
+            snapshot = {
+                "version": self._audit_rollback_snapshot_version,
+                "rows": rows,
+            }
+            fallback_saved = self._save_audit_rollback_fallback(snapshot)
+            state_saved = self._save_state(
+                **{_UNADMITTED_AUDIT_ROLLBACKS_STATE_KEY: snapshot}
+            )
+            saved = fallback_saved or state_saved
+            self._audit_rollback_persistence_failed = not saved
+            if saved:
+                self._durable_audit_rollback_attempt_ids = set(
+                    self._pending_audit_rollbacks
+                )
+
+        if not saved:
+            # The metadata write may have committed even when its response was
+            # lost.  Without either recovery journal, dropping the live branch
+            # owner could strand an In Progress audit and charge a transport
+            # attempt that never started.  Match implementation-retry safety:
+            # retain process-local authority and close all provider admission.
+            fail_closed = False
+            with self._provider_admission_lock:
+                # A newer serialized snapshot may have succeeded after this
+                # writer released the rollback lock.  Do not re-close a
+                # service whose explicit recovery already cleared the flag.
+                if self._audit_rollback_persistence_failed:
+                    self._quiesced = True
+                    self._provider_admission_generation += 1
+                    fail_closed = True
+            if fail_closed:
+                logger.critical(
+                    "Both terminal-audit rollback journals failed; provider "
+                    "admission is quiesced with live rollback authority retained"
+                )
+        return saved
+
+    def _unadmitted_audit_recovery_secured(
+        self,
+        attempt_id: str | None,
+    ) -> bool:
+        """Return whether cleanup may forget one pre-transport audit owner."""
+
+        if not attempt_id:
+            return True
+        with self._audit_rollback_lock:
+            # No pending row means the exact metadata CAS either restored the
+            # attempt or proved that newer terminal authority superseded it.
+            if attempt_id not in self._pending_audit_rollbacks:
+                return True
+            return attempt_id in self._durable_audit_rollback_attempt_ids
+
+    def _secure_unadmitted_auditor_exit(
+        self,
+        entry: RunningEntry,
+        *,
+        reason: str,
+    ) -> bool:
+        """Rollback or durably journal an auditor before runtime cleanup."""
+
+        try:
+            outcome = self._restore_or_defer_unadmitted_audit_attempt(
+                entry.issue,
+                entry.audit_id,
+                entry.audit_attempt_id,
+                entry.branch_key,
+                reason=reason,
+            )
+        except BaseException as exc:
+            logger.warning(
+                "Pre-provider auditor recovery failed issue=%s audit=%s "
+                "attempt=%s reason=%s error=%s",
+                entry.identifier,
+                entry.audit_id,
+                entry.audit_attempt_id,
+                reason,
+                exc,
+            )
+            return False
+        if outcome in (
+            UnadmittedAuditRollbackOutcome.RESTORED,
+            UnadmittedAuditRollbackOutcome.SUPERSEDED,
+        ):
+            return True
+        attempt_id = entry.audit_attempt_id
+        if not attempt_id:
+            return False
+        with self._audit_rollback_lock:
+            # An ambiguous CAS is safe only when this exact owner is present
+            # in a successfully persisted rollback snapshot.  Absence is not
+            # evidence of restoration here; it can also mean malformed entry
+            # identity prevented the journal row from being constructed.
+            return (
+                attempt_id in self._pending_audit_rollbacks
+                and attempt_id in self._durable_audit_rollback_attempt_ids
+            )
+
+    async def _secure_unadmitted_auditor_exit_guaranteed(
+        self,
+        entry: RunningEntry,
+        *,
+        reason: str,
+    ) -> tuple[bool, bool]:
+        """Shield exact rollback publication from caller cancellation.
+
+        The second result reports whether cancellation was deferred.  Callers
+        can finish retiring the now-fenced runtime before propagating it.
+        """
+
+        recovery_task = asyncio.get_running_loop().create_task(
+            asyncio.to_thread(
+                self._secure_unadmitted_auditor_exit,
+                entry,
+                reason=reason,
+            ),
+            name=f"secure-audit-rollback-{entry.audit_attempt_id or entry.identifier}",
+        )
+        interrupted = await self._await_guaranteed_cleanup(recovery_task)
+        try:
+            secured = bool(recovery_task.result())
+        except BaseException as exc:
+            logger.exception(
+                "Guaranteed pre-provider auditor recovery failed issue=%s "
+                "audit=%s attempt=%s: %s",
+                entry.identifier,
+                entry.audit_id,
+                entry.audit_attempt_id,
+                exc,
+            )
+            secured = False
+        return secured, interrupted
+
+    def _defer_unadmitted_audit_rollback(
+        self,
+        issue: Issue,
+        audit_id: str | None,
+        attempt_id: str | None,
+        branch_key: str | None,
+    ) -> None:
+        """Retain recoverable authority when the audit-store CAS is unavailable."""
+
+        if not audit_id or not attempt_id or not branch_key:
+            return
+        row = {
+            "attempt_id": attempt_id,
+            "audit_id": audit_id,
+            "identifier": issue.identifier,
+            "issue_id": issue.id,
+            "project_id": str(issue.project_id or ""),
+            "branch_key": branch_key,
+        }
+        with self._audit_rollback_lock:
+            self._pending_audit_rollbacks[attempt_id] = row
+            # Publication of the journal row and retention of the in-memory
+            # branch owner are one local authority transaction.
+            self._audit_branch_claims[branch_key] = attempt_id
+        if not self._persist_pending_audit_rollbacks():
+            logger.error(
+                "Could not persist deferred unadmitted-audit rollback issue=%s "
+                "audit=%s attempt=%s; retaining process-local branch authority",
+                issue.identifier,
+                audit_id,
+                attempt_id,
+            )
+
+    def _clear_deferred_audit_rollback(
+        self,
+        attempt_id: str | None,
+        branch_key: str | None,
+    ) -> None:
+        if not attempt_id:
+            return
+        changed = False
+        with self._audit_rollback_lock:
+            changed = self._pending_audit_rollbacks.pop(attempt_id, None) is not None
+            self._release_audit_branch_claim(branch_key, attempt_id)
+        if changed and not self._persist_pending_audit_rollbacks():
+            logger.error(
+                "Could not persist completion of deferred audit rollback attempt=%s",
+                attempt_id,
+            )
+
+    def _restore_or_defer_unadmitted_audit_attempt(
+        self,
+        issue: Issue,
+        audit_id: str | None,
+        attempt_id: str | None,
+        branch_key: str | None,
+        *,
+        reason: str,
+    ) -> UnadmittedAuditRollbackOutcome:
+        """Restore an unlaunched attempt, or journal its exact rollback owner.
+
+        A metadata-store outage is not an auditor attempt.  Keep the branch
+        fenced and retry the same CAS later instead of releasing ownership and
+        allowing recovery to spend candidate rotation/retry budget.
+        """
+
+        try:
+            outcome = self._restore_unadmitted_audit_attempt(
+                issue,
+                audit_id,
+                attempt_id,
+            )
+        except BaseException as exc:
+            self._defer_unadmitted_audit_rollback(
+                issue,
+                audit_id,
+                attempt_id,
+                branch_key,
+            )
+            logger.warning(
+                "Deferred exact unadmitted-audit rollback issue=%s audit=%s "
+                "attempt=%s reason=%s error=%s",
+                issue.identifier,
+                audit_id,
+                attempt_id,
+                reason,
+                exc,
+            )
+            if not isinstance(exc, Exception):
+                raise
+            return UnadmittedAuditRollbackOutcome.AMBIGUOUS
+        if outcome is UnadmittedAuditRollbackOutcome.AMBIGUOUS:
+            self._defer_unadmitted_audit_rollback(
+                issue,
+                audit_id,
+                attempt_id,
+                branch_key,
+            )
+            logger.warning(
+                "Deferred ambiguous unadmitted-audit rollback issue=%s "
+                "audit=%s attempt=%s reason=%s",
+                issue.identifier,
+                audit_id,
+                attempt_id,
+                reason,
+            )
+            return outcome
+        self._clear_deferred_audit_rollback(attempt_id, branch_key)
+        return outcome
+
+    def _retry_pending_audit_rollbacks(self) -> None:
+        """Retry startup/runtime rollback journal entries before audit dispatch."""
+
+        # A failed clear may leave no in-memory row while both empty-snapshot
+        # writes failed.  Retry that durability acknowledgement before normal
+        # admission can be reopened by an operator.
+        if self._audit_rollback_persistence_failed:
+            self._persist_pending_audit_rollbacks()
+        with self._audit_rollback_lock:
+            pending = [dict(row) for row in self._pending_audit_rollbacks.values()]
+        for row in pending:
+            issue = Issue(
+                id=row["issue_id"],
+                identifier=row["identifier"],
+                title=row["identifier"],
+                project_id=row.get("project_id") or None,
+                state=IN_VALIDATION,
+            )
+            self._restore_or_defer_unadmitted_audit_attempt(
+                issue,
+                row["audit_id"],
+                row["attempt_id"],
+                row["branch_key"],
+                reason="durable rollback retry",
+            )
+            if self._unadmitted_audit_recovery_secured(row["attempt_id"]):
+                running = self._current_running_entry(row["issue_id"])
+                if (
+                    running is not None
+                    and running.is_auditor
+                    and not getattr(running, "provider_started", False)
+                    and running.audit_attempt_id == row["attempt_id"]
+                ):
+                    self._schedule_running_termination(
+                        row["issue_id"],
+                        cleanup_workspace=False,
+                        task_name_prefix="audit-rollback-retirement",
+                        expected_entry=running,
+                    )
+
     def _audit_branch_busy(
         self,
         issue: Issue,
@@ -9902,356 +9682,18 @@ class Orchestrator:
         self._audit_branch_claims.pop(branch_key, None)
         return True
 
-    def _audit_selector(
-        self, issue: Issue, *, project: Any | None
-    ) -> AuditorCandidateSelector:
-        return AuditorCandidateSelector(
-            self.role_store,
-            self.provider_store,
-            project_config=project,
-            health_results=PROVIDER_HEALTH_CACHE.snapshot(
-                self.provider_store.list_all(),
-                max_age_seconds=self.config.provider_health_ttl_seconds,
-            ),
-            budget_limit=self.config.budget_limit,
-            current_spend=(
-                self.state.agent_totals.estimated_cost
-                + self._audit_budget_reserved_total(
-                    exclude_issue_id=self._audit_reservation_key_for_issue(issue)
-                )
-            ),
-        )
-
-    def _auditor_probe_contact_authority_error(
-        self,
-        issue: Issue,
-        candidate: Candidate,
-        *,
-        expected_configuration_signature: str,
-        expected_policy_generation: int,
-    ) -> str | None:
-        """Revalidate one autonomous health probe at its transport edge.
-
-        Other candidates in the same probe batch may publish health while
-        this candidate is awaiting its worker thread. A changed global
-        generation therefore triggers a fresh, locked read of the relevant
-        provider/role/project policy instead of rejecting an otherwise
-        independent probe solely because its sibling completed first.
-        """
-
-        generation = expected_policy_generation
-        while True:
-            with AUDITOR_POLICY_AUTHORITY.admission(generation) as current:
-                if not current:
-                    generation = AUDITOR_POLICY_AUTHORITY.generation()
-                    continue
-                try:
-                    provider = self.provider_store.get(candidate.provider_id)
-                    role = self.role_store.get(AUDITOR_ROLE_NAME)
-                    project = (
-                        self.project_store.get(issue.project_id)
-                        if issue.project_id
-                        else None
-                    )
-                except Exception as exc:  # noqa: BLE001 - contact fails closed
-                    return (
-                        "auditor probe policy could not be revalidated "
-                        f"({type(exc).__name__})"
-                    )
-                if provider is None:
-                    return "auditor probe provider is no longer configured"
-                if (
-                    PROVIDER_HEALTH_CACHE.configuration_signature(provider)
-                    != expected_configuration_signature
-                ):
-                    return "auditor probe provider configuration changed"
-                if issue.project_id and project is None:
-                    return "auditor probe project policy is no longer available"
-                role_candidates = list(getattr(role, "candidates", None) or [])
-                canonical_candidate = self._canonical_auditor_candidate(candidate)
-                if not any(
-                    self._canonical_auditor_candidate(value)
-                    == canonical_candidate
-                    for value in role_candidates
-                ):
-                    return "auditor probe candidate is no longer in the auditor role"
-                whitelist = (
-                    list(getattr(project, "provider_whitelist", None) or [])
-                    if project is not None
-                    else []
-                )
-                if whitelist:
-                    allowed = {
-                        str(value).strip().casefold()
-                        for value in whitelist
-                        if str(value).strip()
-                    }
-                    if (
-                        str(provider.id).strip().casefold() not in allowed
-                        and str(provider.name).strip().casefold() not in allowed
-                    ):
-                        return (
-                            "auditor probe provider is no longer permitted by the "
-                            "project allowlist"
-                        )
-                return None
-
-    async def _prepare_audit_selector(
-        self, issue: Issue, *, probe_missing: bool = True
-    ) -> tuple[AuditorCandidateSelector | None, str | None]:
-        """Establish fresh project and exact-model health authority."""
-
+    def _audit_selector(self, issue: Issue) -> AuditorCandidateSelector:
         project = None
         if issue.project_id:
             try:
                 project = self.project_store.get(issue.project_id)
-            except Exception as exc:  # noqa: BLE001 - allowlist fails closed
-                return None, (
-                    "Cannot read the project provider allowlist before auditor "
-                    f"reservation ({type(exc).__name__}). Restore project-store "
-                    "access and retry."
-                )
-            if project is None:
-                return None, (
-                    f"Project {issue.project_id!r} is unavailable, so its provider "
-                    "allowlist cannot be established. Restore the managed project "
-                    "configuration before dispatch."
-                )
-
-        ledger_error = PROVIDER_HEALTH_CACHE.persistence_error()
-        if ledger_error is not None:
-            return None, (
-                f"Cannot establish durable provider-health authority: {ledger_error}. "
-                "Repair or remove the health ledger, restart oompah, then retry."
-            )
-        try:
-            role = self.role_store.get(AUDITOR_ROLE_NAME)
-        except Exception as exc:  # noqa: BLE001 - role authority fails closed
-            return None, (
-                "Cannot read the live auditor role before dispatch "
-                f"({type(exc).__name__}). Restore role configuration and retry."
-            )
-        if role is None or not role.candidates:
-            # Let the selector produce the canonical actionable empty-role reason.
-            try:
-                return self._audit_selector(issue, project=project), None
-            except Exception as exc:  # noqa: BLE001 - authority fails closed
-                return None, (
-                    "Cannot snapshot provider health for auditor reservation "
-                    f"({type(exc).__name__}). Restore provider-store access and retry."
-                )
-
-        async def _probe(candidate: Candidate) -> str | None:
-            try:
-                live_provider = self.provider_store.get(candidate.provider_id)
-            except Exception as exc:  # noqa: BLE001
-                return f"{candidate.provider_id}: provider lookup {type(exc).__name__}"
-            if live_provider is None:
-                return None  # selector reports the missing provider precisely
-            provider, provider_signature, policy_generation = (
-                snapshot_provider_for_probe(live_provider)
-            )
-            # Apply the live project allowlist *before* touching a health
-            # endpoint.  A forbidden provider must not receive an audit probe
-            # merely because it still appears in the editable role.
-            whitelist = list(
-                getattr(project, "provider_whitelist", []) or []
-            ) if project is not None else []
-            if whitelist:
-                allowed = {
-                    str(value).strip().casefold()
-                    for value in whitelist
-                    if str(value).strip()
-                }
-                provider_name = str(getattr(provider, "name", "") or "")
-                if (
-                    str(candidate.provider_id).strip().casefold() not in allowed
-                    and provider_name.strip().casefold() not in allowed
-                ):
-                    return None
-            if PROVIDER_HEALTH_CACHE.get(
-                provider,
-                candidate.model,
-                max_age_seconds=self.config.provider_health_ttl_seconds,
-            ) is not None:
-                return None
-            if not probe_missing:
-                # The authoritative snapshot omits this exact model, so the
-                # selector treats only this candidate as health_unknown. A
-                # different fresh candidate can still preserve the audit path.
-                return None
-            try:
-                def contact_fence() -> str | None:
-                    return self._auditor_probe_contact_authority_error(
-                        issue,
-                        candidate,
-                        expected_configuration_signature=provider_signature,
-                        expected_policy_generation=policy_generation,
-                    )
-
-                if str(getattr(provider, "mode", "api") or "api").casefold() == "acp":
-                    result = await asyncio.wait_for(
-                        run_acp_health_check(
-                            provider,
-                            candidate.model,
-                            before_transport_contact=contact_fence,
-                        ),
-                        timeout=65.0,
-                    )
-                else:
-                    result = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            run_health_check,
-                            provider,
-                            candidate.model,
-                            before_transport_contact=contact_fence,
-                        ),
-                        timeout=12.0,
-                    )
-            except ProviderProbeAuthorityError as exc:
-                return f"{candidate.provider_id}/{candidate.model}: {exc}"
-            except asyncio.TimeoutError:
-                result = ProviderTestResult(
-                    provider_id=str(provider.id),
-                    provider_name=str(provider.name),
-                    model=str(candidate.model or ""),
-                    success=False,
-                    latency_ms=0.0,
-                    error_reason="timeout",
-                )
-            except Exception as exc:  # noqa: BLE001 - probe failure is evidence
-                result = ProviderTestResult(
-                    provider_id=str(provider.id),
-                    provider_name=str(provider.name),
-                    model=str(candidate.model or ""),
-                    success=False,
-                    latency_ms=0.0,
-                    error_reason="provider_unavailable",
-                    error_detail=type(exc).__name__,
-                )
-            if not PROVIDER_HEALTH_CACHE.record_if_configuration(
-                provider,
-                result,
-                expected_signature=provider_signature,
-                current_provider=lambda: self.provider_store.get(
-                    candidate.provider_id
-                ),
-            ):
-                return f"{candidate.provider_id}/{candidate.model}: health persistence"
-            return None
-
-        try:
-            probe_values = await asyncio.gather(
-                *(_probe(candidate) for candidate in role.candidates)
-            )
-        except Exception as exc:  # noqa: BLE001 - health authority fails closed
-            return None, (
-                "Cannot establish exact-model provider health before auditor "
-                f"reservation ({type(exc).__name__}). Repair provider health "
-                "configuration and retry."
-            )
-        probe_errors = [value for value in probe_values if value is not None]
-        if probe_errors:
-            return None, (
-                "Cannot establish fresh exact-model provider health before auditor "
-                f"reservation ({'; '.join(probe_errors)}). Retry after restoring "
-                "provider-health authority."
-            )
-        try:
-            return self._audit_selector(issue, project=project), None
-        except Exception as exc:  # noqa: BLE001 - authority fails closed
-            return None, (
-                "Cannot snapshot provider health for auditor reservation "
-                f"({type(exc).__name__}). Restore provider-store access and retry."
-            )
-
-    @staticmethod
-    def _dispatch_target_candidate(target: DispatchTarget) -> Candidate:
-        """Return the exact provider/model identity a target would contribute."""
-
-        provider = target.provider
-        model = (
-            target.model
-            or getattr(provider, "default_model", None)
-            or (getattr(provider, "models", None) or [""])[0]
-            or ""
+            except Exception:
+                project = None
+        return AuditorCandidateSelector(
+            self.role_store,
+            self.provider_store,
+            project_config=project,
         )
-        normalized_model = normalize_contributor_model(model) or ""
-        return Candidate(provider_id=str(provider.id), model=normalized_model)
-
-    async def _reserve_auditor_for_contributor(
-        self,
-        issue: Issue,
-        targets: list[DispatchTarget],
-        *,
-        reserve_budget: bool = False,
-        probe_health: bool = True,
-    ) -> tuple[list[DispatchTarget], str | None]:
-        """Filter contributor targets without spending the final auditor path.
-
-        The tracker metadata is the authority for past contributor identity.
-        Reading it for every dispatch is intentional: it makes the decision
-        restart-safe and lets provider health/configuration changes take effect
-        before a new worker starts.
-        """
-
-        selector, selector_error = await self._prepare_audit_selector(
-            issue, probe_missing=probe_health
-        )
-        if selector_error is not None or selector is None:
-            return [], selector_error or "auditor policy authority is unavailable"
-        try:
-            tracker = self._tracker_for_issue(issue)
-            metadata = await asyncio.get_running_loop().run_in_executor(
-                self._tick_pool, tracker.get_metadata, issue.identifier
-            )
-            contributors = _load_work_contributors(metadata or {})
-        except Exception as exc:  # noqa: BLE001 - fail closed at audit boundary
-            return [], (
-                "Cannot establish exact contributor evidence needed to reserve an "
-                f"independent terminal auditor ({type(exc).__name__}). Restore tracker "
-                "metadata access and retry before dispatching implementation work."
-            )
-        try:
-            candidates = [self._dispatch_target_candidate(target) for target in targets]
-            allowed, reserved, reason = (
-                selector.reserve_for_contributor_candidates(
-                    candidates, contributors
-                )
-            )
-        except Exception as exc:  # noqa: BLE001 - policy lookup fails closed
-            return [], (
-                "Cannot evaluate the live auditor role, provider health, or budget "
-                f"before contributor dispatch ({type(exc).__name__}). Restore the "
-                "auditor configuration and retry."
-            )
-        if reason is not None:
-            return [], reason.detail
-        if reserve_budget:
-            if reserved is None:
-                return [], (
-                    "Cannot identify the exact auditor candidate whose financial "
-                    "capacity must be reserved. Restore the auditor role and retry."
-                )
-            budget_error = self._reserve_audit_budget_capacity(issue, reserved)
-            if budget_error is not None:
-                return [], budget_error
-        allowed_pairs = {
-            (candidate.provider_id, candidate.model) for candidate in allowed
-        }
-        filtered = [
-            target
-            for target, candidate in zip(targets, candidates, strict=True)
-            if (candidate.provider_id, candidate.model) in allowed_pairs
-        ]
-        if reserved is not None:
-            logger.info(
-                "Reserved independent auditor candidate %s/%s while dispatching %s",
-                reserved.provider_id,
-                reserved.model,
-                issue.identifier,
-            )
-        return filtered, None
 
     def _record_audit_outcome_ownership(self, issue_id: str, outcome: Any) -> None:
         """Keep ordinary-dispatch fencing aligned with an applied audit result."""
@@ -10321,14 +9763,6 @@ class Orchestrator:
         )
         self._record_audit_outcome_ownership(issue.id, outcome)
         if outcome.success:
-            if not self._reconcile_and_release_audit_budget(
-                self._audit_reservation_key_for_issue(issue)
-            ):
-                logger.error(
-                    "Audit %s completed without a provider worker, but its budget "
-                    "reservation could not be durably released",
-                    record.audit_id,
-                )
             self._audit_metrics["exhaustion_count"] += 1
         else:
             self._audit_metrics["last_error"] = outcome.reason
@@ -10343,10 +9777,11 @@ class Orchestrator:
 
         started = time.monotonic()
         metrics = self._audit_metrics
-        await asyncio.get_running_loop().run_in_executor(
-            self._tick_pool,
-            self._reconcile_audit_budget_reservations,
-        )
+        # Rollback-pending launches retain their branch fence across outages
+        # and restarts.  Retry those exact CAS operations before normal lane
+        # gating so a paused/full scheduler cannot leave recovery authority
+        # stranded indefinitely.
+        await asyncio.to_thread(self._retry_pending_audit_rollbacks)
         if self._dispatch_is_blocked() or self._is_rate_limited():
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
         if self._available_slots() <= 0:
@@ -10377,6 +9812,8 @@ class Orchestrator:
         _audit_scan_error_count: int = 0
 
         for issue in candidates:
+            if self._dispatch_is_blocked(issue):
+                continue
             if self._available_slots() <= 0:
                 break
             try:
@@ -10408,14 +9845,7 @@ class Orchestrator:
                 )
                 if record is None:
                     continue
-                selector, selector_error = await self._prepare_audit_selector(issue)
-                if selector_error is not None or selector is None:
-                    await self._route_no_auditor(
-                        issue,
-                        record,
-                        selector_error or "auditor policy authority is unavailable",
-                    )
-                    continue
+                selector = self._audit_selector(issue)
                 lane = AuditorDispatchLane(
                     selector,
                     max_attempts=self.config.audit_max_attempts,
@@ -10427,6 +9857,13 @@ class Orchestrator:
                     for entry in self._running_values_snapshot()
                     if entry.is_auditor and entry.audit_attempt_id
                 }
+                with self._audit_rollback_lock:
+                    # A journaled rollback is the active owner of an attempt
+                    # that never reached transport.  Treat it as live for lane
+                    # recovery until its exact CAS succeeds; otherwise the
+                    # absence of a RunningEntry would immediately mark it
+                    # abandoned and spend rotation/retry budget.
+                    active.update(self._pending_audit_rollbacks)
                 recovery = lane.recover(record, active_attempt_ids=active)
                 if (
                     not recovery.ready
@@ -10436,11 +9873,23 @@ class Orchestrator:
                     running = self.state.running.get(issue.id)
                     if running and running.is_auditor:
                         await self._terminate_running(issue.id, cleanup_workspace=False)
-                        self._release_audit_branch_claim(
-                            branch_key,
-                            running.audit_attempt_id,
+                        document = await asyncio.get_running_loop().run_in_executor(
+                            self._tick_pool,
+                            store.read,
+                            issue.identifier,
                         )
-                        active.discard(running.audit_attempt_id)
+                        record = AuditorDispatchLane.pending_record(
+                            document.pending_chain
+                        )
+                        if record is None:
+                            continue
+                        active = {
+                            entry.audit_attempt_id
+                            for entry in self._running_values_snapshot()
+                            if entry.is_auditor and entry.audit_attempt_id
+                        }
+                        with self._audit_rollback_lock:
+                            active.update(self._pending_audit_rollbacks)
                         recovery = lane.recover(
                             record, active_attempt_ids=active
                         )
@@ -10594,38 +10043,48 @@ class Orchestrator:
                     continue
                 self._audit_branch_claims[branch_key] = plan.attempt_id
                 try:
-                    await self._dispatch(
+                    admitted = await self._dispatch(
                         issue, attempt=plan.rotation_count, auditor_plan=plan
                     )
-                except Exception as exc:
+                    if not admitted:
+                        # _dispatch already restored the exact persisted plan
+                        # when lifecycle admission rejected it.  Do not count
+                        # the non-launch as a dispatch or a failed attempt.
+                        continue
+                except BaseException as exc:
                     # A failure between the durable launch fence and worker
-                    # creation must release the branch claim and leave the
-                    # attempt retryable. Otherwise a scheduler exception can
-                    # strand the audit indefinitely in ``in_progress``.
-                    self._release_audit_branch_claim(branch_key, plan.attempt_id)
-                    failed = AuditorDispatchLane.finish_attempt(
-                        persisted,
-                        plan.attempt_id,
-                        reason=f"auditor launch failed: {exc}",
-                        retry_after=timestamp(
-                            datetime.now(timezone.utc)
-                            + timedelta(
-                                milliseconds=self._backoff_delay(
-                                    plan.rotation_count + 1
-                                )
-                            )
-                        ),
-                        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
-                    )
-                    await asyncio.get_running_loop().run_in_executor(
-                        self._tick_pool,
-                        lambda r=failed: self._audit_update_record(
-                            store,
+                    # creation is not a transport attempt. Restore the exact
+                    # persisted launch; a metadata outage journals rollback
+                    # authority and retains the branch fence across restart.
+                    rollback_task = asyncio.get_running_loop().create_task(
+                        asyncio.to_thread(
+                            self._restore_or_defer_unadmitted_audit_attempt,
                             issue,
-                            r,
-                            append_attempt=r.attempts[-1],
+                            plan.audit_id,
+                            plan.attempt_id,
+                            branch_key,
+                            reason=(
+                                "auditor launch raised before admission: "
+                                f"{exc}"
+                            ),
                         ),
+                        name=f"audit-lane-rollback-{plan.attempt_id}",
                     )
+                    await self._await_guaranteed_cleanup(rollback_task)
+                    try:
+                        rollback_task.result()
+                    except BaseException as rollback_exc:
+                        # The synchronous helper journals the exact owner on
+                        # metadata failure. This log covers only an unexpected
+                        # failure outside that failover boundary; preserve the
+                        # original dispatch exception for lifecycle semantics.
+                        logger.error(
+                            "Auditor lane rollback task failed issue=%s "
+                            "attempt=%s error=%s",
+                            issue.identifier,
+                            plan.attempt_id,
+                            rollback_exc,
+                        )
                     raise
                 dispatched += 1
                 metrics["dispatch_count"] += 1
@@ -10695,14 +10154,6 @@ class Orchestrator:
         # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
         candidates = await _timed_async(
             "fetch_candidates", self._fetch_all_candidates_bounded
-        )
-        owner_resolution_repairs = await _timed(
-            "owner_duplicate_resolution",
-            self._reconcile_owner_duplicate_resolution_boundaries,
-            candidates,
-        )
-        metrics["owner_duplicate_resolution_repaired_count"] = (
-            owner_resolution_repairs
         )
         self._last_candidates = candidates
         metrics["candidate_count"] = len(candidates)
@@ -15052,46 +14503,32 @@ class Orchestrator:
         project_id: str,
         task_id: str,
     ) -> None:
-        """Stop every live auditor before an owner takes terminal authority.
+        """Stop every live auditor before an owner takes terminal authority."""
 
-        This shares `_retry_authority_lock` with running-entry registration and
-        the final provider-contact CAS. The task-scoped generation also advances
-        when no entry exists, fencing a dispatch between reservation and
-        publication. Consequently an override either rejects stale registration,
-        marks a published entry revoked before contact, or observes
-        `provider_contact_permitted=True` and retires that admitted generation.
-        """
-
-        matching: list[str] = []
-        with self._retry_authority_lock:
-            key = self._auditor_authority_key(project_id, task_id)
-            self._auditor_authority_generations[key] = (
-                self._auditor_authority_generations.get(key, 0) + 1
-            )
-            for issue_id, entry in list(self.state.running.items()):
-                issue = getattr(entry, "issue", None)
-                if not getattr(entry, "is_auditor", False):
-                    continue
-                if str(getattr(issue, "project_id", "") or "") != str(project_id):
-                    continue
-                if str(getattr(entry, "identifier", "") or "") != str(task_id):
-                    continue
-                entry.authority_revoked = True
-                entry.authority_revocation_reason = (
-                    "owner override acquired terminal authority"
-                )
-                entry.forced_exit_reason = "authority_revoked"
-                entry.forced_exit_error = entry.authority_revocation_reason
-                matching.append(issue_id)
+        matching: list[tuple[str, RunningEntry]] = []
+        for issue_id, entry in self._running_items_snapshot():
+            issue = getattr(entry, "issue", None)
+            if not getattr(entry, "is_auditor", False):
+                continue
+            if str(getattr(issue, "project_id", "") or "") != str(project_id):
+                continue
+            if str(getattr(entry, "identifier", "") or "") != str(task_id):
+                continue
+            entry.authority_revoked = True
+            entry.authority_revocation_reason = "owner override acquired terminal authority"
+            entry.forced_exit_reason = "authority_revoked"
+            entry.forced_exit_error = entry.authority_revocation_reason
+            matching.append((issue_id, entry))
 
         # The coordinator invokes this from its serialized project operation,
         # which may run in a worker thread.  The termination helper marshals
         # onto the provider/session loop and fences the exact runtime entry.
-        for issue_id in matching:
+        for issue_id, entry in matching:
             self._schedule_running_termination(
                 issue_id,
                 cleanup_workspace=False,
                 task_name_prefix="retire-revoked-auditor",
+                expected_entry=entry,
             )
 
     def _revoke_inactive_standalone_delivery_authorities(
@@ -18117,8 +17554,10 @@ class Orchestrator:
                 return
 
             # Trigger graceful restart
-            self._restart_requested = True
-            self._stopping = True
+            with self._provider_admission_lock:
+                self._restart_requested = True
+                self._stopping = True
+                self._provider_admission_generation += 1
         except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
             msg = f"Auto-update failed: {exc}"
             logger.debug("Auto-update check failed: %s", exc)
@@ -18555,12 +17994,6 @@ class Orchestrator:
     def _implementation_duplicate_screening_ready(self, issue: Issue) -> bool:
         """Return whether an ordinary Open-task dispatch passed qualification."""
 
-        # Owner-authorized duplicate candidates carry a conclusive screening
-        # record but have been routed out of implementation.  Preserve the
-        # normal preflight bypass for other non-Open implementation lanes
-        # (such as retries and mature epic repair).
-        if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE:
-            return False
         if not self._requires_duplicate_preflight(issue):
             return True
         return self._duplicate_screening_assessment(issue).implementation_eligible
@@ -18708,210 +18141,6 @@ class Orchestrator:
             issue.duplicate_screening = cleared.to_dict()
             return True
 
-    @staticmethod
-    def _duplicate_screening_issue_identity_matches(
-        expected: Issue,
-        observed: Issue,
-    ) -> bool:
-        """Return whether two task snapshots name the exact managed task."""
-
-        expected_project = str(expected.project_id or "").strip()
-        observed_project = str(observed.project_id or "").strip()
-        return bool(
-            str(expected.id or "").strip()
-            and str(expected.identifier or "").strip()
-            and expected.id == observed.id
-            and expected.identifier == observed.identifier
-            and expected_project == observed_project
-        )
-
-    def _matching_duplicate_preflight_runtime(
-        self,
-        issue: Issue,
-        record: DuplicateScreeningRecord | None,
-    ) -> RunningEntry | None:
-        """Return the exact preflight runtime superseded by owner resolution.
-
-        The tracker record can already be owner-resolved on an idempotent
-        retry, so task revision plus full issue/project identity is the durable
-        fence.  A still-live claim is additionally required to match exactly
-        while the prior record carries one.
-        """
-
-        current_fingerprint = compute_task_fingerprint(issue)
-        with self._retry_authority_lock:
-            entry = self.state.running.get(issue.id)
-            entry_issue = getattr(entry, "issue", None)
-            if (
-                entry is None
-                or entry_issue is None
-                or entry.identifier != issue.identifier
-                or not getattr(entry, "duplicate_preflight", False)
-                or getattr(entry, "is_auditor", False)
-                or not self._duplicate_screening_issue_identity_matches(
-                    issue, entry_issue
-                )
-                or entry.duplicate_preflight_fingerprint != current_fingerprint
-            ):
-                return None
-            if (
-                record is not None
-                and record.claim_id
-                and entry.duplicate_preflight_claim_id != record.claim_id
-            ):
-                return None
-            if record is None or (
-                not record.claim_id and not record.is_owner_resolved
-            ):
-                return None
-            return entry
-
-    def _apply_owner_duplicate_resolution_runtime_state(
-        self,
-        issue: Issue,
-        verdict: ScreeningVerdict,
-        prior_record: DuplicateScreeningRecord | None,
-    ) -> RunningEntry | None:
-        """Rearm dispatch and fence only the superseded preflight runtime."""
-
-        entry = self._matching_duplicate_preflight_runtime(issue, prior_record)
-        with self._retry_authority_lock:
-            if verdict == ScreeningVerdict.NO_DUPLICATE:
-                # Exhausted preflight completion is a terminal-looking in-memory
-                # fence.  The owner's checked/Open decision is the exact inverse
-                # transition and must make implementation dispatch eligible.
-                self.state.completed.discard(issue.id)
-                self.state.stall_counts.pop(issue.identifier, None)
-                self.state.reject_streak.pop(issue.id, None)
-            if entry is not None and self.state.running.get(issue.id) is entry:
-                entry.authority_revoked = True
-                entry.authority_revocation_reason = (
-                    "project owner resolved duplicate screening"
-                )
-                return entry
-        return None
-
-    def _owner_resolution_boundary_issues(self) -> list[Issue]:
-        """Fetch non-terminal tasks that may straddle an owner status write."""
-
-        states = [NEEDS_HUMAN, OPEN, DUPLICATE_CANDIDATE]
-        project_store = getattr(self, "project_store", None)
-        projects = project_store.list_all() if project_store is not None else []
-        if not projects:
-            try:
-                return list(self.tracker.fetch_issues_by_states(states))
-            except (TrackerNotConfiguredError, TrackerError):
-                return []
-
-        issues: list[Issue] = []
-        for project in projects:
-            try:
-                tracker = self._tracker_for_project(project.id)
-                project_issues = tracker.fetch_issues_by_states(states)
-                for issue in project_issues:
-                    issue.project_id = project.id
-                issues.extend(project_issues)
-            except (TrackerNotConfiguredError, TrackerError, ProjectError):
-                continue
-        return issues
-
-    def _reconcile_owner_duplicate_resolution_boundaries(
-        self,
-        issues: Iterable[Issue] | None = None,
-    ) -> int:
-        """Repair owner-record/status splits left by an interrupted write.
-
-        Owner resolution first persists its auditable screening record, then
-        changes task status.  A process exit between those writes leaves an
-        authoritative record whose status no longer agrees.  Reconciliation
-        is deliberately limited to current-fingerprint owner records.
-        """
-
-        candidates = (
-            list(issues)
-            if issues is not None
-            else self._owner_resolution_boundary_issues()
-        )
-        repaired = 0
-        seen: set[tuple[str, str, str]] = set()
-        for observed in candidates:
-            identity = (
-                str(observed.project_id or ""),
-                str(observed.id or ""),
-                str(observed.identifier or ""),
-            )
-            if identity in seen:
-                continue
-            seen.add(identity)
-            observed_record = DuplicateScreeningRecord.from_raw(
-                getattr(observed, "duplicate_screening", None)
-            )
-            if observed_record is None or not observed_record.is_owner_resolved:
-                continue
-            try:
-                tracker = self._tracker_for_issue(observed)
-            except (ProjectError, TrackerError):
-                continue
-            project_key = str(
-                observed.project_id or "__legacy_duplicate_preflight__"
-            )
-            lock = self._get_project_maintenance_lock(project_key)
-            with lock:
-                try:
-                    tracker.invalidate_read_cache()
-                except Exception:
-                    pass
-                try:
-                    fresh = tracker.fetch_issue_detail(observed.identifier)
-                except (TrackerError, ProjectError):
-                    continue
-                if fresh is None:
-                    continue
-                if not fresh.project_id:
-                    fresh.project_id = observed.project_id
-                if not self._duplicate_screening_issue_identity_matches(
-                    observed, fresh
-                ):
-                    continue
-                record = load_duplicate_screening_record(tracker, fresh)
-                if (
-                    record is None
-                    or not record.is_owner_resolved
-                    or record.detector_version != DUPLICATE_DETECTOR_VERSION
-                    or record.task_fingerprint != compute_task_fingerprint(fresh)
-                    or record.claim_id is not None
-                    or record.retry_count != 0
-                    or record.verdict
-                    not in {
-                        ScreeningVerdict.NO_DUPLICATE,
-                        ScreeningVerdict.DUPLICATE_CANDIDATE,
-                    }
-                ):
-                    continue
-                target_status = (
-                    OPEN
-                    if record.verdict == ScreeningVerdict.NO_DUPLICATE
-                    else DUPLICATE_CANDIDATE
-                )
-                if canonicalize_status(fresh.state) != target_status:
-                    try:
-                        tracker.update_issue(
-                            fresh.identifier,
-                            status=target_status,
-                        )
-                    except Exception:  # noqa: BLE001 - retry on a later scan
-                        continue
-                    repaired += 1
-                fresh.state = target_status
-                observed.state = target_status
-                observed.duplicate_screening = record.to_dict()
-                if record.verdict == ScreeningVerdict.NO_DUPLICATE:
-                    with self._retry_authority_lock:
-                        self.state.completed.discard(fresh.id)
-                        self.state.stall_counts.pop(fresh.identifier, None)
-                        self.state.reject_streak.pop(fresh.id, None)
-        return repaired
-
     def _owner_resolve_duplicate_screening(
         self,
         issue: Issue,
@@ -18944,13 +18173,9 @@ class Orchestrator:
             )
             return False
 
-        normalized_owner = str(owner_login).strip()
-        normalized_reason = str(reason).strip()
         project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
         lock = self._get_project_maintenance_lock(project_key)
         tracker = self._tracker_for_issue(issue)
-        runtime_to_retire: RunningEntry | None = None
-        status_updated = False
         with lock:
             try:
                 tracker.invalidate_read_cache()
@@ -18961,13 +18186,6 @@ class Orchestrator:
                 return False
             if not fresh.project_id:
                 fresh.project_id = issue.project_id
-            if not self._duplicate_screening_issue_identity_matches(issue, fresh):
-                logger.warning(
-                    "Rejecting owner resolution for %s: refreshed task identity "
-                    "does not match id/project",
-                    issue.identifier,
-                )
-                return False
             current_fingerprint = compute_task_fingerprint(fresh)
             if expected_fingerprint and expected_fingerprint != current_fingerprint:
                 logger.info(
@@ -18978,7 +18196,7 @@ class Orchestrator:
                     current_fingerprint,
                 )
                 return False
-            prior_record = load_duplicate_screening_record(tracker, fresh)
+            record = load_duplicate_screening_record(tracker, fresh)
             # Always bind the owner decision to the revision read while holding
             # the project lock.  Reusing an older record would make a decision
             # for a changed task appear stale or, worse, qualify the wrong
@@ -18987,9 +18205,9 @@ class Orchestrator:
                 task_fingerprint=current_fingerprint,
                 detector_version=DUPLICATE_DETECTOR_VERSION,
                 retry_count=(
-                    prior_record.retry_count
-                    if prior_record is not None
-                    and prior_record.task_fingerprint == current_fingerprint
+                    record.retry_count
+                    if record is not None
+                    and record.task_fingerprint == current_fingerprint
                     else 0
                 ),
             )
@@ -19021,90 +18239,40 @@ class Orchestrator:
                         "Owner resolution referenced missing, self, or terminal task(s): "
                         + ", ".join(invalid_matches)
                     )
-            same_resolution = bool(
-                prior_record is not None
-                and prior_record.is_owner_resolved
-                and prior_record.task_fingerprint == current_fingerprint
-                and prior_record.detector_version == DUPLICATE_DETECTOR_VERSION
-                and prior_record.verdict == verdict
-                and prior_record.owner_login == normalized_owner
-                and prior_record.owner_resolution_reason == normalized_reason
-                and prior_record.evidence == normalized_reason
-                and prior_record.matched_identifiers == normalized_matches
-                and prior_record.claim_id is None
-                and prior_record.retry_count == 0
+            resolved = owner_resolution_record(
+                record,
+                owner_login=owner_login,
+                verdict=verdict,
+                reason=reason,
+                matched_identifiers=normalized_matches,
             )
-            if same_resolution:
-                # ``same_resolution`` proves the optional record is present.
-                assert prior_record is not None
-                resolved = prior_record
-            else:
-                resolved = owner_resolution_record(
-                    record,
-                    owner_login=normalized_owner,
-                    verdict=verdict,
-                    reason=normalized_reason,
-                    matched_identifiers=normalized_matches,
-                )
-                save_duplicate_screening_record(tracker, fresh, resolved)
+            save_duplicate_screening_record(tracker, fresh, resolved)
             persisted = load_duplicate_screening_record(tracker, fresh)
             if (
                 persisted is None
                 or persisted.task_fingerprint != current_fingerprint
                 or not persisted.is_owner_resolved
-                or persisted.detector_version != DUPLICATE_DETECTOR_VERSION
-                or persisted.owner_login != normalized_owner
-                or persisted.owner_resolution_reason != normalized_reason
-                or persisted.evidence != normalized_reason
-                or persisted.verdict != verdict
-                or persisted.matched_identifiers != normalized_matches
-                or persisted.claim_id is not None
-                or persisted.retry_count != 0
+                or persisted.owner_login != resolved.owner_login
             ):
                 logger.warning(
                     "Owner resolution write was superseded for %s",
                     issue.identifier,
                 )
                 return False
-            runtime_to_retire = self._apply_owner_duplicate_resolution_runtime_state(
-                fresh,
-                verdict,
-                prior_record,
+            tracker.update_issue(
+                fresh.identifier,
+                status=(
+                    OPEN
+                    if verdict == ScreeningVerdict.NO_DUPLICATE
+                    else DUPLICATE_CANDIDATE
+                ),
             )
-            target_status = (
+            fresh.state = (
                 OPEN if verdict == ScreeningVerdict.NO_DUPLICATE else DUPLICATE_CANDIDATE
             )
-            try:
-                if canonicalize_status(fresh.state) != target_status:
-                    tracker.update_issue(fresh.identifier, status=target_status)
-                status_updated = True
-            except Exception as exc:  # noqa: BLE001 - durable boundary is repaired
-                logger.warning(
-                    "Owner resolution status update failed for %s; persisted "
-                    "record will be reconciled: %s",
-                    issue.identifier,
-                    exc,
-                )
-            fresh.state = target_status if status_updated else fresh.state
-            issue.duplicate_screening = persisted.to_dict()
-            if status_updated:
-                issue.state = target_status
-
-        if runtime_to_retire is not None:
-            self._schedule_running_termination(
-                issue.id,
-                cleanup_workspace=False,
-                task_name_prefix="retire-duplicate-preflight",
-                expected_entry=runtime_to_retire,
-            )
-        try:
-            self.request_refresh()
-        except Exception:  # noqa: BLE001 - owner write remains authoritative
-            logger.debug(
-                "Could not wake dispatch after owner duplicate resolution",
-                exc_info=True,
-            )
-        return status_updated
+            issue.duplicate_screening = resolved.to_dict()
+            issue.state = fresh.state
+            return True
 
     def _duplicate_preflight_task_corpus(self, tracker: Any, issue: Issue) -> str:
         """Return a bounded, project-scoped read-only peer-task corpus.
@@ -20634,9 +19802,8 @@ class Orchestrator:
         ``provider.name`` appears in that whitelist are retained.
 
         An empty whitelist (the default) leaves *targets* unchanged so
-        existing projects are unaffected. Unknown projects and project-store
-        failures raise an actionable error; dispatch must not reinterpret
-        missing allowlist authority as an unrestricted project.
+        existing projects are unaffected.  Unknown project ids or missing
+        ``provider_whitelist`` attributes are treated as "no whitelist".
 
         Returns:
             A tuple ``(filtered_targets, whitelist_was_applied)`` where
@@ -20648,19 +19815,9 @@ class Orchestrator:
         """
         if not issue.project_id:
             return targets, False
-        try:
-            project = self.project_store.get(issue.project_id)
-        except Exception as exc:  # noqa: BLE001 - allowlist authority fails closed
-            raise WorkflowError(
-                "Cannot read the project provider whitelist before dispatch "
-                f"({type(exc).__name__}); restore project-store access and retry."
-            ) from exc
+        project = self.project_store.get(issue.project_id)
         if project is None:
-            raise WorkflowError(
-                f"Project {issue.project_id!r} is unavailable, so its provider "
-                "whitelist cannot be established; restore the managed project "
-                "configuration before dispatch."
-            )
+            return targets, False
         whitelist: list[str] = getattr(project, "provider_whitelist", []) or []
         if not whitelist:
             return targets, False
@@ -24342,16 +23499,7 @@ class Orchestrator:
             str(issue.project_id or "legacy"),
         )
         self._record_audit_outcome_ownership(issue.id, outcome)
-        if outcome.success:
-            if not self._reconcile_and_release_audit_budget(
-                self._audit_reservation_key_for_issue(issue)
-            ):
-                logger.error(
-                    "Metadata preflight audit %s completed without a provider worker, "
-                    "but its budget reservation could not be durably released",
-                    record.audit_id,
-                )
-        else:
+        if not outcome.success:
             self._audit_metrics["last_error"] = outcome.reason
             logger.warning(
                 "Unable to route unsafe metadata archive %s: %s",
@@ -36063,7 +35211,6 @@ class Orchestrator:
         target: "DispatchTarget",
         *,
         require_openai_endpoint: bool | None = None,
-        budget_reservation_credit_issue_id: str | None = None,
     ) -> str:
         """Check whether a candidate can reasonably be used before starting a worker.
 
@@ -36142,9 +35289,7 @@ class Orchestrator:
 
         # 3. Budget exhaustion — paid candidates are blocked; free/subscription
         #    candidates pass through so the orchestrator keeps making progress.
-        if not self._check_budget(
-            reservation_credit_issue_id=budget_reservation_credit_issue_id
-        ):
+        if not self._check_budget():
             # ACP subscription-billed providers bypass the budget gate.
             if provider_mode == "acp" and not provider.is_per_token_billed("acp"):
                 pass  # subscription ACP — allowed through
@@ -36305,7 +35450,7 @@ class Orchestrator:
                 pass
         return (input_tokens / 1000.0) * cost_in + (output_tokens / 1000.0) * cost_out
 
-    def _check_budget(self, *, reservation_credit_issue_id: str | None = None) -> bool:
+    def _check_budget(self) -> bool:
         """Return True if within budget, False if budget exceeded.
 
         Rolls the budget window first: if more than ``budget_window``
@@ -36315,16 +35460,8 @@ class Orchestrator:
         """
         if self.config.budget_limit <= 0:
             return True  # no budget limit set
-        if self._audit_budget_authority_error is not None:
-            return False
         self._roll_budget_window_if_due()
-        reserved = self._audit_budget_reserved_total(
-            exclude_issue_id=reservation_credit_issue_id
-        )
-        return (
-            self.state.agent_totals.estimated_cost + reserved
-            < self.config.budget_limit
-        )
+        return self.state.agent_totals.estimated_cost < self.config.budget_limit
 
     def _budget_window_seconds(self) -> int:
         """Nominal window size in seconds for the configured budget_window.
@@ -37310,220 +36447,6 @@ class Orchestrator:
     # Work contributor provenance (OOMPAH-468)
     # ------------------------------------------------------------------
 
-    def _persist_work_contributor(
-        self,
-        issue: Issue,
-        contributor: WorkContributor,
-    ) -> None:
-        """Upsert and verify one contributor while the issue lock is held.
-
-        Pre-launch and completion writers deliberately share this path.  Its
-        caller owns :meth:`issue_transition_lock`, so two read/merge/write
-        cycles cannot discard each other's tracker metadata.
-        """
-
-        with AUDITOR_POLICY_AUTHORITY.mutation():
-            tracker = self._tracker_for_issue(issue)
-            metadata = dict(tracker.get_metadata(issue.identifier) or {})
-            existing = metadata.get(_WORK_CONTRIBUTORS_KEY)
-            merged = _merge_work_contributors(
-                existing if isinstance(existing, dict) else None,
-                contributor,
-            )
-            tracker.set_metadata_field(issue.identifier, _WORK_CONTRIBUTORS_KEY, merged)
-
-            observed = dict(tracker.get_metadata(issue.identifier) or {})
-            persisted = next(
-                (
-                    value
-                    for value in _load_work_contributors(observed)
-                    if value.run_id == contributor.run_id
-                ),
-                None,
-            )
-            if (
-                persisted is None
-                or persisted.provider_id != contributor.provider_id
-                or normalize_contributor_model(persisted.model_id)
-                != contributor.model_id
-                or persisted.source_sha != contributor.source_sha
-                or persisted.completed_at != contributor.completed_at
-            ):
-                raise RuntimeError(
-                    "tracker did not confirm the exact contributor evidence upsert"
-                )
-
-    def _persist_work_contributor_launch(
-        self,
-        issue: Issue,
-        *,
-        run_id: str,
-        provider_id: str,
-        provider_name: str,
-        model: str | None,
-        focus: str | None = None,
-    ) -> None:
-        """Compatibility wrapper for callers that already own the issue lock."""
-
-        source_branch = (
-            getattr(issue, "work_branch", None)
-            or getattr(issue, "branch_name", None)
-            or None
-        )
-        self._persist_work_contributor(
-            issue,
-            WorkContributor(
-                run_id=run_id,
-                provider_id=provider_id or None,
-                provider_name=provider_name or None,
-                model_id=normalize_contributor_model(model),
-                focus=focus or None,
-                source_branch=source_branch,
-                source_sha=None,
-                completed_at="",
-            ),
-        )
-
-    async def _stage_work_contributor_launch(
-        self,
-        issue: Issue,
-        *,
-        run_id: str | None,
-        provider_id: str,
-        provider_name: str,
-        model: str | None,
-        focus: str | None = None,
-    ) -> str | None:
-        """Atomically reserve and persist the exact pre-launch identity.
-
-        The task transition lock is shared with terminal lifecycle staging.
-        Rechecking the exact provider/model while holding it closes the gap
-        between the broader dispatch-list reservation and this tracker write:
-        runtime role, provider-health, budget, or terminal-ownership changes
-        either take effect before this fence or wait until the evidence is
-        durably observable.
-        """
-
-        if not run_id:
-            return "dispatch has no durable run identity"
-        evidence_run_id = contributor_run_identity(run_id, provider_id, model)
-        async with self.issue_transition_lock(issue.id):
-            if not self._worker_authority_current(issue, run_id):
-                return (
-                    "Implementation authority is absent or changed before the "
-                    "contributor evidence fence; no provider or workspace was "
-                    "started."
-                )
-
-            exact_targets: list[DispatchTarget] = []
-            try:
-                provider = self.provider_store.get(provider_id)
-            except Exception as exc:  # noqa: BLE001 - configuration fails closed
-                return (
-                    "Cannot resolve the exact contributor provider before launch "
-                    f"({type(exc).__name__}); no provider or workspace was started."
-                )
-            if provider is not None:
-                exact_targets.append(
-                    DispatchTarget(
-                        role_name=None,
-                        provider=provider,
-                        model=model,
-                        candidate_key=f"{provider_id}/{model or ''}",
-                        source="prelaunch-evidence-fence",
-                        candidate=None,
-                    )
-                )
-            elif provider_id not in {"cli", "acp"}:
-                return (
-                    f"Contributor provider {provider_name or provider_id!r} is no "
-                    "longer configured; no provider or workspace was started."
-                )
-
-            if exact_targets:
-                try:
-                    whitelisted_targets, whitelist_applied = (
-                        self._apply_project_provider_whitelist(exact_targets, issue)
-                    )
-                except WorkflowError as exc:
-                    return (
-                        f"{exc} No provider or workspace was started."
-                    )
-                if whitelist_applied and not whitelisted_targets:
-                    return (
-                        "The exact contributor provider is not permitted by the "
-                        "project provider whitelist; no provider or workspace was "
-                        "started."
-                    )
-                exact_targets = whitelisted_targets
-
-            with self._audit_budget_lock:
-                reservation_key = self._audit_reservation_key_for_issue(issue)
-                had_budget_reservation = (
-                    reservation_key in self._audit_budget_reservations
-                )
-            allowed, reservation_error = await self._reserve_auditor_for_contributor(
-                issue,
-                exact_targets,
-                reserve_budget=True,
-                probe_health=False,
-            )
-            if reservation_error is not None or (
-                exact_targets and not allowed
-            ):
-                return reservation_error or (
-                    "The exact contributor provider/model is now reserved for "
-                    "independent terminal review; no provider or workspace was started."
-                )
-
-            source_branch = (
-                getattr(issue, "work_branch", None)
-                or getattr(issue, "branch_name", None)
-                or None
-            )
-            contributor = WorkContributor(
-                run_id=evidence_run_id,
-                provider_id=provider_id or None,
-                provider_name=provider_name or None,
-                model_id=normalize_contributor_model(model),
-                focus=focus or None,
-                source_branch=source_branch,
-                source_sha=None,
-                completed_at="",
-            )
-            try:
-                persistence_task = asyncio.create_task(
-                    asyncio.to_thread(
-                        self._persist_work_contributor,
-                        issue,
-                        contributor,
-                    )
-                )
-                try:
-                    await asyncio.shield(persistence_task)
-                except asyncio.CancelledError:
-                    # The thread cannot be cancelled. Keep the issue mutex
-                    # until its read/merge/write/readback transaction ends.
-                    with contextlib.suppress(Exception):
-                        await persistence_task
-                    raise
-            except Exception as exc:  # noqa: BLE001 - dispatch must fail closed
-                release_note = ""
-                if not had_budget_reservation and not self._release_audit_budget_reservation(
-                    reservation_key
-                ):
-                    release_note = (
-                        " The projected audit budget remains reserved because its "
-                        "durable release failed; repair service-state persistence."
-                    )
-                return (
-                    "Cannot durably record exact contributor provider/model evidence "
-                    f"before launch ({type(exc).__name__}). Restore tracker metadata "
-                    "writes and retry; no provider or workspace was started."
-                    f"{release_note}"
-                )
-        return None
-
     def _build_work_contributor_record(
         self, entry: "RunningEntry"
     ) -> "WorkContributor | None":
@@ -37538,17 +36461,9 @@ class Orchestrator:
             if not identifier:
                 return None
 
-            # Prefer the dispatch-owned run identity when one is available.
-            # The completion writer uses the same exact provider/model suffix
-            # as the pre-launch fence so this record enriches that row.
+            # Derive a stable run_id from the agent log path basename.
             run_id: str
-            if entry.run_id:
-                run_id = contributor_run_identity(
-                    entry.run_id,
-                    entry.provider_id,
-                    entry.model_name,
-                )
-            elif entry.agent_log_path:
+            if entry.agent_log_path:
                 run_id = os.path.basename(entry.agent_log_path)
                 if run_id.endswith(".jsonl"):
                     run_id = run_id[:-6]
@@ -37557,7 +36472,12 @@ class Orchestrator:
                 run_id = f"{identifier}__{stamp}"
 
             # Model ID: None for SDK-managed or CLI-managed unknowns.
-            model_id = normalize_contributor_model(entry.model_name)
+            raw_model = entry.model_name
+            model_id: str | None = (
+                None
+                if (raw_model or "").strip().lower() in _WORK_CONTRIBUTOR_UNKNOWN_MODELS
+                else raw_model
+            )
 
             # Source branch from the issue metadata.
             issue = entry.issue
@@ -37612,8 +36532,40 @@ class Orchestrator:
 
             issue = entry.issue
             try:
-                with self.issue_transition_lock(issue.id).sync():
-                    self._persist_work_contributor(issue, contributor)
+                tracker = self._tracker_for_issue(issue)
+            except Exception as exc:
+                logger.warning(
+                    "work_contributor: tracker lookup failed for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+                return
+
+            # Fetch existing metadata (fail-open: proceed without existing data)
+            existing_meta: dict[str, Any] = {}
+            try:
+                existing_meta = dict(tracker.get_metadata(issue.identifier))
+            except Exception as exc:
+                logger.debug(
+                    "work_contributor: failed to fetch metadata for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
+
+            existing_contributors = existing_meta.get(_WORK_CONTRIBUTORS_KEY)
+            merged = _merge_work_contributors(
+                existing_contributors
+                if isinstance(existing_contributors, dict)
+                else None,
+                contributor,
+            )
+
+            try:
+                tracker.set_metadata_field(
+                    issue.identifier,
+                    _WORK_CONTRIBUTORS_KEY,
+                    merged,
+                )
                 logger.info(
                     "work_contributor: wrote %s run_id=%s provider=%s model=%s",
                     entry.identifier,
@@ -37623,7 +36575,7 @@ class Orchestrator:
                 )
             except Exception as exc:
                 logger.warning(
-                    "work_contributor: failed to upsert metadata for %s: %s",
+                    "work_contributor: failed to write metadata for %s: %s",
                     entry.identifier,
                     exc,
                 )
@@ -38409,6 +37361,28 @@ class Orchestrator:
             )
             return None
 
+    @staticmethod
+    async def _await_guaranteed_cleanup(cleanup_task: asyncio.Task[Any]) -> bool:
+        """Await shielded cleanup, deferring repeated caller cancellation.
+
+        Returns whether an additional cancellation was consumed while cleanup
+        ran. Callers must propagate their original or deferred cancellation
+        after observing the cleanup result.
+        """
+
+        interrupted = False
+        current = asyncio.current_task()
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                if current is not None and current.cancelling():
+                    interrupted = True
+                    current.uncancel()
+                    continue
+                raise
+        return interrupted
+
     async def _dispatch(
         self,
         issue: Issue,
@@ -38418,15 +37392,20 @@ class Orchestrator:
         duplicate_preflight_claim: DuplicateScreeningRecord | None = None,
         auditor_plan: AuditDispatchPlan | None = None,
         retry_entry: RetryEntry | None = None,
-    ) -> None:
-        """Dispatch a worker for an issue."""
+    ) -> bool:
+        """Dispatch a worker for an issue and report whether it was admitted."""
         duplicate_preflight = duplicate_preflight_claim is not None
         implementation_dispatch = auditor_plan is None and not duplicate_preflight
-        auditor_registration_generation = (
-            self._auditor_authority_generation(issue.project_id, issue.identifier)
-            if auditor_plan is not None
-            else None
+        tracker: TrackerProtocol | None = None
+        claimed_assignment_id: str | None = None
+        prior_assignment_id: str | None = getattr(issue, "assignment_id", None)
+        implementation_status_write_attempted = False
+        implementation_restore_status = issue.state
+        implementation_intended_status = _configured_in_progress_state(
+            self.config.tracker_active_states
         )
+        ordinary_recovery_entry: RetryEntry | None = None
+        failed_running_entry: RunningEntry | None = None
 
         # A timer callback carries the exact retry entry it observed.  A
         # submission/status/head mutation may have withdrawn that entry while
@@ -38467,41 +37446,206 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
-                    return
+                    return False
 
         async def _release_preflight(reason: str) -> None:
             if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
                 return
-            await asyncio.get_event_loop().run_in_executor(
-                self._tick_pool,
-                lambda: self._clear_duplicate_preflight_claim(
+            def clear_claim() -> bool:
+                return self._clear_duplicate_preflight_claim(
                     issue,
                     duplicate_preflight_claim.claim_id or "",
                     reason=reason,
+                )
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    clear_claim,
+                )
+            except BaseException:
+                # A lifecycle stop may retire the tick pool, and a transient
+                # tracker failure must not leave a durable screening lease
+                # until its full TTL. Retry once on the independent executor;
+                # the claim CAS makes duplicate completion harmless.
+                await asyncio.to_thread(clear_claim)
+
+        async def _clear_dispatch_claim() -> None:
+            """Restore only the assignment claim written by this dispatch."""
+
+            if not claimed_assignment_id or tracker is None:
+                return
+            try:
+                claimed_meta = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.get_metadata(issue.identifier),
+                )
+                if claimed_meta.get("oompah.agent_run_id") != claimed_assignment_id:
+                    return
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.set_metadata_field(
+                        issue.identifier,
+                        "oompah.agent_run_id",
+                        prior_assignment_id,
+                    ),
+                )
+            except BaseException as exc:  # cancellation must not skip later cleanup
+                logger.warning(
+                    "Could not withdraw stale dispatch claim for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+
+        async def _abort_before_admission(
+            reason: str,
+            *,
+            transition_locked: bool = False,
+        ) -> None:
+            """Release exact pre-start ownership, including durable audits."""
+
+            nonlocal ordinary_recovery_entry
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            try:
+                await _release_preflight(reason)
+            except BaseException as exc:  # continue every independent recovery
+                logger.warning(
+                    "Could not clear duplicate preflight during admission abort "
+                    "issue=%s reason=%s error=%s",
+                    issue.identifier,
+                    reason,
+                    exc,
+                )
+            if auditor_plan is None:
+                if not implementation_dispatch or tracker is None:
+                    return
+                recovery_entry = retry_entry
+                if recovery_entry is None and implementation_status_write_attempted:
+                    if ordinary_recovery_entry is None:
+                        ordinary_recovery_entry = self._install_pre_admission_recovery(
+                            retry_pre_write_issue,
+                            restore_status=implementation_restore_status,
+                            intended_active_state=implementation_intended_status,
+                            intended_assignment_id=claimed_assignment_id,
+                            attempt=attempt,
+                            reason=reason,
+                        )
+                    recovery_entry = ordinary_recovery_entry
+                await _clear_dispatch_claim()
+                if recovery_entry is not None:
+                    try:
+                        await self._recover_aborted_retry_dispatch(
+                            issue,
+                            recovery_entry,
+                            tracker,
+                            restore_status=implementation_restore_status,
+                            intended_active_state=implementation_intended_status,
+                            status_write_attempted=implementation_status_write_attempted,
+                            reason=reason,
+                            transition_locked=transition_locked,
+                        )
+                    except BaseException as exc:
+                        # The entry was armed and persisted before tracker
+                        # recovery.  A later timer/startup scan still owns it.
+                        logger.warning(
+                            "Immediate implementation admission recovery failed "
+                            "issue=%s generation=%s error=%s",
+                            issue.identifier,
+                            recovery_entry.authority_generation,
+                            exc,
+                        )
+                return
+            try:
+                # A concurrent stop owns the lifecycle fence and may finish
+                # shutting down ``_tick_pool`` before this losing dispatcher
+                # resumes.  Use the dispatch loop's independent default
+                # executor so the exact durable attempt can still be restored.
+                restored = await asyncio.to_thread(
+                    self._restore_or_defer_unadmitted_audit_attempt,
+                    issue,
+                    auditor_plan.audit_id,
+                    auditor_plan.attempt_id,
+                    auditor_plan.branch_key,
+                    reason=reason,
+                )
+                if restored is UnadmittedAuditRollbackOutcome.RESTORED:
+                    logger.info(
+                        "Restored unadmitted auditor plan issue=%s audit=%s "
+                        "attempt=%s reason=%s",
+                        issue.identifier,
+                        auditor_plan.audit_id,
+                        auditor_plan.attempt_id,
+                        reason,
+                    )
+            except BaseException as exc:  # durable journal or retry scan is fallback
+                logger.warning(
+                    "Immediate auditor admission rollback failed issue=%s "
+                    "audit=%s attempt=%s: %s",
+                    issue.identifier,
+                    auditor_plan.audit_id,
+                    auditor_plan.attempt_id,
+                    exc,
+                )
+
+        async def _compensate_before_admission(
+            reason: str,
+            *,
+            transition_locked: bool = False,
+        ) -> None:
+            """Finish compensation even when the losing dispatcher is cancelled."""
+
+            cleanup_task = asyncio.get_running_loop().create_task(
+                _abort_before_admission(
+                    reason,
+                    transition_locked=transition_locked,
                 ),
+                name=f"admission-compensation-{issue.identifier}",
             )
+            interrupted = await self._await_guaranteed_cleanup(cleanup_task)
+            try:
+                cleanup_task.result()
+            except BaseException as exc:
+                logger.error(
+                    "Admission compensation task failed issue=%s reason=%s error=%s",
+                    issue.identifier,
+                    reason,
+                    exc,
+                )
+            if failed_running_entry is not None:
+                cleanup_secured = (
+                    auditor_plan is None
+                    or self._unadmitted_audit_recovery_secured(
+                        failed_running_entry.audit_attempt_id
+                    )
+                )
+                if cleanup_secured:
+                    self._remove_running_entry(issue.id, failed_running_entry)
+                else:
+                    failed_running_entry.retirement_pending = True
+                    logger.critical(
+                        "Retaining unpublished auditor runtime because rollback "
+                        "authority is not durable issue=%s audit=%s attempt=%s",
+                        failed_running_entry.identifier,
+                        failed_running_entry.audit_id,
+                        failed_running_entry.audit_attempt_id,
+                    )
+            if interrupted:
+                raise asyncio.CancelledError
 
         # Belt-and-suspenders: the regular dispatch loop already checks
         # _paused via _should_dispatch, but the retry path
         # (_on_retry_timer -> _dispatch) bypasses that check. Reject here
         # too so a retry that was already in flight when pause() was
         # called can't silently re-dispatch.
-        if self._dispatch_is_blocked():
+        if self._dispatch_is_blocked(issue):
             logger.info(
                 "Skipping dispatch of %s: orchestrator dispatch blocked",
                 issue.identifier,
             )
-            self.state.claimed.discard(issue.id)
-            self.state.claimed_issues.pop(issue.id, None)
-            await _release_preflight(
+            await _compensate_before_admission(
                 "dispatch aborted because orchestrator dispatch is blocked"
             )
-            if auditor_plan:
-                self._release_audit_branch_claim(
-                    auditor_plan.branch_key,
-                    auditor_plan.attempt_id,
-                )
-            return
+            return False
         # A terminal transition places this marker before awaiting durable audit
         # staging.  Retry callbacks may already have popped their RetryEntry, so
         # this fence is the only state visible to an in-flight dispatch.
@@ -38512,7 +37656,7 @@ class Orchestrator:
             )
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
-            return
+            return False
         if implementation_dispatch and self._has_live_owner_claim(
             issue.id,
             issue.project_id,
@@ -38523,7 +37667,7 @@ class Orchestrator:
             )
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
-            return
+            return False
         self.state.reject_streak.pop(issue.id, None)
 
         # Resolve profile and compute natural_profile_name for default_first_dispatch.
@@ -38646,7 +37790,15 @@ class Orchestrator:
                 self._tick_pool,
                 lambda: tracker.fetch_issue_states_by_ids([issue.id]),
             )
-        except Exception as exc:
+        except BaseException as exc:
+            if not isinstance(exc, Exception):
+                # Auditor plans are durable before entering this method. A
+                # cancellation at the very first tracker await therefore
+                # still owes exact-attempt rollback before it may escape.
+                await _compensate_before_admission(
+                    "dispatch cancelled during initial tracker refresh"
+                )
+                raise
             logger.debug(
                 "Pre-dispatch state recheck failed for %s: %s — proceeding anyway",
                 issue.identifier,
@@ -38670,18 +37822,15 @@ class Orchestrator:
                     issue.identifier,
                     cur_state,
                 )
-                self.state.claimed.discard(issue.id)
-                self.state.claimed_issues.pop(issue.id, None)
-                if auditor_plan:
-                    self._release_audit_branch_claim(
-                        auditor_plan.branch_key,
-                        auditor_plan.attempt_id,
+                if auditor_plan is not None or duplicate_preflight:
+                    await _compensate_before_admission(
+                        "dispatch aborted because task left its dispatch lane"
                     )
+                else:
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
                 if cur_state in terminal or implementation_blocked:
                     self.state.completed.add(issue.id)
-                await _release_preflight(
-                    "dispatch aborted because task left the implementation lane"
-                )
                 # Drop any pending retry too — implementation no longer owns
                 # this task.
                 self._cancel_retry_for_issue(
@@ -38691,7 +37840,7 @@ class Orchestrator:
                     reason="dispatch state recheck withdrew implementation lane",
                     notify=False,
                 )
-                return
+                return False
 
             refreshed_issue = refreshed[0]
             if not refreshed_issue.project_id:
@@ -38712,12 +37861,10 @@ class Orchestrator:
                         "fingerprint changed before worker start",
                         issue.identifier,
                     )
-                    self.state.claimed.discard(issue.id)
-                    self.state.claimed_issues.pop(issue.id, None)
-                    await _release_preflight(
+                    await _compensate_before_admission(
                         "dispatch aborted because claim or task fingerprint changed"
                     )
-                    return
+                    return False
             elif auditor_plan is None and not self._implementation_duplicate_screening_ready(
                 refreshed_issue
             ):
@@ -38728,17 +37875,15 @@ class Orchestrator:
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
-                return
+                return False
 
         # Implementation work moves to In Progress. Duplicate preflight is a
         # qualification lane, so its tracker state remains Open. Auditors
         # are read-only and never mutate the task's status either.
         retry_status_write_attempted = False
-        retry_status_write_error = False
+        retry_status_write_error: BaseException | None = None
         retry_pre_write_issue = issue
-        retry_intended_active_state = _configured_in_progress_state(
-            self.config.tracker_active_states
-        )
+        retry_intended_active_state = implementation_intended_status
         if implementation_dispatch:
             async with self.issue_transition_lock(issue.id):
                 # The first recheck above protects against stale candidate
@@ -38761,7 +37906,7 @@ class Orchestrator:
                         )
                         self.state.claimed.discard(issue.id)
                         self.state.claimed_issues.pop(issue.id, None)
-                        return
+                        return False
                 if issue.id in self.state.completed:
                     logger.info(
                         "Aborting implementation dispatch of %s before tracker "
@@ -38770,7 +37915,7 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
-                    return
+                    return False
                 try:
                     locked_state = await asyncio.get_event_loop().run_in_executor(
                         self._tick_pool,
@@ -38803,7 +37948,7 @@ class Orchestrator:
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
                     self.state.completed.add(issue.id)
-                    return
+                    return False
                 if retry_entry is not None:
                     retry_pre_write_issue = locked_state[0] if locked_state else issue
                     if not retry_pre_write_issue.project_id:
@@ -38831,7 +37976,7 @@ class Orchestrator:
                         )
                         self.state.claimed.discard(issue.id)
                         self.state.claimed_issues.pop(issue.id, None)
-                        return
+                        return False
                     # Persist the authorized status intent before the tracker
                     # write.  A process restart can then recognize either the
                     # source state (crash before commit) or the intended active
@@ -38840,13 +37985,26 @@ class Orchestrator:
                     self._persist_retry_entries()
                 try:
                     retry_status_write_attempted = retry_entry is not None
+                    implementation_status_write_attempted = True
+                    observed_source_status = (
+                        locked_state[0].state if locked_state else issue.state
+                    )
+                    implementation_restore_status = (
+                        canonicalize_status(retry_entry.failed_status)
+                        if retry_entry is not None
+                        and retry_entry.dispatch_status is not None
+                        and _state_key(observed_source_status)
+                        == _state_key(retry_entry.dispatch_status)
+                        and retry_entry.failed_status is not None
+                        else observed_source_status
+                    )
                     await asyncio.get_event_loop().run_in_executor(
                         self._tick_pool,
                         lambda: tracker.update_issue(
                             issue.identifier, status=IN_PROGRESS
                         ),
                     )
-                except Exception as exc:
+                except BaseException as exc:
                     logger.warning(
                         "Failed to set in_progress for %s: %s — aborting dispatch",
                         issue.identifier,
@@ -38854,21 +38012,13 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
-                    if retry_entry is None:
-                        return
-                    retry_status_write_error = True
+                    retry_status_write_error = exc
 
-        if retry_status_write_error and retry_entry is not None:
-            await self._recover_aborted_retry_dispatch(
-                issue,
-                retry_entry,
-                tracker,
-                restore_status=retry_pre_write_issue.state,
-                intended_active_state=retry_intended_active_state,
-                status_write_attempted=True,
-                reason="status write failure",
-            )
-            return
+        if retry_status_write_error is not None:
+            await _compensate_before_admission("status write failure")
+            if not isinstance(retry_status_write_error, Exception):
+                raise retry_status_write_error
+            return False
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -38876,38 +38026,17 @@ class Orchestrator:
         # last writer wins: if another oompah instance claimed the issue after
         # us, our run ID will have been overwritten and we abort rather than
         # starting a duplicate agent.
-        claimed_assignment_id: str | None = None
-
-        async def _clear_dispatch_claim() -> None:
-            """Withdraw only the claim written by this dispatch attempt."""
-            if not claimed_assignment_id:
-                return
-            try:
-                claimed_meta = await asyncio.get_event_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: tracker.get_metadata(issue.identifier),
-                )
-                if claimed_meta.get("oompah.agent_run_id") != claimed_assignment_id:
-                    return
-                await asyncio.get_event_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: tracker.set_metadata_field(
-                        issue.identifier, "oompah.agent_run_id", None
-                    ),
-                )
-            except Exception as exc:  # noqa: BLE001 - cleanup is best effort
-                logger.debug(
-                    "Could not withdraw stale dispatch claim for %s: %s",
-                    issue.identifier,
-                    exc,
-                )
-
         if auditor_plan is None and (issue.tracker_kind or "").strip().lower() in {
             "github_issues",
             "oompah_md",
         }:
             _claim_run_id = str(uuid.uuid4())
             try:
+                prior_meta = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.get_metadata(issue.identifier),
+                )
+                prior_assignment_id = prior_meta.get("oompah.agent_run_id")
                 await asyncio.get_event_loop().run_in_executor(
                     self._tick_pool,
                     lambda rid=_claim_run_id: tracker.set_metadata_field(
@@ -38937,10 +38066,11 @@ class Orchestrator:
                             reason="shared tracker dispatch owner replaced retry",
                             notify=False,
                         )
-                    await _release_preflight(
-                        "dispatch aborted after shared tracker claim race"
-                    )
-                    return
+                    if duplicate_preflight:
+                        await _compensate_before_admission(
+                            "dispatch aborted after shared tracker claim race"
+                        )
+                    return False
                 logger.debug(
                     "GitHub claim confirmed for %s run_id=%s",
                     issue.identifier,
@@ -38954,7 +38084,12 @@ class Orchestrator:
                 if retry_entry is not None:
                     retry_entry.dispatch_assignment_id = claimed_assignment_id
                     self._persist_retry_entries()
-            except Exception as exc:
+            except BaseException as exc:
+                if not isinstance(exc, Exception):
+                    await _compensate_before_admission(
+                        "dispatch cancelled during shared tracker claim"
+                    )
+                    raise
                 logger.warning(
                     "GitHub run-id claim protocol failed for %s: %s"
                     " — proceeding without claim verification",
@@ -38962,80 +38097,145 @@ class Orchestrator:
                     exc,
                 )
 
-        running_issue = (
-            issue
-            if auditor_plan is not None
-            else replace(
-                issue,
-                state=(
-                    issue.state
-                    if duplicate_preflight
-                    else _configured_in_progress_state(self.config.tracker_active_states)
-                ),
-            )
+        # Keep ordinary final tracker observation and RunningEntry publication
+        # in the same authority transaction as accepted worker submissions.
+        # Retries retain their dedicated authority/rollback transaction, which
+        # can re-enter this lock while recovering a failed status write.
+        publication_transition = (
+            self.issue_transition_lock(issue.id)
+            if implementation_dispatch and retry_entry is None
+            else contextlib.nullcontext()
         )
-        try:
-            post_update = await asyncio.get_event_loop().run_in_executor(
-                self._tick_pool,
-                lambda: tracker.fetch_issue_states_by_ids([issue.id]),
-            )
-        except Exception as exc:
-            logger.debug(
-                "Post-dispatch state refresh failed for %s: %s — using optimistic in_progress snapshot",
-                issue.identifier,
-                exc,
-            )
-            post_update = []
-        if post_update:
-            running_issue = post_update[0]
-            if not running_issue.project_id:
-                running_issue.project_id = issue.project_id
-            self._preserve_accepted_submission_authority(issue, running_issue)
-            for attr in (
-                "work_branch",
-                "branch_name",
-                "target_branch",
-                "review_url",
-                "review_number",
-            ):
-                if not getattr(running_issue, attr, None) and getattr(
+        # This lock is acquired before provider admission, preserving lock
+        # ordering and preventing a submission from observing no runtime.
+        async with publication_transition:
+            running_issue = (
+                issue
+                if auditor_plan is not None
+                else replace(
                     issue,
-                    attr,
-                    None,
-                ):
-                    setattr(running_issue, attr, getattr(issue, attr))
-            post_state = _state_key(running_issue.state)
-            if implementation_dispatch and (
-                issue.id in self.state.completed
-                or post_state not in self._retryable_state_keys()
-            ):
-                retry_dimensions: list[str] = []
-                if retry_entry is not None:
-                    retry_dimensions.extend(
-                        self._retry_post_write_mismatches(
-                            retry_pre_write_issue,
-                            running_issue,
-                            retry_entry,
-                            retry_intended_active_state,
-                            claimed_assignment_id,
-                        )
+                    state=(
+                        issue.state
+                        if duplicate_preflight
+                        else _configured_in_progress_state(self.config.tracker_active_states)
+                    ),
+                )
+            )
+            try:
+                post_update = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+                )
+            except BaseException as exc:
+                if not isinstance(exc, Exception):
+                    await _compensate_before_admission(
+                        "dispatch cancelled during post-status refresh",
+                        transition_locked=implementation_dispatch
+                        and retry_entry is None,
                     )
-                    if issue.id in self.state.completed:
-                        retry_dimensions.append("terminal_owner")
+                    raise
+                logger.debug(
+                    "Post-dispatch state refresh failed for %s: %s — using optimistic in_progress snapshot",
+                    issue.identifier,
+                    exc,
+                )
+                post_update = []
+            if post_update:
+                running_issue = post_update[0]
+                if not running_issue.project_id:
+                    running_issue.project_id = issue.project_id
+                self._preserve_accepted_submission_authority(issue, running_issue)
+                for attr in (
+                    "work_branch",
+                    "branch_name",
+                    "target_branch",
+                    "review_url",
+                    "review_number",
+                ):
+                    if not getattr(running_issue, attr, None) and getattr(
+                        issue,
+                        attr,
+                        None,
+                    ):
+                        setattr(running_issue, attr, getattr(issue, attr))
+                post_state = _state_key(running_issue.state)
+                if implementation_dispatch and (
+                    issue.id in self.state.completed
+                    or post_state not in self._retryable_state_keys()
+                ):
+                    retry_dimensions: list[str] = []
+                    if retry_entry is not None:
+                        retry_dimensions.extend(
+                            self._retry_post_write_mismatches(
+                                retry_pre_write_issue,
+                                running_issue,
+                                retry_entry,
+                                retry_intended_active_state,
+                                claimed_assignment_id,
+                            )
+                        )
+                        if issue.id in self.state.completed:
+                            retry_dimensions.append("terminal_owner")
+                    logger.info(
+                        "Aborting implementation dispatch of %s before worker start: "
+                        "post-update state=%r terminal_fence=%s "
+                        "authority_dimensions=%s",
+                        issue.identifier,
+                        post_state,
+                        issue.id in self.state.completed,
+                        list(dict.fromkeys(retry_dimensions)),
+                        extra={
+                            "retry_authority": {
+                                "stage": "post_update_lane",
+                                "issue_id": issue.id,
+                                "identifier": issue.identifier,
+                                "dimensions": list(dict.fromkeys(retry_dimensions)),
+                            }
+                        }
+                        if retry_entry is not None
+                        else None,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    self.state.completed.add(issue.id)
+                    await _clear_dispatch_claim()
+                    self._cancel_retry_for_issue(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=issue.project_id,
+                        reason="post-dispatch state recheck withdrew implementation lane",
+                        notify=False,
+                    )
+                    return False
+                if (
+                    auditor_plan is None
+                    and not duplicate_preflight
+                    and _state_key(running_issue.state) != "in_progress"
+                ):
+                    running_issue = replace(
+                        running_issue,
+                        state=_configured_in_progress_state(
+                            self.config.tracker_active_states
+                        ),
+                    )
+
+            # The terminal fence may have been installed while the post-update
+            # tracker read was in flight.  There are no awaits between this check
+            # and worker registration, so a successful check is the final ownership
+            # boundary before an implementation worker can start.
+            if implementation_dispatch and issue.id in self.state.completed:
                 logger.info(
                     "Aborting implementation dispatch of %s before worker start: "
-                    "post-update state=%r terminal_fence=%s "
+                    "terminal transition fence appeared during state refresh "
                     "authority_dimensions=%s",
                     issue.identifier,
-                    post_state,
-                    issue.id in self.state.completed,
-                    list(dict.fromkeys(retry_dimensions)),
+                    ["terminal_owner"],
                     extra={
                         "retry_authority": {
-                            "stage": "post_update_lane",
+                            "stage": "terminal_fence",
                             "issue_id": issue.id,
                             "identifier": issue.identifier,
-                            "dimensions": list(dict.fromkeys(retry_dimensions)),
+                            "dimensions": ["terminal_owner"],
                         }
                     }
                     if retry_entry is not None
@@ -39043,290 +38243,257 @@ class Orchestrator:
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
-                self.state.completed.add(issue.id)
                 await _clear_dispatch_claim()
-                self._cancel_retry_for_issue(
-                    issue_id=issue.id,
-                    identifier=issue.identifier,
-                    project_id=issue.project_id,
-                    reason="post-dispatch state recheck withdrew implementation lane",
-                    notify=False,
-                )
-                return
-            if (
-                auditor_plan is None
-                and not duplicate_preflight
-                and _state_key(running_issue.state) != "in_progress"
-            ):
-                running_issue = replace(
-                    running_issue,
-                    state=_configured_in_progress_state(
-                        self.config.tracker_active_states
-                    ),
-                )
+                if retry_entry is not None:
+                    self._cancel_retry_for_issue(
+                        issue_id=issue.id,
+                        identifier=issue.identifier,
+                        project_id=issue.project_id,
+                        reason="terminal transition owns pre-start retry",
+                        notify=False,
+                    )
+                return False
 
-        # The terminal fence may have been installed while the post-update
-        # tracker read was in flight.  There are no awaits between this check
-        # and worker registration, so a successful check is the final ownership
-        # boundary before an implementation worker can start.
-        if implementation_dispatch and issue.id in self.state.completed:
-            logger.info(
-                "Aborting implementation dispatch of %s before worker start: "
-                "terminal transition fence appeared during state refresh "
-                "authority_dimensions=%s",
-                issue.identifier,
-                ["terminal_owner"],
-                extra={
-                    "retry_authority": {
-                        "stage": "terminal_fence",
-                        "issue_id": issue.id,
-                        "identifier": issue.identifier,
-                        "dimensions": ["terminal_owner"],
-                    }
-                }
-                if retry_entry is not None
-                else None,
-            )
-            self.state.claimed.discard(issue.id)
-            self.state.claimed_issues.pop(issue.id, None)
-            await _clear_dispatch_claim()
-            if retry_entry is not None:
-                self._cancel_retry_for_issue(
-                    issue_id=issue.id,
-                    identifier=issue.identifier,
-                    project_id=issue.project_id,
-                    reason="terminal transition owns pre-start retry",
-                    notify=False,
-                )
-            return
-
-        # Final compare-and-swap for a timer-driven implementation retry.  The
-        # tracker read above is the fresh authority snapshot; the lock makes
-        # this check and retry removal indivisible with API cancellation.
-        if implementation_dispatch and retry_entry is not None:
-            retry_abort_dimensions: tuple[str, ...] = ()
-            with self._retry_authority_lock:
-                # The dispatcher owns the status transition from the captured
-                # retry state to the configured active state.  Validate that
-                # intended post-write state while comparing the other
-                # authority dimensions against the pre-write snapshot.
-                retry_abort_dimensions = self._retry_post_write_mismatches(
-                    retry_pre_write_issue,
-                    post_update[0] if post_update else None,
-                    retry_entry,
-                    retry_intended_active_state,
-                    claimed_assignment_id,
-                )
-                if (
-                    retry_entry.cancelled
-                    or self._retry_dispatching.get(issue.id) is not retry_entry
-                    or retry_abort_dimensions
-                ):
-                    if retry_entry.cancelled and "cancelled" not in retry_abort_dimensions:
-                        retry_abort_dimensions = (*retry_abort_dimensions, "cancelled")
+            # Pre-publication compare-and-swap for a timer-driven implementation
+            # retry. The retry remains owned through task/RunningEntry publication;
+            # final admission repeats this check and consumes it atomically there.
+            if implementation_dispatch and retry_entry is not None:
+                retry_abort_dimensions: tuple[str, ...] = ()
+                with self._retry_authority_lock:
+                    # The dispatcher owns the status transition from the captured
+                    # retry state to the configured active state.  Validate that
+                    # intended post-write state while comparing the other
+                    # authority dimensions against the pre-write snapshot.
+                    retry_abort_dimensions = self._retry_post_write_mismatches(
+                        retry_pre_write_issue,
+                        post_update[0] if post_update else None,
+                        retry_entry,
+                        retry_intended_active_state,
+                        claimed_assignment_id,
+                    )
                     if (
-                        self._retry_dispatching.get(issue.id) is not retry_entry
-                        and "owner" not in retry_abort_dimensions
+                        retry_entry.cancelled
+                        or self._retry_dispatching.get(issue.id) is not retry_entry
+                        or retry_abort_dimensions
                     ):
-                        retry_abort_dimensions = (*retry_abort_dimensions, "owner")
-                    logger.info(
-                        "Aborting retry before worker start issue_id=%s "
-                        "issue_identifier=%s authority_dimensions=%s",
-                        issue.id,
-                        issue.identifier,
-                        list(retry_abort_dimensions),
-                        extra={
-                            "retry_authority": {
-                                "stage": "post_write",
-                                "issue_id": issue.id,
-                                "identifier": issue.identifier,
-                                "dimensions": list(retry_abort_dimensions),
-                            }
-                        },
+                        if retry_entry.cancelled and "cancelled" not in retry_abort_dimensions:
+                            retry_abort_dimensions = (*retry_abort_dimensions, "cancelled")
+                        if (
+                            self._retry_dispatching.get(issue.id) is not retry_entry
+                            and "owner" not in retry_abort_dimensions
+                        ):
+                            retry_abort_dimensions = (*retry_abort_dimensions, "owner")
+                        logger.info(
+                            "Aborting retry before worker start issue_id=%s "
+                            "issue_identifier=%s authority_dimensions=%s",
+                            issue.id,
+                            issue.identifier,
+                            list(retry_abort_dimensions),
+                            extra={
+                                "retry_authority": {
+                                    "stage": "post_write",
+                                    "issue_id": issue.id,
+                                    "identifier": issue.identifier,
+                                    "dimensions": list(retry_abort_dimensions),
+                                }
+                            },
+                        )
+                        self.state.claimed.discard(issue.id)
+                        self.state.claimed_issues.pop(issue.id, None)
+                if retry_abort_dimensions:
+                    await _clear_dispatch_claim()
+                    await self._recover_aborted_retry_dispatch(
+                        issue,
+                        retry_entry,
+                        tracker,
+                        restore_status=retry_pre_write_issue.state,
+                        intended_active_state=retry_intended_active_state,
+                        status_write_attempted=retry_status_write_attempted,
+                        observed_post_write=post_update[0] if post_update else None,
+                        reason="post-write authority mismatch",
                     )
-                    self.state.claimed.discard(issue.id)
-                    self.state.claimed_issues.pop(issue.id, None)
-                else:
-                    self.state.retry_attempts.pop(issue.id, None)
-                    self._retry_dispatching.pop(issue.id, None)
-                    retry_entry.cancelled = True
-            if retry_abort_dimensions:
-                await _clear_dispatch_claim()
-                await self._recover_aborted_retry_dispatch(
-                    issue,
-                    retry_entry,
-                    tracker,
-                    restore_status=retry_pre_write_issue.state,
-                    intended_active_state=retry_intended_active_state,
-                    status_write_attempted=retry_status_write_attempted,
-                    observed_post_write=post_update[0] if post_update else None,
-                    reason="post-write authority mismatch",
-                )
-                return
-        else:
-            # Ordinary dispatches should never inherit an older retry.  This
-            # also handles an operator/manual assignment racing a timer.
-            self._cancel_retry_for_issue(
-                issue_id=issue.id,
-                identifier=issue.identifier,
-                project_id=issue.project_id,
-                reason="replacement assignment",
-                notify=False,
-            )
-
-        if auditor_plan is not None:
-            budget_error = self._reserve_audit_budget_capacity(
-                running_issue,
-                auditor_plan.candidate,
-                new_audit_attempt=True,
-            )
-            if budget_error is not None:
-                self.state.claimed.discard(issue.id)
-                self.state.claimed_issues.pop(issue.id, None)
-                self._release_audit_branch_claim(
-                    auditor_plan.branch_key,
-                    auditor_plan.attempt_id,
-                )
-                self._post_comment(
-                    issue.identifier,
-                    "Auditor launch blocked before provider contact because projected "
-                    "budget capacity could not be durably established. "
-                    f"{budget_error} The "
-                    "attempt will be recovered for retry.",
+                    return False
+            else:
+                # Ordinary dispatches should never inherit an older retry.  This
+                # also handles an operator/manual assignment racing a timer.
+                self._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
                     project_id=issue.project_id,
+                    reason="replacement assignment",
+                    notify=False,
                 )
-                return
 
-        now = datetime.now(timezone.utc)
-        run_id = uuid.uuid4().hex
-        assignment_id = claimed_assignment_id or getattr(
-            running_issue, "assignment_id", None
-        )
-        authority_generation = self._retry_authority_generation(
-            running_issue,
-            attempt=attempt,
-            assignment_id=assignment_id,
-        )
-        running_entry = RunningEntry(
-            worker_task=None,
-            identifier=issue.identifier,
-            issue=running_issue,
-            session=None,
-            retry_attempt=attempt or 0,
-            started_at=now,
-            agent_profile_name=profile_name,
-            natural_profile_name=natural_profile_name,
-            duplicate_preflight=duplicate_preflight,
-            duplicate_preflight_claim_id=(
-                duplicate_preflight_claim.claim_id
-                if duplicate_preflight_claim is not None
-                else None
-            ),
-            duplicate_preflight_fingerprint=(
-                duplicate_preflight_claim.task_fingerprint
-                if duplicate_preflight_claim is not None
-                else None
-            ),
-            is_auditor=auditor_plan is not None,
-            audit_id=auditor_plan.audit_id if auditor_plan else None,
-            audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
-            branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
-            # Auditor admission must be able to verify its durable budget
-            # reservation before any workspace/provider work fills telemetry
-            # fields.  Populate the exact planned identity at registration so
-            # owner maintenance cannot observe a runnable but identity-less
-            # auditor in that interval.
-            provider_id=(
-                auditor_plan.candidate.provider_id if auditor_plan is not None else None
-            ),
-            model_name=(
-                (
-                    self._canonical_auditor_candidate(
-                        auditor_plan.candidate
-                    ).model
-                    if auditor_plan is not None
-                    else None
-                )
-            ),
-            assignment_id=assignment_id,
-            run_id=run_id,
-            authority_generation=authority_generation,
-            auditor_authority_generation=auditor_registration_generation,
-        )
-        if not self._register_running_entry(issue.id, running_entry):
-            self.state.claimed.discard(issue.id)
-            self.state.claimed_issues.pop(issue.id, None)
-            if auditor_plan is not None:
-                reservation_key = self._audit_reservation_key_for_issue(running_issue)
-                if not self._release_audit_budget_reservation(reservation_key):
-                    logger.error(
-                        "Stale auditor registration for %s retained its budget "
-                        "reservation because persistence failed",
-                        issue.identifier,
+            now = datetime.now(timezone.utc)
+            run_id = uuid.uuid4().hex
+            assignment_id = claimed_assignment_id or getattr(
+                running_issue, "assignment_id", None
+            )
+            authority_generation = self._retry_authority_generation(
+                running_issue,
+                attempt=attempt,
+                assignment_id=assignment_id,
+            )
+            worker_kwargs = (
+                {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
+            )
+
+            # The lifecycle fence and final admission are one transaction. The
+            # publication gate makes this safe even for an injected/eager scheduler
+            # that runs the task reentrantly from create_task: provider/workspace
+            # setup cannot begin until RunningEntry and retry ownership are committed.
+            worker_task: asyncio.Task | None = None
+            admission_error: BaseException | None = None
+            worker_gate = asyncio.Event()
+            retry_admission_mismatches: tuple[str, ...] = ()
+            with self._provider_admission_lock:
+                if not self._dispatch_is_blocked(issue):
+                    worker_coroutine = self._run_worker(
+                        running_issue,
+                        attempt,
+                        profile,
+                        run_id=run_id,
+                        **worker_kwargs,
                     )
-                self._release_audit_branch_claim(
-                    auditor_plan.branch_key,
-                    auditor_plan.attempt_id,
-                )
-            logger.info(
-                "Aborting auditor dispatch of %s: owner override changed "
-                "project/task authority before worker registration",
-                issue.identifier,
-            )
-            return
 
-        worker_kwargs = (
-            {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
-        )
-        # OOMPAH-854: re-check quiesce/pause immediately before the provider
-        # task is spawned.  OOMPAH-865 deliberately registers the auditor
-        # first so owner maintenance can observe its durable identity; unwind
-        # that provisional registration if drain began in the final window.
-        if self._dispatch_is_blocked():
+                    async def _run_published_worker() -> Any:
+                        started = False
+                        try:
+                            await worker_gate.wait()
+                            started = True
+                            return await worker_coroutine
+                        finally:
+                            if not started:
+                                worker_coroutine.close()
+
+                    published_worker_coroutine = _run_published_worker()
+                    running_entry: RunningEntry | None = None
+                    try:
+                        if implementation_dispatch and retry_entry is not None:
+                            with self._retry_authority_lock:
+                                retry_admission_mismatches = (
+                                    self._retry_post_write_mismatches(
+                                        retry_pre_write_issue,
+                                        post_update[0] if post_update else None,
+                                        retry_entry,
+                                        retry_intended_active_state,
+                                        claimed_assignment_id,
+                                    )
+                                )
+                                if retry_entry.cancelled:
+                                    retry_admission_mismatches = (
+                                        *retry_admission_mismatches,
+                                        "cancelled",
+                                    )
+                                if self._retry_dispatching.get(issue.id) is not retry_entry:
+                                    retry_admission_mismatches = (
+                                        *retry_admission_mismatches,
+                                        "owner",
+                                    )
+                            retry_admission_mismatches = tuple(
+                                dict.fromkeys(retry_admission_mismatches)
+                            )
+                            if retry_admission_mismatches:
+                                published_worker_coroutine.close()
+                                worker_coroutine.close()
+                                raise RuntimeError(
+                                    "retry authority changed during final admission: "
+                                    + ", ".join(retry_admission_mismatches)
+                                )
+                        worker_task = asyncio.create_task(
+                            published_worker_coroutine,
+                            name=f"worker-{issue.identifier}",
+                        )
+                        if worker_task.done():
+                            raise RuntimeError("worker task terminated before publication")
+                        running_entry = RunningEntry(
+                            worker_task=worker_task,
+                            identifier=issue.identifier,
+                            issue=running_issue,
+                            session=None,
+                            retry_attempt=attempt or 0,
+                            started_at=now,
+                            agent_profile_name=profile_name,
+                            natural_profile_name=natural_profile_name,
+                            duplicate_preflight=duplicate_preflight,
+                            duplicate_preflight_claim_id=(
+                                duplicate_preflight_claim.claim_id
+                                if duplicate_preflight_claim is not None
+                                else None
+                            ),
+                            duplicate_preflight_fingerprint=(
+                                duplicate_preflight_claim.task_fingerprint
+                                if duplicate_preflight_claim is not None
+                                else None
+                            ),
+                            is_auditor=auditor_plan is not None,
+                            audit_id=auditor_plan.audit_id if auditor_plan else None,
+                            audit_attempt_id=(
+                                auditor_plan.attempt_id if auditor_plan else None
+                            ),
+                            branch_key=(
+                                auditor_plan.branch_key
+                                if auditor_plan
+                                else audit_branch_key(issue)
+                            ),
+                            assignment_id=assignment_id,
+                            run_id=run_id,
+                            authority_generation=authority_generation,
+                        )
+                        self._register_running_entry(issue.id, running_entry)
+                        if implementation_dispatch and retry_entry is not None:
+                            with self._retry_authority_lock:
+                                if (
+                                    retry_entry.cancelled
+                                    or self._retry_dispatching.get(issue.id) is not retry_entry
+                                ):
+                                    raise RuntimeError(
+                                        "retry authority revoked during worker publication"
+                                    )
+                                self.state.retry_attempts.pop(issue.id, None)
+                                self._retry_dispatching.pop(issue.id, None)
+                                retry_entry.cancelled = True
+                                self._persist_retry_entries()
+                        worker_gate.set()
+                    except BaseException as exc:  # task publication is admission
+                        admission_error = exc
+                        if worker_task is None:
+                            # ``create_task`` did not take coroutine ownership.
+                            published_worker_coroutine.close()
+                            worker_coroutine.close()
+                        else:
+                            # The gate prevents the raw worker from receiving its
+                            # first turn even under eager/reentrant task creation.
+                            worker_task.cancel()
+                            if running_entry is not None:
+                                # Retain the published owner until compensation has
+                                # secured any pre-transport audit rollback.
+                                failed_running_entry = running_entry
+                            worker_task = None
+
+        if admission_error is not None:
+            logger.error(
+                "Worker task creation failed before admission issue=%s: %s",
+                issue.identifier,
+                admission_error,
+            )
+            await _compensate_before_admission(
+                "worker task creation failed before admission"
+            )
+            if not isinstance(admission_error, Exception):
+                raise admission_error
+            return False
+
+        if worker_task is None:
             logger.info(
-                "Skipping provider spawn of %s: orchestrator dispatch blocked during final fence",
+                "Skipping provider admission of %s: orchestrator dispatch "
+                "blocked at final fence",
                 issue.identifier,
             )
-            self._remove_running_entry(issue.id, running_entry)
-            self.state.claimed.discard(issue.id)
-            self.state.claimed_issues.pop(issue.id, None)
-            if auditor_plan is not None:
-                self._release_audit_budget_reservation(
-                    self._audit_reservation_key_for_issue(running_issue)
-                )
-                self._release_audit_branch_claim(
-                    auditor_plan.branch_key,
-                    auditor_plan.attempt_id,
-                )
-            await _release_preflight(
+            await _compensate_before_admission(
                 "provider spawn aborted because orchestrator dispatch is blocked"
             )
-            return
-        try:
-            worker_task = asyncio.create_task(
-                self._run_worker(
-                    running_issue,
-                    attempt,
-                    profile,
-                    run_id=run_id,
-                    **worker_kwargs,
-                ),
-                name=f"worker-{issue.identifier}",
-            )
-        except Exception:
-            self._remove_running_entry(issue.id, running_entry)
-            self.state.claimed.discard(issue.id)
-            self.state.claimed_issues.pop(issue.id, None)
-            if auditor_plan is not None:
-                self._release_audit_budget_reservation(
-                    self._audit_reservation_key_for_issue(running_issue)
-                )
-                self._release_audit_branch_claim(
-                    auditor_plan.branch_key,
-                    auditor_plan.attempt_id,
-                )
-            raise
-        running_entry.worker_task = worker_task
+            return False
 
         # Post dispatch comment in thread to avoid blocking event loop
         if auditor_plan is not None:
@@ -39371,6 +38538,7 @@ class Orchestrator:
             },
         )
         self._notify_observers()
+        return True
 
     def _agent_action_policy(self, issue: Issue) -> AgentActionPolicy:
         """Build immutable authority for one dispatched worker.
@@ -39982,78 +39150,40 @@ class Orchestrator:
             return
         mode = (profile.mode if profile else "auto").lower()
 
-        # CLI profiles do not consume provider dispatch targets.  Validate
-        # that an independent auditor path exists, then fence the actual CLI
-        # contributor identity before starting the subprocess.  Keeping this
-        # ahead of target resolution also preserves the CLI path's historical
-        # independence from provider-role rotation and project whitelists.
         if mode == "cli":
-            if auditor_plan is None:
-                _unused, reservation_error = (
-                    await self._reserve_auditor_for_contributor(issue, [])
-                )
-                if reservation_error is not None:
-                    error_msg = (
-                        "Implementation dispatch blocked before start: "
-                        f"{reservation_error}"
-                    )
-                    await self._on_worker_exit(
-                        issue.id, "abnormal", error_msg, **worker_identity
-                    )
-                    return
-                evidence_error = await self._stage_work_contributor_launch(
-                    issue,
-                    run_id=run_id,
-                    provider_id="cli",
-                    provider_name="cli",
-                    model="cli-managed",
-                )
-                if evidence_error is not None:
-                    await self._on_worker_exit(
-                        issue.id, "abnormal", evidence_error, **worker_identity
-                    )
-                    return
             await self._run_cli_worker(issue, attempt, profile, **worker_identity)
             return
 
-        # Resolve the contributor's complete candidate list before selecting a
-        # worker.  The terminal-audit reservation below applies to initial
-        # dispatch, retry continuations, and profile rotations alike.
+        # acp / api / auto: resolve ordered dispatch targets for candidate failover.
         targets = self._resolve_dispatch_targets(profile) if profile else []
 
         # Apply project-level provider whitelist filter (TASK-407.10).
         # When the project has a non-empty provider_whitelist, only targets
         # whose provider.name is in that whitelist are eligible.  An empty
         # whitelist (the default) leaves targets unchanged.
-        try:
-            targets, whitelist_filtered = self._apply_project_provider_whitelist(
-                targets, issue
-            )
-        except WorkflowError as exc:
-            error_msg = f"Implementation dispatch blocked before start: {exc}"
-            logger.error("%s (issue=%s)", error_msg, issue.identifier)
-            await self._on_worker_exit(
-                issue.id,
-                "abnormal",
-                error_msg,
-                **worker_identity,
-            )
-            return
+        targets, whitelist_filtered = self._apply_project_provider_whitelist(
+            targets, issue
+        )
 
         if not targets and whitelist_filtered:
-            # An explicit project restriction owns this outcome; report it
-            # before auditor reservation so a missing role cannot obscure the
-            # operator's directly actionable whitelist configuration.
+            # All candidates were removed by the project provider whitelist.
+            # Do NOT fall through to ACP-no-target or CLI — that would bypass
+            # the operator's explicit restriction.  Surface a clear error.
+            project = (
+                self.project_store.get(issue.project_id) if issue.project_id else None
+            )
+            whitelist = list(getattr(project, "provider_whitelist", []) or [])
             error_msg = (
-                "Project provider whitelist excludes all available "
+                f"Project provider whitelist {whitelist!r} excludes all available "
                 f"role candidates for issue {issue.identifier}. "
                 "No agent started. Add a whitelisted provider to the role assignment "
                 "or expand the project provider whitelist."
             )
             logger.error(
                 "Dispatch blocked by project provider whitelist for issue %s: "
-                "filtered all candidates",
+                "whitelist=%s filtered all candidates",
                 issue.identifier,
+                whitelist,
             )
             await self._on_worker_exit(
                 issue.id,
@@ -40063,41 +39193,10 @@ class Orchestrator:
             )
             return
 
-        if auditor_plan is None:
-            targets, reservation_error = await self._reserve_auditor_for_contributor(
-                issue, targets
-            )
-            if reservation_error is not None:
-                error_msg = (
-                    "Implementation dispatch blocked before start: "
-                    f"{reservation_error}"
-                )
-                logger.warning("%s (issue=%s)", error_msg, issue.identifier)
-                await self._on_worker_exit(
-                    issue.id,
-                    "abnormal",
-                    error_msg,
-                    **worker_identity,
-                )
-                return
-
         if not targets:
             # No resolvable provider targets (no whitelist involved).
             if mode == "acp":
                 # ACP can run without a specific provider — the SDK manages it.
-                if auditor_plan is None:
-                    evidence_error = await self._stage_work_contributor_launch(
-                        issue,
-                        run_id=run_id,
-                        provider_id="acp",
-                        provider_name="acp",
-                        model=profile.model if profile else None,
-                    )
-                    if evidence_error is not None:
-                        await self._on_worker_exit(
-                            issue.id, "abnormal", evidence_error, **worker_identity
-                        )
-                        return
                 auditor_kwargs = (
                     {"forced_auditor": True, "auditor_plan": auditor_plan}
                     if auditor_plan is not None
@@ -40119,19 +39218,6 @@ class Orchestrator:
                     profile.name if profile else "unknown",
                     issue.identifier,
                 )
-            if auditor_plan is None:
-                evidence_error = await self._stage_work_contributor_launch(
-                    issue,
-                    run_id=run_id,
-                    provider_id="cli",
-                    provider_name="cli",
-                    model="cli-managed",
-                )
-                if evidence_error is not None:
-                    await self._on_worker_exit(
-                        issue.id, "abnormal", evidence_error, **worker_identity
-                    )
-                    return
             await self._run_cli_worker(issue, attempt, profile, **worker_identity)
             return
 
@@ -40161,28 +39247,17 @@ class Orchestrator:
                 preflight_skip = self._candidate_preflight(
                     target,
                     require_openai_endpoint=require_openai_endpoint,
-                    budget_reservation_credit_issue_id=(
-                        self._audit_reservation_key_for_issue(issue)
-                        if auditor_plan is not None
-                        else None
-                    ),
                 )
             except TypeError as exc:
                 # Keep compatibility with integrations that replace the
                 # preflight hook with the original one-argument callable.
                 # Only the signature mismatch is retried; real TypeErrors
                 # from a preflight implementation still propagate.
-                if "unexpected keyword" not in str(exc):
+                if "require_openai_endpoint" not in str(exc):
                     raise
                 preflight_skip = self._candidate_preflight(target)
             if preflight_skip:
-                _candidate, _reason, _detail, diagnostic = (
-                    _provider_startup_failure_diagnostic(
-                        target.candidate_key,
-                        preflight_skip,
-                    )
-                )
-                skip_reasons.append(diagnostic)
+                skip_reasons.append(f"{target.candidate_key}: {preflight_skip}")
                 continue
 
             try:
@@ -40226,27 +39301,19 @@ class Orchestrator:
                 return  # Worker completed (task-level errors handled inside the worker)
             except ProviderStartupError as e:
                 last_startup_error = e
-                safe_candidate, safe_reason, safe_detail, diagnostic = (
-                    _provider_startup_failure_diagnostic(
-                        target.candidate_key,
-                        e.reason,
-                        e,
-                    )
-                )
-                skip_reasons.append(diagnostic)
+                skip_reasons.append(f"{target.candidate_key}: {e.reason}")
                 logger.warning(
                     "Candidate %s startup failed (reason=%s): %s — trying next candidate",
-                    safe_candidate,
-                    safe_reason,
-                    safe_detail,
+                    target.candidate_key,
+                    e.reason,
+                    e,
                 )
 
         # All candidates exhausted — no inner worker completed, so _on_worker_exit
         # was never called.  Call it here so the issue is properly unregistered.
-        error_msg = _provider_startup_aggregate(
-            len(targets),
-            skip_reasons,
-            fallback=last_startup_error,
+        reasons_str = "; ".join(skip_reasons) if skip_reasons else str(last_startup_error)
+        error_msg = (
+            f"All {len(targets)} dispatch candidates unavailable: {reasons_str}"
         )
         logger.error(
             "All dispatch candidates failed for issue %s: %s",
@@ -40288,7 +39355,6 @@ class Orchestrator:
         worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
-        provider_contacted = False
         ordinary_turns = profile.max_turns if profile.max_turns else self.config.max_turns
         max_turns = auditor_turn_budget(ordinary_turns, auditor=forced_auditor)
 
@@ -40302,56 +39368,7 @@ class Orchestrator:
         else:
             focus = self._duplicate_preflight_focus(issue)
             if focus is None:
-                # Focus triage is itself a provider request.  Freeze every
-                # transport input under the same policy authority used by
-                # ProviderStore mutations, then bind the actual HTTP edge to
-                # that exact configuration signature.  Passing the live
-                # provider object across the awaited contributor-evidence
-                # fence could otherwise mix an old key/body with a newly
-                # edited endpoint (or admit an entirely stale request).
-                (
-                    triage_provider,
-                    triage_configuration_signature,
-                    _triage_policy_generation,
-                ) = snapshot_provider_for_probe(provider)
-                triage_candidate: Candidate | None = None
-
-                async def _fence_focus_triage(default_model: str) -> str | None:
-                    nonlocal triage_candidate
-                    triage_candidate = Candidate(
-                        str(triage_provider.id), str(default_model)
-                    )
-                    return await self._stage_work_contributor_launch(
-                        issue,
-                        run_id=run_id,
-                        provider_id=str(triage_provider.id),
-                        provider_name=str(triage_provider.name),
-                        model=default_model,
-                        focus="focus-triage",
-                    )
-
-                def _admit_focus_triage_transport() -> str | None:
-                    # ``focus._select_focus_llm`` forwards this callback into
-                    # the blocking HTTP helper.  It runs immediately before
-                    # urllib opens the socket, not before ``to_thread`` is
-                    # scheduled, so an owner/lifecycle revocation that wins
-                    # the intervening gap prevents provider contact.
-                    return self._begin_provider_contact(
-                        issue,
-                        run_id,
-                        transport="focus-triage API",
-                        contributor_candidate=triage_candidate,
-                        transport_configuration_signature=(
-                            triage_configuration_signature
-                        ),
-                    )
-
-                focus = await select_focus_async(
-                    issue,
-                    provider=triage_provider,
-                    before_llm=_fence_focus_triage,
-                    at_llm_transport=_admit_focus_triage_transport,
-                )
+                focus = await select_focus_async(issue, provider=provider)
         logger.info(
             "Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role
         )
@@ -40528,52 +39545,6 @@ class Orchestrator:
                 )
             raise ValueError(msg)
 
-        # A focus may carry an explicit provider/model override, so the
-        # dispatch-target reservation above is not sufficient on its own.
-        # Recheck and persist the exact identity after static validation but
-        # before workspace/session setup. Owner terminal overrides never enter
-        # this contributor path and retain their explicit authority.
-        if not forced_auditor:
-            resolved_target = DispatchTarget(
-                role_name=target.role_name if target is not None else None,
-                provider=provider,
-                model=model,
-                candidate_key=f"{provider.id}/{model or ''}",
-                source="resolved-focus",
-                candidate=None,
-            )
-            allowed, reservation_error = await self._reserve_auditor_for_contributor(
-                issue, [resolved_target]
-            )
-            if reservation_error is not None or not allowed:
-                message = reservation_error or (
-                    "The resolved contributor target is reserved for the independent "
-                    "terminal auditor."
-                )
-                if target is not None:
-                    raise ProviderStartupError(
-                        message,
-                        candidate_key=target.candidate_key,
-                        reason="auditor_reservation",
-                    )
-                raise ValueError(message)
-            evidence_error = await self._stage_work_contributor_launch(
-                issue,
-                run_id=run_id,
-                provider_id=str(provider.id),
-                provider_name=str(provider.name),
-                model=model,
-                focus=focus.name,
-            )
-            if evidence_error is not None:
-                if target is not None:
-                    raise ProviderStartupError(
-                        evidence_error,
-                        candidate_key=target.candidate_key,
-                        reason="contributor_evidence_unavailable",
-                    )
-                raise ValueError(evidence_error)
-
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
         # attachments inline or only mention them in the text body.
@@ -40598,12 +39569,7 @@ class Orchestrator:
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
-                        persist_dispatch_metadata=(
-                            not forced_auditor
-                            and self._workspace_persists_dispatch_metadata(
-                                issue, run_id
-                            )
-                        ),
+                        persist_dispatch_metadata=not forced_auditor,
                         authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
@@ -40956,55 +39922,9 @@ class Orchestrator:
                                 _target,
                                 _policy,
                             )
-            # Freeze the exact transport inputs under the same policy lock used
-            # by ProviderStore updates. Final admission compares this signature
-            # with the live store before permitting the first request.
-            while True:
-                transport_policy_generation = AUDITOR_POLICY_AUTHORITY.generation()
-                with AUDITOR_POLICY_AUTHORITY.admission(
-                    transport_policy_generation
-                ) as transport_policy_current:
-                    if not transport_policy_current:
-                        continue
-                    transport_configuration_signature = (
-                        PROVIDER_HEALTH_CACHE.configuration_signature(provider)
-                    )
-                    api_base_url = provider.base_url
-                    api_key = provider.api_key
-                    api_model_context = provider.get_model_context(model)
-                    api_endpoint_error = openai_base_url_error(api_base_url)
-                    api_model_current = bool(
-                        not provider.models
-                        or model in provider.models
-                        or model == provider.default_model
-                    )
-                    break
-            if api_endpoint_error is not None:
-                message = (
-                    "Invalid OpenAI-compatible provider endpoint after local setup: "
-                    f"{api_endpoint_error}"
-                )
-                if target is not None:
-                    raise ProviderStartupError(
-                        message,
-                        candidate_key=target.candidate_key,
-                        reason="invalid_base_url",
-                    )
-                raise ValueError(message)
-            if not api_model_current:
-                message = (
-                    f"Model {model} is no longer available in provider {provider.name}"
-                )
-                if target is not None:
-                    raise ProviderStartupError(
-                        message,
-                        candidate_key=target.candidate_key,
-                        reason="invalid_model",
-                    )
-                raise ValueError(message)
             session = ApiAgentSession(
-                base_url=api_base_url,
-                api_key=api_key,
+                base_url=provider.base_url,
+                api_key=provider.api_key,
                 model=model,
                 workspace_path=workspace_path,
                 max_turns=max_turns,
@@ -41047,7 +39967,7 @@ class Orchestrator:
                 read_only=read_only_preflight,
                 audit_target=audit_target,
                 audit_result_handler=_api_audit_handler,
-                model_max_context=api_model_context,
+                model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
                 task_tracker=task_tracker,
                 project_id=issue.project_id or None,
@@ -41073,17 +39993,6 @@ class Orchestrator:
                 ),
                 project_store=self.project_store,
                 submission_handler=_api_submission_handler,
-                before_transport_contact=lambda: self._begin_provider_contact(
-                    issue,
-                    run_id,
-                    transport="API",
-                    contributor_candidate=Candidate(
-                        str(provider.id), str(model)
-                    ),
-                    transport_configuration_signature=(
-                        transport_configuration_signature
-                    ),
-                ),
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -41159,10 +40068,24 @@ class Orchestrator:
                     pass
                 return False
 
-            result = await session.run_task(
-                prompt, on_activity=_on_activity, is_cancelled=_is_cancelled
+            if self._provider_launch_blocked(issue, run_id):
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before API provider launch"
+                return
+            provider_start = self._publish_provider_start(
+                issue,
+                run_id,
+                lambda: session.run_task(
+                    prompt,
+                    on_activity=_on_activity,
+                    is_cancelled=_is_cancelled,
+                ),
             )
-            provider_contacted = session.transport_contacted
+            if provider_start is None:
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before API provider launch"
+                return
+            result = await provider_start
 
             # Update session with final token counts
             if issue.id in self.state.running and self.state.running[issue.id].session:
@@ -41180,18 +40103,6 @@ class Orchestrator:
                     _redacted_last = str(_redacted_last)
                 s.last_message = _redacted_last[:200]
                 s.last_event = f"api_{result.status}"
-                # API result objects from transport/provider failures carry
-                # the live counters accumulated before the failure.  They are
-                # useful telemetry but not an authoritative final bill.  The
-                # completed control-flow outcomes below have a final response
-                # envelope, including a legitimate zero-token response.
-                s.final_usage_observed = result.status in {
-                    "succeeded",
-                    "ask_question",
-                    "max_turns",
-                    "stalled",
-                }
-                s.final_cost_observed = False
 
             if result.status == "ask_question":
                 exit_reason = "ask_question"
@@ -41218,26 +40129,6 @@ class Orchestrator:
                 error_msg = result.error
                 logger.info("API agent stalled on %s: %s", issue.identifier, error_msg)
 
-            self._record_worker_provider_health(
-                provider,
-                model,
-                result.status,
-                detail=result.error or result.question,
-                expected_configuration_signature=getattr(
-                    self._current_running_entry(issue.id),
-                    "provider_configuration_signature",
-                    None,
-                ),
-                outcome_is_provider_evidence=(
-                    self._worker_provider_outcome_is_evidence(
-                        issue.id,
-                        run_id,
-                        result.status,
-                        result.error or result.question,
-                    )
-                ),
-            )
-
             # Enforce per-issue attachment cap on agent-generated outputs,
             # then record what was produced in tasks metadata so the
             # dashboard can render it. Only on successful runs.
@@ -41262,26 +40153,6 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            # Workspace, tracker, prompt-rendering, and admission failures
-            # happen before an API request.  They must not turn a healthy
-            # provider candidate into an unhealthy one.
-            if provider_contacted:
-                self._record_worker_provider_health(
-                    provider,
-                    model,
-                    "failed",
-                    detail=error_msg,
-                    expected_configuration_signature=getattr(
-                        self._current_running_entry(issue.id),
-                        "provider_configuration_signature",
-                        None,
-                    ),
-                    outcome_is_provider_evidence=(
-                        self._worker_provider_outcome_is_evidence(
-                            issue.id, run_id, "failed", error_msg
-                        )
-                    ),
-                )
             logger.exception(
                 "API worker failed issue_id=%s",
                 issue.id,
@@ -41344,7 +40215,6 @@ class Orchestrator:
         worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
-        provider_contacted = False
         # Set when a provider-level launch failure should fail over to the
         # next dispatch candidate (next model in the role's priority list)
         # instead of being booked as a terminal worker exit.
@@ -41397,64 +40267,13 @@ class Orchestrator:
             model = None
             if provider is not None:
                 model = self._resolve_model(profile, provider, focus=focus)
-        # Do not invent a ``default`` model for a blank SDK-managed ACP role.
-        # The blank is the SDK contract; durable auditor state below uses the
-        # explicit SDK_MANAGED_MODEL identity while the backend still receives
-        # ``None`` and chooses its subscription default itself.
-        resolved_model = (
-            model
-            if forced_auditor and target is not None
-            else (model or profile.model)
-        )
-        sdk_managed_model = bool(
-            not resolved_model
-            and provider is not None
-            and str(getattr(provider, "mode", "") or "").casefold() == "acp"
-            and not list(getattr(provider, "models", None) or [])
-        )
-        model = resolved_model or ""
-        durable_model = SDK_MANAGED_MODEL if sdk_managed_model else model
-
-        if not forced_auditor and provider is not None:
-            resolved_target = DispatchTarget(
-                role_name=target.role_name if target is not None else None,
-                provider=provider,
-                model=model,
-                candidate_key=f"{provider.id}/{model or ''}",
-                source="resolved-focus",
-                candidate=None,
-            )
-            allowed, reservation_error = await self._reserve_auditor_for_contributor(
-                issue, [resolved_target]
-            )
-            if reservation_error is not None or not allowed:
-                message = reservation_error or (
-                    "The resolved contributor target is reserved for the independent "
-                    "terminal auditor."
-                )
-                if target is not None:
-                    raise ProviderStartupError(
-                        message,
-                        candidate_key=target.candidate_key,
-                        reason="auditor_reservation",
-                    )
-                raise ValueError(message)
-            evidence_error = await self._stage_work_contributor_launch(
-                issue,
-                run_id=run_id,
-                provider_id=str(provider.id),
-                provider_name=str(provider.name),
-                model=model,
-                focus=focus.name,
-            )
-            if evidence_error is not None:
-                if target is not None:
-                    raise ProviderStartupError(
-                        evidence_error,
-                        candidate_key=target.candidate_key,
-                        reason="contributor_evidence_unavailable",
-                    )
-                raise ValueError(evidence_error)
+        # Fallback model name for display/telemetry when no provider model is
+        # configured. Keep track of whether "default" is synthetic: non-Claude
+        # ACP backends should omit it so their subscription/OAuth clients can
+        # choose their own default model.
+        resolved_model = model or profile.model
+        synthetic_default_model = not resolved_model
+        model = resolved_model or "default"
 
         capabilities = self._resolve_capabilities(provider, model) if provider else []
         project_obj = (
@@ -41475,12 +40294,7 @@ class Orchestrator:
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
-                        persist_dispatch_metadata=(
-                            not forced_auditor
-                            and self._workspace_persists_dispatch_metadata(
-                                issue, run_id
-                            )
-                        ),
+                        persist_dispatch_metadata=not forced_auditor,
                         authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
@@ -41681,9 +40495,7 @@ class Orchestrator:
                 running_entry_acp.provider_name = (
                     provider.name if provider is not None else "acp"
                 )
-                running_entry_acp.model_name = (
-                    durable_model if forced_auditor else (model or None)
-                )
+                running_entry_acp.model_name = model
                 running_entry_acp.candidate_key = (
                     target.candidate_key
                     if target is not None
@@ -42006,46 +40818,15 @@ class Orchestrator:
             # `text`. parts being None is the common case.
             prompt_text = getattr(prompt, "text", None) or str(prompt)
 
-            # Freeze the backend/billing inputs and configuration identity under
-            # provider-policy authority. Admission rejects the session if an
-            # operator edits or replaces that provider before its first turn.
-            acp_transport_configuration_signature: str | None = None
-            while True:
-                transport_policy_generation = AUDITOR_POLICY_AUTHORITY.generation()
-                with AUDITOR_POLICY_AUTHORITY.admission(
-                    transport_policy_generation
-                ) as transport_policy_current:
-                    if not transport_policy_current:
-                        continue
-                    if provider is not None:
-                        acp_transport_configuration_signature = (
-                            PROVIDER_HEALTH_CACHE.configuration_signature(provider)
-                        )
-                        acp_backend_name = getattr(provider, "backend", None) or "claude"
-                        acp_billing_model = (
-                            getattr(provider, "billing_model", None) or "per_token"
-                        )
-                        acp_model_current = bool(
-                            not provider.models
-                            or model in provider.models
-                            or model == provider.default_model
-                        )
-                    else:
-                        acp_backend_name = "claude"
-                        acp_billing_model = "per_token"
-                        acp_model_current = True
-                    break
-            if not acp_model_current:
-                message = (
-                    f"Model {model} is no longer available in provider {provider.name}"
-                )
-                if target is not None:
-                    raise ProviderStartupError(
-                        message,
-                        candidate_key=target.candidate_key,
-                        reason="invalid_model",
-                    )
-                raise ValueError(message)
+            # ACP backend selection (oompah-zlz_2-0hzh): provider may
+            # nominate a non-default backend via ModelProvider.backend.
+            # Falls back to "claude" when unset, preserving back-compat
+            # for legacy providers persisted before the field existed.
+            acp_backend_name = (
+                getattr(provider, "backend", None) or "claude"
+                if provider is not None
+                else "claude"
+            )
 
             acp_model: str | None = None
             if acp_backend_name == "claude":
@@ -42060,9 +40841,18 @@ class Orchestrator:
                     acp_model = model
             else:
                 # Other backends (codex, opencode) take their own model
-                # names. A blank SDK-managed role is deliberately forwarded
-                # as None so the backend chooses its own subscription default.
-                acp_model = None if sdk_managed_model else (model or None)
+                # names. If no model resolved, do not forward the synthetic
+                # "default" placeholder; their clients will choose a default.
+                acp_model = None if synthetic_default_model else model
+
+            # Billing tier flows first-class so backends can pick their
+            # execution path (e.g. codex: per_token -> in-process SDK,
+            # subscription -> codex CLI w/ OAuth). Defaults to per_token.
+            acp_billing_model = (
+                getattr(provider, "billing_model", None) or "per_token"
+                if provider is not None
+                else "per_token"
+            )
 
             # --- Mid-run comment delivery setup (OOMPAH-211) ---
             # Create a per-run asyncio.Queue and register it so that
@@ -42071,31 +40861,6 @@ class Orchestrator:
             # the finally block regardless of how the session exits.
             _comment_queue: asyncio.Queue = asyncio.Queue()
             self._agent_comment_queues[issue.id] = _comment_queue
-
-            def _admit_acp_transport() -> str | None:
-                """Cross the provider boundary only after ACP local setup.
-
-                ``AcpAgentSession`` invokes this immediately before its first
-                backend ``run_turn``.  A pre-stopped/locally failed session
-                never calls it, so neither audit spend nor provider health is
-                fabricated from a non-transport outcome.
-                """
-
-                # This is only a permit.  ``AcpAgentSession`` reports the
-                # actual network/Popen edge after ``run_task`` returns, so a
-                # local backend failure cannot be misbooked as health/spend.
-                return self._begin_provider_contact(
-                    issue,
-                    run_id,
-                    transport="ACP",
-                    contributor_candidate=Candidate(
-                        str(provider.id) if provider is not None else "acp",
-                        durable_model if provider is not None else (model or "acp-managed"),
-                    ),
-                    transport_configuration_signature=(
-                        acp_transport_configuration_signature
-                    ),
-                )
 
             session = AcpAgentSession(
                 workspace_path=workspace_path,
@@ -42147,18 +40912,24 @@ class Orchestrator:
                     validation_reuse_authority_check
                 ),
                 terminal_transition_coordinator=self.terminal_transition_coordinator,
-                before_transport_contact=_admit_acp_transport,
-                on_precontact_admission_cancelled=lambda: (
-                    self._cancel_precontact_provider_admission(issue, run_id)
-                ),
             )
             self._acp_agent_sessions[issue.id] = session
 
             try:
-                status = await session.run_task()
-                provider_contacted = bool(
-                    getattr(session, "transport_contacted", False)
+                if self._provider_launch_blocked(issue, run_id):
+                    exit_reason = "interrupted"
+                    error_msg = "lifecycle drain began before ACP provider launch"
+                    return
+                provider_start = self._publish_provider_start(
+                    issue,
+                    run_id,
+                    session.run_task,
                 )
+                if provider_start is None:
+                    exit_reason = "interrupted"
+                    error_msg = "lifecycle drain began before ACP provider launch"
+                    return
+                status = await provider_start
             finally:
                 if self._acp_agent_sessions.get(issue.id) is session:
                     self._acp_agent_sessions.pop(issue.id, None)
@@ -42212,8 +40983,6 @@ class Orchestrator:
                     if (provider is not None and provider.is_per_token_billed("acp"))
                     else None
                 )
-                s.final_usage_observed = bool(session.final_usage_observed)
-                s.final_cost_observed = bool(session.final_cost_observed)
                 # Emit a warning when per-token ACP runs have no usable
                 # rate source (no SDK cost AND no model_costs entry).
                 # The cost helpers default to $0 in that case so dispatch
@@ -42257,49 +41026,13 @@ class Orchestrator:
                 # long", missing CLI) is provider-level: fail over to the
                 # next candidate (next model in the role's priority list)
                 # rather than booking a terminal exit on this one.
-                if (
-                    target is not None
-                    and _is_acp_launch_failure(error_msg)
-                    and self._worker_provider_outcome_is_evidence(
-                        issue.id, run_id, "errored", error_msg
-                    )
-                ):
+                if target is not None and _is_acp_launch_failure(error_msg):
                     startup_failover = True
-                    if provider_contacted and provider is not None:
-                        self._record_worker_provider_health(
-                            provider,
-                            model,
-                            "failed",
-                            detail=error_msg,
-                            expected_configuration_signature=getattr(
-                                self._current_running_entry(issue.id),
-                                "provider_configuration_signature",
-                                None,
-                            ),
-                        )
                     raise ProviderStartupError(
                         error_msg,
                         candidate_key=target.candidate_key,
                         reason="launch_failed",
                     )
-
-            if provider_contacted:
-                self._record_worker_provider_health(
-                    provider,
-                    model,
-                    status,
-                    detail=session.last_error,
-                    expected_configuration_signature=getattr(
-                        self._current_running_entry(issue.id),
-                        "provider_configuration_signature",
-                        None,
-                    ),
-                    outcome_is_provider_evidence=(
-                        self._worker_provider_outcome_is_evidence(
-                            issue.id, run_id, status, session.last_error
-                        )
-                    ),
-                )
 
             if status == "succeeded":
                 try:
@@ -42328,23 +41061,6 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            if provider_contacted:
-                self._record_worker_provider_health(
-                    provider,
-                    model,
-                    "failed",
-                    detail=error_msg,
-                    expected_configuration_signature=getattr(
-                        self._current_running_entry(issue.id),
-                        "provider_configuration_signature",
-                        None,
-                    ),
-                    outcome_is_provider_evidence=(
-                        self._worker_provider_outcome_is_evidence(
-                            issue.id, run_id, "failed", error_msg
-                        )
-                    ),
-                )
             logger.exception(
                 "ACP worker failed issue_id=%s",
                 issue.id,
@@ -42402,9 +41118,6 @@ class Orchestrator:
             # the shared epic worktree; otherwise per-task path.
             workspace_path, _epic = self._create_workspace_for_issue(
                 issue,
-                persist_dispatch_metadata=self._workspace_persists_dispatch_metadata(
-                    issue, run_id
-                ),
                 authority_check=self._workspace_authority_check(issue, run_id),
             )
             if issue.id in self.state.running:
@@ -42429,21 +41142,22 @@ class Orchestrator:
                     if handoff_token and issue.project_id
                     else None
                 ),
-                before_transport_contact=lambda: self._begin_provider_contact(
-                    issue,
-                    run_id,
-                    transport="CLI",
-                    contributor_candidate=Candidate(
-                        "cli",
-                        "cli-managed",
-                    ),
-                ),
-                on_precontact_admission_cancelled=lambda: (
-                    self._cancel_precontact_provider_admission(issue, run_id)
-                ),
             )
-            await session.start()
-            provider_entry = self._current_running_entry(issue.id)
+            if self._provider_launch_blocked(issue, run_id):
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before CLI provider launch"
+                return
+            provider_entry = self.state.running.get(issue.id)
+            provider_start = self._publish_provider_start(
+                issue,
+                run_id,
+                session.start,
+            )
+            if provider_start is None:
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before CLI provider launch"
+                return
+            await provider_start
             if provider_entry is not None and self._is_current_run(issue.id, run_id):
                 self._managed_processes(provider_entry)
             self._cli_agent_sessions[issue.id] = session
@@ -42500,7 +41214,9 @@ class Orchestrator:
                     cli_running.focus_role = cli_focus.role
                     cli_running.provider_id = "cli"
                     cli_running.provider_name = "cli"
-                    cli_running.model_name = "cli-managed"
+                    cli_running.model_name = (
+                        profile.model if profile and profile.model else None
+                    ) or "cli-managed"
                     cli_running.candidate_key = "cli"
                     cli_running.model_role = getattr(cli_focus, "model_role", None) or (
                         profile.model_role if profile else None
@@ -44389,13 +43105,6 @@ class Orchestrator:
         run_id: str | None = None,
     ) -> None:
         """Handle worker completion."""
-        if issue_id in self._terminating_worker_ids:
-            logger.debug(
-                "Ignoring worker exit while forced termination is in progress "
-                "issue_id=%s",
-                issue_id,
-            )
-            return
         entry = self._current_running_entry(issue_id)
         if not entry:
             return
@@ -44404,6 +43113,14 @@ class Orchestrator:
                 "Ignoring stale worker exit issue_id=%s run_id=%s current_run_id=%s",
                 issue_id,
                 run_id,
+                getattr(entry, "run_id", None),
+            )
+            return
+        if self._termination_owned(issue_id, entry):
+            logger.debug(
+                "Ignoring exact worker exit while forced termination is in "
+                "progress issue_id=%s run_id=%s",
+                issue_id,
                 getattr(entry, "run_id", None),
             )
             return
@@ -44419,6 +43136,56 @@ class Orchestrator:
         if forced_exit_reason:
             reason = forced_exit_reason
             error = getattr(entry, "forced_exit_error", None) or error
+
+        # A setup-only auditor has already moved its durable record to In
+        # Progress, but has not consumed a transport attempt.  Secure the exact
+        # rollback before any process/workspace/runtime cleanup can forget the
+        # only live owner.  If both recovery journals are unavailable, retain
+        # the visible RunningEntry and keep admission fail-closed; the audit
+        # lane will retry the process-local row before its blocked-state check.
+        unadmitted_audit = False
+        fenced_provider_start_task: asyncio.Task[Any] | None = None
+        with self._provider_admission_lock:
+            if self._current_running_entry(issue_id) is not entry:
+                return
+            if entry.is_auditor and not getattr(entry, "provider_started", False):
+                unadmitted_audit = True
+                entry.provider_admission_generation = None
+                fenced_provider_start_task = getattr(
+                    entry, "provider_start_task", None
+                )
+                entry.provider_start_task = None
+                entry.retirement_pending = True
+        audit_recovery_interrupted = False
+        if unadmitted_audit:
+            secured, audit_recovery_interrupted = (
+                await self._secure_unadmitted_auditor_exit_guaranteed(
+                    entry,
+                    reason="worker exited before provider start",
+                )
+            )
+            if not secured:
+                entry.retirement_pending = True
+                logger.critical(
+                    "Retaining pre-provider auditor runtime because rollback "
+                    "authority is not durable issue=%s audit=%s attempt=%s",
+                    entry.identifier,
+                    entry.audit_id,
+                    entry.audit_attempt_id,
+                )
+                self._notify_observers()
+                if audit_recovery_interrupted:
+                    raise asyncio.CancelledError
+                return
+            if (
+                fenced_provider_start_task is not None
+                and not fenced_provider_start_task.done()
+            ):
+                fenced_provider_start_task.cancel()
+                await asyncio.gather(
+                    fenced_provider_start_task,
+                    return_exceptions=True,
+                )
 
         # A provider may report completion while one of its tool subprocesses
         # is still running.  Capture and reap the exact workspace descendants
@@ -44461,6 +43228,7 @@ class Orchestrator:
                     issue_id,
                     cleanup_workspace=False,
                     task_name_prefix="retry-process-retirement",
+                    expected_entry=entry,
                 )
                 return
         with self._retry_authority_lock:
@@ -44490,22 +43258,6 @@ class Orchestrator:
             # Accepted submission/lifecycle state owns this task.  Quarantine
             # its worker only after every captured provider identity is gone;
             # otherwise the dashboard would hide a process that can still edit.
-            if entry.is_auditor:
-                reservation_key = self._audit_reservation_key_for_issue(entry.issue)
-                reconciled = self._reconcile_audit_budget_spend(
-                    reservation_key,
-                    actual_cost=self._auditor_actual_cost(entry),
-                )
-                if reconciled:
-                    reconciled = self._release_audit_budget_reservation(
-                        reservation_key
-                    )
-                if not reconciled:
-                    logger.error(
-                        "Revoked auditor %s retains projected budget capacity "
-                        "because spend/release persistence failed",
-                        entry.identifier,
-                    )
             self._remove_running_entry(issue_id, entry)
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
@@ -44539,14 +43291,7 @@ class Orchestrator:
             )
             self._notify_observers()
             return
-        # Keep an auditor's exact runtime authority visible through spend
-        # reconciliation and reservation release. Maintenance and owner
-        # override code use the live-entry snapshot to decide whether they
-        # may conservatively charge a projection; removing it first creates
-        # a race in which they charge the projection before this exit can
-        # record exact provider/model usage.
-        if not entry.is_auditor:
-            self._remove_running_entry(issue_id, entry)
+        self._remove_running_entry(issue_id, entry)
         # The task-handoff registry contains only actionable failures of the
         # assigned task. Verified read-only peer denials are deliberately kept
         # out of it, so they cannot overwrite a successful own-task submit at
@@ -44561,71 +43306,40 @@ class Orchestrator:
         self.state.agent_totals.seconds_running += elapsed
 
         # Add token totals and estimate cost
-        auditor_actual_cost: float | None = None
         if entry.session:
             self.state.agent_totals.input_tokens += entry.session.input_tokens
             self.state.agent_totals.output_tokens += entry.session.output_tokens
             self.state.agent_totals.total_tokens += entry.session.total_tokens
 
-            # Auditor profiles can rotate after dispatch. Their spend must be
-            # reconciled from the exact provider/model stored on RunningEntry,
-            # never from the profile's current candidate.
-            if entry.is_auditor:
-                auditor_actual_cost = self._auditor_actual_cost(entry)
-            else:
-                # Estimate ordinary worker cost from its profile. For
-                # per-token ACP runs the SDK-reported total_cost_usd (stashed
-                # on the LiveSession by _run_acp_worker) is preferred over the
-                # local model_costs calculation.
-                profile = self._get_profile_by_name(entry.agent_profile_name)
-                if profile:
-                    cost = self._estimate_cost(
-                        profile,
-                        entry.session.input_tokens,
-                        entry.session.output_tokens,
-                        sdk_cost_usd=getattr(entry.session, "sdk_cost_usd", None),
-                    )
-                    if not self._record_ordinary_budget_spend(
-                        entry.agent_profile_name, cost
-                    ):
-                        logger.error(
-                            "Ordinary worker spend for %s could not be durably "
-                            "recorded; retaining prior budget authority",
-                            entry.identifier,
-                        )
-
-                    # Reset circuit breaker if we're back under budget
-                    if self.state.budget_exceeded and self._check_budget():
-                        self.state.budget_exceeded = False
-
-        # Auditor spend has now been reconciled into the rolling total (or is
-        # known to be subscription/free). Release the projection only at this
-        # point, never when the result tool fires, because the provider may
-        # still be consuming tokens while its worker winds down.
-        if entry.is_auditor:
-            reservation_key = self._audit_reservation_key_for_issue(entry.issue)
-            reconciled = self._reconcile_audit_budget_spend(
-                reservation_key,
-                actual_cost=auditor_actual_cost,
-            )
-            if reconciled and auditor_actual_cost is not None:
+            # Estimate cost from agent profile. For per-token ACP runs
+            # the SDK-reported total_cost_usd (stashed on the LiveSession
+            # by _run_acp_worker) is preferred over the local
+            # model_costs calc — the SDK knows tier discounts oompah
+            # doesn't. Subscription ACP runs always cost $0 regardless.
+            profile = self._get_profile_by_name(entry.agent_profile_name)
+            if profile:
+                cost = self._estimate_cost(
+                    profile,
+                    entry.session.input_tokens,
+                    entry.session.output_tokens,
+                    sdk_cost_usd=getattr(entry.session, "sdk_cost_usd", None),
+                )
+                # Roll the window first so the increment lands in the
+                # right bucket — otherwise a worker that finishes 1ms
+                # after the day rollover would be charged to yesterday.
+                self._roll_budget_window_if_due()
+                self.state.agent_totals.estimated_cost += cost
                 self.state.cost_by_profile[entry.agent_profile_name] = (
-                    self.state.cost_by_profile.get(entry.agent_profile_name, 0.0)
-                    + auditor_actual_cost
+                    self.state.cost_by_profile.get(entry.agent_profile_name, 0.0) + cost
                 )
-            if reconciled:
-                reconciled = self._release_audit_budget_reservation(
-                    reservation_key
-                )
-            if not reconciled:
-                logger.error(
-                    "Audit budget reservation for %s remains durable after worker "
-                    "exit because spend/release persistence failed",
-                    entry.identifier,
-                )
-            elif self.state.budget_exceeded and self._check_budget():
-                self.state.budget_exceeded = False
-            self._remove_running_entry(issue_id, entry)
+
+                # Reset circuit breaker if we're back under budget
+                if self.state.budget_exceeded and self._check_budget():
+                    self.state.budget_exceeded = False
+
+                # Persist updated spend so a restart inside the active
+                # window doesn't reset the counter to $0.
+                self._persist_budget_state()
 
         # Write per-task cost telemetry (fire-and-forget, never blocks exit)
         self._fire_task_cost_record(entry)
@@ -44637,10 +43351,9 @@ class Orchestrator:
         # side-by-side. See task oompah-zlz_2-y3fy.
         self._fire_telemetry_comment(entry, reason, elapsed)
 
-        # Enrich contributor provenance on successful completion. The exact
-        # provider/model identity was already synchronously fenced before
-        # launch; this best-effort write adds the workspace revision and
-        # completion timestamp without carrying the safety invariant.
+        # Persist work contributor provenance (OOMPAH-468): write only on
+        # successful completion so partial/stalled runs are not recorded as
+        # contributors to the task or epic revision.
         if reason == "normal" and not entry.is_auditor:
             self._fire_work_contributor_record(entry)
 
@@ -44658,16 +43371,30 @@ class Orchestrator:
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
-            self._release_audit_branch_claim(
-                entry.branch_key,
-                entry.audit_attempt_id,
-            )
-            ended = await asyncio.to_thread(
-                self._finish_audit_attempt,
-                entry,
-                reason,
-                error,
-            )
+            # The transport attempt begins only on the provider task's first
+            # turn.  Any exit before that point -- lifecycle fencing, generic
+            # cancellation, or task-publication failure -- owns the same exact
+            # unadmitted rollback and must not consume rotation/retry budget.
+            if unadmitted_audit:
+                ended = False
+                logger.info(
+                    "Secured auditor attempt fenced before provider start "
+                    "issue=%s audit=%s attempt=%s",
+                    entry.identifier,
+                    entry.audit_id,
+                    entry.audit_attempt_id,
+                )
+            else:
+                ended = await asyncio.to_thread(
+                    self._finish_audit_attempt,
+                    entry,
+                    reason,
+                    error,
+                )
+                self._release_audit_branch_claim(
+                    entry.branch_key,
+                    entry.audit_attempt_id,
+                )
             await asyncio.to_thread(self._remove_audit_workspace, entry)
             if ended:
                 message = error or f"auditor exited ({reason}) without a result"
@@ -44678,7 +43405,7 @@ class Orchestrator:
                     project_id=project_id,
                 )
             self._audit_metrics["in_progress_count"] = sum(
-            1 for item in self._running_values_snapshot() if item.is_auditor
+                1 for item in self._running_values_snapshot() if item.is_auditor
             )
             self.event_bus.emit(
                 EventType.AGENT_COMPLETED if reason == "normal" else EventType.AGENT_FAILED,
@@ -44699,6 +43426,8 @@ class Orchestrator:
                     payload={"reason": reason, "auditor": True},
                 )
             )
+            if audit_recovery_interrupted:
+                raise asyncio.CancelledError
             return
 
         if actionable_handoff_failure or self._is_task_handoff_failure(error):
@@ -46166,6 +44895,85 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             mismatches.append("head")
         return tuple(dict.fromkeys(mismatches))
 
+    def _install_pre_admission_recovery(
+        self,
+        issue: Issue,
+        *,
+        restore_status: str,
+        intended_active_state: str,
+        intended_assignment_id: str | None,
+        attempt: int | None,
+        reason: str,
+    ) -> RetryEntry:
+        """Publish a free, durable retry owner for an unstarted implementation.
+
+        Tracker mutations are distributed writes: an exception can mean either
+        "not committed" or "committed but the response was lost."  Once launch
+        has failed, this entry owns both observations across restart until the
+        source status is restored or a replacement worker is admitted.
+        """
+
+        source_assignment = self._retry_issue_assignment(issue) or None
+        work_branch = self._retry_issue_branch(issue) or None
+        try:
+            workspace_path = self.workspace_mgr.workspace_path_for(issue.identifier)
+        except Exception:
+            workspace_path = None
+        head_sha = self._retry_issue_head(issue, workspace_path)
+        failed_updated_at = self._retry_issue_revision(issue)
+        retry = RetryEntry(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            attempt=0,
+            due_at_ms=0.0,
+            error=reason,
+            project_id=issue.project_id,
+            failed_status=restore_status,
+            failed_updated_at=failed_updated_at,
+            failed_attempt=attempt,
+            assignment_id=source_assignment,
+            work_branch=work_branch,
+            head_sha=head_sha,
+            workspace_path=workspace_path,
+            authority_generation=self._retry_authority_generation(
+                issue,
+                attempt=attempt,
+                assignment_id=source_assignment,
+                failed_status=restore_status,
+                failed_updated_at=failed_updated_at,
+                work_branch=work_branch,
+                head_sha=head_sha,
+            ),
+            dispatch_status=intended_active_state,
+            dispatch_assignment_id=(
+                intended_assignment_id
+                if intended_assignment_id is not None
+                else source_assignment
+            ),
+            pre_admission_recovery=True,
+        )
+        # Arm before doing any more tracker I/O. If immediate rollback itself
+        # fails or is interrupted, process-local recovery remains live as well
+        # as being represented in the service-state journal.
+        self._retain_or_arm_pre_admission_recovery(
+            retry,
+            self._backoff_delay(1),
+            issue=issue,
+        )
+        if not self._persist_retry_entries():
+            self._retain_or_arm_pre_admission_recovery(
+                retry,
+                self._backoff_delay(1),
+                issue=issue,
+            )
+            logger.error(
+                "Could not durably persist pre-admission implementation recovery "
+                "issue=%s generation=%s; retaining live recovery authority",
+                issue.identifier,
+                retry.authority_generation,
+            )
+        return retry
+
     async def _recover_aborted_retry_dispatch(
         self,
         issue: Issue,
@@ -46177,6 +44985,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         status_write_attempted: bool,
         observed_post_write: Issue | None = None,
         reason: str,
+        transition_locked: bool = False,
     ) -> None:
         """Leave a failed pre-start retry owned or dispatchable.
 
@@ -46191,7 +45000,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         with self._retry_authority_lock:
             still_owned = (
                 not retry.cancelled
-                and self._retry_dispatching.get(issue.id) is retry
+                and (
+                    self._retry_dispatching.get(issue.id) is retry
+                    or (
+                        retry.pre_admission_recovery
+                        and self.state.retry_attempts.get(issue.id) is retry
+                    )
+                )
             )
         if not still_owned:
             return
@@ -46200,11 +45015,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         restored = False
         source_observed = False
         restore_failed = False
-        async with self.issue_transition_lock(issue.id):
+        transition = (
+            contextlib.nullcontext()
+            if transition_locked
+            else self.issue_transition_lock(issue.id)
+        )
+        async with transition:
             with self._retry_authority_lock:
                 still_owned = (
                     not retry.cancelled
-                    and self._retry_dispatching.get(issue.id) is retry
+                    and (
+                        self._retry_dispatching.get(issue.id) is retry
+                        or (
+                            retry.pre_admission_recovery
+                            and self.state.retry_attempts.get(issue.id) is retry
+                        )
+                    )
                 )
             if (
                 not still_owned
@@ -46247,8 +45073,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     )
                     current = replace(current, state=restore_status)
                     restored = True
-                    retry.dispatch_status = None
-                    retry.dispatch_assignment_id = None
+                    with self._retry_authority_lock:
+                        retry.dispatch_status = None
+                        retry.dispatch_assignment_id = None
                     logger.info(
                         "Recovered aborted retry dispatch issue_id=%s "
                         "identifier=%s restored_status=%s reason=%s",
@@ -46273,13 +45100,20 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 # claim intent so a later unrelated In Progress edit cannot be
                 # mistaken for this dispatcher.
                 source_observed = True
-                retry.dispatch_status = None
-                retry.dispatch_assignment_id = None
+                with self._retry_authority_lock:
+                    retry.dispatch_status = None
+                    retry.dispatch_assignment_id = None
 
         with self._retry_authority_lock:
             still_owned = (
                 not retry.cancelled
-                and self._retry_dispatching.get(issue.id) is retry
+                and (
+                    self._retry_dispatching.get(issue.id) is retry
+                    or (
+                        retry.pre_admission_recovery
+                        and self.state.retry_attempts.get(issue.id) is retry
+                    )
+                )
             )
         if not still_owned:
             return
@@ -46289,7 +45123,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # Keep a durable timer owner even when another authority dimension
             # drifted; the next callback will retry the rollback without ever
             # launching under stale authority.
-            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+            self._retain_or_arm_pre_admission_recovery(
+                retry,
+                self._backoff_delay(retry.attempt),
+                issue=current or issue,
+            )
             self._persist_retry_entries()
             return
 
@@ -46308,7 +45146,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             return
 
         if current is None or restored or source_observed or not status_write_attempted:
-            self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+            self._retain_or_arm_pre_admission_recovery(
+                retry,
+                self._backoff_delay(retry.attempt),
+                issue=current or issue,
+            )
             self._persist_retry_entries()
 
     async def _recover_stale_retry_dispatch_claim(
@@ -46371,9 +45213,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         and retry.timer_handle is None
                     )
                 if rearm:
-                    self._arm_retry_entry(
+                    self._retain_or_arm_pre_admission_recovery(
                         retry,
                         self._backoff_delay(retry.attempt),
+                        issue=issue,
                     )
                 self._persist_retry_entries()
         return True
@@ -46388,46 +45231,167 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         except Exception:
             return False
 
-    def _persist_retry_entries(self) -> None:
-        """Persist retry authority without serializing event-loop handles."""
-        with self._retry_authority_lock:
-            entries = list(self.state.retry_attempts.values())
-            entries.extend(
-                entry
-                for issue_id, entry in self._retry_dispatching.items()
-                if issue_id not in self.state.retry_attempts
+    @staticmethod
+    def _decode_retry_snapshot(
+        raw: Any,
+        *,
+        version: Any = 0,
+    ) -> tuple[int, dict[str, Any] | list[Any]]:
+        """Decode retry authority from primary or fallback journal formats."""
+
+        if (
+            isinstance(raw, Mapping)
+            and "version" in raw
+            and "entries" in raw
+        ):
+            version = raw.get("version", version)
+            raw = raw.get("entries")
+        try:
+            decoded_version = int(version)
+        except (TypeError, ValueError):
+            return -1, {}
+        if not isinstance(raw, (dict, list)):
+            return -1, {}
+        return decoded_version, raw
+
+    def _load_retry_fallback(self) -> tuple[int, dict[str, Any] | list[Any]]:
+        """Load retry authority independently of the shared service state."""
+
+        try:
+            with open(self._retry_fallback_path, "r", encoding="utf-8") as file:
+                return self._decode_retry_snapshot(json.load(file))
+        except FileNotFoundError:
+            return -1, {}
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.error(
+                "Could not load implementation retry fallback %s: %s",
+                self._retry_fallback_path,
+                exc,
             )
-            payload = {
-                entry.issue_id: {
-                    "issue_id": entry.issue_id,
-                    "identifier": entry.identifier,
-                    "attempt": entry.attempt,
-                    "due_at_epoch_ms": entry.due_at_epoch_ms,
-                    "error": entry.error,
-                    "escalated_profile": entry.escalated_profile,
-                    "project_id": entry.project_id,
-                    "agent_profile_name": entry.agent_profile_name,
-                    "model_role": entry.model_role,
-                    "provider_id": entry.provider_id,
-                    "provider_name": entry.provider_name,
-                    "model_name": entry.model_name,
-                    "candidate_key": entry.candidate_key,
-                    "failed_status": entry.failed_status,
-                    "failed_updated_at": entry.failed_updated_at,
-                    "failed_attempt": entry.failed_attempt,
-                    "assignment_id": entry.assignment_id,
-                    "work_branch": entry.work_branch,
-                    "head_sha": entry.head_sha,
-                    "workspace_path": entry.workspace_path,
-                    "authority_generation": entry.authority_generation,
-                    "dispatch_status": entry.dispatch_status,
-                    "dispatch_assignment_id": entry.dispatch_assignment_id,
-                    "cancelled": bool(entry.cancelled),
+            return -1, {}
+
+    def _save_retry_fallback(self, snapshot: Mapping[str, Any]) -> bool:
+        """Atomically persist retry authority outside shared service state."""
+
+        fallback_path = self._retry_fallback_path
+        fallback_dir = os.path.dirname(fallback_path) or "."
+        temp_path = os.path.join(
+            fallback_dir,
+            f".{os.path.basename(fallback_path)}.{uuid.uuid4().hex}.tmp",
+        )
+        saved = False
+        try:
+            os.makedirs(fallback_dir, exist_ok=True)
+            with open(temp_path, "x", encoding="utf-8") as file:
+                os.chmod(temp_path, 0o600)
+                json.dump(dict(snapshot), file, indent=2)
+                file.write("\n")
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_path, fallback_path)
+            try:
+                directory_fd = os.open(fallback_dir, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            except OSError:
+                pass
+            saved = True
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error(
+                "Could not persist implementation retry fallback %s: %s",
+                fallback_path,
+                exc,
+            )
+        finally:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "Could not remove retry fallback temporary file %s: %s",
+                    temp_path,
+                    exc,
+                )
+        return saved
+
+    def _persist_retry_entries(self) -> bool:
+        """Persist one ordered retry snapshot to independent durable stores."""
+
+        with self._retry_authority_lock:
+            with self._retry_persistence_lock:
+                entries = list(self.state.retry_attempts.values())
+                entries.extend(
+                    entry
+                    for issue_id, entry in self._retry_dispatching.items()
+                    if issue_id not in self.state.retry_attempts
+                )
+                payload = {
+                    entry.issue_id: {
+                        "issue_id": entry.issue_id,
+                        "identifier": entry.identifier,
+                        "attempt": entry.attempt,
+                        "due_at_epoch_ms": entry.due_at_epoch_ms,
+                        "error": entry.error,
+                        "escalated_profile": entry.escalated_profile,
+                        "project_id": entry.project_id,
+                        "agent_profile_name": entry.agent_profile_name,
+                        "model_role": entry.model_role,
+                        "provider_id": entry.provider_id,
+                        "provider_name": entry.provider_name,
+                        "model_name": entry.model_name,
+                        "candidate_key": entry.candidate_key,
+                        "failed_status": entry.failed_status,
+                        "failed_updated_at": entry.failed_updated_at,
+                        "failed_attempt": entry.failed_attempt,
+                        "assignment_id": entry.assignment_id,
+                        "work_branch": entry.work_branch,
+                        "head_sha": entry.head_sha,
+                        "workspace_path": entry.workspace_path,
+                        "authority_generation": entry.authority_generation,
+                        "dispatch_status": entry.dispatch_status,
+                        "dispatch_assignment_id": entry.dispatch_assignment_id,
+                        "pre_admission_recovery": bool(
+                            entry.pre_admission_recovery
+                        ),
+                        "cancelled": bool(entry.cancelled),
+                    }
+                    for entry in entries
+                    if not entry.cancelled
                 }
-                for entry in entries
-                if not entry.cancelled
-            }
-        self._save_state(retry_attempts=payload)
+                self._retry_snapshot_version += 1
+                version = self._retry_snapshot_version
+                fallback_saved = self._save_retry_fallback(
+                    {"version": version, "entries": payload}
+                )
+                state_saved = self._save_state(
+                    retry_attempts=payload,
+                    **{_RETRY_ATTEMPTS_VERSION_STATE_KEY: version},
+                )
+                saved = fallback_saved or state_saved
+                # Publish the health/admission result in the same serialized
+                # order as its snapshot.  Otherwise an older failed writer can
+                # overwrite the flag from a newer successful recovery.
+                self._retry_persistence_failed = not saved
+        if not saved:
+            # With neither journal writable, continuing to admit work could
+            # strand an active tracker claim after restart. Keep the live
+            # owner and close provider admission until an operator restores
+            # durable storage and explicitly resumes the service.
+            fail_closed = False
+            with self._provider_admission_lock:
+                if self._retry_persistence_failed:
+                    self._quiesced = True
+                    self._provider_admission_generation += 1
+                    fail_closed = True
+            if fail_closed:
+                logger.critical(
+                    "Both implementation retry journals failed; provider admission "
+                    "is quiesced with live retry authority retained"
+                )
+        return saved
 
     @staticmethod
     def _parse_persisted_retry_entries(raw: Any) -> list[RetryEntry]:
@@ -46475,6 +45439,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     dispatch_status=value.get("dispatch_status"),
                     dispatch_assignment_id=value.get("dispatch_assignment_id"),
                     due_at_epoch_ms=value.get("due_at_epoch_ms"),
+                    pre_admission_recovery=bool(
+                        value.get("pre_admission_recovery", False)
+                    ),
                     cancelled=bool(value.get("cancelled", False)),
                 )
             )
@@ -46486,9 +45453,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self._persisted_retry_entries = []
         if not entries:
             return
-        # Consume the durable queue first.  Invalid entries are intentionally
-        # forgotten; their historical failure comments remain in the tracker.
-        self._save_state(retry_attempts={})
+        # Keep the startup snapshot durable until all entries have been
+        # revalidated and the replacement snapshot has been committed. A
+        # process death during recovery may replay an idempotent generation;
+        # it must not erase the only owner of an active tracker claim.
         now_ms = time.time() * 1000
         for retry in entries:
             # A pre-generation entry cannot prove that it still owns the task
@@ -46502,16 +45470,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             try:
                 issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
             except Exception as exc:
-                if retry.dispatch_status is not None:
+                if retry.pre_admission_recovery or retry.dispatch_status is not None:
                     logger.warning(
                         "Retaining persisted retry status owner for %s after "
                         "refresh failure: %s",
                         retry.identifier,
                         exc,
                     )
-                    self._arm_retry_entry(
+                    self._retain_or_arm_pre_admission_recovery(
                         retry,
                         self._backoff_delay(retry.attempt),
+                        issue=None,
                     )
                 else:
                     logger.warning(
@@ -46556,9 +45525,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 continue
             due_epoch = float(retry.due_at_epoch_ms or now_ms)
             delay_ms = max(0, int(due_epoch - now_ms))
-            self._arm_retry_entry(retry, delay_ms)
-        # The old state payload was cleared before validation. Persist the
-        # re-armed entries so another restart cannot lose valid authority.
+            self._retain_or_arm_pre_admission_recovery(
+                retry,
+                delay_ms,
+                issue=issue,
+            )
+        # Replace the startup snapshot only after validation is complete.
         self._persist_retry_entries()
 
     def _cancel_retry_for_issue(
@@ -46582,7 +45554,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         identifier = str(identifier or "").strip() or None
         project_id = str(project_id or "").strip() or None
         cancelled = 0
-        terminate_ids: set[str] = set()
+        terminate_entries: dict[str, RunningEntry] = {}
         with self._retry_authority_lock:
             candidates: list[tuple[str, RetryEntry]] = []
             for key, entry in list(self.state.retry_attempts.items()):
@@ -46667,7 +45639,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 # Keep the runtime claim visible until bounded provider cleanup
                 # succeeds.  Releasing it here lets another generation start in
                 # the same workspace while the old provider can still edit.
-                terminate_ids.add(running_id)
+                terminate_entries[running_id] = running_entry
         if cancelled:
             logger.info(
                 "Cancelled %d implementation retry(s) reason=%s issue_id=%s identifier=%s project_id=%s",
@@ -46680,19 +45652,43 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._persist_retry_entries()
             if notify:
                 self._notify_observers()
-        elif terminate_ids:
+        elif terminate_entries:
             self._persist_retry_entries()
             if notify:
                 self._notify_observers()
 
         if schedule_termination:
-            for running_id in terminate_ids:
+            for running_id, running_entry in terminate_entries.items():
                 self._schedule_running_termination(
                     running_id,
                     cleanup_workspace=False,
                     task_name_prefix="quarantine-worker",
+                    expected_entry=running_entry,
                 )
         return cancelled
+
+    def _retain_or_arm_pre_admission_recovery(
+        self,
+        retry: RetryEntry,
+        delay_ms: int,
+        *,
+        issue: Issue | None,
+    ) -> None:
+        """Keep recovery durable but timer-free behind lifecycle fences."""
+
+        if retry.pre_admission_recovery and self._dispatch_is_blocked(issue):
+            with self._retry_authority_lock:
+                timer = retry.timer_handle
+                if timer is not None and not self._retry_timer_cancelled(timer):
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+                retry.timer_handle = None
+                retry.cancelled = False
+                self.state.retry_attempts[retry.issue_id] = retry
+            return
+        self._arm_retry_entry(retry, delay_ms)
 
     def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
         """Install an already-validated retry entry and its timer."""
@@ -46718,7 +45714,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
     def _backoff_delay(self, attempt: int) -> int:
         """Compute exponential backoff delay."""
-        delay = min(10000 * (2 ** (attempt - 1)), self.config.max_retry_backoff_ms)
+        effective_attempt = max(1, attempt)
+        delay = min(
+            10000 * (2 ** (effective_attempt - 1)),
+            self.config.max_retry_backoff_ms,
+        )
         return delay
 
     def _schedule_retry(
@@ -46896,6 +45896,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "dispatch_assignment_id",
                 None,
             ),
+            pre_admission_recovery=bool(
+                context_retry is not None
+                and context_retry.pre_admission_recovery
+                and context_entry is None
+            ),
         )
         self._arm_retry_entry(retry, delay_ms)
         self._persist_retry_entries()
@@ -46942,17 +45947,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
         )
 
+        issue: Issue | None = None
         try:
             try:
                 issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
             except (TrackerError, ProjectError):
                 # Requeue the same authority generation.  The poll failure is
                 # not evidence that the task changed.
+                next_attempt = (
+                    retry.attempt
+                    if retry.pre_admission_recovery
+                    else retry.attempt + 1
+                )
                 self._schedule_retry(
                     issue_id,
-                    retry.attempt + 1,
+                    next_attempt,
                     retry.identifier,
-                    self._backoff_delay(retry.attempt + 1),
+                    self._backoff_delay(next_attempt),
                     "retry poll failed",
                     escalated_profile=retry.escalated_profile,
                     project_id=retry.project_id,
@@ -46968,6 +45979,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "Retry released claim issue_id=%s (issue not found)", issue_id
                 )
                 return
+
+            if retry.pre_admission_recovery and retry.dispatch_status is not None:
+                if _state_key(issue.state) == _state_key(retry.dispatch_status):
+                    await self._recover_stale_retry_dispatch_claim(
+                        retry,
+                        issue,
+                        reason="due pre-admission recovery still owns active status",
+                    )
+                    return
+                if _state_key(issue.state) == _state_key(retry.failed_status or ""):
+                    # A lost status-write response or another recovery owner
+                    # already restored the source state. Retire only the stale
+                    # active-status intent; this same free retry may dispatch.
+                    with self._retry_authority_lock:
+                        retry.dispatch_status = None
+                        retry.dispatch_assignment_id = None
+                    self._persist_retry_entries()
 
             # Generation-aware entries fail closed.  Legacy entries retain the
             # previous status-only path for compatibility with old persisted
@@ -47040,11 +46068,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 return
 
             if self._available_slots() <= 0:
+                next_attempt = (
+                    retry.attempt
+                    if retry.pre_admission_recovery
+                    else retry.attempt + 1
+                )
                 self._schedule_retry(
                     issue_id,
-                    retry.attempt + 1,
+                    next_attempt,
                     issue.identifier,
-                    self._backoff_delay(retry.attempt + 1),
+                    self._backoff_delay(next_attempt),
                     "no available orchestrator slots",
                     escalated_profile=retry.escalated_profile,
                     project_id=issue.project_id or retry.project_id,
@@ -47054,8 +46087,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             await self._dispatch(
                 issue,
-                attempt=retry.attempt,
-                override_profile=retry.escalated_profile,
+                attempt=None if retry.pre_admission_recovery else retry.attempt,
+                override_profile=(
+                    None
+                    if retry.pre_admission_recovery
+                    else retry.escalated_profile
+                ),
                 retry_entry=retry,
             )
         finally:
@@ -47071,7 +46108,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if rearm:
                 # Any _dispatch() exit before successful worker registration
                 # must leave a live retry owner, not a claim with no timer.
-                self._arm_retry_entry(retry, self._backoff_delay(retry.attempt))
+                self._retain_or_arm_pre_admission_recovery(
+                    retry,
+                    self._backoff_delay(retry.attempt),
+                    issue=issue,
+                )
             self._persist_retry_entries()
 
     def _fetch_running_states(self, by_project: dict) -> dict[str, Issue]:
@@ -47783,7 +46824,82 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             issue.project_id = project_id
         return bool(self._open_review_branch_for_issue_in_cache(issue))
 
-    async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> bool:
+    async def _terminate_running(
+        self,
+        issue_id: str,
+        cleanup_workspace: bool,
+        *,
+        expected_entry: RunningEntry | None = None,
+    ) -> bool:
+        """Retire one exact runtime without exposing cancellation gaps.
+
+        The parent owns callback suppression and admission fencing while the
+        child performs the complete rollback/process/workspace/runtime
+        transaction.  Caller cancellation is deferred until that child has
+        either completed retirement or deliberately retained the visible
+        runtime after a fail-closed result.  Keeping those fences in the
+        parent also covers cancellation before the child receives its first
+        event-loop turn.
+        """
+
+        entry = (
+            expected_entry
+            if expected_entry is not None
+            else self._current_running_entry(issue_id)
+        )
+        if entry is None:
+            return True
+        # Publish both fences before the child receives its first event-loop
+        # turn.  Provider admission uses this same lock, so it cannot reopen
+        # the exact runtime between the parent deciding to retire it and the
+        # child beginning durable cleanup.
+        with self._provider_admission_lock:
+            if self._current_running_entry(issue_id) is not entry:
+                return True
+            owner_key, owner_token = self._acquire_termination_owner(
+                issue_id,
+                entry,
+            )
+            entry.retirement_pending = True
+        child_creation_failed = False
+        try:
+            retirement_coroutine = self._terminate_running_once(
+                issue_id,
+                cleanup_workspace,
+                expected_entry=entry,
+            )
+            try:
+                retirement_task = asyncio.get_running_loop().create_task(
+                    retirement_coroutine,
+                    name=f"retire-runtime-{issue_id}",
+                )
+            except BaseException:
+                child_creation_failed = True
+                retirement_coroutine.close()
+                raise
+            self._mark_termination_child_owned(owner_key, owner_token)
+            interrupted = await self._await_guaranteed_cleanup(retirement_task)
+            retired = bool(retirement_task.result())
+            if interrupted:
+                raise asyncio.CancelledError
+            return retired
+        finally:
+            # This owner always executes, including when the newly-created
+            # child is cancelled before its coroutine body starts.  Its opaque
+            # lease cannot clear a concurrent parent's exact-runtime fence.
+            self._release_termination_owner(
+                owner_key,
+                owner_token,
+                restore_unstarted_entry=(entry if child_creation_failed else None),
+            )
+
+    async def _terminate_running_once(
+        self,
+        issue_id: str,
+        cleanup_workspace: bool,
+        *,
+        expected_entry: RunningEntry,
+    ) -> bool:
         """Terminate a running worker and optionally clean its workspace.
 
         Returns ``True`` only after the runtime can be removed safely.  ACP
@@ -47791,13 +46907,58 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         cannot become reparented, survive, and keep editing after the runtime
         entry has disappeared.
         """
-        entry = self._current_running_entry(issue_id)
-        if not entry:
-            self._terminating_worker_ids.discard(issue_id)
+        entry = expected_entry
+        if self._current_running_entry(issue_id) is not entry:
             return True
 
-        self._terminating_worker_ids.add(issue_id)
         try:
+            unadmitted_audit = False
+            audit_recovery_interrupted = False
+            fenced_provider_start_task: asyncio.Task[Any] | None = None
+            with self._provider_admission_lock:
+                if self._current_running_entry(issue_id) is not entry:
+                    return True
+                if entry.is_auditor and not getattr(
+                    entry, "provider_started", False
+                ):
+                    unadmitted_audit = True
+                    # Revoke both phases of provider admission before yielding
+                    # to durable recovery.  The published wrapper validates
+                    # its exact task identity under this same lock, so clearing
+                    # it prevents transport start without cancelling anything
+                    # before rollback authority is secured.
+                    entry.provider_admission_generation = None
+                    fenced_provider_start_task = getattr(
+                        entry, "provider_start_task", None
+                    )
+                    entry.provider_start_task = None
+                    entry.retirement_pending = True
+            if unadmitted_audit:
+                secured, audit_recovery_interrupted = (
+                    await self._secure_unadmitted_auditor_exit_guaranteed(
+                        entry,
+                        reason="worker terminated before provider start",
+                    )
+                )
+                if not secured:
+                    logger.critical(
+                        "Refusing to cancel or forget pre-provider auditor "
+                        "without durable rollback authority issue=%s audit=%s "
+                        "attempt=%s",
+                        entry.identifier,
+                        entry.audit_id,
+                        entry.audit_attempt_id,
+                    )
+                    self._notify_observers()
+                    if audit_recovery_interrupted:
+                        raise asyncio.CancelledError
+                    return False
+
+            def _termination_result(result: bool) -> bool:
+                if audit_recovery_interrupted:
+                    raise asyncio.CancelledError
+                return result
+
             # A forced/late retirement can race the worker's final callback.
             # If the scoped handoff mutation was already accepted, finish its
             # durable tracker transition before removing the runtime entry so
@@ -47835,6 +46996,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if worker_task and not worker_task.done():
                 worker_task.cancel()
                 waitables.add(worker_task)
+            if (
+                fenced_provider_start_task is not None
+                and not fenced_provider_start_task.done()
+            ):
+                fenced_provider_start_task.cancel()
+                waitables.add(fenced_provider_start_task)
 
             session_stop_task: asyncio.Task | None = None
             cli_session = getattr(self, "_cli_agent_sessions", {}).get(issue_id)
@@ -47946,10 +47113,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     entry.workspace_path,
                 )
                 self._notify_observers()
-                return False
+                return _termination_result(False)
             with self._retry_authority_lock:
                 entry.managed_processes.clear()
-                entry.retirement_pending = False
 
             # A retry may reuse the exact task worktree. Snapshot its dirty
             # state after all worker processes are stopped but before the
@@ -47982,7 +47148,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     project_id,
                     accepted_record,
                 )
-                return True
+                return _termination_result(True)
             project_store = getattr(self, "project_store", None)
             recovery_publication_pending = False
             recovery_preserver = getattr(
@@ -48004,7 +47170,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         issue_id,
                         getattr(entry, "run_id", None),
                     )
-                    return True
+                    return _termination_result(True)
                 try:
                     expected_path = project_store.worktree_path_for(
                         project_id, entry.identifier
@@ -48034,7 +47200,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 issue_id,
                                 getattr(entry, "run_id", None),
                             )
-                            return True
+                            return _termination_result(True)
                 except RecoveryPublicationError as exc:
                     recovery_publication_pending = True
                     self._route_retryable_recovery_publication(
@@ -48052,7 +47218,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         project_id,
                         str(exc),
                     )
-                    return False
+                    return _termination_result(False)
 
             if (
                 cli_session is not None
@@ -48077,46 +47243,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # token minted by ``_issue_task_handoff_token`` and is unaffected.
             revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
             # Keep the runtime visible until worker/session termination has been
-            # attempted, and do not remove a replacement entry with the same ID.
+            # attempted, and do not clean a replacement entry with the same ID.
             if self._current_running_entry(issue_id) is not entry:
-                return True
-            if entry.is_auditor:
-                reservation_key = self._audit_reservation_key_for_issue(entry.issue)
-                reconciled = self._reconcile_audit_budget_spend(
-                    reservation_key,
-                    actual_cost=self._auditor_actual_cost(entry),
-                )
-                if reconciled:
-                    reconciled = self._release_audit_budget_reservation(
-                        reservation_key
-                    )
-                if not reconciled:
-                    logger.error(
-                        "Terminated auditor %s retains projected budget capacity "
-                        "because spend/release persistence failed",
-                        entry.identifier,
-                    )
-            self._remove_running_entry(issue_id, entry)
+                return _termination_result(True)
 
-            # Add runtime to totals
-            elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
-            self.state.agent_totals.seconds_running += elapsed
-            if entry.session:
-                self.state.agent_totals.input_tokens += entry.session.input_tokens
-                self.state.agent_totals.output_tokens += entry.session.output_tokens
-                self.state.agent_totals.total_tokens += entry.session.total_tokens
-
-            # Write per-task cost telemetry before dropping the runtime entry
-            # (fire-and-forget, never blocks termination)
-            self._fire_task_cost_record(entry)
-
-            # Write per-agent telemetry comment for this terminated run too
-            # so the operator sees every attempt — including manual kills —
-            # in task comments. Exit reason is "terminated" to
-            # distinguish from natural exits. See task oompah-zlz_2-y3fy.
-            self._fire_telemetry_comment(entry, "terminated", elapsed)
-
-            if entry.is_auditor and getattr(entry, "forced_exit_reason", None):
+            if unadmitted_audit:
+                await asyncio.to_thread(self._remove_audit_workspace, entry)
+            elif entry.is_auditor and getattr(entry, "forced_exit_reason", None):
                 ended = await asyncio.to_thread(
                     self._finish_audit_attempt,
                     entry,
@@ -48131,14 +47264,6 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         "a different independent candidate will be tried.",
                         project_id=project_id,
                     )
-
-            self.state.claimed.discard(issue_id)
-            self.state.claimed_issues.pop(issue_id, None)
-            if entry.is_auditor:
-                self._release_audit_branch_claim(
-                    entry.branch_key,
-                    entry.audit_attempt_id,
-                )
 
             if (
                 getattr(entry, "duplicate_preflight", False)
@@ -48185,6 +47310,40 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         exc,
                     )
 
+            # Every yielding cleanup step is complete. Keep the exact runtime
+            # and claim visible until this final non-yielding commit so direct
+            # child cancellation (for example loop shutdown) remains
+            # recoverable by a replacement safe-stop owner.
+            with self._provider_admission_lock:
+                if self._current_running_entry(issue_id) is not entry:
+                    return _termination_result(True)
+                if not self._remove_running_entry(issue_id, entry):
+                    return _termination_result(True)
+                self.state.claimed.discard(issue_id)
+                self.state.claimed_issues.pop(issue_id, None)
+                if entry.is_auditor and getattr(entry, "provider_started", False):
+                    self._release_audit_branch_claim(
+                        entry.branch_key,
+                        entry.audit_attempt_id,
+                    )
+                # The exact entry is no longer published. Clear the transient
+                # fence only as the last part of this non-yielding retirement
+                # commit; a revoked authority tombstone remains historical.
+                entry.retirement_pending = False
+
+            elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
+            self.state.agent_totals.seconds_running += elapsed
+            if entry.session:
+                self.state.agent_totals.input_tokens += entry.session.input_tokens
+                self.state.agent_totals.output_tokens += entry.session.output_tokens
+                self.state.agent_totals.total_tokens += entry.session.total_tokens
+
+            # Telemetry is fire-and-forget and runs only after exact retirement
+            # commits, so a canceled pre-commit child cannot double-count on a
+            # replacement stop attempt.
+            self._fire_task_cost_record(entry)
+            self._fire_telemetry_comment(entry, "terminated", elapsed)
+
             logger.info(
                 "Terminated running issue_id=%s issue_identifier=%s cleanup=%s",
                 issue_id,
@@ -48203,9 +47362,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     },
                 )
             )
-            return True
+            return _termination_result(True)
         finally:
-            self._terminating_worker_ids.discard(issue_id)
+            # A child cancelled at any yielding barrier must leave a visibly
+            # retryable owner whose provider admission remains fenced.  The
+            # parent wrapper separately owns callback-suppression cleanup.
+            with self._provider_admission_lock:
+                if self._current_running_entry(issue_id) is entry:
+                    entry.retirement_pending = True
 
     def _tracker_read_stats_snapshot(self) -> dict[str, Any]:
         stats: dict[str, Any] = {}
@@ -48379,7 +47543,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 live_audit_keys.add(key)
                 self._terminal_audit_metrics.record_running(
                     *key,
-                    attempts=int(getattr(entry, "attempt", 0) or 0),
+                    attempts=int(getattr(entry, "retry_attempt", 0) or 0),
                 )
         # An empty running map is positive evidence that no provider owns a
         # running audit.  The previous compatibility guard skipped this
@@ -48604,6 +47768,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "service_instance_id": getattr(self, "_service_instance_id", None),
             "restart": {
                 "in_progress": getattr(self, "_restart_in_progress", False),
+                "drain_scheduled": getattr(
+                    self, "_restart_drain_scheduled", False
+                ),
+                "drain_started": getattr(self, "_restart_drain_started", False),
                 "request_id": getattr(self, "_restart_request_id", None),
                 "requested_at": getattr(self, "_restart_requested_at", None),
                 "initial_running": getattr(self, "_restart_initial_running", 0),
