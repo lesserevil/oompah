@@ -21,6 +21,7 @@ import ssl
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -52,6 +53,7 @@ from oompah.validation_resource_lease import (
     ValidationResourceLease,
     contains_configured_validation_command,
     is_focused_validation_command,
+    _is_dynamic_loader_environment_name,
     is_heavyweight_validation_command,
     managed_agent_validation_owner,
 )
@@ -142,6 +144,18 @@ _PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
 
 _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 720
 _RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
+_UNTRUSTED_SHELL_STARTUP_ENV_NAMES = frozenset(
+    {
+        "BASHOPTS",
+        "BASH_ENV",
+        "BASH_XTRACEFD",
+        "ENV",
+        "PROMPT_COMMAND",
+        "PS4",
+        "SHELLOPTS",
+        "ZDOTDIR",
+    }
+)
 
 # Keep tool results below provider-side spill thresholds.  In particular, the
 # Claude transport persists oversized MCP results under its own private state
@@ -897,7 +911,14 @@ def _exec_run_command(
     # because ``env=None`` would otherwise inherit the server's full env.
     inherited_env = {**os.environ, **(env_overrides or {})}
     env = agent_environment(inherited_env, workspace_path=workspace)
-    
+    env = {
+        name: value
+        for name, value in env.items()
+        if name not in _UNTRUSTED_SHELL_STARTUP_ENV_NAMES
+        and not name.startswith("BASH_FUNC_")
+        and not _is_dynamic_loader_environment_name(name)
+    }
+
     # Apply noninteractive git environment to all commands as defense-in-depth (OOMPAH-681).
     # This prevents git from spawning editors even if the command bypasses our validation.
     if "git" in command:
@@ -1017,7 +1038,19 @@ def _exec_run_command(
             # suppress the bounded command result.
             logger.debug("Unable to mark command result pending", exc_info=True)
 
-    heavyweight_validation = is_heavyweight_validation_command(command)
+    heavyweight_validation = is_heavyweight_validation_command(
+        command,
+        executable_search_path=str(env.get("PATH") or os.defpath),
+        untrusted_executable_roots=(
+            str(workspace.resolve()),
+            "/tmp",
+            "/var/tmp",
+            tempfile.gettempdir(),
+            *(str(env[name]) for name in ("TMPDIR", "TMP", "TEMP") if env.get(name)),
+        ),
+        command_environment=env,
+        working_directory=workspace,
+    )
     if require_validation_lease and heavyweight_validation and validation_owner is None:
         return (
             "Error: heavyweight validation is unavailable because trusted "
@@ -1107,7 +1140,15 @@ def _exec_run_command(
             return "Error: validation authority withdrawn before command launch"
         command_started = time.monotonic()
         validation_command_started_at = command_started
-        process = subprocess.Popen(["bash", "-lc", command], **popen_kwargs)
+        # The bridge has already classified the command against ``env`` above.
+        # A login shell would evaluate HOME/.bash_profile after that decision,
+        # allowing task-controlled startup code to replace PATH or start heavy
+        # validation before the lease boundary.  This shell is only a command
+        # parser; never admit interactive or login startup files here.
+        process = subprocess.Popen(
+            ["bash", "--noprofile", "--norc", "-c", command],
+            **popen_kwargs,
+        )
         validation_process_started = True
         _notify_validation_observer(
             phase="started",
