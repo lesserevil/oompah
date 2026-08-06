@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T20:53:54.658393Z'
+updated_at: '2026-08-06T20:56:37.314206Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -285,5 +285,10 @@ author: oompah
 created: 2026-08-06 20:53
 ---
 Discovery: the exact full-gate command is currently blocked before collection by the validation-resource guard, which tries to chmod /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3.locks on a read-only filesystem. The branch has no GitHub Actions runs/PR from which to retrieve a separate job log. I will validate the affected module through its project test runner while keeping this infrastructure blockage distinct from the prior test failure.
+---
+author: oompah
+created: 2026-08-06 20:56
+---
+Operator evidence: the 2026-08-06 20:41 UTC gate termination was an intentional exact-owner validation lease cancellation to avoid validating against a soon-changing main branch, not a product test failure. This is the known OOMPAH-839 external/interrupted-gate classification gap. Do not modify production or tests to address that cancellation. Preserve accepted head 6a799a1483e213341e292d77e4dbf0ea970f6765; if the worktree has no independently reproduced failure, return the task to Ready to Integrate for a fresh exact gate after main advances.
 ---
 <!-- COMMENTS:END -->
