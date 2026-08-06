@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:24:09.617609Z'
+updated_at: '2026-08-06T22:24:31.170559Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,25 @@ author: oompah
 created: 2026-08-06 22:24
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 22:24
+---
+## Understanding
+
+This is a release-blocking regression where terminal-audit evidence fingerprinting and workspace creation diverge on canonical epic branch resolution. The fingerprinting correctly resolves epic-OOMPAH-768, but _create_workspace_for_auditor uses different logic and fails to find it, causing infrastructure exhaustion and moving completed epics to Needs Human.
+
+**Plan:**
+1. Explore current terminal_audit.py fingerprinting logic and how it resolves canonical epic branches
+2. Examine _create_workspace_for_auditor in orchestrator.py and understand its current candidate resolution
+3. Design a unified, typed revision candidate resolver with ordered precedence: immutable SHA → work/source/integration branches → canonical epic branch → nested shared/private parent → authorized merged/archive fallback
+4. Extract the resolver into a reusable component shared by both fingerprinting and workspace creation
+5. Persist and compare exact SHA to prevent divergence across restarts
+6. Add comprehensive tests for standalone/nested epics, absent candidates, immutable SHA handling, and parity between fingerprint/workspace
+7. Verify ordinary tasks remain unchanged
+
+**My expertise:** API/integration boundaries, clear interfaces, authorization/access control - I'll ensure the unified resolver is a clean, testable abstraction with proper validation and error handling.
+
+Starting exploration now.
 ---
 <!-- COMMENTS:END -->
