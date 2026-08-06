@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T22:07:44.571264Z'
+updated_at: '2026-08-06T22:15:29.113431Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -41,7 +41,7 @@ oompah.duplicate_screening:
     no duplicate. OOMPAH-864 is the distinct owner-resolution rearm bug reproduced
     by OOMPAH-863/OOMPAH-855; its exact transaction, generation fencing, restart recovery,
     and worktree preservation scope is not covered by the cited peers.
-oompah.agent_run_id: d8464adb-dc51-485c-976b-8957ad861fd2
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-864
 oompah.integration:
   version: 2
