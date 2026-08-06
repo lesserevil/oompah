@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-845
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T15:01:15.992830Z'
+updated_at: '2026-08-06T20:41:56.068811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +174,66 @@ author: oompah
 created: 2026-08-06 15:01
 ---
 Additional saturated serial evidence from the successful OOMPAH-860 terminal audit at d5edb84f1: pytest reported RuntimeWarning that coroutine LogFileWatcher.start was never awaited, attributed only during later garbage collection in unittest.mock. This warning has appeared in earlier full-gate logs and fits OOMPAH-845's existing event-loop and pending-task cleanup scope. During review, confirm the submitted OOMPAH-845 head deterministically closes or avoids this coroutine ownership path; if not, return it for repair rather than accepting the warning as normal.
+---
+author: oompah
+created: 2026-08-06 20:41
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-845`
+Target: `main`
+Head: `6a799a1483e213341e292d77e4dbf0ea970f6765`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+SED tests/test_http_auth.py::TestLoadHtpasswdFile::test_plaintext_password_rejected 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_unsupported_sha_hash_rejected 
+[gw3] [ 35%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_single_entry 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries 
+[gw1] [ 35%] PASSED tests/test_http_auth.py::TestVerifyPassword::test_wrong_bcrypt_password 
+tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password 
+[gw2] [ 35%] PASSED tests/test_http_auth.py::TestVerifyPassword::test_valid_bcrypt_password 
+tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password 
+[gw1] [ 35%] PASSED tests/test_http_auth.py::TestVerifyPassword::test_wrong_apr1_password 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_apr1_hash_accepted 
+[gw2] [ 35%] PASSED tests/test_http_auth.py::TestVerifyPassword::test_valid_apr1_password 
+[gw1] [ 35%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_apr1_hash_accepted 
+tests/test_http_auth.py::TestLoadCredentials::test_disabled_when_no_default_file_and_no_override 
+tests/test_http_auth.py::TestLoadCredentials::test_default_discovery_finds_htpasswd 
+[gw2] [ 35%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_disabled_when_no_default_file_and_no_override 
+tests/test_http_auth.py::TestLoadCredentials::test_relative_path_override_resolves_against_env_dir 
+[gw0] [ 35%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_unsupported_sha_hash_rejected 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_unsupported_md5_hash_rejected 
+[gw0] [ 35%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_unsupported_md5_hash_rejected 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_bcrypt_variants_accepted 
+[gw0] [ 36%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_bcrypt_variants_accepted 
+tests/test_http_auth.py::TestLoadCredentials::test_explicit_unreadable_file_fatal 
+[gw0] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_explicit_unreadable_file_fatal 
+tests/test_http_auth.py::TestLoadCredentials::test_explicit_malformed_file_fatal 
+[gw0] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_explicit_malformed_file_fatal 
+tests/test_http_auth.py::TestLoadCredentials::test_explicit_empty_file_fatal 
+[gw0] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_explicit_empty_file_fatal 
+tests/test_http_auth.py::TestVerifierCallable::test_valid_password_succeeds 
+[gw3] [ 36%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries 
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_invalid_bcrypt_work_factor_rejected 
+[gw3] [ 36%] PASSED tests/test_http_auth.py::TestLoadHtpasswdFile::test_invalid_bcrypt_work_factor_rejected 
+tests/test_http_auth.py::TestVerifierCallable::test_generic_error_message 
+[gw1] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_default_discovery_finds_htpasswd 
+tests/test_http_auth.py::TestLoadCredentials::test_absolute_path_override_used_as_is 
+[gw2] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_relative_path_override_resolves_against_env_dir 
+tests/test_http_auth.py::TestLoadCredentials::test_explicit_missing_file_fatal 
+[gw2] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_explicit_missing_file_fatal 
+tests/test_http_auth.py::TestCredentialReload::test_invalid_replacement_retains_last_known_good_then_recovers 
+[gw1] [ 36%] PASSED tests/test_http_auth.py::TestLoadCredentials::test_absolute_path_override_used_as_is 
+tests/test_http_auth.py::TestCredentialReload::test_atomic_rotation_adds_and_removes_users 
+[gw0] [ 36%] PASSED tests/test_http_auth.py::TestVerifierCallable::test_valid_password_succeeds 
+tests/test_http_auth.py::TestVerifierCallable::test_wrong_password_fails 
+[gw3] [ 36%] PASSED tests/test_http_auth.py::TestVerifierCallable::test_generic_error_message 
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+```
 ---
 <!-- COMMENTS:END -->
