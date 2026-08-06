@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T07:15:06.678647Z'
+updated_at: '2026-08-06T07:15:20.716902Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -68,48 +68,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
-  head_sha: 359c62f75c2af7b03efb993e9d2a29397f6e18ae
-  submitted_at: '2026-08-06T06:43:30.519792+00:00'
-  updated_at: '2026-08-06T07:02:30.505058+00:00'
-  last_error: "Combined-tree quality gate failed: \n\ntests/test_task_cli.py::TestBuildParser::test_coordinate_send_subcommand_parses\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/gettext.py:487:\
-    \ RuntimeWarning: coroutine 'sleep' was never awaited\n    if val:\n  Enable tracemalloc\
-    \ to get traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_completed_process_is_detached_after_stderr_eof\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-3gqqv7sf/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7b95fc64b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_done_merged_archived_lifecycle.py::TestFailureWrongMergeTarget::test_wrong_merge_target_using_healthy_unmerged_review\n\
-    FAILED tests/test_done_merged_archived_lifecycle.py::TestRestartRecovery::test_recovery_after_merged_request_before_audit\n\
-    FAILED tests/test_done_merged_archived_lifecycle.py::TestHappyPathMerged::test_auditor_c_passes_merged_moves_to_merged\n\
-    FAILED tests/test_done_merged_archived_lifecycle.py::TestHappyPathMerged::test_merged_record_completed_after_pass\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[gitlab-Merged]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[github-Done]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_duplicate_webhook_and_polling_signals_are_idempotent[github]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_duplicate_webhook_and_polling_signals_are_idempotent[gitlab]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[native-Done]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[gitlab-Done]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[github-Merged]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_duplicate_webhook_and_polling_signals_are_idempotent[native]\n\
-    FAILED tests/test_epic_terminal_audit_contract.py::test_done_and_merged_audits_follow_shared_branch_chain[native-Merged]\n\
-    = 13 failed, 16296 passed, 8 skipped, 1 xfailed, 49 warnings in 1098.76s (0:18:18)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: ac298bbf6c5ce9749e3d9f621be85c79f43f029e
+  submitted_at: '2026-08-06T07:15:14.895706+00:00'
+  updated_at: '2026-08-06T07:15:14.895706+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -539,5 +505,10 @@ author: oompah
 created: 2026-08-06 07:15
 ---
 Repair pushed at exact head ac298bbf6. Verification under the shared validation lease: the two previously failing modules pass 73 tests with 1 expected xfail; the expanded 14-suite terminal-audit, lifecycle, fencing, workflow-job, and recovery set passes 645 tests with 1 expected xfail and 5 pre-existing coroutine warnings. Targeted Ruff (excluding pre-existing unused-import/F541 debt), py_compile, git diff check, and make terminal-audit-scan pass. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-06 07:15
+---
+Fixed exact-gate Merged audit prerequisite routing and aligned lifecycle evidence fixtures; 645 focused tests pass at ac298bbf6.
 ---
 <!-- COMMENTS:END -->
