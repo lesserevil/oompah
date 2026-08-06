@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T08:54:18.451439Z'
+updated_at: '2026-08-06T08:54:28.855539Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -131,8 +131,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-9c342b6071bb
-    applied: false
+    applied: true
     created_at: '2026-08-06T08:54:14.533552+00:00'
+    applied_at: '2026-08-06T08:54:25.947403+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -760,5 +761,31 @@ author: oompah
 created: 2026-08-06 08:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 08:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 6a84d9bcc2ca1e3e825883d298793e04bd9c43a8
+- terminal_audit_workflow_tests: 32 passed
+- durable_finalization_tests: 37 passed
+- terminal_audit_enforcement_tests: 119 passed
+- coordinator_dispatch_tests: 184 passed
+- workflow_job_worker_tests: 71 passed
+- lifecycle_contract_tests: 73 passed (1 xfailed expected)
+- auditor_focus_target_tests: 222 passed
+- evidence_collector_tests: 160 passed
+- phase_model: QUEUED, RUNNING, FINALIZING, RETRY_WAIT, ACTION_REQUIRED, COMPLETED
+- no_candidate_test: test_no_candidate_or_policy_denial_is_explicit_action_required
+- transport_failure_test: test_transport_rotation_is_informational_and_retryable
+- policy_denial_test: test_dynamic_policy_denial_durably_retries_only_its_attempt
+- revoked_auditor_test: test_revoked_replacement_result_cancels_exact_finalization
+- oversized_output_test: test_checkpoint_excludes_oversized_or_untrusted_output
+- restart_tests: test_restart_requeues_audit_without_a_live_attempt, test_finalizing_result_survives_restart_and_reclaims_exact_lease, test_action_required_checkpoint_replays_result_after_restart
+- starvation_test: test_finalization_replay_precedes_pause_and_capacity_gates
 ---
 <!-- COMMENTS:END -->
