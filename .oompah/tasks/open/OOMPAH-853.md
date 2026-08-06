@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:13:32.681862Z'
-updated_at: '2026-08-06T05:14:17.673795Z'
+updated_at: '2026-08-06T05:14:55.114724Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-853
 target_branch: null
 review_url: null
@@ -22,14 +22,47 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 76de1f1705d2c49c194b4b015da286ed72a8022249d7dda6e00ae5520b1a3460
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T05:14:48.857024+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4d4f0130-2074-45d3-ab41-e81bb6c2d9ee
-  claim_owner: 11468835-7c49-48df-a46d-b143af3a940a
-  claimed_at: '2026-08-06T05:13:57.500730+00:00'
-  claim_expires_at: '2026-08-06T05:43:57.500730+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: OOMPAH-853 is the only task targeting duplicate-preflight\
+    \ corpus construction budget robustness. Related active tasks (OOMPAH-809, OOMPAH-811,\
+    \ OOMPAH-846, OOMPAH-847) address capacity lanes, integration metadata, and validation\
+    \ guards\u2014orthogonal concerns. Terminal tasks are historical context for the\
+    \ larger workflow-engine migration epic (OOMPAH-763). The omitted structural peers\
+    \ (OOMPAH-848/849/850/851/852) cannot be compared due to corpus budget pressure,\
+    \ which is precisely the problem OOMPAH-853 must solve. No active duplicate exists;\
+    \ this is a discrete fix.\n# Duplicate Investigation: OOMPAH-853\n\nI'm performing\
+    \ a read-only duplicate screening investigation on OOMPAH-853 using only the supplied\
+    \ project task corpus. Let me analyze the current task against all active peers.\n\
+    \n## Analysis\n\n**Current Task OOMPAH-853:**\n- Title: \"Keep duplicate screening\
+    \ decisive when structural peers exceed the corpus budget\"\n- Status: Open\n\
+    - Scope: Fix the duplicate preflight system so corpus budget pressure never strands\
+    \ actionable tasks in \"Needs Human\" state. Ensure conclusive verdicts despite\
+    \ bounded corpus constraints.\n\n**Corpus Diagnostic Evidence:**\nThe corpus selection\
+    \ itself demonstrates the exact problem OOMPAH-853 aims to solve:\n- Required\
+    \ peer count: 30, included: 25, omitted: 5\n- Omitted identifiers: OOMPAH-848,\
+    \ OOMPAH-849, OOMPAH-850, **OOMPAH-851**, OOMPAH-852\n- Diagnostic message: \"\
+    Required structural peers could not fit the bounded corpus\"\n\n**Key Finding:**\
+    \ OOMPAH-851 (the regression case that triggered this task) is in the omitted\
+    \ set, so I cannot fully analyze it.\n\n**Active Peer Review:**\nI reviewed all\
+    \ active (Open/In Progress) and terminal (Done/Merged) tasks in the corpus:\n\
+    - **OOMPAH-809** (Open): About terminal-audit lane starvation and scheduler capacity\
+    \ reservation\n- **OOMPAH-811** (Open): About integration ownership rearming during\
+    \ rebase\n- **OOMPAH-831** (Needs CI Fix): About terminal-auditor tool contract\
+    \ consistency\n- **OOMPAH-846** (In Progress): About validation-resource lease\
+    \ enforcement for worker commands\n- **OOMPAH-847** (In Progress): About unit\
+    \ test isolation from loaded-gate work\n- Other Done/Merged tasks: All address\
+    \ distinct workflow-engine subsystems (facts, decisions, jobs, audits, integration,\
+    \ watchdog recovery, fixture stability, recovery objects, lifecycle retry loops,\
+    \ auditor contracts, nested-epic dispatch, capacity reservation, tool result delivery)\n\
+    \n**No Terminal Duplicates:** The terminal tasks (OOMPAH-764\u2013767, OOMPAH-806\u2013\
+    807, OOMPAH-810, OOMPAH-814\u2013817, OOMPAH-822, OOMPAH-840\u2013841) all addres"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -45,6 +78,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
   updated_at: '2026-08-06T05:14:11.638606+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1996
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1996
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1996
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T05:14:48.855557+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-853__20260806T051420Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-853
+    source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
+    completed_at: '2026-08-06T05:14:48.878530+00:00'
 ---
 ## Summary
 
@@ -67,5 +126,15 @@ author: oompah
 created: 2026-08-06 05:14
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 05:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 47s
+- Log: OOMPAH-853__20260806T051420Z.jsonl
 ---
 <!-- COMMENTS:END -->
