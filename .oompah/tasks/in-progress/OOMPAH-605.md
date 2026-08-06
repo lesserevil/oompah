@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T21:04:09.911489Z'
+updated_at: '2026-08-06T21:04:34.396626Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 63bd7266-e914-45f4-84cd-cf903e97ae14
+oompah.agent_run_id: 489bbc1f-b73b-43ca-94b9-dfddf87ab92f
 oompah.task_costs:
   total_input_tokens: 1205558
   total_output_tokens: 28178
@@ -598,5 +598,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 13s
 - Log: OOMPAH-605__20260806T210004Z.jsonl
+---
+author: oompah
+created: 2026-08-06 21:04
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 21:04
+---
+Focus: Oompah Tests Auth Specialist
 ---
 <!-- COMMENTS:END -->
