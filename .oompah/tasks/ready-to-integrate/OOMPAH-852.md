@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-852
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Protect exact gates from concurrent focused validation commands
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:51:38.786179Z'
-updated_at: '2026-08-06T05:09:29.172856Z'
+updated_at: '2026-08-06T05:09:52.216190Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-852
 target_branch: null
 review_url: null
@@ -66,16 +66,18 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d10fe2a9-c629-40bd-87c1-b43ebfbeb6ba
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-852
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-852
   base_branch: epic-OOMPAH-763
   base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
-  updated_at: '2026-08-06T04:56:55.223386+00:00'
+  head_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
+  submitted_at: '2026-08-06T05:09:38.706077+00:00'
+  updated_at: '2026-08-06T05:09:38.706077+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 2708
@@ -174,5 +176,20 @@ author: oompah
 created: 2026-08-06 05:09
 ---
 Completion: focused pytest/py.test/unittest invocations no longer bypass ValidationResourceLease, including named and absolute Python selectors. Exact-gate ordering, one-time focused execution, inspection concurrency, and existing cancellation/liveness behavior are covered. Commit 930cd74b9 is pushed and the branch is clean/up to date. Full make test could not reach pytest because uv setup failed with the host DBus transient-scope error; focused suites and Ruff are green.
+---
+author: oompah
+created: 2026-08-06 05:09
+---
+Serialize focused pytest/py.test/unittest validation behind the shared lease; add exact-gate and inspection regressions.
+---
+author: oompah
+created: 2026-08-06 05:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 82
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 1s
+- Log: OOMPAH-852__20260806T045701Z.jsonl
 ---
 <!-- COMMENTS:END -->
