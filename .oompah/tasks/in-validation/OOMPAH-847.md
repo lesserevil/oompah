@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-847
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Isolate dispatch-lock and epic-review unit tests from unrelated loaded-gate
   work
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T16:18:21.786862Z'
+updated_at: '2026-08-06T16:36:32.454390Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-847
 target_branch: null
 review_url: null
@@ -47,14 +47,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-847
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-763--task-OOMPAH-847
   base_branch: epic-OOMPAH-763
-  base_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
+  base_sha: 6b67846406858b585ce47939f70bec76eb706fe8
   head_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
+  integrated_sha: 5703f6f726f1d2a53ab31c1e1179294b5834f65a
   submitted_at: '2026-08-06T16:18:12.240757+00:00'
-  updated_at: '2026-08-06T16:18:12.240757+00:00'
+  updated_at: '2026-08-06T16:36:21.746900+00:00'
 oompah.task_costs:
   total_input_tokens: 45935
   total_output_tokens: 400
@@ -81,6 +82,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-763--task-OOMPAH-847
     source_sha: 93cc4c85664bfba06c82ac04ab66329c7f378832
     completed_at: '2026-08-06T04:18:26.074882+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cedf0c7c11b7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-847
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4513d1c6ef783deacf6839950e57125d58674e6399d5b8ceea9a0b48970f785f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T16:36:24.622491+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -158,5 +181,10 @@ author: oompah
 created: 2026-08-06 16:18
 ---
 Isolated dispatch/review-capacity test fixtures and validated the OOMPAH-831 gate repairs at exact head 5703f6f72.
+---
+author: oompah
+created: 2026-08-06 16:36
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
