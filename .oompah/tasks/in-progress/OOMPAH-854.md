@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T09:09:53.662118Z'
+updated_at: '2026-08-06T09:20:18.163953Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -337,5 +337,10 @@ author: oompah
 created: 2026-08-06 09:09
 ---
 Fourth-review repair is complete but remains uncommitted/test-free pending independent review. It now restores the full restart fence on drain failure/cancellation, restores ordinary and retry implementation authority on task creation failure, uses eager-safe worker/provider publication with BaseException cleanup across real API/ACP/CLI paths, and journals unadmitted audit rollback so metadata outages/restarts do not consume attempt budget. Static parse/diff checks are clean.
+---
+author: oompah
+created: 2026-08-06 09:20
+---
+Independent static review rejected the current repair for four concrete blockers: ordinary dispatch can still orphan In Progress after commit/response loss or rollback failure; compensation awaits are not shielded/cancellation-safe; deferred audit rollback authority is not restart-durable after state-journal failure; and the new quiesce-fence test contains undefined variables. The API/ACP/CLI coverage also bypasses real worker-method wiring. Repair is in progress with production-shaped cancellation, restart, and wiring regressions; no validation or submission will occur until a fresh independent review accepts it.
 ---
 <!-- COMMENTS:END -->
