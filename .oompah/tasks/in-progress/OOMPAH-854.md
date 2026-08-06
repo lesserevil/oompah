@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T18:39:08.632151Z'
+updated_at: '2026-08-06T19:26:51.733029Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -367,5 +367,10 @@ author: oompah
 created: 2026-08-06 18:39
 ---
 Lifecycle race repair is committed and rebased at exact head fac0729758cdd883b36b89c78fe75ff673f49746. Independent post-rebase composition review accepted restart-generation CAS, exact runtime retirement ownership, provider-to-retry lock ordering, task-handoff fencing, and duplicate-preflight compensation. make check-secrets and static checks pass; focused verification follows the active validation queue.
+---
+author: oompah
+created: 2026-08-06 19:26
+---
+Post-O858 composition review found and repaired an ordinary-dispatch publication race: an accepted submission could land after the final tracker read but before RunningEntry publication, allowing provider start without submission binding. Final publication now holds the per-issue transition lock through entry/gate publication; deterministic preliminary/fresh-fetch regression and independent review ACCEPT. Repair committed at 244456522e8fe8f074ba313f61bbef943e265fa6. Focused validation waits for the active OOMPAH-856 exact gate and final epic restack.
 ---
 <!-- COMMENTS:END -->
