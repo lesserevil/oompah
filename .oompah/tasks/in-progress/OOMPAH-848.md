@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T17:50:10.542602Z'
+updated_at: '2026-08-06T17:51:54.890259Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -214,5 +214,15 @@ author: oompah
 created: 2026-08-06 17:50
 ---
 Discovery after recovery audit: the patch remains narrow and intact on top of the current OOMPAH-763 head. get_snapshot previously executes terminal-audit reconciliation, validation_resource_lease.status(), tracker/review/workflow/store collectors before assembling its budget block. The extracted _budget_snapshot depends only on ServiceConfig and OrchestratorState; the adjacent tests now construct that projection without initializing any store or executor, while one controlled full-object test proves get_snapshot still routes the public budget field through the projection. The prior gate failure was metadata/head skew after an automatic restack, not a test or implementation failure.
+---
+author: oompah
+created: 2026-08-06 17:51
+---
+Verification: the previously tested head 98de5d1f5 and current restacked head 54c8abf8f are patch-equivalent ( marks both OOMPAH-848 commits ). At that implementation content, the complete module passed 41/41 serial and 41/41 with four xdist workers, and the named increment/projection regression passed 20 executions across five four-process batches; diff-check and push state are clean. A fresh local make test-setup attempt did not start tests because the immutable native validation guard points its lease DB at read-only /home/shedwards/src/oompah. The server-owned submission gate is therefore the required fresh exact-head validation path.
+---
+author: oompah
+created: 2026-08-06 17:51
+---
+Completion: delivered a local-state-only _budget_snapshot projection with unchanged get_snapshot response shape; converted adjacent free-tier projection tests to storage/executor-free objects; retained an exact one-increment _should_dispatch regression and a controlled public routing contract; and added deterministic teardown for full Orchestrator fixtures. Branch head 54c8abf8f is clean, pushed, exactly two commits atop current OOMPAH-763, and ready for the canonical exact-head gate.
 ---
 <!-- COMMENTS:END -->
