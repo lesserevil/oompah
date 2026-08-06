@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-848
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Isolate free-tier budget snapshot tests from heavyweight live state
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:35:27.470578Z'
-updated_at: '2026-08-06T18:13:31.339823Z'
+updated_at: '2026-08-06T18:29:58.683513Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-848
 target_branch: null
 review_url: null
@@ -107,6 +107,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T04:42:12.383090+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-e770e8ae6bfc: '2026-08-06T18:29:54.716430+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-848
+    target_state: Done
+    evidence_fingerprint: 1aa6ac5bbe850d6c9f0a18f2fee64a7ee7f48951e390c7475eef48b6d07d22d6
+    audit_ids:
+    - audit-4ef1edb19c89
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T18:29:54.716437+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-848
+    audit_id: audit-4ef1edb19c89
+    attempt_id: attempt-e770e8ae6bfc
+    target_state: Done
+    evidence_fingerprint: 1aa6ac5bbe850d6c9f0a18f2fee64a7ee7f48951e390c7475eef48b6d07d22d6
+    status: Done
+    audit_ids:
+    - audit-4ef1edb19c89
+    applied: false
+    created_at: '2026-08-06T18:29:54.716447+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-848
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -123,7 +147,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e770e8ae6bfc
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -133,13 +157,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T18:13:20.878480+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-848
+      verdict: pass
+      completed_at: '2026-08-06T18:29:54.716325+00:00'
+      ended_at: '2026-08-06T18:29:54.716325+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T18:12:06.481496+00:00'
-    updated_at: '2026-08-06T18:13:20.878480+00:00'
+    updated_at: '2026-08-06T18:29:54.716325+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e770e8ae6bfc
