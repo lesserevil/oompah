@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-861
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Keep accepted branch identity immutable after owner-submit gate failure
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T13:27:20.466495Z'
-updated_at: '2026-08-06T13:59:14.310791Z'
+updated_at: '2026-08-06T14:03:02.436121Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-861
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 45s
 - Log: OOMPAH-861__20260806T134643Z.jsonl
+---
+author: oompah
+created: 2026-08-06 14:03
+---
+Independent review found two pre-integration blockers: abort-recovery performs another state-only refresh without restoring accepted IntegrationRecord authority, and the helper treats any accepted snapshot as newer without comparing its accepted generation timestamps/head. Owner-claiming the task to add regression coverage and keep the exact accepted branch/head immutable across those paths before resubmission.
 ---
 <!-- COMMENTS:END -->
