@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-856
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Make integrated-audit recovery alerts prescribe an accepted action
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T06:57:39.271491Z'
-updated_at: '2026-08-06T16:32:14.776943Z'
+updated_at: '2026-08-06T16:32:20.006928Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-856
 target_branch: null
 review_url: null
