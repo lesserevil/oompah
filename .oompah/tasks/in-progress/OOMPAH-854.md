@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T07:31:49.889151Z'
+updated_at: '2026-08-06T07:40:52.621327Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -302,5 +302,10 @@ author: oompah
 created: 2026-08-06 07:31
 ---
 Repair revision complete and awaiting a second independent static review. It now claims/coalesces restart atomically under the shared provider-admission lock, fences restart/stop/pause/quiesce/project pause, rejects resume during restart, protects durable audit rollback against replacement/verdict/owner-override CAS races (including post-pool-shutdown rollback), and reconciles post-admission metrics. Deterministic tests were added for those boundaries and fresh persisted-pause startup. Diff check passes; no tests/commit/push were performed yet.
+---
+author: oompah
+created: 2026-08-06 07:40
+---
+Second independent static review REJECTED the repair. Remaining blockers: the real make restart pre-drain quiesce can still be reopened by resume before restart is claimed; provider_started is marked under lock but actual provider/process start occurs afterward, leaving a post-marker admission window; rollback chooses the last unresolved record instead of the exact dispatched record in canonical Done→Merged chains; pre-provider rollback can leave dashboard gauges at queued=0/running=0 and reads nonexistent entry.attempt; no two-audit quiesce/restart/new-instance exactly-once or running→rollback→queued metric test exists. Accepted lock/coalescing/CAS work remains intact. No tests were run.
 ---
 <!-- COMMENTS:END -->
