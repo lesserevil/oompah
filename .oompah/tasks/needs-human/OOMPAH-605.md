@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-08-06T20:51:20.568957Z'
+updated_at: '2026-08-06T20:51:32.039778Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -128,8 +128,9 @@ oompah.terminal_audit:
     status: Needs Human
     audit_ids:
     - audit-8e46f26327c7
-    applied: false
+    applied: true
     created_at: '2026-08-06T20:51:19.218537+00:00'
+    applied_at: '2026-08-06T20:51:29.078140+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -488,5 +489,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 46s
 - Log: OOMPAH-605__20260806T204336Z.jsonl
+---
+author: oompah
+created: 2026-08-06 20:51
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
