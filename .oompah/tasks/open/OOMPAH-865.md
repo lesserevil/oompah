@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-865
 type: bug
-status: Needs Human
+status: Open
 priority: null
 title: Reserve an independent auditor candidate across contributor retry rotation
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T19:09:44.116383Z'
-updated_at: '2026-08-06T19:11:37.764960Z'
+updated_at: '2026-08-06T19:12:46.070385Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-865
 target_branch: null
 review_url: null
@@ -22,22 +22,24 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: b4dc339f6dba0ade744e546e15885f0eab90407a123aa5eed4782a0efb82241e
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-06T19:12:40.149364+00:00'
   matched_identifiers: []
-  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
-    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
-    OOMPAH-853, OOMPAH-854, OOMPAH-855, OOMPAH-856, OOMPAH-858, OOMPAH-860, OOMPAH-861,
-    OOMPAH-862, OOMPAH-863, OOMPAH-864.'
+  evidence: 'Project-owner review: this is a new regression from OOMPAH-858 contributor
+    retry rotation exhausting every configured auditor candidate; no existing active
+    task covers reserving an independent terminal auditor across contributor escalation.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-06T19:11:08.156537+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-06T19:12:40.149364+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Project-owner review: this is a new regression from OOMPAH-858
+    contributor retry rotation exhausting every configured auditor candidate; no existing
+    active task covers reserving an independent terminal auditor across contributor
+    escalation.'
 oompah.agent_run_id: 7af2d87e-b4e7-4db7-8a3a-1f06ae4f41c3
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-865
 oompah.integration:
