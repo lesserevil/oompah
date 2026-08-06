@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-05T15:44:15.632077Z'
-updated_at: '2026-08-06T18:26:46.857260Z'
+updated_at: '2026-08-06T18:26:52.933449Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-831
 target_branch: null
 review_url: null
@@ -74,8 +74,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-16c1e6ef6c1c
-    applied: false
+    applied: true
     created_at: '2026-08-06T18:26:43.185043+00:00'
+    applied_at: '2026-08-06T18:26:51.600619+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -335,5 +336,29 @@ author: oompah
 created: 2026-08-06 17:47
 ---
 Authoritative configured make test gate passed at exact accepted/integrated head 0e0056375918977c9b0b2d59524ce8ae68ceee40 at 2026-08-06 17:46 UTC. Prior focused evidence at the same head is 716 serial plus 716 four-way loadscope. Terminal review should inspect the patch and run only narrowly targeted missing checks; a second full-suite execution would be redundant exact-head evidence.
+---
+author: oompah
+created: 2026-08-06 18:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 0e0056375918977c9b0b2d59524ce8ae68ceee40
+- auditor_contract_tests: 56 passed
+- acp_tool_output_bounds_tests: 9 passed
+- provider_retirement_tests: 12 passed
+- terminal_audit_focused_tests: 105 passed
+- acp_codex_backend_tests: 74 passed
+- auditor_dispatch_tests: 16 passed
+- auditor_result_api_tests: 74 passed
+- acp_project_tools_tests: 53 passed
+- epic_terminal_audit_workspace: 30 passed, 1 xfailed
+- prior_full_gate_regression_targets: both PASS (dispatch_lane_contract + epic_strategy)
+- epic_strategy_full_suite: 239 passed
+- dispatch_lane_full_suite: 34 passed
+- commits_in_scope: 81b8be698 (align terminal auditor inspection tools) and 0e0056375 (keep auditor escape denials fatal)
+- search_worker_subprocess: oompah/search_files.py subprocess-isolated for regex catastrophic-backtracking containment
 ---
 <!-- COMMENTS:END -->
