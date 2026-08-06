@@ -27,7 +27,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T19:34:18.669662Z'
-updated_at: '2026-08-05T17:06:07.033383Z'
+updated_at: '2026-08-06T03:50:45.848032Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-804
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-08-05 16:40
 ---
 Composition checkpoint 33dfe8260 is preserved in the prepared worktree with syntax/diff checks clean. It constructs all project bindings/controllers, fail-closed total coverage, exact scoped recovery, durable pre-verify effect receipts, single event-loop ownership, mutation-free shadow evaluation, typed Epic handling, and fresh review facts. Enforce deliberately still refuses startup because no production domain adapters exist. The accepted missing scope is decomposed under this task as OOMPAH-834 (implementation handlers/events), OOMPAH-835 (review/CI handlers), OOMPAH-836 (integration handlers), and OOMPAH-837 (epic handlers); OOMPAH-804 now has finish-order dependencies on all four and remains the final cross-domain composition/single-writer gate.
+---
+author: oompah
+created: 2026-08-06 03:50
+---
+Propagated OOMPAH-791 head 0b5b039a1 and prepared OOMPAH-781 head add49a76c through the complete composite stack. New local prepared top is bf0229785f7d16847bde1cbdc6fbd18cba544155 on backup/OOMPAH-804-complete-precompose-0b5-20260806. Order: foundation cc9c9fd0d -> 6ee7e7e27 -> f322ab832 -> bcce667e3; O834 1ebd57ca4; O836 636d94d7b; O837 64706fcd1; reconciliation b6ffac2b4; O835 8f95fd9c1; WAL-last bf0229785. Nine commits range-diff '=', while O834 is marked contextual-only because it inserts four durable restart tests immediately before OOMPAH-791's new timeout marker; parent-to-commit diff confirms the marker remains unchanged context and both changes are preserved. Diff check clean. Holding push/submission for the serial landing sequence.
 ---
 <!-- COMMENTS:END -->
