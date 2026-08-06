@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-845
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Stabilize restart-recovery state fencing test under saturated full gates
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T21:02:38.691167Z'
+updated_at: '2026-08-06T21:03:28.491711Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 907c89e4-8a23-4b5d-a26e-1a57cbfa00ba
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 46934
   total_output_tokens: 592
@@ -300,5 +300,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 32s
 - Log: OOMPAH-845__20260806T205224Z.jsonl
+---
+author: oompah
+created: 2026-08-06 21:03
+---
+Restored the previously accepted exact head 6a799a1483e213341e292d77e4dbf0ea970f6765 after the old server misclassified an intentional gate cancellation as a product CI failure (known OOMPAH-839). The unrelated recovery checkpoint is preserved at refs/backup/OOMPAH-845-false-ci-fixer-20260806T2103Z and is not submitted.
 ---
 <!-- COMMENTS:END -->
