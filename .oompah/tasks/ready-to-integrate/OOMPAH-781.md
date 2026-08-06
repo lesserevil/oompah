@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T07:31:24.210467Z'
+updated_at: '2026-08-06T07:37:55.205109Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -68,106 +68,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: 2c6fc5259c2428f816d4c25a9533f638a3e9df09
-  head_sha: ac298bbf6c5ce9749e3d9f621be85c79f43f029e
-  submitted_at: '2026-08-06T07:15:14.895706+00:00'
-  updated_at: '2026-08-06T07:23:20.767037+00:00'
-  last_error: 'Combined-tree quality gate failed: lr2f/workspace/.venv/lib/python3.12/site-packages/_pytest/main.py",
-    line 372, in _main
-
-    INTERNALERROR>     config.hook.pytest_runtestloop(session=session)
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_hooks.py",
-    line 512, in __call__
-
-    INTERNALERROR>     return self._hookexec(self.name, self._hookimpls.copy(), kwargs,
-    firstresult)
-
-    INTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_manager.py",
-    line 120, in _hookexec
-
-    INTERNALERROR>     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-
-    INTERNALERROR>            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py",
-    line 167, in _multicall
-
-    INTERNALERROR>     raise exception
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py",
-    line 139, in _multicall
-
-    INTERNALERROR>     teardown.throw(exception)
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/_pytest/logging.py",
-    line 801, in pytest_runtestloop
-
-    INTERNALERROR>     return (yield)  # Run all the tests.
-
-    INTERNALERROR>             ^^^^^
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py",
-    line 139, in _multicall
-
-    INTERNALERROR>     teardown.throw(exception)
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/_pytest/terminal.py",
-    line 707, in pytest_runtestloop
-
-    INTERNALERROR>     result = yield
-
-    INTERNALERROR>              ^^^^^
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/pluggy/_callers.py",
-    line 121, in _multicall
-
-    INTERNALERROR>     res = hook_impl.function(*args)
-
-    INTERNALERROR>           ^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py",
-    line 138, in pytest_runtestloop
-
-    INTERNALERROR>     self.loop_once()
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py",
-    line 163, in loop_once
-
-    INTERNALERROR>     call(**kwargs)
-
-    INTERNALERROR>   File "/home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/.venv/lib/python3.12/site-packages/xdist/dsession.py",
-    line 217, in worker_workerfinished
-
-    INTERNALERROR>     assert not crashitem, (crashitem, node)
-
-    INTERNALERROR> AssertionError: (''tests/test_long_tick_regression.py::TestOperatorDiagnostics::test_snapshot_tick_metrics_include_dispatch_timing'',
-    <WorkerController gw1>)
-
-    INTERNALERROR> assert not ''tests/test_long_tick_regression.py::TestOperatorDiagnostics::test_snapshot_tick_metrics_include_dispatch_timing''
-
-
-    = 1 failed, 6609 passed, 7 skipped, 1 xfailed, 40 warnings in 444.35s (0:07:24)
-    =
-
-
-    Task was destroyed but it is pending!
-
-    task: <Task pending name=''quarantine-worker-TASK-123'' coro=<Orchestrator._terminate_running()
-    running at /home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/oompah/orchestrator.py:42243>
-    wait_for=<Future pending cb=[_chain_future.<locals>._call_check_cancel() at /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/futures.py:389,
-    Task.task_wakeup()]> cb=[Orchestrator._schedule_running_termination.<locals>._schedule.<locals>._finished()
-    at /home/shedwards/.oompah/tmp/oompah-quality-gate-ifexlr2f/workspace/oompah/orchestrator.py:3673]>
-
-    make: *** [Makefile:401: test] Error 3
-
-    '
+  head_sha: 6d6b641eb02560f86d7bfe8d1c90c3fda9951fd4
+  submitted_at: '2026-08-06T07:37:47.530480+00:00'
+  updated_at: '2026-08-06T07:37:47.530480+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -654,5 +562,15 @@ author: oompah
 created: 2026-08-06 07:31
 ---
 The repaired audit suites passed, but the exact gate hit a separate loaded-test isolation failure after 6,609 passes: xdist worker gw1 exited while test_snapshot_tick_metrics_include_dispatch_timing was under the global 5-second timeout. The test ran a full tick but did not stub terminal-lifecycle recovery or epic maintenance, then drained unrelated executor work; the orphaned quarantine-worker diagnostic confirms leaked background lifecycle work. Local repair isolates those non-asserted lanes and applies a bounded 20-second loaded-gate timeout consistent with existing OOMPAH-791 stabilizations. Static compile/diff checks pass; exact reproduction is queued behind OOMPAH-857's server-owned validation lease.
+---
+author: oompah
+created: 2026-08-06 07:37
+---
+Loaded-gate isolation repair pushed at exact head 6d6b641eb. Under the shared validation lease: exact crash item 1 passed in 1.22s; full long-tick module 14 passed in 1.73s; expanded 15-suite terminal-audit/lifecycle/fencing/recovery/tick set 659 passed with 1 expected xfail and 5 pre-existing coroutine warnings. Pycompile, targeted Ruff with documented pre-existing file debt excluded, and diff check pass; branch is clean/up to date.
+---
+author: oompah
+created: 2026-08-06 07:37
+---
+Isolated the loaded tick diagnostic that crashed xdist; 659 affected tests pass at 6d6b641eb.
 ---
 <!-- COMMENTS:END -->

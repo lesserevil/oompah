@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-857
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Clear recovered operator-auth warnings after authenticated success
 parent: OOMPAH-740
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T07:17:16.417571Z'
-updated_at: '2026-08-06T07:37:20.932337Z'
+updated_at: '2026-08-06T07:37:42.579979Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-857
 target_branch: null
 review_url: null
@@ -47,12 +47,14 @@ oompah.agent_run_id: e19b3a8b-0541-424f-82e3-363b45441af1
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-857
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-857
   base_branch: epic-OOMPAH-740
   base_sha: 4cdcc7e6e4f2f13087bce5942edf6a19821b9979
-  updated_at: '2026-08-06T07:20:20.416891+00:00'
+  head_sha: 03087ebf2fb2e0c3ba3bca5cc11fcbdfc3196bd0
+  submitted_at: '2026-08-06T07:37:37.191063+00:00'
+  updated_at: '2026-08-06T07:37:37.191063+00:00'
 oompah.task_costs:
   total_input_tokens: 47595
   total_output_tokens: 1848
@@ -255,5 +257,10 @@ Branch status:
 - Working tree: clean ✓
 
 Ready for integration.
+---
+author: oompah
+created: 2026-08-06 07:37
+---
+Implemented operator-auth recovery detection. Failed credentials followed by successful authentication now mark warnings as 'recovered' instead of remaining actionable, enabling dashboard to show issue resolution without waiting 15-minute window. All tests passing (133 verified).
 ---
 <!-- COMMENTS:END -->
