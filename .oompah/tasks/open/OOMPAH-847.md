@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-847
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Isolate dispatch-lock and epic-review unit tests from unrelated loaded-gate
   work
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:13:46.553414Z'
-updated_at: '2026-08-06T04:13:46.553414Z'
+updated_at: '2026-08-06T04:13:55.414472Z'
 work_branch: null
 target_branch: null
 review_url: null
