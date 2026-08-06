@@ -55,6 +55,9 @@ def _entry(attempt_id: str = "attempt-1") -> RunningEntry:
         audit_id="audit-1",
         audit_attempt_id=attempt_id,
         branch_key="task-branch",
+        # These cleanup regressions exercise a live auditor. A provider that
+        # never crossed admission is now rolled back instead of finalized.
+        provider_started=True,
     )
 
 

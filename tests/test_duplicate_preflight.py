@@ -188,6 +188,12 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._scheduled_termination_tasks = {}
     orch._terminating_worker_ids = set()
     orch.request_refresh = MagicMock()
+    orch._provider_admission_lock = threading.RLock()
+    orch._provider_admission_generation = 0
+    orch._termination_pending_baselines = {}
+    orch._termination_child_owned_keys = set()
+    orch.project_store = MagicMock()
+    orch.project_store.get.return_value = None
     return orch
 
 
