@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-864
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm abandoned duplicate-preflight work when an owner returns a task to Open
 parent: OOMPAH-763
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T18:12:02.899266Z'
-updated_at: '2026-08-06T21:43:15.674425Z'
+updated_at: '2026-08-06T21:43:23.434750Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-864
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-06 21:43
 ---
 **Verification:** All focused tests pass. Test results: 61 duplicate_preflight tests (including 2 new integration metadata clearing tests), 5 server owner resolution tests, 13 integration record tests = 79 total. Changes: (1) orchestrator.py modified to clear 'oompah.integration' metadata when owner resolves to no_duplicate, both in direct call and restart reconciliation, (2) tests/test_duplicate_preflight.py: added test_owner_no_duplicate_resolution_clears_stale_integration_metadata and test_owner_resolution_reconciliation_clears_integration_on_restart. Branch pushed at af7a4595b.
+---
+author: oompah
+created: 2026-08-06 21:43
+---
+Resolved duplicate-preflight rearm issue by clearing stale integration metadata when owner resolves to no_duplicate. Integration metadata is now cleared both in direct owner resolution calls and during server restart reconciliation. All 79 focused tests pass.
 ---
 <!-- COMMENTS:END -->
