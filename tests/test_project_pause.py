@@ -258,6 +258,10 @@ class TestShouldDispatchProjectPauseGate:
         reason, _ = orch.state.reject_streak.get("issue-legacy", ("", 0))
         assert reason != "project_paused"
 
+    # Constructing a real Orchestrator initializes its durable SQLite stores.
+    # Preserve that integration coverage while allowing bounded I/O headroom
+    # under the saturated parallel gate.
+    @pytest.mark.timeout(20)
     def test_global_pause_takes_precedence(self, tmp_path):
         """When both global and project paused, reason is global 'paused'
         (reflects the order: global pause checked first, since it is the

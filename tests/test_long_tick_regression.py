@@ -731,6 +731,10 @@ class TestOperatorDiagnostics:
         assert "last_duration_ms" in m, "last_duration_ms missing from project_refresh metrics."
         assert isinstance(m["last_duration_ms"], float)
 
+    # This exercises a complete scheduler tick plus deterministic shutdown.
+    # Keep bounded headroom for a saturated xdist gate while the assertions
+    # below remain independent of host timing.
+    @pytest.mark.timeout(20)
     def test_snapshot_tick_metrics_include_dispatch_timing(self, tmp_path):
         """_last_tick_metrics must be present so operators can see total tick time
         and per-phase breakdowns, helping attribute long ticks to specific phases.
@@ -738,14 +742,24 @@ class TestOperatorDiagnostics:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        # _tick() consumes a timing Mapping on its slow-log path.  A bare
+        # AsyncMock returns another mock and turns host load into an unrelated
+        # formatting failure.
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._notify_observers = MagicMock()
-        # Stub maintenance methods to prevent background work from spawning
+        # Stub unrelated durable/full-corpus lanes so this diagnostics test
+        # cannot leak executor work into (or inherit load from) another test.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        orch._schedule_terminal_lifecycle_reconciliation = MagicMock()
+        orch._reconcile_standalone_ready_to_integrate_tasks = MagicMock()
+        orch._process_integration_queues = AsyncMock()
+        # Stub maintenance methods to prevent background work from spawning.
         orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
 
