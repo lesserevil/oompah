@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:25.042939Z'
-updated_at: '2026-08-06T03:56:55.996365Z'
+updated_at: '2026-08-06T03:57:49.482574Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-795
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-08-06 03:56
 ---
 Understanding: unify API/dashboard/queue/agent/alert consumers around one WorkDecision projection, with truthful operator-only global warnings and preserved websocket sync/redaction. I will inspect the existing projection, alert, auth, and UI contracts, implement focused compatibility-safe changes, add regression tests for parity/severity/resync/rendering/redaction, and verify the affected suites.
+---
+author: oompah
+created: 2026-08-06 03:57
+---
+Discovery: the branch already has pure WorkDecision evaluation and an enforce-mode controller, but consumers still read legacy rows/alerts; the public snapshot exposes no canonical task decision collection. I am tracing retained controller state and snapshot assembly to add a shared projection at the state boundary while preserving websocket sequencing and auth redaction.
 ---
 <!-- COMMENTS:END -->

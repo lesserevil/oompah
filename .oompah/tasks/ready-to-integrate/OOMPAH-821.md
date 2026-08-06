@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T05:11:56.700024Z'
-updated_at: '2026-08-06T03:43:14.944969Z'
+updated_at: '2026-08-06T03:57:47.590883Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-821
 target_branch: null
 review_url: null
@@ -51,9 +51,9 @@ oompah.integration:
   task_branch: epic-OOMPAH-770--task-OOMPAH-821
   base_branch: epic-OOMPAH-770
   base_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
-  head_sha: dce011377c5294dfbfe656239bbe8c5d9d6c5a1f
-  submitted_at: '2026-08-06T03:43:07.123446+00:00'
-  updated_at: '2026-08-06T03:43:07.123446+00:00'
+  head_sha: 9d0c786358526c4e1c69230451eb820014724b2d
+  submitted_at: '2026-08-06T03:57:43.105036+00:00'
+  updated_at: '2026-08-06T03:57:43.105036+00:00'
 oompah.task_costs:
   total_input_tokens: 48828
   total_output_tokens: 20386
@@ -448,5 +448,15 @@ author: oompah
 created: 2026-08-06 03:43
 ---
 Isolate the repo-heal error assertion from unrelated corpus recovery and bound cold lifecycle construction; exact reproducers, independent review, and 320 affected tests pass at dce011377.
+---
+author: oompah
+created: 2026-08-06 03:57
+---
+Proactively carried the independently diagnosed OOMPAH-845 restart-recovery test marker into this still-queued branch before its exact gate. New exact head 9d0c786358526c4e1c69230451eb820014724b2d is dce011377 plus the identical 0b5b039a1 test-only commit already verified by 20 focused reproductions, independent review, and the 60-test event-driven module. No OOMPAH-821 product code changed.
+---
+author: oompah
+created: 2026-08-06 03:57
+---
+Resubmit OOMPAH-821 at 9d0c78635 with the proven OOMPAH-845 loaded restart-test stabilization carried before gate; prior 320-test and independent-review evidence remains green.
 ---
 <!-- COMMENTS:END -->
