@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-860
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Eliminate leaked coroutine and webhook subprocess state from exact gates
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-06T12:00:52.058327Z'
-updated_at: '2026-08-06T14:10:34.831865Z'
+updated_at: '2026-08-06T14:58:10.007577Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-860
 target_branch: null
 review_url: null
@@ -79,6 +79,30 @@ oompah.work_contributors:
     completed_at: '2026-08-06T13:28:38.345766+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-4b4ed3a105c9: '2026-08-06T14:58:06.404486+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-860
+    target_state: Done
+    evidence_fingerprint: 04ac076dd4796fbe2edc9aa1bda946bf2b2de4446450fd2460daefcf26dcd542
+    audit_ids:
+    - audit-0503df39d875
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T14:58:06.404497+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-860
+    audit_id: audit-0503df39d875
+    attempt_id: attempt-4b4ed3a105c9
+    target_state: Done
+    evidence_fingerprint: 04ac076dd4796fbe2edc9aa1bda946bf2b2de4446450fd2460daefcf26dcd542
+    status: Done
+    audit_ids:
+    - audit-0503df39d875
+    applied: false
+    created_at: '2026-08-06T14:58:06.404514+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -86,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-860
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -95,7 +119,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4b4ed3a105c9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -105,13 +129,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T14:10:24.565431+00:00'
       branch_key: epic-OOMPAH-763--task-OOMPAH-860
+      verdict: pass
+      completed_at: '2026-08-06T14:58:06.404250+00:00'
+      ended_at: '2026-08-06T14:58:06.404250+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T14:09:58.930515+00:00'
-    updated_at: '2026-08-06T14:10:24.565431+00:00'
+    updated_at: '2026-08-06T14:58:06.404250+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4b4ed3a105c9
