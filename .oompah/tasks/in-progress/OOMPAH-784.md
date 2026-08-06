@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T07:36:11.855997Z'
+updated_at: '2026-08-06T07:45:14.214774Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -291,5 +291,10 @@ author: oompah
 created: 2026-08-06 07:36
 ---
 Static repair revision complete and awaiting a second independent review. It now anchors unchanged-evidence SLOs to last progress, requires real durable job/lease evidence for OWNED (including review and duplicate domains), fails closed when required recovery jobs were not materialized, persists cumulative/omission truth through caps/terminal/restart, supports live SLO reload/persistence, and exposes all 14 SLOs through OOMPAH_* config using one injected policy. Behavioral restart/reload/multi-project/truncation coverage was added. Diff check passes; no tests/commit/push were performed yet.
+---
+author: oompah
+created: 2026-08-06 07:45
+---
+Second static review REJECTED the repair. Remaining blockers: failed-project omission truth still collapses under the task cap; mutable/copy SLO policies allow mixed reload epochs; unchanged evicted recovery/escalation rows double-count cumulative totals on reappearance; smaller-cap cold restore slices alphabetically before priority retention; stale scheduler passes can overwrite newer liveness without a generation fence; reload tests still do not prove real deadline rebase/cleanup/persistence. Accepted ownership/deadline/materialization/config work remains. No tests were run.
 ---
 <!-- COMMENTS:END -->
