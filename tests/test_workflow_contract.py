@@ -147,6 +147,10 @@ def test_key_safety_edges_require_domain_evidence():
     assert TransitionRequirement.CONTAINMENT_EVIDENCE in merged
 
 
+def test_direct_maintenance_can_enter_validation_from_open():
+    assert is_valid_transition(OPEN, IN_VALIDATION)
+
+
 def test_final_statuses_have_no_automatic_reassessment_path():
     for status in LIFECYCLE_FINAL_STATUSES:
         contract = STATUS_CONTRACTS[status]

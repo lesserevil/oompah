@@ -649,6 +649,19 @@ def test_merged_remains_final_even_when_landing_fact_is_unknown():
     assert decision.permitted_actions == ()
 
 
+def test_merged_with_durable_landing_uses_verified_preservation_reason():
+    issue = _issue(MERGED)
+    decision = evaluate_task(
+        issue,
+        _facts(issue, landings=(_landing(LandingState.LANDED),)),
+    )
+
+    assert decision.disposition is TaskDisposition.TERMINAL
+    assert decision.reason_code == "terminal.preserve_verified_merged"
+    assert decision.responsible_owner is WorkflowOwner.NONE
+    assert decision.next_reassessment_at is None
+
+
 def test_lifecycle_final_status_ignores_missing_or_stale_supporting_facts():
     issue = _issue(MERGED)
     facts = _facts(

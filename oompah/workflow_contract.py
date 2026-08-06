@@ -545,7 +545,14 @@ VALID_TRANSITIONS: Mapping[str, frozenset[str]] = MappingProxyType(
         PROPOSED: frozenset({BACKLOG, DUPLICATE_CANDIDATE, ARCHIVED}),
         BACKLOG: frozenset({OPEN, DUPLICATE_CANDIDATE, ARCHIVED}),
         OPEN: frozenset(
-            {IN_PROGRESS, DUPLICATE_CANDIDATE, DECOMPOSED, NEEDS_HUMAN, ARCHIVED}
+            {
+                IN_PROGRESS,
+                IN_VALIDATION,
+                DUPLICATE_CANDIDATE,
+                DECOMPOSED,
+                NEEDS_HUMAN,
+                ARCHIVED,
+            }
         ),
         IN_PROGRESS: frozenset(
             {

@@ -89,6 +89,7 @@ _FIXED_DECISION_REASON_CODES = frozenset(
         "standalone.delivery_eligible",
         "terminal.final",
         "terminal.immediate_target_landing_proven",
+        "terminal.preserve_verified_merged",
         "validation.active",
         "validation.queued",
         "validation.retry_scheduled",
@@ -969,6 +970,23 @@ def evaluate_task(
     # A lifecycle-final tracker status is authoritative and must not regress
     # merely because a supporting snapshot is missing, stale, or unavailable.
     if view.status in LIFECYCLE_FINAL_STATUSES:
+        landing = facts.fact(FactDomain.LANDING)
+        if (
+            view.status == MERGED
+            and landing.state is FactState.KNOWN
+            and any(
+                item.state is LandingState.LANDED and item.durable
+                for item in facts.landings
+            )
+        ):
+            return _decision(
+                view,
+                facts,
+                disposition=TaskDisposition.TERMINAL,
+                reason_code="terminal.preserve_verified_merged",
+                owner=WorkflowOwner.NONE,
+                reassess=False,
+            )
         return _decision(
             view,
             facts,
