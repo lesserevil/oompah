@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:04.299718Z'
-updated_at: '2026-08-06T07:10:02.719054Z'
+updated_at: '2026-08-06T07:36:11.855997Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-784
 target_branch: null
 review_url: null
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-08-06 07:10
 ---
 Independent static review REJECTED the current uncommitted repair. Blocking false-green paths remain: reassessment deadlines renew without progress; OWNED is treated as live without a durable job/lease; scheduler-truncated recovery can report healthy before materialization; cumulative/retained recovery and omission truth is lost; required restart/reload/multi-project behavioral coverage and configurable per-status SLOs are absent. Repair is in progress before any tests or gate submission.
+---
+author: oompah
+created: 2026-08-06 07:36
+---
+Static repair revision complete and awaiting a second independent review. It now anchors unchanged-evidence SLOs to last progress, requires real durable job/lease evidence for OWNED (including review and duplicate domains), fails closed when required recovery jobs were not materialized, persists cumulative/omission truth through caps/terminal/restart, supports live SLO reload/persistence, and exposes all 14 SLOs through OOMPAH_* config using one injected policy. Behavioral restart/reload/multi-project/truncation coverage was added. Diff check passes; no tests/commit/push were performed yet.
 ---
 <!-- COMMENTS:END -->
