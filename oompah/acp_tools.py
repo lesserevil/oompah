@@ -246,6 +246,34 @@ def _run_command_input_schema() -> dict[str, Any]:
     }
 
 
+def _search_files_input_schema() -> dict[str, Any]:
+    """Return the shared Python-regex search schema for MCP tool catalogs."""
+
+    return {
+        "type": "object",
+        "properties": {
+            "pattern": {
+                "type": "string",
+                "description": "Python regular expression applied to each line.",
+            },
+            "path": {"type": "string", "default": "."},
+            "include": {
+                "type": "string",
+                "description": "Optional workspace-relative file glob.",
+            },
+            "context": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20,
+                "default": 0,
+                "description": "Surrounding lines before and after each match.",
+            },
+        },
+        "required": ["pattern"],
+        "additionalProperties": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Shared project-management helpers (TASK-464.8)
 # ---------------------------------------------------------------------------
@@ -1351,10 +1379,11 @@ def build_tool_catalog(
     @tool(
         "search_files",
         "Search across the workspace with a Python regex. Optional `path` "
-        "narrows the scope and results are bounded. Use this instead of "
-        "grep pipelines for auditor searches. Returns matching lines with "
-        "file:line: prefix.",
-        {"pattern": str, "path": str},
+        "and `include` narrow the scope and results are bounded. Set "
+        "`context` for surrounding source lines. Use this instead of grep "
+        "pipelines for auditor searches. Returns workspace-relative matching "
+        "lines with file:line: prefix.",
+        _search_files_input_schema(),
     )
     async def search_files(args: dict[str, Any]) -> dict[str, Any]:
         return _wrap_text(_exec_search_files(workspace, args))
@@ -1765,11 +1794,27 @@ def build_codex_tool_catalog(
         return _exec_list_files(workspace, {"path": path})
 
     @function_tool
-    def search_files(pattern: str, path: str = ".") -> str:
-        """Grep-style search across the workspace. ``pattern`` is a
-        Python regex. Optional ``path`` narrows the scope. Returns
-        matching lines with ``file:line:`` prefix."""
-        return _exec_search_files(workspace, {"pattern": pattern, "path": path})
+    def search_files(
+        pattern: str,
+        path: str = ".",
+        include: str = "",
+        context: int = 0,
+    ) -> str:
+        """Search workspace files line-by-line with a Python regex.
+
+        ``path`` and ``include`` narrow the scope. ``context`` returns bounded
+        surrounding source lines. Results use workspace-relative file and line
+        prefixes.
+        """
+        return _exec_search_files(
+            workspace,
+            {
+                "pattern": pattern,
+                "path": path,
+                "include": include,
+                "context": context,
+            },
+        )
 
     @function_tool
     def read_command_output(
@@ -2148,10 +2193,11 @@ def build_opencode_tool_catalog(
     @tool(
         "search_files",
         "Search across the workspace with a Python regex. Optional `path` "
-        "narrows the scope and results are bounded. Use this instead of "
-        "grep pipelines for auditor searches. Returns matching lines with "
-        "file:line: prefix.",
-        {"pattern": str, "path": str},
+        "and `include` narrow the scope and results are bounded. Set "
+        "`context` for surrounding source lines. Use this instead of grep "
+        "pipelines for auditor searches. Returns workspace-relative matching "
+        "lines with file:line: prefix.",
+        _search_files_input_schema(),
     )
     async def search_files(args: dict[str, Any]) -> dict[str, Any]:
         return _wrap_text(_exec_search_files(workspace, args))

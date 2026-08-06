@@ -1044,8 +1044,101 @@ def _auditor_safe_input_paths(paths: list[str]) -> bool:
     return True
 
 
+_AUDITOR_SAFE_REVISION_RE = re.compile(r"^[A-Za-z0-9_./+@=,:^~*-]+$")
+_AUDITOR_SAFE_REF_PATTERN_RE = re.compile(r"^[A-Za-z0-9_./+@=,:*-]+$")
+_AUDITOR_SAFE_REF_FORMAT_RE = re.compile(r"^[A-Za-z0-9_./+@=,:()%*<> -]+$")
+
+
+def _auditor_safe_revision(value: str) -> bool:
+    return bool(
+        value
+        and not value.startswith("-")
+        and _AUDITOR_SAFE_REVISION_RE.fullmatch(value)
+        and not _AUDITOR_PATH_ESCAPE_RE.search(value)
+        and not _AUDITOR_SECRET_PATH_RE.search(value)
+    )
+
+
+def _is_safe_git_ls_tree_inspection(tokens: list[str]) -> bool:
+    """Recognize bounded, read-only ``git ls-tree`` requests.
+
+    The optional ``--`` separator is validated explicitly. Workspace-relative
+    paths are also accepted in Git's unseparated form, while unknown flags and
+    unsafe revisions/pathspecs fail closed.
+    """
+
+    allowed_flags = {
+        "-r",
+        "-d",
+        "-t",
+        "-l",
+        "--name-only",
+        "--name-status",
+        "--object-only",
+        "--full-name",
+        "--full-tree",
+    }
+    index = 2
+    while index < len(tokens) and tokens[index] in allowed_flags:
+        index += 1
+    if index >= len(tokens) or not _auditor_safe_revision(tokens[index]):
+        return False
+    index += 1
+    if index == len(tokens):
+        return True
+    paths = tokens[index + 1 :] if tokens[index] == "--" else tokens[index:]
+    return not paths or _auditor_safe_input_paths(paths)
+
+
+def _is_safe_git_ls_remote_inspection(tokens: list[str]) -> bool:
+    """Recognize non-executed, read-only queries of the configured origin."""
+
+    allowed_flags = {"--heads", "--tags", "--refs", "--exit-code", "-h", "-t"}
+    index = 2
+    while index < len(tokens) and tokens[index] in allowed_flags:
+        index += 1
+    if index >= len(tokens) or tokens[index] != "origin":
+        return False
+    patterns = tokens[index + 1 :]
+    return all(
+        pattern
+        and not pattern.startswith("-")
+        and _AUDITOR_SAFE_REF_PATTERN_RE.fullmatch(pattern)
+        for pattern in patterns
+    )
+
+
+def _is_safe_git_for_each_ref_inspection(tokens: list[str]) -> bool:
+    """Recognize format-limited local-ref inspection without executing it."""
+
+    index = 2
+    while index < len(tokens) and tokens[index].startswith("--format="):
+        value = tokens[index].partition("=")[2]
+        if not value or not _AUDITOR_SAFE_REF_FORMAT_RE.fullmatch(value):
+            return False
+        index += 1
+    if index + 1 < len(tokens) and tokens[index] == "--format":
+        if not _AUDITOR_SAFE_REF_FORMAT_RE.fullmatch(tokens[index + 1]):
+            return False
+        index += 2
+    refs = tokens[index:]
+    return bool(refs) and all(
+        ref
+        and not ref.startswith("-")
+        and _AUDITOR_SAFE_REF_PATTERN_RE.fullmatch(ref)
+        and not _AUDITOR_PATH_ESCAPE_RE.search(ref)
+        for ref in refs
+    )
+
+
+def _is_safe_wc_line_count(tokens: list[str]) -> bool:
+    return len(tokens) >= 3 and tokens[1] == "-l" and _auditor_safe_input_paths(
+        tokens[2:]
+    )
+
+
 def _is_read_only_inspection_command(command: str) -> bool:
-    """Recognize narrowly safe, unsupported awk/sed/git inspection commands."""
+    """Recognize safe inspections that the shell contract does not execute."""
 
     tokens = _auditor_shell_tokens(command)
     if not tokens:
@@ -1064,6 +1157,16 @@ def _is_read_only_inspection_command(command: str) -> bool:
             _SED_PRINT_ONLY_SCRIPT_RE.fullmatch(tokens[2])
             and _auditor_safe_input_paths(tokens[3:])
         )
+    if len(tokens) >= 2 and tokens[0].lower() == "git":
+        subcommand = tokens[1].lower()
+        if subcommand == "ls-tree":
+            return _is_safe_git_ls_tree_inspection(tokens)
+        if subcommand == "ls-remote":
+            return _is_safe_git_ls_remote_inspection(tokens)
+        if subcommand == "for-each-ref":
+            return _is_safe_git_for_each_ref_inspection(tokens)
+    if tokens[0].lower() == "wc":
+        return _is_safe_wc_line_count(tokens)
     # Check for safe git rev-list inspection commands
     if len(tokens) >= 2 and tokens[0].lower() == "git" and tokens[1].lower() == "rev-list":
         # If the command passes validation, it's a supported command (not just read-only)

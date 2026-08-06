@@ -6,6 +6,8 @@ import asyncio
 import re
 from types import SimpleNamespace
 
+import pytest
+
 from oompah.api_agent import (
     CommandOutputStore,
     _exec_read_command_output,
@@ -67,6 +69,70 @@ def test_search_output_is_bounded_before_provider_transport(tmp_path) -> None:
     assert len(result) < 65_000
     assert "search output truncated by Oompah" in result
     assert ".claude" not in result
+
+
+def test_search_uses_python_regex_include_and_bounded_source_context(tmp_path) -> None:
+    source = tmp_path / "watchdog.py"
+    source.write_text(
+        "before\n"
+        "    def _watchdog_stale_completed():\n"
+        "        return True\n"
+        "after\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "watchdog.txt").write_text(
+        "    def text_only():\n",
+        encoding="utf-8",
+    )
+
+    alternation = _exec_search_files(
+        tmp_path,
+        {
+            "pattern": "_watchdog_stale_completed|missing_alternative",
+            "path": ".",
+            "include": "*.py",
+            "context": 1,
+        },
+    )
+    indentation = _exec_search_files(
+        tmp_path,
+        {
+            "pattern": r"^\s{4}def ",
+            "path": ".",
+            "include": "*.py",
+        },
+    )
+
+    assert "watchdog.py-1-before" in alternation
+    assert "watchdog.py:2:    def _watchdog_stale_completed():" in alternation
+    assert "watchdog.py-3-        return True" in alternation
+    assert "watchdog.txt" not in alternation + indentation
+    assert "watchdog.py:2:" in indentation
+
+
+def test_search_rejects_invalid_regex_and_skips_binary_and_workspace_escape(
+    tmp_path,
+) -> None:
+    (tmp_path / "binary.dat").write_bytes(b"needle\x00secret")
+    invalid = _exec_search_files(tmp_path, {"pattern": "[", "path": "."})
+    binary = _exec_search_files(tmp_path, {"pattern": "needle", "path": "."})
+
+    assert invalid.startswith("Error: invalid Python regex:")
+    assert binary.startswith("No matches found")
+
+    outside = tmp_path.parent / "outside-search-target.txt"
+    outside.write_text("needle", encoding="utf-8")
+    try:
+        with pytest.raises(ValueError, match="Path traversal blocked"):
+            _exec_search_files(tmp_path, {"pattern": "needle", "path": "../"})
+        (tmp_path / "escape.txt").symlink_to(outside)
+        symlink = _exec_search_files(
+            tmp_path,
+            {"pattern": "needle", "path": "."},
+        )
+        assert "escape.txt" not in symlink
+    finally:
+        outside.unlink(missing_ok=True)
 
 
 def test_claude_catalog_keeps_large_auditor_read_in_approved_tool_channel(
