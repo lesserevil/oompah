@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T20:52:55.551199Z'
+updated_at: '2026-08-06T20:53:54.658393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,10 @@ author: oompah
 created: 2026-08-06 20:52
 ---
 Understanding: I will inspect the exact CI failure from the existing OOMPAH-845 branch, reproduce it locally where feasible, and make only the minimal repair supported by the evidence. I will preserve the established restart-fencing scope and rerun the directly affected tests before pushing.
+---
+author: oompah
+created: 2026-08-06 20:53
+---
+Discovery: the exact full-gate command is currently blocked before collection by the validation-resource guard, which tries to chmod /home/shedwards/src/oompah/.oompah/validation_resources.sqlite3.locks on a read-only filesystem. The branch has no GitHub Actions runs/PR from which to retrieve a separate job log. I will validate the affected module through its project test runner while keeping this infrastructure blockage distinct from the prior test failure.
 ---
 <!-- COMMENTS:END -->
