@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T09:36:42.982024Z'
+updated_at: '2026-08-06T09:36:57.523916Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -26,13 +26,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 638791e5-1727-4589-a020-9a3dcaa7cedb
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T09:35:40.775858+00:00'
-  claim_expires_at: '2026-08-06T10:05:40.775858+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-804, OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851,
+    OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-06T09:36:34.543302+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -115,5 +117,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 46s
 - Log: OOMPAH-858__20260806T093605Z.jsonl
+---
+author: oompah
+created: 2026-08-06 09:36
+---
+Duplicate screening stopped with an actionable corpus diagnostic: Required structural peers could not fit the bounded duplicate corpus. Omitted peer identifiers: OOMPAH-804, OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852, OOMPAH-853, OOMPAH-854, OOMPAH-856. Increase the duplicate corpus task/byte budget or have a project owner review the authoritative tracker corpus, then use the authenticated duplicate-screening owner-resolution action with a conclusive verdict.
 ---
 <!-- COMMENTS:END -->
