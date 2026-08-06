@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T06:10:15.230865Z'
+updated_at: '2026-08-06T06:10:48.232147Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -25,13 +25,15 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a9ff23fe-50e6-4402-925c-8c46579fce76
-  claim_owner: d499f6a6-5717-4e4a-8ad7-bc38cc47251d
-  claimed_at: '2026-08-06T06:09:48.060187+00:00'
-  claim_expires_at: '2026-08-06T06:39:48.060187+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: 'Required structural peers could not fit the bounded duplicate corpus.
+    Omitted peer identifiers: OOMPAH-847, OOMPAH-848, OOMPAH-850, OOMPAH-851, OOMPAH-852,
+    OOMPAH-853.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-06T06:10:36.800829+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
@@ -45,6 +47,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-763
   base_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
   updated_at: '2026-08-06T06:10:09.285412+00:00'
+oompah.task_costs:
+  total_input_tokens: 46364
+  total_output_tokens: 347
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 46364
+      output_tokens: 347
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 46364
+    output_tokens: 347
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T06:10:36.799497+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-854__20260806T061024Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-854
+    source_sha: 930cd74b9ccbffcae5579c960f4298a8b86b26c7
+    completed_at: '2026-08-06T06:10:36.816817+00:00'
 ---
 ## Summary
 
@@ -67,5 +95,15 @@ author: oompah
 created: 2026-08-06 06:10
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-06 06:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 46.4K in / 347 out [46.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 38s
+- Log: OOMPAH-854__20260806T061024Z.jsonl
 ---
 <!-- COMMENTS:END -->
