@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T19:17:41.725495Z'
+updated_at: '2026-08-06T20:05:47.519179Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,15 +48,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: integrated
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
-  head_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
-  integrated_sha: 03563661c1b8998cfe5d081edddbe7313b62d10c
-  submitted_at: '2026-08-06T18:41:41.551984+00:00'
-  updated_at: '2026-08-06T19:05:33.876089+00:00'
+  head_sha: 72cc4481c3eee5605345a4a36c3fe688149572b8
+  submitted_at: '2026-08-06T20:05:40.614302+00:00'
+  updated_at: '2026-08-06T20:05:40.614302+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 596
@@ -567,5 +566,10 @@ author: oompah
 created: 2026-08-06 19:17
 ---
 Independent gpt-5.6-sol audit rejected exact integrated head 03563661 despite its green full gate. Two blockers: (1) after candidate C is pushed and durably canonicalized, a transient tracker metadata write failure lets the next tracker sync re-enqueue obsolete submitted head A and clear candidate authority, producing stale_head against remote C; add failed-tracker-write -> sync/retry recovery coverage. (2) dashboard integration_queue_summary reports a reachable terminal cross-container dependency blocked while executor correctly satisfies it via integrated_sha reachability on the exact target; diagnostics and executor must share the same normalized reachability facts. Owner claim is active; repairs are proceeding on isolated child branches before exact resubmission. No terminal override will be used.
+---
+author: oompah
+created: 2026-08-06 20:05
+---
+Repaired restart-safe canonical integration recovery and made dashboard dependency diagnostics consume the executor's immutable exact-authority projection. Independent review accepted exact head 72cc4481c; focused suites passed 154 serial and 154 parallel tests; secret scan passed.
 ---
 <!-- COMMENTS:END -->
