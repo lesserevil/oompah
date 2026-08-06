@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T05:42:04.909231Z'
+updated_at: '2026-08-06T11:50:03.837399Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-08-06 05:42
 ---
 Prepared repair is independently static-reviewed, clean, and pushed at 530f0e1dc. It removes the unsafe production shutdown deadlines, tracks/drains scheduled retirement tasks, fences foreign callbacks before shutdown, handles owner-loop close races, and adds deterministic cross-thread stop regressions. This is a checkpoint, not submission; focused tests await the serialized lane and O763 restack.
+---
+author: oompah
+created: 2026-08-06 11:50
+---
+New exact-gate evidence at canonical OOMPAH-837 head c31b8d32a on 2026-08-06: 16,631 passed and one test was failed by a PytestUnraisableExceptionWarning attributed during tests/test_epic_rebase_state.py::TestEpicTargetResolution::test_wrong_target_helper_is_archived_without_recovery_ref_cleanup. The leaked object was an asyncio BaseSubprocessTransport finalized after its loop closed; the traceback also reported coroutine 'sleep' was never awaited and unittest.mock patch lookup for _terminate. The named epic test has no subprocess/async behavior and three earlier exact gates at the same head passed, so it is a cross-test teardown leak exposed by GC under full-gate saturation, squarely within OOMPAH-845's event-loop/task/timer/async-generator/default-executor cleanup scope. Before submission, focused validation must demonstrate the O845 cleanup does not leave this class of transport/coroutine warnings, then compose the validated cleanup into the shared OOMPAH-804 head before rerunning the exact gate.
 ---
 <!-- COMMENTS:END -->
