@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-868
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Broker self-hosted CI validation and bound log amplification
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-846
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T23:27:55.534862Z'
-updated_at: '2026-08-06T23:27:55.534862Z'
+updated_at: '2026-08-06T23:28:10.980143Z'
 work_branch: null
 target_branch: null
 review_url: null
