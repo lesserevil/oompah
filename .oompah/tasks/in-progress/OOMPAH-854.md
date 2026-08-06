@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T05:46:04.066694Z'
-updated_at: '2026-08-06T07:18:45.292966Z'
+updated_at: '2026-08-06T07:31:49.889151Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-854
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-08-06 07:18
 ---
 Independent static review REJECTED the current uncommitted repair. Restart is not yet inside the shared provider-admission transaction: restart-in-progress can be set outside the lock, dispatch does not treat it as blocked, and unpause during drain can reopen admission. Required deterministic restart/stop/resume races, rollback CAS conflicts, true persisted-paused startup, and admission metric assertions are also missing. Accepted quiesce/publication/rollback semantics are being preserved while repair continues; no tests were run.
+---
+author: oompah
+created: 2026-08-06 07:31
+---
+Repair revision complete and awaiting a second independent static review. It now claims/coalesces restart atomically under the shared provider-admission lock, fences restart/stop/pause/quiesce/project pause, rejects resume during restart, protects durable audit rollback against replacement/verdict/owner-override CAS races (including post-pool-shutdown rollback), and reconciles post-admission metrics. Deterministic tests were added for those boundaries and fresh persisted-pause startup. Diff check passes; no tests/commit/push were performed yet.
 ---
 <!-- COMMENTS:END -->
