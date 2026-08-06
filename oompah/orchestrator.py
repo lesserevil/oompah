@@ -45705,7 +45705,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             retry.due_at_ms = due_at_ms
             retry.due_at_epoch_ms = time.time() * 1000 + max(delay_ms, 0)
             retry.cancelled = False
-            loop = asyncio.get_event_loop()
+            # Normal dispatches run on the orchestrator loop, but recovery
+            # journal repair can be invoked synchronously by an operator.
+            # Python 3.14 no longer manufactures a current loop for that
+            # caller, so prefer the live dispatch loop and retain the legacy
+            # current-loop fallback for standalone/synchronous callers.
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                dispatch_loop = getattr(self, "_dispatch_loop", None)
+                if dispatch_loop is not None and dispatch_loop.is_running():
+                    loop = dispatch_loop
+                else:
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
             retry.timer_handle = loop.call_later(
                 max(delay_ms, 0) / 1000.0,
                 lambda: asyncio.create_task(self._on_retry_timer(retry.issue_id)),
@@ -46861,6 +46877,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 entry,
             )
             entry.retirement_pending = True
+            # Do not leave a captured worker's bearer usable while the
+            # retirement child waits for its first event-loop turn. A
+            # replacement can take the runtime-map slot in that interval,
+            # causing the child to return before it reaches its former
+            # revocation point. Revocation is idempotent and explicitly
+            # scoped to the captured entry, never to a replacement token.
+            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
         child_creation_failed = False
         try:
             retirement_coroutine = self._terminate_running_once(

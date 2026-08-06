@@ -1929,7 +1929,7 @@ def test_accepted_ordinary_submission_waits_for_final_worker_publication(
             side_effect=bind_after_publication
         )
 
-        dispatch = asyncio.create_task(orch._dispatch(issue))
+        dispatch = asyncio.create_task(orch._dispatch(issue, attempt=None))
         submission = None
         try:
             assert await asyncio.wait_for(

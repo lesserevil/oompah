@@ -503,6 +503,10 @@ def test_forced_auditor_retirement_records_retry_before_releasing_claim(
     async def scenario() -> None:
         orch = _orchestrator(tmp_path)
         entry = _entry(state=IN_VALIDATION, auditor=True)
+        # A policy denial is emitted by a provider that was already admitted;
+        # it must follow the forced-attempt finalization path, not the
+        # pre-provider rollback path.
+        entry.provider_started = True
         entry.forced_exit_reason = "auditor_policy_denial_exhausted"
         entry.forced_exit_error = "bounded denial failure"
         orch.state.running[entry.issue.id] = entry
