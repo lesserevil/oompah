@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-867
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Use canonical epic branches for terminal-audit workspace resolution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T22:21:55.244164Z'
-updated_at: '2026-08-06T22:21:55.244164Z'
+updated_at: '2026-08-06T22:22:08.861797Z'
 work_branch: null
 target_branch: null
 review_url: null
