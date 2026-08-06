@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-740
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Make dashboard alerts compact, truthful, and non-blocking
 parent: null
@@ -22,7 +22,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-08-03T22:55:28.610952Z'
-updated_at: '2026-08-06T07:10:29.477511Z'
+updated_at: '2026-08-06T07:10:50.366397Z'
 work_branch: epic-OOMPAH-740
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/731
@@ -33,6 +33,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/731
 oompah.review_number: '731'
 oompah.work_branch: epic-OOMPAH-740
 oompah.target_branch: main
+oompah.agent_run_id: 963162d8-a3a6-4642-a3dc-e4fe284295fc
 ---
 ## Summary
 
@@ -75,5 +76,15 @@ author: oompah
 created: 2026-08-06 07:10
 ---
 YOLO: Merge conflict detected on MR #731. Rebase `epic-OOMPAH-740` onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-08-06 07:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-06 07:10
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
