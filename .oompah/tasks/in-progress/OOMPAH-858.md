@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T13:13:59.351812Z'
+updated_at: '2026-08-06T13:14:17.366757Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-08-06 13:13
 ---
 Focus: Oompah Tests Auth Specialist
+---
+author: oompah
+created: 2026-08-06 13:14
+---
+UNDERSTANDING: This issue addresses a deadlock in nested task integration where children cannot integrate because they inherit parent's finish-order dependencies, causing each child to wait on itself and siblings. Solution: Filter integration dependencies to exclude implicit parent/container rollup edges while preserving external inherited prerequisites, sibling explicit dependencies, and ancestor dependencies. Applying the fix to: dependency_graph.effective_dependencies, orchestrator._integration_dependency_map, and all downstream consumers (eligibility, queue diagnostics, container-cycle analysis, restart recovery, executor generation). Will add regression tests for nested parent->children rollup, ancestor composition, and no-op children.
 ---
 <!-- COMMENTS:END -->
