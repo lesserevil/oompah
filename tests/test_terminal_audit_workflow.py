@@ -139,6 +139,7 @@ def test_duplicate_audit_ids_share_one_target_evidence_generation(durable):
     assert jobs[0].checkpoint["attempt_id"] == "attempt-A"
 
 
+@pytest.mark.timeout(30)  # 1,001 durable SQLite writes intentionally exceed 5 s
 def test_semantic_lookup_is_not_hidden_by_more_than_one_thousand_history_rows(
     durable,
 ):
