@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T19:41:04.552150Z'
+updated_at: '2026-08-06T20:42:16.428553Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -171,6 +171,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-30T18:12:21.379930+00:00'
     updated_at: '2026-07-30T19:40:25.722566+00:00'
+  - version: 1
+    audit_id: audit-8e46f26327c7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d0b661e9828ee97df8f3c3961ecae2673cf9a079be864fc05cd07f486ffadc23
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-06T20:42:11.133927+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9e1fc07668b1

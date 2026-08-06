@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T20:39:34.818552Z'
-updated_at: '2026-08-06T20:42:06.383012Z'
+updated_at: '2026-08-06T20:42:09.758826Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-866
 target_branch: null
 review_url: null
@@ -61,6 +61,16 @@ oompah.task_costs:
     output_tokens: 3166
     cost_usd: 0.0
     recorded_at: '2026-08-06T20:41:56.235275+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-866__20260806T204102Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-763--task-OOMPAH-866
+    source_sha: 72cc4481c3eee5605345a4a36c3fe688149572b8
+    completed_at: '2026-08-06T20:41:56.240837+00:00'
 ---
 ## Summary
 
