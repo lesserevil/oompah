@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:33.085889Z'
-updated_at: '2026-08-06T10:38:46.872525Z'
+updated_at: '2026-08-06T11:40:58.883211Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-835
 target_branch: null
 review_url: null
@@ -84,13 +84,17 @@ oompah.integration:
   submitted_at: '2026-08-06T10:05:48.853355+00:00'
   updated_at: '2026-08-06T10:38:13.860628+00:00'
 oompah.task_costs:
-  total_input_tokens: 1672
-  total_output_tokens: 2227
+  total_input_tokens: 1712
+  total_output_tokens: 4057
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1672
       output_tokens: 2227
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 40
+      output_tokens: 1830
       cost_usd: 0.0
   runs:
   - profile: default
@@ -105,6 +109,12 @@ oompah.task_costs:
     output_tokens: 419
     cost_usd: 0.0
     recorded_at: '2026-08-06T00:57:23.501900+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 40
+    output_tokens: 1830
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T11:40:41.731345+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-835__20260806T000303Z
@@ -133,7 +143,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2186b35cd3ae
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -143,18 +153,34 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T10:38:40.186429+00:00'
       branch_key: epic-OOMPAH-804--task-OOMPAH-835
+      ended_at: '2026-08-06T11:40:45.289527+00:00'
+      failure_reason: auditor session abandoned after attempt TTL
+    - version: 1
+      attempt_id: attempt-811f8103d61f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b4336b86ba4cafd3ded72ecfdfb7fad2479970508209b560129dbf4f95aad5a1
+      created_at: '2026-08-06T11:40:48.955754+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-06T11:40:48.955754+00:00'
+      branch_key: epic-OOMPAH-804--task-OOMPAH-835
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-06T10:38:15.979621+00:00'
-    updated_at: '2026-08-06T10:38:40.186429+00:00'
+    updated_at: '2026-08-06T11:40:48.955754+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2186b35cd3ae
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,6 +190,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-06T10:38:40.186429+00:00'
     branch_key: epic-OOMPAH-804--task-OOMPAH-835
+    ended_at: '2026-08-06T11:40:45.289527+00:00'
+    failure_reason: auditor session abandoned after attempt TTL
+  - version: 1
+    attempt_id: attempt-811f8103d61f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4336b86ba4cafd3ded72ecfdfb7fad2479970508209b560129dbf4f95aad5a1
+    created_at: '2026-08-06T11:40:48.955754+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-06T11:40:48.955754+00:00'
+    branch_key: epic-OOMPAH-804--task-OOMPAH-835
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -264,6 +306,26 @@ Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 author: oompah
 created: 2026-08-06 10:38
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 11:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 26
+- Tokens: 40 in / 1.8K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 1m 59s
+- Log: OOMPAH-835__20260806T103853Z.jsonl
+---
+author: oompah
+created: 2026-08-06 11:40
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-06 11:40
 ---
 Focus: Completion Auditor
 ---
