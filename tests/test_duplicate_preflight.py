@@ -26,6 +26,7 @@ from oompah.duplicate_screening import (
     format_duplicate_preflight_result,
     inconclusive_record,
     new_claim_record,
+    owner_resolution_record,
 )
 from oompah.events import EventBus
 from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
@@ -96,6 +97,17 @@ class _Tracker:
         with self._lock:
             return [copy.deepcopy(issue) for issue in self.issues.values()]
 
+    def fetch_issues_by_states(self, states):
+        wanted = {str(state).strip().casefold() for state in states}
+        return [
+            issue
+            for issue in (
+                self.fetch_issue_detail(identifier)
+                for identifier in list(self.issues)
+            )
+            if issue is not None and issue.state.strip().casefold() in wanted
+        ]
+
     def get_metadata(self, identifier: str):
         with self._lock:
             return copy.deepcopy(self.metadata.get(identifier, {}))
@@ -159,6 +171,10 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch.state = OrchestratorState(max_concurrent_agents=slots)
     orch._service_instance_id = "scheduler-1"
     orch._epic_maintenance_project_locks = {}
+    orch.tracker = tracker
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = []
+    orch.project_store.get.return_value = None
     orch._tracker_for_issue = lambda issue: tracker
     orch._tracker_for_project = lambda project_id: tracker
     # Retry authority attributes added by OOMPAH-661; not present when
@@ -166,6 +182,10 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._retry_authority_lock = threading.RLock()
     orch._retry_dispatching = {}
     orch._persisted_retry_entries = []
+    orch._dispatch_loop = None
+    orch._scheduled_termination_ids = set()
+    orch._terminating_worker_ids = set()
+    orch.request_refresh = MagicMock()
     return orch
 
 
@@ -1508,6 +1528,301 @@ def test_owner_resolution_applied_via_orchestrator_method():
     assert resolved["retry_count"] == 0
     assert resolved["verdict"] == "no_duplicate"
     assert tracker.fetch_issue_detail(issue.identifier).state == OPEN
+
+
+def test_exhausted_owner_no_duplicate_rearms_next_implementation_dispatch():
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = new_claim_record(issue, owner="scheduler", retry_count=3)
+    exhausted = inconclusive_record(
+        claim,
+        retry_count=3,
+        retry_after=datetime.now(timezone.utc) - timedelta(seconds=1),
+        evidence="Bounded duplicate screening exhausted.",
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, exhausted.to_dict())
+    orch.state.completed.add(issue.id)
+
+    assert orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="Reviewed the active task set; no equivalent exists.",
+    )
+
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert refreshed is not None
+    assert refreshed.state == OPEN
+    assert refreshed.id not in orch.state.completed
+    assert orch._implementation_duplicate_screening_ready(refreshed) is True
+    assert assess_screening(refreshed).record.retry_count == 0
+
+
+def test_owner_no_duplicate_retires_exact_live_preflight_and_fences_late_result():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    orch.state.running[issue.id] = entry
+    orch.state.claimed.add(issue.id)
+    orch.state.completed.add(issue.id)
+    orch._schedule_running_termination = MagicMock()
+
+    assert orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No active equivalent exists.",
+    )
+
+    assert entry.authority_revoked is True
+    assert issue.id not in orch.state.completed
+    # The live runtime keeps its claim until bounded retirement completes.
+    assert issue.id in orch.state.claimed
+    orch._schedule_running_termination.assert_called_once_with(
+        issue.id,
+        cleanup_workspace=False,
+        task_name_prefix="retire-duplicate-preflight",
+        expected_entry=entry,
+    )
+
+    late = orch._finish_duplicate_preflight_sync(entry, "abnormal", "late result")
+    assert late["outcome"] == "stale_claim"
+    stored = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    assert stored["owner_login"] == "project-owner"
+    assert stored["verdict"] == "no_duplicate"
+
+
+def test_repeated_owner_no_duplicate_resolution_is_idempotent():
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = new_claim_record(issue, owner="scheduler", retry_count=3)
+    exhausted = inconclusive_record(
+        claim,
+        retry_count=3,
+        retry_after=datetime.now(timezone.utc),
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, exhausted.to_dict())
+    kwargs = {
+        "owner_login": "project-owner",
+        "verdict": ScreeningVerdict.NO_DUPLICATE,
+        "reason": "No equivalent active task exists.",
+    }
+
+    assert orch._owner_resolve_duplicate_screening(issue, **kwargs)
+    first = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    assert orch._owner_resolve_duplicate_screening(issue, **kwargs)
+    second = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+
+    assert second == first
+    assert tracker.status_updates == [(issue.identifier, OPEN)]
+
+
+@pytest.mark.parametrize(
+    ("is_auditor", "duplicate_preflight"),
+    [(False, False), (False, True), (True, True)],
+)
+def test_owner_resolution_never_retires_unrelated_runtime(
+    is_auditor,
+    duplicate_preflight,
+):
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = new_claim_record(issue, owner="scheduler", retry_count=3)
+    exhausted = inconclusive_record(
+        claim,
+        retry_count=3,
+        retry_after=datetime.now(timezone.utc),
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, exhausted.to_dict())
+    entry = _entry(issue, "unrelated-claim", exhausted.task_fingerprint)
+    entry.duplicate_preflight = duplicate_preflight
+    entry.is_auditor = is_auditor
+    orch.state.running[issue.id] = entry
+    orch._schedule_running_termination = MagicMock()
+
+    assert orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No equivalent active task exists.",
+    )
+
+    assert entry.authority_revoked is False
+    orch._schedule_running_termination.assert_not_called()
+
+
+def test_owner_duplicate_candidate_remains_nondispatchable():
+    issue = _issue(state=NEEDS_HUMAN)
+    duplicate = _issue(identifier="TASK-2", title="Existing equivalent")
+    tracker = _Tracker([issue, duplicate])
+    orch = _orch(tracker)
+
+    assert orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.DUPLICATE_CANDIDATE,
+        matched_identifiers=[duplicate.identifier],
+        reason="TASK-2 owns the same implementation scope.",
+    )
+
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert refreshed is not None
+    assert refreshed.state == DUPLICATE_CANDIDATE
+    assert orch._implementation_duplicate_screening_ready(refreshed) is False
+    orch._is_project_paused = MagicMock(return_value=False)
+    orch._is_epic_review_repair_issue = MagicMock(return_value=False)
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._prepare_epic_rebase_helper_target = MagicMock(return_value=(True, ""))
+    orch._issue_requires_parent_epic = MagicMock(return_value=False)
+    assert orch._should_dispatch(refreshed) is False
+
+
+def test_restart_reconciles_owner_record_status_boundary():
+    issue = _issue(state=NEEDS_HUMAN)
+    tracker = _Tracker([issue])
+    base = new_claim_record(issue, owner="old-scheduler", retry_count=3)
+    resolved = owner_resolution_record(
+        base,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No active equivalent exists.",
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, resolved.to_dict())
+    restarted = _orch(tracker)
+    restarted.state.completed.add(issue.id)
+
+    repaired = restarted._reconcile_owner_duplicate_resolution_boundaries()
+
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert repaired == 1
+    assert refreshed is not None and refreshed.state == OPEN
+    assert issue.id not in restarted.state.completed
+    assert restarted._implementation_duplicate_screening_ready(refreshed) is True
+
+
+def test_candidate_scan_reconciles_owner_duplicate_candidate_boundary():
+    issue = _issue(state=OPEN)
+    tracker = _Tracker([issue])
+    resolved = owner_resolution_record(
+        new_claim_record(issue, owner="old-scheduler"),
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.DUPLICATE_CANDIDATE,
+        matched_identifiers=["TASK-2"],
+        reason="TASK-2 owns the same active scope.",
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, resolved.to_dict())
+    orch = _orch(tracker)
+    candidate = tracker.fetch_issue_detail(issue.identifier)
+    assert candidate is not None
+
+    repaired = orch._reconcile_owner_duplicate_resolution_boundaries([candidate])
+
+    assert repaired == 1
+    assert candidate.state == DUPLICATE_CANDIDATE
+    assert tracker.fetch_issue_detail(issue.identifier).state == DUPLICATE_CANDIDATE
+
+
+def test_owner_no_duplicate_does_not_bypass_hard_start_dependency():
+    issue = _issue(state=NEEDS_HUMAN)
+    issue.start_blocked_by = [
+        BlockerRef(id="TASK-2", identifier="TASK-2", state=OPEN)
+    ]
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+
+    assert orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No equivalent active task exists.",
+    )
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert refreshed is not None
+    orch._is_project_paused = MagicMock(return_value=False)
+    orch._is_epic_review_repair_issue = MagicMock(return_value=False)
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._prepare_epic_rebase_helper_target = MagicMock(return_value=(True, ""))
+    orch._issue_requires_parent_epic = MagicMock(return_value=False)
+    orch._has_live_owner_claim = MagicMock(return_value=False)
+    orch._per_state_available = MagicMock(return_value=True)
+    orch._dependency_issue_index = {refreshed.identifier: refreshed}
+    orch._resolve_blocker_state = MagicMock(return_value=OPEN)
+    orch._blocker_has_unmerged_pr = MagicMock(return_value=False)
+
+    assert orch._should_dispatch(refreshed) is False
+    assert orch.state.reject_streak[issue.id][0].startswith("start_blocker=")
+
+
+def test_owner_resolution_rejects_refreshed_identity_mismatch():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    tracker.issues[issue.identifier].id = "different-id"
+    orch = _orch(tracker)
+
+    assert not orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No active equivalent exists.",
+    )
+    assert tracker.get_metadata(issue.identifier).get(METADATA_KEY) is None
+
+
+def test_preflight_workspace_metadata_policy_is_generation_and_identity_scoped():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    fingerprint = compute_task_fingerprint(issue)
+    entry = _entry(issue, "claim-1", fingerprint)
+    entry.run_id = "preflight-run"
+    orch.state.running[issue.id] = entry
+
+    assert not orch._workspace_persists_dispatch_metadata(issue, "preflight-run")
+    assert orch._workspace_persists_dispatch_metadata(issue, "replacement-run")
+
+    entry.issue = copy.deepcopy(issue)
+    entry.issue.project_id = "other-project"
+    assert orch._workspace_persists_dispatch_metadata(issue, "preflight-run")
+
+
+@pytest.mark.asyncio
+async def test_preflight_retirement_callback_does_not_kill_replacement_runtime():
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    old_entry = _entry(issue, "old-claim", compute_task_fingerprint(issue))
+    replacement = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=copy.deepcopy(issue),
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        focus_name="general",
+        focus_role="Generalist",
+    )
+    orch.state.running[issue.id] = old_entry
+    orch._dispatch_loop = asyncio.get_running_loop()
+    orch._terminate_running = AsyncMock(return_value=True)
+
+    orch._schedule_running_termination(
+        issue.id,
+        cleanup_workspace=False,
+        task_name_prefix="retire-duplicate-preflight",
+        expected_entry=old_entry,
+    )
+    orch.state.running[issue.id] = replacement
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    orch._terminate_running.assert_not_awaited()
+    assert orch.state.running[issue.id] is replacement
 
 
 def test_owner_resolution_rejects_a_stale_task_fingerprint():

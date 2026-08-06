@@ -3726,21 +3726,45 @@ class Orchestrator:
         *,
         cleanup_workspace: bool = False,
         task_name_prefix: str = "terminate-worker",
+        expected_entry: RunningEntry | None = None,
     ) -> None:
-        """Schedule worker retirement on the loop that owns provider sessions."""
+        """Schedule worker retirement on the loop that owns provider sessions.
+
+        When ``expected_entry`` is supplied, retirement is generation-scoped:
+        a replacement runtime registered before the callback runs is never
+        terminated on behalf of the older generation.
+        """
 
         dispatch_loop = self._dispatch_loop
 
         def _schedule() -> None:
+            current_entry = self._current_running_entry(issue_id)
             if (
-                issue_id not in self.state.running
+                current_entry is None
+                or (
+                    expected_entry is not None
+                    and current_entry is not expected_entry
+                )
                 or issue_id in self._scheduled_termination_ids
                 or issue_id in self._terminating_worker_ids
             ):
                 return
             self._scheduled_termination_ids.add(issue_id)
+
+            async def _terminate_expected() -> bool:
+                # The task callback can run after a natural worker exit and a
+                # replacement dispatch.  Re-check immediately before entering
+                # _terminate_running; that coroutine captures its entry before
+                # its first await, so no replacement can be selected in between.
+                if (
+                    expected_entry is not None
+                    and self._current_running_entry(issue_id) is not expected_entry
+                ):
+                    return True
+                return await self._terminate_running(issue_id, cleanup_workspace)
+
             task = asyncio.create_task(
-                self._terminate_running(issue_id, cleanup_workspace),
+                _terminate_expected(),
                 name=f"{task_name_prefix}-{issue_id}",
             )
 
@@ -4575,6 +4599,35 @@ class Orchestrator:
         if issue.id not in self.state.running:
             return None
         return lambda: self._worker_authority_current(issue, run_id)
+
+    def _workspace_persists_dispatch_metadata(
+        self,
+        issue: Issue,
+        run_id: str | None,
+    ) -> bool:
+        """Return whether workspace setup represents implementation work.
+
+        Duplicate screening is read-only qualification.  All worker backends
+        use this one generation-aware decision so preflight setup cannot write
+        ``oompah.integration.state=working``.
+        """
+
+        with self._retry_authority_lock:
+            entry = self.state.running.get(issue.id)
+            if entry is None:
+                return True
+            if run_id is not None and getattr(entry, "run_id", None) != run_id:
+                return True
+            entry_issue = getattr(entry, "issue", None)
+            if (
+                entry_issue is None
+                or entry.identifier != issue.identifier
+                or not self._duplicate_screening_issue_identity_matches(
+                    issue, entry_issue
+                )
+            ):
+                return True
+            return not bool(getattr(entry, "duplicate_preflight", False))
 
     def _authority_guarded_call(
         self,
@@ -6519,6 +6572,13 @@ class Orchestrator:
         await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._run_terminal_audit_enforcement
         )
+        # Complete an owner duplicate-screening decision if the previous
+        # process stopped after persisting the verdict but before its matching
+        # Open/Duplicate Candidate status write.
+        await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool,
+            self._reconcile_owner_duplicate_resolution_boundaries,
+        )
         # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
         # from startup.  The service can accept health/state/resume traffic
         # while the durable worker drains its bounded queue.
@@ -8052,6 +8112,14 @@ class Orchestrator:
         # 1. Candidate fetch — dominant I/O cost (one tracker query per project)
         candidates = await _timed_async(
             "fetch_candidates", self._fetch_all_candidates_bounded
+        )
+        owner_resolution_repairs = await _timed(
+            "owner_duplicate_resolution",
+            self._reconcile_owner_duplicate_resolution_boundaries,
+            candidates,
+        )
+        metrics["owner_duplicate_resolution_repaired_count"] = (
+            owner_resolution_repairs
         )
         self._last_candidates = candidates
         metrics["candidate_count"] = len(candidates)
@@ -15377,6 +15445,210 @@ class Orchestrator:
             issue.duplicate_screening = cleared.to_dict()
             return True
 
+    @staticmethod
+    def _duplicate_screening_issue_identity_matches(
+        expected: Issue,
+        observed: Issue,
+    ) -> bool:
+        """Return whether two task snapshots name the exact managed task."""
+
+        expected_project = str(expected.project_id or "").strip()
+        observed_project = str(observed.project_id or "").strip()
+        return bool(
+            str(expected.id or "").strip()
+            and str(expected.identifier or "").strip()
+            and expected.id == observed.id
+            and expected.identifier == observed.identifier
+            and expected_project == observed_project
+        )
+
+    def _matching_duplicate_preflight_runtime(
+        self,
+        issue: Issue,
+        record: DuplicateScreeningRecord | None,
+    ) -> RunningEntry | None:
+        """Return the exact preflight runtime superseded by owner resolution.
+
+        The tracker record can already be owner-resolved on an idempotent
+        retry, so task revision plus full issue/project identity is the durable
+        fence.  A still-live claim is additionally required to match exactly
+        while the prior record carries one.
+        """
+
+        current_fingerprint = compute_task_fingerprint(issue)
+        with self._retry_authority_lock:
+            entry = self.state.running.get(issue.id)
+            entry_issue = getattr(entry, "issue", None)
+            if (
+                entry is None
+                or entry_issue is None
+                or entry.identifier != issue.identifier
+                or not getattr(entry, "duplicate_preflight", False)
+                or getattr(entry, "is_auditor", False)
+                or not self._duplicate_screening_issue_identity_matches(
+                    issue, entry_issue
+                )
+                or entry.duplicate_preflight_fingerprint != current_fingerprint
+            ):
+                return None
+            if (
+                record is not None
+                and record.claim_id
+                and entry.duplicate_preflight_claim_id != record.claim_id
+            ):
+                return None
+            if record is None or (
+                not record.claim_id and not record.is_owner_resolved
+            ):
+                return None
+            return entry
+
+    def _apply_owner_duplicate_resolution_runtime_state(
+        self,
+        issue: Issue,
+        verdict: ScreeningVerdict,
+        prior_record: DuplicateScreeningRecord | None,
+    ) -> RunningEntry | None:
+        """Rearm dispatch and fence only the superseded preflight runtime."""
+
+        entry = self._matching_duplicate_preflight_runtime(issue, prior_record)
+        with self._retry_authority_lock:
+            if verdict == ScreeningVerdict.NO_DUPLICATE:
+                # Exhausted preflight completion is a terminal-looking in-memory
+                # fence.  The owner's checked/Open decision is the exact inverse
+                # transition and must make implementation dispatch eligible.
+                self.state.completed.discard(issue.id)
+                self.state.stall_counts.pop(issue.identifier, None)
+                self.state.reject_streak.pop(issue.id, None)
+            if entry is not None and self.state.running.get(issue.id) is entry:
+                entry.authority_revoked = True
+                entry.authority_revocation_reason = (
+                    "project owner resolved duplicate screening"
+                )
+                return entry
+        return None
+
+    def _owner_resolution_boundary_issues(self) -> list[Issue]:
+        """Fetch non-terminal tasks that may straddle an owner status write."""
+
+        states = [NEEDS_HUMAN, OPEN, DUPLICATE_CANDIDATE]
+        project_store = getattr(self, "project_store", None)
+        projects = project_store.list_all() if project_store is not None else []
+        if not projects:
+            try:
+                return list(self.tracker.fetch_issues_by_states(states))
+            except (TrackerNotConfiguredError, TrackerError):
+                return []
+
+        issues: list[Issue] = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                project_issues = tracker.fetch_issues_by_states(states)
+                for issue in project_issues:
+                    issue.project_id = project.id
+                issues.extend(project_issues)
+            except (TrackerNotConfiguredError, TrackerError, ProjectError):
+                continue
+        return issues
+
+    def _reconcile_owner_duplicate_resolution_boundaries(
+        self,
+        issues: Iterable[Issue] | None = None,
+    ) -> int:
+        """Repair owner-record/status splits left by an interrupted write.
+
+        Owner resolution first persists its auditable screening record, then
+        changes task status.  A process exit between those writes leaves an
+        authoritative record whose status no longer agrees.  Reconciliation
+        is deliberately limited to current-fingerprint owner records.
+        """
+
+        candidates = (
+            list(issues)
+            if issues is not None
+            else self._owner_resolution_boundary_issues()
+        )
+        repaired = 0
+        seen: set[tuple[str, str, str]] = set()
+        for observed in candidates:
+            identity = (
+                str(observed.project_id or ""),
+                str(observed.id or ""),
+                str(observed.identifier or ""),
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            observed_record = DuplicateScreeningRecord.from_raw(
+                getattr(observed, "duplicate_screening", None)
+            )
+            if observed_record is None or not observed_record.is_owner_resolved:
+                continue
+            try:
+                tracker = self._tracker_for_issue(observed)
+            except (ProjectError, TrackerError):
+                continue
+            project_key = str(
+                observed.project_id or "__legacy_duplicate_preflight__"
+            )
+            lock = self._get_project_maintenance_lock(project_key)
+            with lock:
+                try:
+                    tracker.invalidate_read_cache()
+                except Exception:
+                    pass
+                try:
+                    fresh = tracker.fetch_issue_detail(observed.identifier)
+                except (TrackerError, ProjectError):
+                    continue
+                if fresh is None:
+                    continue
+                if not fresh.project_id:
+                    fresh.project_id = observed.project_id
+                if not self._duplicate_screening_issue_identity_matches(
+                    observed, fresh
+                ):
+                    continue
+                record = load_duplicate_screening_record(tracker, fresh)
+                if (
+                    record is None
+                    or not record.is_owner_resolved
+                    or record.detector_version != DUPLICATE_DETECTOR_VERSION
+                    or record.task_fingerprint != compute_task_fingerprint(fresh)
+                    or record.claim_id is not None
+                    or record.retry_count != 0
+                    or record.verdict
+                    not in {
+                        ScreeningVerdict.NO_DUPLICATE,
+                        ScreeningVerdict.DUPLICATE_CANDIDATE,
+                    }
+                ):
+                    continue
+                target_status = (
+                    OPEN
+                    if record.verdict == ScreeningVerdict.NO_DUPLICATE
+                    else DUPLICATE_CANDIDATE
+                )
+                if canonicalize_status(fresh.state) != target_status:
+                    try:
+                        tracker.update_issue(
+                            fresh.identifier,
+                            status=target_status,
+                        )
+                    except Exception:  # noqa: BLE001 - retry on a later scan
+                        continue
+                    repaired += 1
+                fresh.state = target_status
+                observed.state = target_status
+                observed.duplicate_screening = record.to_dict()
+                if record.verdict == ScreeningVerdict.NO_DUPLICATE:
+                    with self._retry_authority_lock:
+                        self.state.completed.discard(fresh.id)
+                        self.state.stall_counts.pop(fresh.identifier, None)
+                        self.state.reject_streak.pop(fresh.id, None)
+        return repaired
+
     def _owner_resolve_duplicate_screening(
         self,
         issue: Issue,
@@ -15409,9 +15681,13 @@ class Orchestrator:
             )
             return False
 
+        normalized_owner = str(owner_login).strip()
+        normalized_reason = str(reason).strip()
         project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
         lock = self._get_project_maintenance_lock(project_key)
         tracker = self._tracker_for_issue(issue)
+        runtime_to_retire: RunningEntry | None = None
+        status_updated = False
         with lock:
             try:
                 tracker.invalidate_read_cache()
@@ -15422,6 +15698,13 @@ class Orchestrator:
                 return False
             if not fresh.project_id:
                 fresh.project_id = issue.project_id
+            if not self._duplicate_screening_issue_identity_matches(issue, fresh):
+                logger.warning(
+                    "Rejecting owner resolution for %s: refreshed task identity "
+                    "does not match id/project",
+                    issue.identifier,
+                )
+                return False
             current_fingerprint = compute_task_fingerprint(fresh)
             if expected_fingerprint and expected_fingerprint != current_fingerprint:
                 logger.info(
@@ -15432,7 +15715,7 @@ class Orchestrator:
                     current_fingerprint,
                 )
                 return False
-            record = load_duplicate_screening_record(tracker, fresh)
+            prior_record = load_duplicate_screening_record(tracker, fresh)
             # Always bind the owner decision to the revision read while holding
             # the project lock.  Reusing an older record would make a decision
             # for a changed task appear stale or, worse, qualify the wrong
@@ -15441,9 +15724,9 @@ class Orchestrator:
                 task_fingerprint=current_fingerprint,
                 detector_version=DUPLICATE_DETECTOR_VERSION,
                 retry_count=(
-                    record.retry_count
-                    if record is not None
-                    and record.task_fingerprint == current_fingerprint
+                    prior_record.retry_count
+                    if prior_record is not None
+                    and prior_record.task_fingerprint == current_fingerprint
                     else 0
                 ),
             )
@@ -15475,40 +15758,90 @@ class Orchestrator:
                         "Owner resolution referenced missing, self, or terminal task(s): "
                         + ", ".join(invalid_matches)
                     )
-            resolved = owner_resolution_record(
-                record,
-                owner_login=owner_login,
-                verdict=verdict,
-                reason=reason,
-                matched_identifiers=normalized_matches,
+            same_resolution = bool(
+                prior_record is not None
+                and prior_record.is_owner_resolved
+                and prior_record.task_fingerprint == current_fingerprint
+                and prior_record.detector_version == DUPLICATE_DETECTOR_VERSION
+                and prior_record.verdict == verdict
+                and prior_record.owner_login == normalized_owner
+                and prior_record.owner_resolution_reason == normalized_reason
+                and prior_record.evidence == normalized_reason
+                and prior_record.matched_identifiers == normalized_matches
+                and prior_record.claim_id is None
+                and prior_record.retry_count == 0
             )
-            save_duplicate_screening_record(tracker, fresh, resolved)
+            if same_resolution:
+                # ``same_resolution`` proves the optional record is present.
+                assert prior_record is not None
+                resolved = prior_record
+            else:
+                resolved = owner_resolution_record(
+                    record,
+                    owner_login=normalized_owner,
+                    verdict=verdict,
+                    reason=normalized_reason,
+                    matched_identifiers=normalized_matches,
+                )
+                save_duplicate_screening_record(tracker, fresh, resolved)
             persisted = load_duplicate_screening_record(tracker, fresh)
             if (
                 persisted is None
                 or persisted.task_fingerprint != current_fingerprint
                 or not persisted.is_owner_resolved
-                or persisted.owner_login != resolved.owner_login
+                or persisted.detector_version != DUPLICATE_DETECTOR_VERSION
+                or persisted.owner_login != normalized_owner
+                or persisted.owner_resolution_reason != normalized_reason
+                or persisted.evidence != normalized_reason
+                or persisted.verdict != verdict
+                or persisted.matched_identifiers != normalized_matches
+                or persisted.claim_id is not None
+                or persisted.retry_count != 0
             ):
                 logger.warning(
                     "Owner resolution write was superseded for %s",
                     issue.identifier,
                 )
                 return False
-            tracker.update_issue(
-                fresh.identifier,
-                status=(
-                    OPEN
-                    if verdict == ScreeningVerdict.NO_DUPLICATE
-                    else DUPLICATE_CANDIDATE
-                ),
+            runtime_to_retire = self._apply_owner_duplicate_resolution_runtime_state(
+                fresh,
+                verdict,
+                prior_record,
             )
-            fresh.state = (
+            target_status = (
                 OPEN if verdict == ScreeningVerdict.NO_DUPLICATE else DUPLICATE_CANDIDATE
             )
-            issue.duplicate_screening = resolved.to_dict()
-            issue.state = fresh.state
-            return True
+            try:
+                if canonicalize_status(fresh.state) != target_status:
+                    tracker.update_issue(fresh.identifier, status=target_status)
+                status_updated = True
+            except Exception as exc:  # noqa: BLE001 - durable boundary is repaired
+                logger.warning(
+                    "Owner resolution status update failed for %s; persisted "
+                    "record will be reconciled: %s",
+                    issue.identifier,
+                    exc,
+                )
+            fresh.state = target_status if status_updated else fresh.state
+            issue.duplicate_screening = persisted.to_dict()
+            if status_updated:
+                issue.state = target_status
+
+        if runtime_to_retire is not None:
+            self._schedule_running_termination(
+                issue.id,
+                cleanup_workspace=False,
+                task_name_prefix="retire-duplicate-preflight",
+                expected_entry=runtime_to_retire,
+            )
+        try:
+            self.request_refresh()
+        except Exception:  # noqa: BLE001 - owner write remains authoritative
+            logger.debug(
+                "Could not wake dispatch after owner duplicate resolution",
+                exc_info=True,
+            )
+        return status_updated
 
     def _duplicate_preflight_task_corpus(self, tracker: Any, issue: Issue) -> str:
         """Return a bounded, project-scoped read-only peer-task corpus.
@@ -36169,7 +36502,12 @@ class Orchestrator:
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
-                        persist_dispatch_metadata=not forced_auditor,
+                        persist_dispatch_metadata=(
+                            not forced_auditor
+                            and self._workspace_persists_dispatch_metadata(
+                                issue, run_id
+                            )
+                        ),
                         authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
@@ -36886,7 +37224,12 @@ class Orchestrator:
                 else:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
-                        persist_dispatch_metadata=not forced_auditor,
+                        persist_dispatch_metadata=(
+                            not forced_auditor
+                            and self._workspace_persists_dispatch_metadata(
+                                issue, run_id
+                            )
+                        ),
                         authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
@@ -37704,6 +38047,9 @@ class Orchestrator:
             # the shared epic worktree; otherwise per-task path.
             workspace_path, _epic = self._create_workspace_for_issue(
                 issue,
+                persist_dispatch_metadata=self._workspace_persists_dispatch_metadata(
+                    issue, run_id
+                ),
                 authority_check=self._workspace_authority_check(issue, run_id),
             )
             if issue.id in self.state.running:
