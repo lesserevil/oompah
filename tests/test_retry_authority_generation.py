@@ -1862,6 +1862,146 @@ def test_accepted_submission_wins_during_retry_setup(tmp_path):
     asyncio.run(scenario())
 
 
+def test_accepted_ordinary_submission_waits_for_final_worker_publication(
+    tmp_path,
+):
+    """An accepted submit cannot observe an ownerless post-fetch interval."""
+
+    async def scenario():
+        from oompah.server import _accept_worker_submission
+
+        orch = _orchestrator(tmp_path)
+        issue = _issue(state="Open")
+        orch._match_agent_profile = MagicMock(
+            return_value=MagicMock(name="default", model_role="fast")
+        )
+        orch._run_worker = AsyncMock()
+        # Keep this regression focused on publication/acceptance ownership;
+        # cancellation itself is exercised elsewhere.
+        orch._schedule_running_termination = MagicMock()
+        tracker_state = {"state": "Open"}
+        final_fetch_started = threading.Event()
+        release_final_fetch = threading.Event()
+        preliminary_detail_fetch = threading.Event()
+        fresh_detail_fetch = threading.Event()
+        release_fresh_detail_fetch = threading.Event()
+        tracker = MagicMock()
+        fetch_count = 0
+        detail_fetch_count = 0
+
+        def fetch(_issue_ids):
+            nonlocal fetch_count
+            fetch_count += 1
+            if fetch_count == 3:
+                final_fetch_started.set()
+                assert release_final_fetch.wait(timeout=3)
+            return [replace(issue, state=tracker_state["state"])]
+
+        def update(_identifier, *, status):
+            tracker_state["state"] = status
+
+        def fetch_detail(_identifier):
+            nonlocal detail_fetch_count
+            detail_fetch_count += 1
+            if detail_fetch_count == 1:
+                preliminary_detail_fetch.set()
+            elif detail_fetch_count == 2:
+                # This read is inside _submission_authority_lock(). Dispatch
+                # can release that lock only after publishing its worker.
+                assert issue.id in orch.state.running
+                fresh_detail_fetch.set()
+                assert release_fresh_detail_fetch.wait(timeout=3)
+            else:
+                raise AssertionError("unexpected submission detail refresh")
+            return replace(issue, state=tracker_state["state"])
+
+        bind_record = orch.bind_accepted_submission_record
+
+        def bind_after_publication(**kwargs):
+            assert issue.id in orch.state.running
+            return bind_record(**kwargs)
+
+        tracker.fetch_issue_states_by_ids.side_effect = fetch
+        tracker.fetch_issue_detail.side_effect = fetch_detail
+        tracker.update_issue.side_effect = update
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch.bind_accepted_submission_record = MagicMock(
+            side_effect=bind_after_publication
+        )
+
+        dispatch = asyncio.create_task(orch._dispatch(issue))
+        submission = None
+        try:
+            assert await asyncio.wait_for(
+                asyncio.to_thread(final_fetch_started.wait), timeout=3
+            )
+
+            # A submit first resolves the issue outside the transition lock.
+            # Once that preliminary read is complete, it must remain blocked on
+            # dispatch's final publication transaction.
+            submission = asyncio.create_task(
+                _accept_worker_submission(
+                    orch,
+                    tracker,
+                    issue.identifier,
+                    issue.project_id,
+                    {
+                        "summary": "ordinary worker handoff",
+                        "task_branch": issue.work_branch,
+                        "head_sha": "b" * 40,
+                        "remote_head_sha": "b" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+            )
+            assert await asyncio.wait_for(
+                asyncio.to_thread(preliminary_detail_fetch.wait), timeout=3
+            )
+            assert detail_fetch_count == 1
+            tracker.fetch_issue_detail.assert_called_once_with(issue.identifier)
+            assert not submission.done()
+
+            release_final_fetch.set()
+            assert await dispatch is True
+
+            # The fresh, locked detail read is not allowed to begin until the
+            # final worker/RunningEntry publication has completed. Hold it so
+            # the subsequent durable-record binding is independently ordered.
+            assert await asyncio.wait_for(
+                asyncio.to_thread(fresh_detail_fetch.wait), timeout=3
+            )
+            entry = orch.state.running[issue.id]
+            assert detail_fetch_count == 2
+            assert tracker.fetch_issue_detail.call_count == 2
+            orch.bind_accepted_submission_record.assert_not_called()
+
+            release_fresh_detail_fetch.set()
+            accepted = await submission
+
+            orch.bind_accepted_submission_record.assert_called_once()
+            assert accepted.record.head_sha == "b" * 40
+            assert entry.accepted_submission_record == accepted.record
+            assert entry.authority_revoked is True
+            assert tracker_state["state"] == "Ready to Integrate"
+        finally:
+            release_final_fetch.set()
+            release_fresh_detail_fetch.set()
+            for task in (dispatch, submission):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (dispatch, submission) if task is not None),
+                return_exceptions=True,
+            )
+            entry = orch.state.running.get(issue.id)
+            if entry is not None and entry.worker_task is not None:
+                if not entry.worker_task.done():
+                    entry.worker_task.cancel()
+                await asyncio.gather(entry.worker_task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 def test_failed_status_rollback_keeps_live_retry_owner(tmp_path):
     async def scenario():
         orch = _orchestrator(tmp_path)
