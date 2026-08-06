@@ -1,7 +1,7 @@
 """Worker submission staging API and CLI tests."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from fastapi.testclient import TestClient
 
@@ -313,11 +313,20 @@ def test_same_head_ready_submit_backfills_missing_work_branch_projection(tmp_pat
     assert len(queued) == 1
     assert queued[0].task_branch == "OOMPAH-814"
     assert queued[0].head_sha == "2" * 40
-    tracker.set_metadata_field.assert_called_once_with(
-        "OOMPAH-814",
-        "oompah.work_branch",
-        "OOMPAH-814",
-    )
+    expected_integration = existing.to_dict()
+    expected_integration["mode"] = "queue"
+    assert tracker.set_metadata_field.call_args_list == [
+        call(
+            "OOMPAH-814",
+            "oompah.integration",
+            expected_integration,
+        ),
+        call(
+            "OOMPAH-814",
+            "oompah.work_branch",
+            "OOMPAH-814",
+        ),
+    ]
     tracker.update_issue.assert_not_called()
     tracker.add_comment.assert_not_called()
     assert issue.work_branch == "OOMPAH-814"
@@ -537,9 +546,15 @@ def _same_head_recovery_case(tmp_path, initial_status):
         assert tracker.add_comment.call_args.args[1] == (
             f"Recovered from {initial_status}"
         )
-        # Same-head recovery reuses the existing durable record, so no
-        # spurious metadata rewrite fires.
-        tracker.set_metadata_field.assert_not_called()
+        # The accepted legacy generation is retained while its missing
+        # service-derived delivery mode is repaired exactly once.
+        expected_integration = existing.to_dict()
+        expected_integration["mode"] = "queue"
+        tracker.set_metadata_field.assert_called_once_with(
+            "TASK-2",
+            "oompah.integration",
+            expected_integration,
+        )
         # Queue is (re)armed for exactly one fresh delivery.
         queued = queue.items(project_id="proj-1", epic_id="EPIC-1")
         assert len(queued) == 1
@@ -591,8 +606,9 @@ def test_same_head_resubmit_from_needs_ci_fix_restores_ready_lifecycle(tmp_path)
 def test_duplicate_same_head_submit_already_ready_is_fully_idempotent(tmp_path):
     """A duplicate submit for a task already at Ready to Integrate with a
     matching integration record must not duplicate the summary comment, the
-    status transition, or a metadata rewrite. Queue rearm must also be a
-    no-op so identical resubmits cannot reset an active row."""
+    status transition, or any metadata rewrite beyond a one-time canonical
+    repair. Queue rearm must also be a no-op so identical resubmits cannot
+    reset an active row."""
 
     existing = IntegrationRecord(
         state="ready",
@@ -616,8 +632,15 @@ def test_duplicate_same_head_submit_already_ready_is_fully_idempotent(tmp_path):
     try:
         response = _run_submit(orch, summary="Duplicate request")
         assert response.status_code == 201, response.json()
-        # Zero tracker writes for a duplicate accepted submit.
-        tracker.set_metadata_field.assert_not_called()
+        # The duplicate generation performs only its one-time canonical mode
+        # repair; it still avoids summary and lifecycle writes.
+        expected_integration = existing.to_dict()
+        expected_integration["mode"] = "queue"
+        tracker.set_metadata_field.assert_called_once_with(
+            "TASK-2",
+            "oompah.integration",
+            expected_integration,
+        )
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
         # Queue still has exactly one identical row.
