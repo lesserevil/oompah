@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-05T15:59:15.045452Z'
-updated_at: '2026-08-06T00:21:19.397819Z'
+updated_at: '2026-08-06T00:22:43.225270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -251,5 +251,10 @@ author: oompah
 created: 2026-08-06 00:21
 ---
 Discovery: recovery head 8cfac3a8 is a clean, patch-equivalent port of reviewed OOMPAH-810 onto b98ebb40. It changes only the seven scoped ACP/liveness/observability/test files; the added standalone regression deterministically races child exit with stall inspection and permits exactly one delivery acknowledgement. The current Make test-setup is blocked before test execution by a host validation guard chmod on its read-only service lock directory; the configured task virtualenv is now unavailable, so no guard bypass was attempted.
+---
+author: oompah
+created: 2026-08-06 00:22
+---
+Implementation: committed c8e6efcd2 (and pushed as origin/OOMPAH-833). It ports only the reviewed command completion-to-delivery lifecycle: bounded result_pending handoff, exact-once provider acknowledgement, explicit delivery deadline/stall state, opaque health metrics, and worker/auditor output/race regressions. No validation, authority, cancellation, redaction, or lifecycle behavior outside that scope changed.
 ---
 <!-- COMMENTS:END -->
