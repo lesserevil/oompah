@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-08-06T01:55:29.682515Z'
+updated_at: '2026-08-06T01:56:47.594529Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
@@ -37,13 +37,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2b30c2f1-f99c-49a8-9c98-96e3b2ec536d
 oompah.task_costs:
-  total_input_tokens: 619546
-  total_output_tokens: 34475
+  total_input_tokens: 619552
+  total_output_tokens: 34586
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 619546
       output_tokens: 34475
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 111
       cost_usd: 0.0
   runs:
   - profile: default
@@ -64,6 +68,12 @@ oompah.task_costs:
     output_tokens: 24353
     cost_usd: 0.0
     recorded_at: '2026-07-30T00:08:22.718611+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 111
+    cost_usd: 0.0
+    recorded_at: '2026-08-06T01:56:44.125557+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-570__20260729T235353Z
@@ -425,5 +435,15 @@ Safe evidence:
 - acceptance_criteria_met: explicit_retry + recover_abandoned + cleanup_active_processes wired at startup/shutdown; tightened blocked-only revival; new focused tests present
 - recorded_full_test: 13616 passed, 7 skipped (per merged commentary)
 - archive_threshold: Merged >=7 days; scheduler queued as Aged Merged auto-archive
+---
+author: oompah
+created: 2026-08-06 01:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 63, Tool calls: 42
+- Tokens: 6 in / 111 out [117 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 13s
+- Log: OOMPAH-570__20260806T013441Z.jsonl
 ---
 <!-- COMMENTS:END -->
