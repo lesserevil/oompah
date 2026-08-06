@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-08-06T17:43:11.834988Z'
+updated_at: '2026-08-06T17:43:21.586659Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -213,8 +213,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-c9362f973f19
-    applied: false
+    applied: true
     created_at: '2026-08-06T17:43:08.407500+00:00'
+    applied_at: '2026-08-06T17:43:18.609211+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -600,5 +601,29 @@ author: oompah
 created: 2026-08-06 17:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 17:43
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: bbd48ada7abbd726e2ad6ae761a5037cdbea1e6f
+- ancestor_of_origin_main: true
+- previous_state: Merged
+- target_state: Archived
+- requested_by_source: auto_archive
+- orchestrator_helper_line: oompah/orchestrator.py:4744 _integration_satisfied_dependencies
+- server_helper_line: oompah/server.py:2044 _integration_queue_summary
+- focused_test_file: tests/test_parallel_epic_children.py
+- positive_scheduler_test_line: 149 test_cross_epic_done_dependency_uses_default_after_parent_lands
+- negative_scheduler_test_parent_states: None, 'In Progress', 'Done'
+- api_summary_positive_test_line: 590 test_integration_queue_summary_accepts_done_child_of_landed_parent
+- api_summary_negative_test_line: 646 test_integration_queue_summary_rejects_done_child_of_unlanded_parent
+- prior_focused_pass_count: 24
+- prior_make_test_result: 13694 passed, 7 skipped
+- pending_target_count: 3
 ---
 <!-- COMMENTS:END -->
