@@ -1854,7 +1854,16 @@ class TerminalTransitionCoordinator:
 
         def _operation() -> ResultOutcome:
             tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self._project_store, project_id
+            )
             locked_issue = current_issue
+            try:
+                submitted_tracker_fingerprint = (
+                    compute_issue_evidence_fingerprint(current_issue, project_id)
+                )
+            except Exception:
+                submitted_tracker_fingerprint = None
             fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
             if callable(fetch_issue_detail):
                 # Result callbacks retain the issue snapshot used to launch the
@@ -1899,29 +1908,48 @@ class TerminalTransitionCoordinator:
                 locked_issue = refreshed
                 if canonicalize_status(locked_issue.state or "") == IN_VALIDATION:
                     try:
-                        current_fingerprint = compute_issue_evidence_fingerprint(
-                            locked_issue,
-                            project_id,
+                        current_tracker_fingerprint = (
+                            compute_issue_evidence_fingerprint(
+                                locked_issue,
+                                project_id,
+                            )
                         )
                     except Exception:
-                        logger.exception(
-                            "Failed to compute terminal-audit result evidence for %s",
-                            current_issue.identifier,
-                        )
                         return ResultOutcome(
                             success=False,
                             audit_id=result.audit_id,
                             reason=ResultRejection.CURRENT_EVIDENCE_UNAVAILABLE,
                         )
-                    if current_fingerprint != result.evidence_fingerprint:
-                        return ResultOutcome(
-                            success=False,
-                            audit_id=result.audit_id,
-                            reason=ResultRejection.FINGERPRINT_MISMATCH,
-                        )
-            store = TerminalAuditMetadataStore(
-                tracker, self._project_store, project_id
-            )
+                    # Legacy audits may carry the exact tracker fingerprint
+                    # without the newer durable projection ledger.  When the
+                    # callback snapshot proves that exact generation and the
+                    # live tracker has moved, reject it directly.  Richer audit
+                    # fingerprints do not equal the callback projection; defer
+                    # those to the locked ledger-aware comparison below.
+                    if (
+                        submitted_tracker_fingerprint == result.evidence_fingerprint
+                        and current_tracker_fingerprint
+                        != submitted_tracker_fingerprint
+                    ):
+                        try:
+                            projection_present, _projection = (
+                                _tracker_evidence_projection_for_audit(
+                                    store.read(current_issue.identifier),
+                                    audit_id=result.audit_id,
+                                    project_id=project_id,
+                                    task_id=current_issue.identifier,
+                                )
+                            )
+                        except Exception:
+                            # The ledger-aware path below owns quarantine and
+                            # unavailable-metadata classification.
+                            projection_present = True
+                        if not projection_present:
+                            return ResultOutcome(
+                                success=False,
+                                audit_id=result.audit_id,
+                                reason=ResultRejection.FINGERPRINT_MISMATCH,
+                            )
             outcome = self._apply_result_locked(
                 store, tracker, locked_issue, result, project_id
             )
@@ -2744,7 +2772,7 @@ class TerminalTransitionCoordinator:
                     reason=ResultRejection.AUDIT_NOT_FOUND,
                 )
             if (
-                stale_record.task_id not in issue_ids
+                stale_record.task_id != identifier
                 or stale_record.project_id != project_id
             ):
                 return ResultOutcome(

@@ -404,6 +404,7 @@ class LandingRequest:
     prior: LandingFact | None = None
     prefer_live_source: bool = False
     authoritative_target: bool = False
+    trusted_target_revision: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("source", "target"):
@@ -417,6 +418,18 @@ class LandingRequest:
         if revision is not None and not _GIT_REVISION_RE.fullmatch(revision):
             raise ValueError("landing revision must be a hexadecimal Git object id")
         object.__setattr__(self, "revision", revision.lower() if revision else None)
+        target_revision = _optional_text(self.trusted_target_revision)
+        if target_revision is not None and not _GIT_REVISION_RE.fullmatch(
+            target_revision
+        ):
+            raise ValueError(
+                "trusted target revision must be a hexadecimal Git object id"
+            )
+        object.__setattr__(
+            self,
+            "trusted_target_revision",
+            target_revision.lower() if target_revision else None,
+        )
         if self.prior is not None and not isinstance(self.prior, LandingFact):
             raise TypeError("prior must be a LandingFact")
 
@@ -727,6 +740,7 @@ class GitLandingCollector:
         source = _required_text(request.source, "source")
         target = _required_text(request.target, "target")
         requested_revision = _optional_text(request.revision)
+        trusted_target_revision = _optional_text(request.trusted_target_revision)
         # Resolve the live ref first. Callers identify mutable epic sources
         # whose persisted review head is only fallback evidence after pruning;
         # exact child revisions keep their immutable requested identity.
@@ -756,20 +770,13 @@ class GitLandingCollector:
         # revision as ``None`` would make ``_matching_prior`` wildcard the
         # revision and could let an older durable landing authorize newer work.
         effective_revision = source_revision or requested_revision
-        # A failed authoritative target refresh must fail closed before a
-        # durable prior is considered.  Otherwise stale local history could
-        # keep authorizing cleanup after a remote force-push or merge.
-        if authoritative_target is not None and target_revision is None:
-            return LandingFact(
-                source,
-                target,
-                source_revision or requested_revision,
-                {"kind": LandingProofKind.TARGET_UNAVAILABLE.value},
-                observed_at,
-                self.project_id,
-                state=LandingState.UNKNOWN,
-                error_code=target_error or "target_refresh_failed",
+        verified_trusted_target = None
+        if target_revision is None and trusted_target_revision is not None:
+            target_result = self._run(
+                "cat-file", "-e", f"{trusted_target_revision}^{{commit}}"
             )
+            if target_result.returncode == 0:
+                verified_trusted_target = trusted_target_revision
         prior = self._matching_prior(
             request.prior,
             source=source,
@@ -784,7 +791,7 @@ class GitLandingCollector:
         # that history must invalidate the old proof.
         if prior is not None and self._prior_target_is_current(
             prior,
-            target_revision=target_revision,
+            target_revision=target_revision or verified_trusted_target,
         ):
             return LandingFact(
                 source,
@@ -795,6 +802,23 @@ class GitLandingCollector:
                 self.project_id,
                 state=LandingState.LANDED,
                 durable=True,
+            )
+
+        # A failed authoritative target refresh must fail closed before any
+        # new landing proof is attempted.  The only exception above is an
+        # already-durable proof for the exact accepted target generation: an
+        # epic review head can outlive its pruned container ref, but it cannot
+        # bless a different target SHA.
+        if authoritative_target is not None and target_revision is None:
+            return LandingFact(
+                source,
+                target,
+                source_revision or requested_revision,
+                {"kind": LandingProofKind.TARGET_UNAVAILABLE.value},
+                observed_at,
+                self.project_id,
+                state=LandingState.UNKNOWN,
+                error_code=target_error or "target_refresh_failed",
             )
 
         if source_revision is None:

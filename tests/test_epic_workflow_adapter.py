@@ -1523,6 +1523,10 @@ async def test_cleanup_supersedes_when_epic_reopens_before_primary_delete():
 
 def test_real_orchestrator_factory_exposes_only_installed_domain_adapters():
     orchestrator = object.__new__(Orchestrator)
+    # Exercise the O837-only installation seam. The composed OOMPAH-804 tree
+    # also installs O834, whose production builder deliberately requires the
+    # live workflow store and has its own composition coverage.
+    orchestrator._implementation_workflow_action_handlers = None
     binding = SimpleNamespace(
         project_id="project-1",
         tracker=MagicMock(),
