@@ -2122,10 +2122,18 @@ class TestWebhookForwarderPoll:
 
         fwd = WebhookForwarder(project_store=_FakeProjectStore([proj]))
         fp = _ForwarderProcess("proj-1", "test-repo", str(tmp_path), "org/repo")
-        await fwd._launch(fp)
-        # gh is unlikely to be missing in CI, but if it is, process stays None.
-        # Either way, no exception is raised.
-        assert fp.project_id == "proj-1"
+        with patch(
+            "oompah.webhooks.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError,
+        ) as spawn:
+            await fwd._launch(fp)
+
+        spawn.assert_awaited_once()
+        assert fp.process is None
+        assert fp.stderr_task is None
+        assert fp.disabled is True
+        assert fp.disabled_reason == "'gh' CLI not found on PATH"
 
     @pytest.mark.asyncio
     async def test_exponential_backoff_reset_on_running(self, tmp_path):
@@ -2341,12 +2349,16 @@ class TestForwarderProcessFullLifecycle:
 
         fp.process = _CrashedProc()
 
-        with patch("asyncio.sleep", new_callable=AsyncMock):
+        with (
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(fwd, "_launch", new_callable=AsyncMock) as launch,
+        ):
             await fwd._check_and_restart(fp)
 
         # 30.0 * 2 = 60.0, capped at MIN(60.0, 60.0)
         assert fp.restart_delay_s == 60.0
         assert fp.restart_attempts == 1
+        launch.assert_awaited_once_with(fp)
 
     @pytest.mark.asyncio
     async def test_stop_terminates_all_tracked_processes(self, git_repo):
