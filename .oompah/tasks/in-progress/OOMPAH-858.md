@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:40:33.569811Z'
+updated_at: '2026-08-06T18:40:55.283380Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
     dependency/target/head-identity defect reproduced on OOMPAH-804; no existing active
     task covers all three failure modes. OOMPAH-853 covers the corpus-pressure failure
     itself, not this integration bug.
-oompah.agent_run_id: 55e9f95c-af4d-471f-9d6d-05eef63f3822
+oompah.agent_run_id: 9b79b581-dc4b-419c-b739-0982792e22e2
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
@@ -461,5 +461,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-06 18:40
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
