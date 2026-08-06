@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T20:52:19.610962Z'
+updated_at: '2026-08-06T20:52:55.551199Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-08-06 20:52
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-06 20:52
+---
+Understanding: I will inspect the exact CI failure from the existing OOMPAH-845 branch, reproduce it locally where feasible, and make only the minimal repair supported by the evidence. I will preserve the established restart-fencing scope and rerun the directly affected tests before pushing.
 ---
 <!-- COMMENTS:END -->
