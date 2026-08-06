@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-781
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Cut terminal-audit lifecycle over to durable decisions and jobs
 parent: OOMPAH-768
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:58:59.010872Z'
-updated_at: '2026-08-06T06:43:19.728870Z'
+updated_at: '2026-08-06T06:43:38.060901Z'
 work_branch: epic-OOMPAH-768--task-OOMPAH-781
 target_branch: null
 review_url: null
@@ -68,48 +68,14 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-768--task-OOMPAH-781
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 2
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-768--task-OOMPAH-781
   base_branch: epic-OOMPAH-768
   base_sha: a744be37d42047e25e6fc62a6a64878c187290e0
-  head_sha: 41f717cd46baf4e8ba455586b39ce9e67d25a471
-  submitted_at: '2026-08-04T21:44:34.061860+00:00'
-  updated_at: '2026-08-04T22:45:48.494351+00:00'
-  last_error: "Combined-tree quality gate failed: ack where the object was allocated.\n\
-    \  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_webhooks.py::TestGitLabHookManagerStatusCallback::test_reconcile_fires_callback_on_configuration_error\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-xmzie_fp/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x763b8ce0b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_worker_submission.py::test_same_head_resubmit_from_in_progress_restores_ready_lifecycle\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-xmzie_fp/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x70e3743b39c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_long_tick_regression.py::TestSyntheticSlowJobs::test_heal_repos_always_runs_after_dispatch_needed\n\
-    = 1 failed, 15741 passed, 8 skipped, 1 xfailed, 47 warnings in 643.32s (0:10:43)\
-    \ =\n\nmake: *** [Makefile:401: test] Error 1\n"
+  head_sha: 359c62f75c2af7b03efb993e9d2a29397f6e18ae
+  submitted_at: '2026-08-06T06:43:30.519792+00:00'
+  updated_at: '2026-08-06T06:43:30.519792+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1252
@@ -466,5 +432,10 @@ author: oompah
 created: 2026-08-06 06:43
 ---
 Operator review isolated the prior focused failure to the intentional 1,001-write deep-history regression racing another worker that bypassed the shared validation lease on the older deployed server. Added a scoped 30-second timeout consistent with the existing durable-history regression. Exclusive verification at pushed head 359c62f75: exact regression 1 passed; full terminal-audit workflow module 32 passed; combined 12-suite terminal audit, workflow job, fencing, coordinator, and recovery set 572 passed with 5 pre-existing coroutine warnings. Diff check clean; branch clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-06 06:43
+---
+Durable terminal-audit lifecycle cutover completed at 359c62f75 with exclusive focused validation: 572 passed.
 ---
 <!-- COMMENTS:END -->
