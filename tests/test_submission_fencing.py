@@ -117,7 +117,7 @@ async def test_late_tracked_changes_after_submission_acceptance_are_detected(tmp
     
     # Create a running entry with submission
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),  # Mock task that won't execute
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
@@ -243,7 +243,7 @@ async def test_clean_submission_with_no_late_changes_proceeds_to_integration(tmp
     
     # Create a running entry
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
@@ -387,7 +387,7 @@ async def test_consumed_prior_checkpoint_does_not_reopen_successor_submission(tm
         head_sha=submitted_head,
     )
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
@@ -557,7 +557,7 @@ async def test_unpublished_active_operation_checkpoint_blocks_integration(tmp_pa
     ).stdout.strip()
     record = IntegrationRecord(state="ready", head_sha=submitted_head)
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
@@ -619,7 +619,7 @@ async def test_published_commit_tree_checkpoint_with_unchanged_head_reopens(tmp_
     ).stdout.strip()
     record = IntegrationRecord(state="ready", head_sha=submitted_head)
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
@@ -663,7 +663,7 @@ async def test_submission_acceptance_revokes_worker_authority(tmp_path):
     
     # Create a running entry
     entry = RunningEntry(
-        worker_task=asyncio.sleep(0),
+        worker_task=None,
         identifier=issue.identifier,
         issue=issue,
         session=None,
