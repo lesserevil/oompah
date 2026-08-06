@@ -4239,6 +4239,39 @@ class Orchestrator:
             if integration_head and integration_head != expected_head:
                 return False, "review head does not match the accepted submission"
 
+            # Gate the exact webhook-observed head before marking In Review.
+            # BranchQualityGate caches PASS by head SHA so an unchanged head
+            # reuses same-head evidence; a repaired CI-fix head runs the
+            # configured branch gate once.  Gate failure records a
+            # Needs CI Fix comment/status via _record_quality_gate_failure
+            # and preserves the open review for the next resubmission.
+            if not self._review_quality_gate_passes(
+                project,
+                current,
+                expected_source,
+                expected_target,
+            ):
+                return (
+                    False,
+                    "branch quality gate did not pass for the exact review head",
+                )
+
+            # The source branch is forge-owned and can advance while the
+            # local command runs.  Re-read the review before persisting any
+            # metadata so passing evidence for the prior head cannot adopt a
+            # replacement generation that arrived during the gate.
+            try:
+                gated_review = provider.find_pr_for_branch(
+                    repo_slug,
+                    expected_source,
+                )
+            except Exception as exc:  # noqa: BLE001 - final forge CAS fails closed
+                return False, f"gated review evidence could not be refreshed: {exc}"
+            if self._standalone_review_observation(
+                gated_review
+            ) != self._standalone_review_observation(review):
+                return False, "open review changed while branch quality gate ran"
+
             integration_revision = self._standalone_integration_generation_revision(
                 current
             )
@@ -8957,6 +8990,43 @@ class Orchestrator:
                         existing_pr = None
                         review_state = ""
                 if existing_pr is not None and review_state == "open":
+                    # A submit can replace the accepted generation after the
+                    # forge lookup above.  Revalidate the task/head authority
+                    # before even asking the gate for evidence; the gate's
+                    # own callback and the owned adoption transaction provide
+                    # the during- and after-command barriers.
+                    issue_id = str(
+                        getattr(authority.issue, "id", "") or authority.task_id
+                    )
+                    with self.issue_transition_lock(issue_id).sync():
+                        gate_authorized = self._standalone_delivery_authorized(
+                            authority,
+                            tracker,
+                        )
+                    if not gate_authorized:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before open-review gate",
+                        )
+                        return
+                    # Gate the exact current review head before adopting the
+                    # open PR so a forge CI failure followed by a repaired
+                    # head cannot advance the task to In Review without
+                    # local exact-head evidence.  Cached same-head PASS is
+                    # single-flight; failure routes through the normal
+                    # retryable Needs CI Fix flow via
+                    # _record_quality_gate_failure and preserves the open
+                    # review.
+                    if not self._review_quality_gate_passes(
+                        project,
+                        authority.issue,
+                        task_branch,
+                        target_branch,
+                    ):
+                        # Gate handled failure or authority was revoked;
+                        # keep the review open and let the next Ready sweep
+                        # (or the CI-fix repair) resubmit the exact new head.
+                        return
                     try:
                         adopted, adopt_reason = (
                             self._adopt_standalone_open_review_owned(
@@ -8997,6 +9067,34 @@ class Orchestrator:
                         project_id,
                         review_id=getattr(existing_pr, "id", None),
                     )
+                    # Do not execute a gate for a review lookup that a newer
+                    # accepted submission has already superseded.  Terminal
+                    # staging performs the final review/generation CAS after
+                    # the exact-head gate returns.
+                    issue_id = str(
+                        getattr(authority.issue, "id", "") or authority.task_id
+                    )
+                    with self.issue_transition_lock(issue_id).sync():
+                        gate_authorized = self._standalone_delivery_authorized(
+                            authority,
+                            tracker,
+                        )
+                    if not gate_authorized:
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed before merged-review gate",
+                        )
+                        return
+                    # A forge merge does not substitute for the configured
+                    # local branch gate.  Reconcile terminal state only after
+                    # the accepted exact review head has passing evidence.
+                    if not self._review_quality_gate_passes(
+                        project,
+                        authority.issue,
+                        task_branch,
+                        target_branch,
+                    ):
+                        return
                     review_number = str(
                         getattr(existing_pr, "id", "") or ""
                     ) or None
@@ -21356,10 +21454,11 @@ class Orchestrator:
         only one).  Top-level tasks that are not children of an epic get their
         own PR targeting ``project.default_branch`` or ``issue.target_branch``.
 
-        Returns ``True`` when no review is needed or a review exists/was
-        created. Returns ``False`` when the branch has unmerged commits but
-        oompah could not create the review; in that case the task is reopened
-        with a diagnostic comment so it is not stranded in a review-like state.
+        Returns ``True`` when no review is needed or a gate-approved review
+        exists/was created. Returns ``False`` when the exact-head gate blocks
+        review eligibility or the branch has unmerged commits but oompah could
+        not create the review; creation failures reopen the task with a
+        diagnostic comment so it is not stranded in a review-like state.
         """
         if not project_id:
             return True
@@ -21462,6 +21561,23 @@ class Orchestrator:
                         target_branch=target_branch,
                         review_id=getattr(r, "id", None),
                     )
+                # Gate the exact current head before marking In Review so a
+                # forge CI failure followed by a repaired head cannot bypass
+                # the configured branch gate.  Cached same-head PASS keeps
+                # unchanged heads single-flight; gate failure routes the
+                # task through the normal retryable Needs CI Fix flow via
+                # _record_quality_gate_failure and preserves the open review.
+                if (
+                    entry.issue is not None
+                    and not self._review_quality_gate_passes(
+                        project,
+                        entry.issue,
+                        branch,
+                        target_branch,
+                        preferred_path=entry.workspace_path,
+                    )
+                ):
+                    return False  # gate handled failure; leave review open
                 self._mark_task_in_review(entry, project_id, r)
                 return True  # review already exists
 
@@ -21559,6 +21675,23 @@ class Orchestrator:
                         target_branch=target_branch,
                         review_id=getattr(live_review, "id", None),
                     )
+                    # Gate the exact current head before marking In Review so
+                    # a forge CI failure followed by a repaired head cannot
+                    # bypass the configured branch gate.  Cached same-head
+                    # PASS keeps unchanged heads single-flight; gate failure
+                    # routes through the normal retryable Needs CI Fix flow
+                    # and preserves the open review.
+                    if (
+                        entry.issue is not None
+                        and not self._review_quality_gate_passes(
+                            project,
+                            entry.issue,
+                            branch,
+                            target_branch,
+                            preferred_path=entry.workspace_path,
+                        )
+                    ):
+                        return False
                     self._mark_task_in_review(entry, project_id, live_review)
                     return True
 

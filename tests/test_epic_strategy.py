@@ -1871,6 +1871,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
     def test_existing_review_marks_task_in_review(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])
+        orch._review_quality_gate_passes = MagicMock(return_value=True)
         review = MagicMock()
         review.source_branch = "task-1"
         review.id = "99"
@@ -1892,7 +1893,96 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is True
+        orch._review_quality_gate_passes.assert_called_once_with(
+            proj,
+            issue,
+            "task-1",
+            "main",
+            preferred_path=None,
+        )
         tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
+
+    def test_existing_review_gate_failure_does_not_mark_in_review(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._review_quality_gate_passes = MagicMock(return_value=False)
+        review = MagicMock(source_branch="task-1", id="99", draft=False)
+        orch._reviews_cache = {"proj-1": [review]}
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        orch._review_quality_gate_passes.assert_called_once_with(
+            proj,
+            issue,
+            "task-1",
+            "main",
+            preferred_path=None,
+        )
+        tracker.update_issue.assert_not_called()
+
+    def test_live_existing_review_gate_failure_does_not_create_duplicate(
+        self,
+        tmp_path,
+    ):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._review_quality_gate_passes = MagicMock(return_value=False)
+        review = MagicMock(
+            source_branch="task-1",
+            target_branch="main",
+            state="open",
+            id="100",
+            draft=False,
+        )
+        provider = MagicMock()
+        provider.list_open_reviews.return_value = [review]
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc work"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        orch._review_quality_gate_passes.assert_called_once_with(
+            proj,
+            issue,
+            "task-1",
+            "main",
+            preferred_path=None,
+        )
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
 
     def test_shared_skips_per_child_pr(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
