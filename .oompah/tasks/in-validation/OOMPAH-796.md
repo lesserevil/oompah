@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-796
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Implement the universal totality and liveness controller
 parent: OOMPAH-770
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T00:21:30.230986Z'
+updated_at: '2026-08-06T01:12:22.301459Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -52,14 +52,18 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-770--task-OOMPAH-796
   base_branch: epic-OOMPAH-770
   base_sha: 58ffd477b19f370c7ed53a191e1a05580b016c85
   head_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
+  integrated_sha: 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b
   submitted_at: '2026-08-06T00:21:05.310726+00:00'
-  updated_at: '2026-08-06T00:21:05.310726+00:00'
+  updated_at: '2026-08-06T01:12:11.986063+00:00'
+  dependency_heads:
+    OOMPAH-807: b1c089614b81076b961c7681b6ddad64ca68191e
+    OOMPAH-806: 30dc2b2075a48c6c542da55a46ad0285f492d527
 oompah.task_costs:
   total_input_tokens: 46798
   total_output_tokens: 39745
@@ -126,6 +130,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-770--task-OOMPAH-796
     source_sha: 2af2f103d0375e267de1bcf542d06825bce80d44
     completed_at: '2026-08-05T20:23:14.469433+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5dfb4a09f74b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-796
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c63748e75598faff56fcb36b96ded5980fc587fb20253717d6b79cc687b713ca
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-06T01:12:15.437840+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -403,5 +429,10 @@ author: oompah
 created: 2026-08-06 00:21
 ---
 Validated the server-restacked exact head after its stale gate-owner infrastructure failure. Head 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b is clean, pushed, based on the repaired parent, and focused verification is green.
+---
+author: oompah
+created: 2026-08-06 01:12
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
