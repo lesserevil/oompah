@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from threading import RLock
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -131,6 +132,7 @@ def test_health_payload_is_persisted_and_restored():
     orchestrator = object.__new__(Orchestrator)
     orchestrator._maintenance_status = {}
     orchestrator._alerts = []
+    orchestrator._alerts_lock = RLock()
     orchestrator._cleanup_error_last = None
     orchestrator._repo_hygiene_thresholds = HealthThresholds()
     payload = {"is_healthy": True, "summary": "retained work is healthy"}
@@ -150,6 +152,7 @@ def test_health_alert_clears_after_safe_cleanup():
     orchestrator = object.__new__(Orchestrator)
     orchestrator._maintenance_status = {}
     orchestrator._alerts = []
+    orchestrator._alerts_lock = RLock()
     orchestrator._cleanup_error_last = None
     orchestrator._repo_hygiene_thresholds = HealthThresholds()
     unhealthy = {"is_healthy": False, "summary": "1 artifact overdue"}
