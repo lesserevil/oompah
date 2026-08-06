@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-05T13:08:50.686371Z'
-updated_at: '2026-08-06T03:51:09.654841Z'
+updated_at: '2026-08-06T03:51:17.794063Z'
 work_branch: OOMPAH-827
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/728
@@ -159,8 +159,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-a4191da2118c
-    applied: false
+    applied: true
     created_at: '2026-08-06T03:51:04.702424+00:00'
+    applied_at: '2026-08-06T03:51:16.520010+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -624,5 +625,29 @@ author: oompah
 created: 2026-08-06 03:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-06 03:51
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 3f14ddd2c64a28da8d9d642d7f9cb7056dd6cc97
+- merge_commit: fe6257b596f79296b11dd4870a62bdbc79159d27
+- merge_pr: 728
+- on_origin_main: true
+- gate_command: make test
+- gate_result: passed
+- gate_duration_s: 659.4
+- classify_def_location: oompah/models.py:1520
+- classify_call_dispatch: oompah/orchestrator.py:31987
+- classify_call_snapshot: oompah/orchestrator.py:39705
+- classify_call_activity: oompah/server.py:14159
+- is_auditor_field_activity: oompah/server.py:14167
+- new_test_file: tests/test_work_kind_classifier.py
+- extended_test_file: tests/test_duplicate_preflight.py
+- merge_diff_stat: 5 files changed, 469 insertions(+), 19 deletions(-)
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T03:38:29.127146Z'
-updated_at: '2026-08-06T03:51:00.132886Z'
+updated_at: '2026-08-06T03:51:22.807098Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,15 @@ author: oompah
 created: 2026-08-06 03:44
 ---
 Additional focused evidence: after the minimal marker, the complete event-driven-loop module passed 60/60 with -n 4, but pytest emitted a destroyed-pending quarantine-worker task from another test in the same module. Include that event-loop cleanup leak in the systemic audit/acceptance rather than treating a warning from normal teardown as healthy. The in-flight OOMPAH-791 workaround remains scoped only to the proven restart-recovery timeout.
+---
+author: oompah
+created: 2026-08-06 03:51
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-06 03:51
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
