@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-08-06T04:52:20.122071Z'
+updated_at: '2026-08-06T04:55:14.038157Z'
 work_branch: OOMPAH-579
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/591
@@ -108,6 +108,29 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-251e79e4565b: '2026-07-30T04:26:50.105440+00:00'
     attempt-7ef7db1b6f50: '2026-07-30T04:40:15.958825+00:00'
+    attempt-8ed80ade4fd0: '2026-08-06T04:55:09.092589+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-579
+    target_state: Archived
+    evidence_fingerprint: 041557e3a675910e9b6b42c59de3d8b97d6b1d0734565d684163e40a0553d4cb
+    audit_ids:
+    - audit-761d8231b229
+    kind: result
+    applied: true
+    retired_at: '2026-08-06T04:55:09.092600+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-579
+    audit_id: audit-761d8231b229
+    attempt_id: attempt-8ed80ade4fd0
+    target_state: Archived
+    evidence_fingerprint: 041557e3a675910e9b6b42c59de3d8b97d6b1d0734565d684163e40a0553d4cb
+    status: Archived
+    audit_ids:
+    - audit-761d8231b229
+    applied: false
+    created_at: '2026-08-06T04:55:09.092615+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -183,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-579
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +215,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8ed80ade4fd0
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -202,13 +225,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-06T04:52:07.255893+00:00'
       branch_key: OOMPAH-579
+      verdict: pass
+      completed_at: '2026-08-06T04:55:09.092402+00:00'
+      ended_at: '2026-08-06T04:55:09.092402+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-06T04:48:57.570868+00:00'
-    updated_at: '2026-08-06T04:52:07.255893+00:00'
+    updated_at: '2026-08-06T04:55:09.092402+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-251e79e4565b
