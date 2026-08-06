@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-837
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Bind epic rollup, delivery, repair, and cleanup to durable handlers
 parent: OOMPAH-804
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:45.984953Z'
-updated_at: '2026-08-06T12:12:07.053514Z'
+updated_at: '2026-08-06T12:13:14.610093Z'
 work_branch: epic-OOMPAH-804--task-OOMPAH-837
 target_branch: null
 review_url: null
@@ -20,14 +20,20 @@ review_head: null
 merged_at: null
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-804--task-OOMPAH-837
-  base_branch: epic-OOMPAH-768--task-OOMPAH-804
-  base_sha: c31b8d32aeeee2fe4de82c9b51614a84f5937770
+  base_branch: epic-OOMPAH-804
+  base_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
   head_sha: ef2120815421b58172d8e034261bf7c8630bfdbd
   submitted_at: '2026-08-06T12:11:48.818035+00:00'
-  updated_at: '2026-08-06T12:11:48.818035+00:00'
+  updated_at: '2026-08-06T12:13:07.405127+00:00'
+  last_error: 'Combined-tree quality gate infrastructure_error: Trusted quality-gate
+    runtime corruption detected; candidate CI was not run: trusted editable source
+    mapping is inconsistent: expected one of [''/home/shedwards/src/oompah''] or immutable
+    candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-sv4ldtjn/workspace;
+    actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-845. Repair or replace
+    the service test runtime before rerunning the branch gate.'
 oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-804--task-OOMPAH-837
 oompah.duplicate_screening:
@@ -193,5 +199,15 @@ author: oompah
 created: 2026-08-06 12:12
 ---
 Repaired the exact-gate-only async resource leak at ef2120815: removed six abandoned sleep coroutine fixtures and made both environment-dependent webhook spawn paths deterministic. Focused submission-fencing, webhook, and epic-rebase suites passed 265 serial and 265 xdist with RuntimeWarning and PytestUnraisableExceptionWarning promoted to errors; secret scan, diff check, and independent review passed.
+---
+author: oompah
+created: 2026-08-06 12:13
+---
+The combined-tree quality gate failed on `epic-OOMPAH-804--task-OOMPAH-837`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+Combined-tree quality gate infrastructure_error: Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-sv4ldtjn/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-845. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
