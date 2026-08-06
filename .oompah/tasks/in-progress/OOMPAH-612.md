@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-08-06T21:14:18.951148Z'
+updated_at: '2026-08-06T21:14:41.485165Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -277,7 +277,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: ee2259da-7068-48eb-82ce-2921bbd25896
+oompah.agent_run_id: f599149f-df28-46bd-a9ac-5ccd2f27e9f5
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-612__20260806T205742Z
@@ -498,5 +498,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 9s
 - Log: OOMPAH-612__20260806T205922Z.jsonl
+---
+author: oompah
+created: 2026-08-06 21:14
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
