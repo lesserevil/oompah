@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T13:57:33.908996Z'
+updated_at: '2026-08-06T14:36:23.061360Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-08-06 13:57
 ---
 Correction to comment 17: the original live worker reproduction was sandbox group 379079 with pytest child 379100, observed for about 68 seconds while validation state showed only the OOMPAH-860 exact-gate owner. It exited before termination. While posting that evidence, operator shell quoting accidentally replayed the same focused module once outside the lease; that separate operator run produced the inserted 36-passed output in 1.77 seconds. Both processes are gone. The worker bypass evidence remains valid, but any OOMPAH-860 gate failure in this run must be evaluated with the brief operator contention disclosed.
+---
+author: oompah
+created: 2026-08-06 14:36
+---
+Additional live evidence from OOMPAH-862 at 2026-08-06 14:35 UTC: a managed Codex worker attempted its focused pytest matrix while OOMPAH-860 owned the auditor lease. The native guard failed before collection because its sandbox could not chmod the external validation lock directory under the read-only service checkout. No competing tests remained running. This is the same fail-closed but unusable external-lock bootstrap surface addressed by this repair; retain the OOMPAH-862 trace as validation evidence.
 ---
 <!-- COMMENTS:END -->
