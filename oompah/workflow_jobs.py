@@ -792,30 +792,40 @@ class WorkflowJobStore:
                 self._conn.rollback()
                 raise
 
-    def allocate_decision_window(self, *, total: int, limit: int) -> int:
+    def allocate_decision_window(
+        self,
+        *,
+        total: int,
+        limit: int,
+        scope: str | None = None,
+    ) -> int:
         """Return and advance a durable fair offset for a bounded task scan."""
 
         if isinstance(total, bool) or int(total) < 1:
             raise ValueError("total must be a positive integer")
         bounded = _bounded_limit(limit)
         count = int(total)
+        key = "workflow_decision_window_offset"
+        if scope is not None:
+            key = f"{key}:{_required_text(scope, 'scope')}"
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 row = self._conn.execute(
                     """
                     SELECT value FROM schema_meta
-                     WHERE key = 'workflow_decision_window_offset'
-                    """
+                     WHERE key = ?
+                    """,
+                    (key,),
                 ).fetchone()
                 offset = (int(row["value"]) if row is not None else 0) % count
                 next_offset = (offset + min(bounded, count)) % count
                 self._conn.execute(
                     """
                     INSERT OR REPLACE INTO schema_meta(key, value)
-                    VALUES('workflow_decision_window_offset', ?)
+                    VALUES(?, ?)
                     """,
-                    (str(next_offset),),
+                    (key, str(next_offset)),
                 )
                 self._conn.commit()
                 return offset

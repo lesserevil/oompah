@@ -22,7 +22,7 @@ import os
 import re
 import threading
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -107,6 +107,20 @@ class WorkflowProjectBinding:
     epic_controller: EpicWorkflowController | None = None
     terminal_audit_workflow: Any | None = None
     transition_journal: TransitionJournal | None = None
+    dispatch_enabled: Callable[[], bool] | None = None
+
+    @property
+    def enabled(self) -> bool:
+        """Whether this project's durable worker may claim new work."""
+
+        if self.dispatch_enabled is None:
+            return True
+        try:
+            return bool(self.dispatch_enabled())
+        except Exception:
+            # Pause/configuration authority is a correctness boundary.  A
+            # failed read must never be interpreted as permission to mutate.
+            return False
 
     @property
     def controllers(self) -> tuple[Any, ...]:
@@ -176,7 +190,11 @@ class _ProjectRoutedHandler:
     """Route one action to the handler bound to the job's exact project."""
 
     def __init__(
-        self, action: str, handlers: Mapping[str, WorkflowActionHandler]
+        self,
+        action: str,
+        handlers: Mapping[str, WorkflowActionHandler],
+        *,
+        project_enabled: Mapping[str, Callable[[], bool]] | None = None,
     ) -> None:
         if not handlers:
             raise ValueError("project-routed handlers cannot be empty")
@@ -190,8 +208,21 @@ class _ProjectRoutedHandler:
                 f"workflow action {action} has inconsistent project handler domains"
             )
         self.domain = domains.pop()
+        self._project_enabled = dict(project_enabled or {})
 
     def _handler(self, context: WorkflowJobContext) -> WorkflowActionHandler:
+        enabled = self._project_enabled.get(context.job.project_id)
+        if enabled is not None:
+            try:
+                may_run = bool(enabled())
+            except Exception:
+                may_run = False
+            if not may_run:
+                raise WorkflowActionError(
+                    "durable workflow project is paused or quiesced",
+                    category=WorkflowFailureCategory.TRANSIENT,
+                    retryable=True,
+                )
         try:
             return self.handlers[context.job.project_id]
         except KeyError as exc:
@@ -242,6 +273,9 @@ class WorkflowRuntime:
         worker: DurableWorkflowWorker | None = None,
         handler_coverage: Mapping[str, Sequence[str]] | None = None,
         abandoned_lease_owners: Sequence[str] = (),
+        topology_signature: tuple[Any, ...] | None = None,
+        topology_source: Callable[[], tuple[Any, ...]] | None = None,
+        topology_change_handler: Callable[[], Any] | None = None,
     ) -> None:
         normalized_mode = str(mode or "off").strip().lower()
         if normalized_mode not in {"off", "shadow", "enforce"}:
@@ -263,6 +297,9 @@ class WorkflowRuntime:
         self._latest_decisions: dict[tuple[str, str], Any] = {}
         self._events: list[WorkflowRuntimeEvent] = []
         self._closed = False
+        self._topology_signature = topology_signature
+        self._topology_source = topology_source
+        self._topology_change_handler = topology_change_handler
         self._abandoned_lease_owners = frozenset(
             str(owner).strip() for owner in abandoned_lease_owners if str(owner).strip()
         )
@@ -280,7 +317,11 @@ class WorkflowRuntime:
         self._handler_coverage = {
             action: normalized_coverage.get(
                 action,
-                frozenset(self.project_bindings) if action in supplied else frozenset(),
+                (
+                    frozenset(self.project_bindings)
+                    if action in supplied and len(self.project_bindings) == 1
+                    else frozenset()
+                ),
             )
             for action in RUNTIME_ACTIONS
         }
@@ -362,6 +403,47 @@ class WorkflowRuntime:
             raise WorkflowRuntimeError(
                 "terminal audit workflow must share the production workflow ledger"
             )
+
+        def topology_source() -> tuple[Any, ...]:
+            """Return the binding-relevant managed-project configuration."""
+
+            current_projects = list(project_store.list_all())
+            if not current_projects:
+                # A legacy tracker is replaced on config reload.  Its identity
+                # is deliberately part of the binding revision so enforce
+                # mode restarts instead of continuing through a stale adapter.
+                return ((LEGACY_PROJECT_ID, id(orchestrator.tracker)),)
+            fields = (
+                "id",
+                "repo_path",
+                "repo_url",
+                "branch",
+                "default_branch",
+                "tracker_kind",
+                "tracker_owner",
+                "tracker_repo",
+                "github_project_node_id",
+                "forge_kind",
+                "forge_base_url",
+                "access_token",
+                "status_actor_login",
+            )
+            return tuple(
+                tuple(getattr(project, field, None) for field in fields)
+                for project in sorted(
+                    current_projects, key=lambda value: str(value.id)
+                )
+            )
+
+        async def topology_change_handler() -> None:
+            restart = getattr(orchestrator, "graceful_restart", None)
+            if not callable(restart):
+                raise WorkflowRuntimeError(
+                    "workflow project bindings changed and require restart"
+                )
+            result = restart(request_id=f"workflow-topology:{uuid.uuid4().hex}")
+            if inspect.isawaitable(result):
+                await result
         configured_mode = mode
         if configured_mode is None:
             configured_mode = getattr(
@@ -395,6 +477,17 @@ class WorkflowRuntime:
         # that adapter is present.
         for project_id, tracker, project in project_rows:
             holder: dict[str, WorkflowProjectBinding] = {}
+
+            def dispatch_enabled(*, _project_id=project_id) -> bool:
+                globally_blocked = getattr(
+                    orchestrator, "_dispatch_is_blocked", None
+                )
+                if callable(globally_blocked) and globally_blocked():
+                    return False
+                project_paused = getattr(orchestrator, "_is_project_paused", None)
+                if callable(project_paused) and project_paused(_project_id):
+                    return False
+                return True
 
             def source(issue: Any, domain: FactDomain, *, _holder=holder) -> Any:
                 binding = _holder.get("binding")
@@ -476,6 +569,7 @@ class WorkflowRuntime:
                 ),
                 terminal_audit_workflow=terminal_workflow,
                 transition_journal=journal,
+                dispatch_enabled=dispatch_enabled,
             )
             holder["binding"] = binding
             bindings[project_id] = binding
@@ -506,7 +600,15 @@ class WorkflowRuntime:
                         binding.project_id
                     ] = handler
             registered_handlers = {
-                action: _ProjectRoutedHandler(action, routed)
+                action: _ProjectRoutedHandler(
+                    action,
+                    routed,
+                    project_enabled={
+                        project_id: binding.dispatch_enabled
+                        for project_id, binding in bindings.items()
+                        if binding.dispatch_enabled is not None
+                    },
+                )
                 for action, routed in project_handlers.items()
             }
             handler_coverage = {
@@ -524,6 +626,9 @@ class WorkflowRuntime:
             abandoned_lease_owners=getattr(
                 orchestrator, "workflow_abandoned_lease_owners", ()
             ),
+            topology_signature=topology_source(),
+            topology_source=topology_source,
+            topology_change_handler=topology_change_handler,
         )
 
     @property
@@ -570,6 +675,10 @@ class WorkflowRuntime:
         if normalized not in {"off", "shadow", "enforce"}:
             raise ValueError("workflow runtime mode must be off, shadow, or enforce")
         with self._lock:
+            if self._started and normalized != self.mode:
+                raise WorkflowRuntimeError(
+                    "workflow runtime mode changes require a graceful service restart"
+                )
             previous = self.mode
             self.mode = normalized
             try:
@@ -698,11 +807,27 @@ class WorkflowRuntime:
 
         if not self._started:
             raise WorkflowRuntimeError("workflow runtime must be started first")
+        if self.mode != "off" and not self._binding_topology_current():
+            raise WorkflowRuntimeError(
+                "workflow project bindings changed and require restart"
+            )
         if self._draining or self.mode == "off":
             return {"mode": self.mode, "skipped": True}
         report: dict[str, Any] = {"mode": self.mode, "projects": {}}
         for project_id, binding in sorted(self.project_bindings.items()):
             try:
+                if not binding.enabled:
+                    with self._lock:
+                        self._latest_decisions = {
+                            key: decision
+                            for key, decision in self._latest_decisions.items()
+                            if key[0] != project_id
+                        }
+                    report["projects"][project_id] = {
+                        "skipped": True,
+                        "reason": "project paused or orchestrator quiesced",
+                    }
+                    continue
                 issues = self._issues(binding)
                 project_report: dict[str, Any] = {"issues": len(issues)}
                 with self._lock:
@@ -787,6 +912,34 @@ class WorkflowRuntime:
     async def reconcile_async(self) -> dict[str, Any]:
         """Async form used by the orchestrator's event-driven scheduler."""
 
+        if self.mode != "off" and self._topology_source is not None:
+            try:
+                current_topology = self._topology_source()
+            except Exception as exc:
+                report = {
+                    "mode": self.mode,
+                    "skipped": True,
+                    "reason": "workflow project binding refresh failed",
+                    "error": type(exc).__name__,
+                }
+            else:
+                report = {
+                    "mode": self.mode,
+                    "skipped": True,
+                    "reason": "workflow project bindings changed",
+                    "restart_requested": True,
+                }
+                if current_topology == self._topology_signature:
+                    report = {}
+            if report:
+                with self._lock:
+                    self._last_reconcile = dict(report)
+                if self._topology_change_handler is not None:
+                    result = self._topology_change_handler()
+                    if inspect.isawaitable(result):
+                        await result
+                return report
+
         report = await asyncio.to_thread(self.reconcile)
         if self._handlers_configured and self.enforce:
             failed_projects = sorted(
@@ -794,28 +947,59 @@ class WorkflowRuntime:
                 for project_id, result in report.get("projects", {}).items()
                 if "error" in result
             )
-            if failed_projects:
+            runnable_projects = sorted(
+                project_id
+                for project_id, result in report.get("projects", {}).items()
+                if "error" not in result and not result.get("skipped", False)
+            )
+            if not runnable_projects:
                 report["worker"] = {
                     "skipped": True,
-                    "reason": "project reconciliation failed",
+                    "reason": (
+                        "no reconciled project is eligible for durable work"
+                    ),
                     "projects": failed_projects,
                 }
             else:
-                report["worker"] = await self._run_due()
+                # A failed project must not stall unrelated healthy projects.
+                # Exact project claims also keep paused projects' queued rows
+                # durable without consuming attempts while they are disabled.
+                report["worker"] = await self._run_due(runnable_projects)
+                if failed_projects:
+                    report["worker"]["failed_projects"] = failed_projects
             with self._lock:
                 self._last_reconcile = report
         return report
 
-    async def _run_due(self) -> dict[str, Any]:
+    async def _run_due(self, project_ids: Sequence[str]) -> dict[str, Any]:
         results: list[Any] = []
-        for _ in range(self.batch_size):
-            result = await self.worker.run_once(
-                actions=tuple(sorted(RUNTIME_ACTIONS)),
-                fair_across_projects=True,
-            )
-            results.append(result)
-            if result.job_id is None:
+        active_projects = list(dict.fromkeys(str(value) for value in project_ids))
+        while active_projects and sum(
+            item.job_id is not None for item in results
+        ) < self.batch_size:
+            progressed = False
+            for project_id in tuple(active_projects):
+                result = await self.worker.run_once(
+                    project_id=project_id,
+                    actions=tuple(sorted(RUNTIME_ACTIONS)),
+                )
+                results.append(result)
+                if result.job_id is None:
+                    active_projects.remove(project_id)
+                else:
+                    progressed = True
+                if sum(item.job_id is not None for item in results) >= self.batch_size:
+                    break
+            if not progressed:
                 break
+        if not results:
+            return {
+                "disposition": "idle",
+                "job_id": None,
+                "state": None,
+                "reason": "no eligible durable workflow project",
+                "processed": 0,
+            }
         result = results[-1]
         return {
             "disposition": result.disposition.value,
@@ -849,6 +1033,14 @@ class WorkflowRuntime:
             rows.append(decision.to_dict())
         return tuple(rows)
 
+    def _binding_topology_current(self) -> bool:
+        if self._topology_source is None:
+            return True
+        try:
+            return self._topology_source() == self._topology_signature
+        except Exception:
+            return False
+
     def health_snapshot(self) -> dict[str, Any]:
         with self._lock:
             last = dict(self._last_reconcile)
@@ -870,6 +1062,7 @@ class WorkflowRuntime:
                 "handlers_configured": self._handlers_configured,
             },
             "last_reconcile": last,
+            "binding_topology_current": self._binding_topology_current(),
             "jobs": self.store.health_snapshot(),
         }
 

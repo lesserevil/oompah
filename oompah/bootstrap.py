@@ -407,6 +407,7 @@ async def setup_services(
         clear_integrated_audit_recovery_alert=(
             orchestrator._clear_integrated_audit_recovery_alert
         ),
+        revoke_auditor_authority=orchestrator._revoke_auditor_authority,
         clear_audit_alert=orchestrator.clear_terminal_audit_alert,
         validate_terminal_transition=orchestrator._validate_terminal_transition,
     )

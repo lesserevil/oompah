@@ -366,6 +366,29 @@
       font-size: 0.68rem;
       color: var(--text-muted);
     }
+    .workflow-decision-summary {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.4rem;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      min-width: 0;
+    }
+    .workflow-decision-owner {
+      flex: 0 0 auto;
+      padding: 0.08rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .workflow-decision-reason {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .duplicate-screening-pill {
       padding: 0.08rem 0.35rem;
       border: 1px solid var(--border);
@@ -2544,6 +2567,8 @@ let orchPaused = false;
 let lastRunningAgents = [];
 let currentProjects = [];
 let ownerClaimsByIssueKey = new Map();
+let workflowProjectionByTaskKey = new Map();
+let workflowProjectionRenderRevision = '';
 let httpAuthEnabled = false;  // HTTP Basic auth status from server state
 
 // --- Edit-state tracking ---
@@ -3658,6 +3683,10 @@ function handleStateUpdate(state) {
 
   const running = state.running || [];
   const ownerClaimsChanged = setOwnerClaims(state.owner_claims || []);
+  const workflowProjectionsChanged = setWorkflowProjections(
+    state.workflow_runtime || null,
+    state.workflow_projections || []
+  );
 
   // Optimistic dispatch update: when a state push contains a newly-running
   // agent, mark the matching issue as In Progress locally and re-render the
@@ -3696,7 +3725,7 @@ function handleStateUpdate(state) {
     // moves the issue between columns and self-clears once the server
     // confirms via the next "issues" push.
   }
-  if ((newDispatchAgents.length > 0 || ownerClaimsChanged) &&
+  if ((newDispatchAgents.length > 0 || ownerClaimsChanged || workflowProjectionsChanged) &&
       !wsApplyingFullSync && boardData && Object.keys(boardData).length > 0) {
     renderBoard(boardData);
   }
@@ -4437,6 +4466,7 @@ function issueFingerprint(issue) {
     terminal_audit: issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary,
     terminal_audit_summary: issue.terminal_audit_summary,
     owner_claim: ownerClaimFor(issue),
+    workflow_projection: workflowProjectionFor(issue),
     attachments: issue.attachments,
     labels: issue.labels,
     has_open_review: issue.has_open_review,
@@ -4448,19 +4478,21 @@ function issueFingerprint(issue) {
 // otherwise create a new card and update the cache.
 function getOrCreateCard(issue) {
   const fp = issueFingerprint(issue);
-  const cached = _cardElementCache.get(issue.identifier);
+  const cacheKey = workflowProjectionKey(issue.project_id, issue.identifier);
+  const cached = _cardElementCache.get(cacheKey);
   if (cached && cached.fp === fp) {
     return cached.el;
   }
   const el = createCard(issue);
-  _cardElementCache.set(issue.identifier, {fp, el});
+  _cardElementCache.set(cacheKey, {fp, el});
   return el;
 }
 
 // Compute an opaque key that encodes all rendering-affecting state OTHER than
 // the board data itself (view mode and swimlane collapsed state).
 function _boardRenderKey() {
-  return viewMode + '|' + JSON.stringify(collapsedSwimlanes);
+  return viewMode + '|' + JSON.stringify(collapsedSwimlanes) + '|' +
+    workflowProjectionRenderRevision;
 }
 
 // Save scrollTop for each .column-body in the board, keyed by data-state.
@@ -4492,7 +4524,9 @@ function reconcileColumnBody(body, issues) {
   // Detect whether any card fingerprint has changed
   const changedFingerprints = issues.some(issue => {
     const fp = issueFingerprint(issue);
-    const cached = _cardElementCache.get(issue.identifier);
+    const cached = _cardElementCache.get(
+      workflowProjectionKey(issue.project_id, issue.identifier)
+    );
     return !cached || cached.fp !== fp;
   });
 
@@ -4895,6 +4929,60 @@ function setOwnerClaims(claims) {
     JSON.stringify(Array.from(ownerClaimsByIssueKey.entries()));
   ownerClaimsByIssueKey = next;
   return changed;
+}
+
+function workflowProjectionKey(projectId, taskId) {
+  return (projectId || '') + String.fromCharCode(0) + (taskId || '');
+}
+
+function setWorkflowProjections(runtime, projections) {
+  const next = new Map();
+  if (runtime && runtime.mode === 'enforce') {
+    for (const projection of (projections || [])) {
+      if (!projection || !projection.task_id) continue;
+      next.set(
+        workflowProjectionKey(projection.project_id, projection.task_id),
+        projection
+      );
+    }
+  }
+  const revision = JSON.stringify(Array.from(next.entries()));
+  if (revision === workflowProjectionRenderRevision) return false;
+  workflowProjectionByTaskKey = next;
+  workflowProjectionRenderRevision = revision;
+  return true;
+}
+
+function workflowProjectionFor(issue) {
+  if (!issue) return null;
+  const scoped = workflowProjectionByTaskKey.get(
+    workflowProjectionKey(issue.project_id, issue.identifier)
+  );
+  if (scoped) return scoped;
+  return issue.project_id ? null : (
+    workflowProjectionByTaskKey.get(
+      workflowProjectionKey('legacy', issue.identifier)
+    ) || null
+  );
+}
+
+function renderWorkflowDecisionSummary(issue) {
+  const projection = workflowProjectionFor(issue);
+  if (!projection) return '';
+  const owner = String(projection.responsible_owner || 'workflow');
+  const reason = String(projection.reason_code || projection.disposition || '');
+  const waits = (projection.unmet_prerequisites || [])
+    .map(item => item && item.subject)
+    .filter(Boolean);
+  const detail = [reason, waits.length ? 'waiting on ' + waits.join(', ') : '']
+    .filter(Boolean)
+    .join(' · ');
+  return `<div class="workflow-decision-summary" role="status"
+    aria-label="Workflow owner ${esc(owner)}: ${esc(detail)}"
+    title="${esc(detail)}">
+    <span class="workflow-decision-owner">${esc(owner)}</span>
+    <span class="workflow-decision-reason">${esc(detail)}</span>
+  </div>`;
 }
 
 function ownerClaimFor(issue) {
@@ -5568,6 +5656,7 @@ function createCard(issue) {
          data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
     <div class="card-desc" contenteditable="true" spellcheck="false"
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
+    ${renderWorkflowDecisionSummary(issue)}
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
     ${renderCardTerminalAuditSummary(issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary)}

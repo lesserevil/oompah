@@ -663,6 +663,36 @@ def test_controller_projects_the_same_reason_it_schedules(tmp_path):
     store.close()
 
 
+def test_bounded_controller_rotates_across_all_eligible_reviews(tmp_path):
+    tasks = [issue(id=f"TASK-{suffix}", identifier=f"TASK-{suffix}") for suffix in "ABC"]
+    by_id = {task.identifier: task for task in tasks}
+
+    class MultiTracker:
+        def fetch_issue_detail(self, identifier):
+            return by_id.get(identifier)
+
+        def fetch_children(self, identifier):
+            return []
+
+    store = WorkflowJobStore(str(tmp_path / "reviews.sqlite3"))
+    controller = ReviewWorkflowController(
+        collector=WorkflowFactCollector(
+            project_id="project-1",
+            tracker=MultiTracker(),
+            sources={FactDomain.REVIEW_CI: lambda _task: {"state": "open"}},
+        ),
+        store=store,
+        decision_limit=1,
+    )
+
+    observed = {
+        controller.evaluate(tasks).tasks[0].task.identifier for _ in range(3)
+    }
+
+    assert observed == {"TASK-A", "TASK-B", "TASK-C"}
+    store.close()
+
+
 def test_older_slow_review_scan_cannot_overwrite_newer_decision(tmp_path):
     task = issue()
     first_started = threading.Event()

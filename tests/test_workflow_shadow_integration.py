@@ -161,6 +161,29 @@ def test_config_reload_changes_shadow_mode_without_dropping_diagnostics(tmp_path
     assert orch.workflow_shadow.summary()["tracked_task_count"] == 1
 
 
+def test_config_reload_rejects_live_runtime_cutover_before_partial_apply(tmp_path):
+    from oompah.workflow_runtime import WorkflowRuntimeError
+
+    orch = orchestrator(tmp_path, mode="shadow")
+    original = orch.config
+
+    class StartedRuntime:
+        def set_mode(self, mode):
+            raise WorkflowRuntimeError("mode changes require restart")
+
+    orch.workflow_runtime = StartedRuntime()
+    replacement = ServiceConfig(
+        workspace_root=str(tmp_path / "replacement"),
+        workflow_engine_mode="enforce",
+    )
+
+    with pytest.raises(WorkflowRuntimeError, match="require restart"):
+        orch.reload_config(replacement, "new prompt")
+
+    assert orch.config is original
+    assert orch.workflow_shadow.mode == "shadow"
+
+
 def test_state_and_websocket_message_share_shadow_summary(tmp_path, monkeypatch):
     tracker = fake_tracker([issue()])
     orch = orchestrator(tmp_path)

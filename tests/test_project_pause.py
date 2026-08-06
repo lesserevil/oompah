@@ -366,10 +366,10 @@ class TestProjectPauseAPI:
         assert self.store.get("proj-api").paused is False
         self.orch.request_refresh.assert_called_once_with()
 
-    def test_pause_endpoint_does_not_request_refresh(self):
+    def test_pause_endpoint_requests_refresh_to_withdraw_durable_work(self):
         res = self.client.post("/api/v1/projects/proj-api/pause")
         assert res.status_code == 200
-        self.orch.request_refresh.assert_not_called()
+        self.orch.request_refresh.assert_called_once_with()
 
     def test_pause_unknown_project_returns_404(self):
         res = self.client.post("/api/v1/projects/proj-nope/pause")

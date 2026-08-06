@@ -432,14 +432,30 @@ class EpicWorkflowController:
         *,
         persist_evidence: bool = True,
     ) -> EpicDecisionBatch:
-        selected = dict(sorted({task.identifier: task for task in tasks}.items()))
-        selected = dict(tuple(selected.items())[: self.decision_limit])
+        # Select from actionable epics before applying the decision bound.
+        # Terminal rows are stable and would otherwise permanently occupy the
+        # same leading window, starving later active epics.
+        selected = list(
+            sorted(
+                {
+                    task.identifier: task
+                    for task in tasks
+                    if str(task.issue_type or "").strip().lower() == "epic"
+                    and canonicalize_status(task.state) not in {MERGED, ARCHIVED}
+                }.items()
+            )
+        )
+        if len(selected) > self.decision_limit:
+            offset = self.store.allocate_decision_window(
+                total=len(selected),
+                limit=self.decision_limit,
+                scope=f"{self.collector.project_id}:epic",
+            )
+            selected = (selected[offset:] + selected[:offset])[
+                : self.decision_limit
+            ]
         evaluated: list[EpicTaskDecision] = []
-        for task in selected.values():
-            if str(task.issue_type or "").strip().lower() != "epic":
-                continue
-            if canonicalize_status(task.state) in {MERGED, ARCHIVED}:
-                continue
+        for _, task in selected:
             prior = dict(self._landings)
             try:
                 persisted = self.store.landing_facts(
