@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-04T13:59:26.773150Z'
-updated_at: '2026-08-06T00:14:38.599678Z'
+updated_at: '2026-08-06T00:21:09.811397Z'
 work_branch: epic-OOMPAH-770--task-OOMPAH-796
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5e122298-13ee-45f4-a1cd-8ecf6d95f6eb
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-770--task-OOMPAH-796
 oompah.integration:
   version: 2
@@ -395,5 +395,10 @@ Gate output:
 ```
 Combined-tree quality gate infrastructure_error: Quality gate owner metadata does not match the exact resolved candidate head.
 ```
+---
+author: oompah
+created: 2026-08-06 00:21
+---
+The 00:14 failure was infrastructure-only: the integration rebase advanced the candidate but retained stale exact-head quality-gate owner metadata. The resulting pushed head 2bc189d706a6afcf7ecc8b2f5ac8a572a93d522b is now based on repaired epic-OOMPAH-770 head 58ffd477b19f370c7ed53a191e1a05580b016c85. Independent range review found only contextual first-commit movement and two identical commits; 113 focused tests, pycompile, diff check, and make check-secrets passed. Resubmitting this exact head without code changes.
 ---
 <!-- COMMENTS:END -->
