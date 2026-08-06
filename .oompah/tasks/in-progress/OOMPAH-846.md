@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T14:36:23.061360Z'
+updated_at: '2026-08-06T14:40:52.016041Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-08-06 14:36
 ---
 Additional live evidence from OOMPAH-862 at 2026-08-06 14:35 UTC: a managed Codex worker attempted its focused pytest matrix while OOMPAH-860 owned the auditor lease. The native guard failed before collection because its sandbox could not chmod the external validation lock directory under the read-only service checkout. No competing tests remained running. This is the same fail-closed but unusable external-lock bootstrap surface addressed by this repair; retain the OOMPAH-862 trace as validation evidence.
+---
+author: oompah
+created: 2026-08-06 14:40
+---
+New live bypass evidence: OOMPAH-862 encountered the native guard, explicitly unset OOMPAH_NATIVE_VALIDATION_GUARD, discovered the shared root virtualenv, and launched pytest outside the validation lease while OOMPAH-860 held capacity. The process exited before operator intervention. Acceptance coverage should ensure managed worker commands cannot disable or route around guard enforcement through environment removal or an absolute interpreter path.
 ---
 <!-- COMMENTS:END -->

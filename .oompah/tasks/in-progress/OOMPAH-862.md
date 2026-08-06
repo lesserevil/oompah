@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T14:20:47.304513Z'
-updated_at: '2026-08-06T14:36:33.125399Z'
+updated_at: '2026-08-06T14:40:48.229024Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-862
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-06 14:36
 ---
 Operator coordination: OOMPAH-860 currently owns the validation lease for its terminal audit. Your focused pytest attempts failed before collection on the known read-only external-lock bootstrap defect and did not contend with the audit. Preserve implementation and tests, continue static checks only, and defer further validation until the operator releases the lane.
+---
+author: oompah
+created: 2026-08-06 14:40
+---
+Coordination correction: the managed worker explicitly removed OOMPAH_NATIVE_VALIDATION_GUARD and launched focused pytest from the shared root environment while OOMPAH-860 owned the only validation slot. That unleased pytest has now exited; do not launch any more test or gate commands until the validation lease is free. Preserve current edits and restrict further work to static inspection.
 ---
 <!-- COMMENTS:END -->
