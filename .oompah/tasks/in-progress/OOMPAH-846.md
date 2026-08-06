@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-06T04:12:19.034116Z'
-updated_at: '2026-08-06T16:02:55.300897Z'
+updated_at: '2026-08-06T16:33:39.286099Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-846
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-08-06 16:02
 ---
 Fresh independent static review ACCEPTED the repaired native-validation guard diff ecde06e4b. The REGISTER/stop race, descriptor ownership and leak paths, handler socket/thread shutdown, copied sealed-memfd rejection, and deterministic regressions were all reviewed with no remaining correctness or security blocker. Validation remains queued behind the active OOMPAH-862 exact gate.
+---
+author: oompah
+created: 2026-08-06 16:33
+---
+Post-OOMPAH-862 composition review rejected the first clean rebase on three concrete gaps: O862 shell helpers consumed O846 segment triples incorrectly; API reuse policy classified before context-aware environment normalization; and the native Codex subscription path still lacked exact-gate reuse policy and telemetry. Repair is reconciling all three with wrapped/env-resolved/subscription regressions before any validation or push.
 ---
 <!-- COMMENTS:END -->
