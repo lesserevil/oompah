@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-858
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Exclude nested-container rollup edges from child integration dependencies
 parent: OOMPAH-763
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-06T09:23:22.752195Z'
-updated_at: '2026-08-06T18:38:44.793716Z'
+updated_at: '2026-08-06T18:38:59.220113Z'
 work_branch: epic-OOMPAH-763--task-OOMPAH-858
 target_branch: null
 review_url: null
@@ -48,12 +48,14 @@ oompah.agent_run_id: 55e9f95c-af4d-471f-9d6d-05eef63f3822
 oompah.work_branch: epic-OOMPAH-763--task-OOMPAH-858
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-763--task-OOMPAH-858
   base_branch: epic-OOMPAH-763
   base_sha: 54c8abf8fb6c85ca30fc62a9450de600a739eb5d
-  updated_at: '2026-08-06T18:25:36.228282+00:00'
+  head_sha: c296b963a2544b701c237481a0dde7bdbb9a4afd
+  submitted_at: '2026-08-06T18:38:51.476510+00:00'
+  updated_at: '2026-08-06T18:38:51.476510+00:00'
 oompah.start_blocked_by: *id001
 oompah.task_costs:
   total_input_tokens: 555
@@ -409,5 +411,10 @@ Delivered scope:
 - Focused suites (865 tests) green including OOMPAH-804/834 deadlock reproduction, project-lock mocks, and task-handoff endpoint fixtures.
 
 Submitting task.
+---
+author: oompah
+created: 2026-08-06 18:38
+---
+Excluded nested-container rollup edges from child integration dependencies (effective_dependencies, integration queue diagnostics, restart recovery, canonical candidate persistence, and cycle repair) and aligned test fixtures and the direct-maintenance submission fallback with the new branch_name/base_branch contract. Focused regressions across container, queue, worker submission, project-lock, and task-handoff suites (865 tests) pass; the OOMPAH-804/834 deadlock scenario is now reproducibly resolvable without status mutation.
 ---
 <!-- COMMENTS:END -->
