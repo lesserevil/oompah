@@ -6,13 +6,12 @@ priority: 1
 title: Bind integration delivery and recovery to exact durable handlers
 parent: OOMPAH-804
 children: []
-blocked_by:
-- OOMPAH-781
+blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-05T16:38:38.407330Z'
-updated_at: '2026-08-05T17:02:33.861404Z'
+updated_at: '2026-08-06T09:33:33.900427Z'
 work_branch: null
 target_branch: null
 review_url: null
